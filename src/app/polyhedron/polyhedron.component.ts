@@ -71,7 +71,7 @@ export class PolyhedronComponent {
       for(let n = 0; n < numFlags; n++) {
         //positions[offset + n*9] = this.audioDataArray[n] - 120 > 0 ? (this.audioDataArray[n] - 120)*1.5 : 5;
         //positions[offset + n*9] = this.audioDataArray[n] - 120 > 0 ? (this.audioDataArray[n] - 120)*3 : (this.audioDataArray[n] - 120)*-3;
-        positions[offset + n*9] = this.audioDataArray[n] > 180 ? (this.audioDataArray[n] - 128)*4  : (this.audioDataArray[n] - 128)*5;
+        positions[offset + n*9] = this.audioDataArray[n] > 160 ? (this.audioDataArray[n] - 147)*5 : this.audioDataArray[n] < 100 ? (this.audioDataArray[n] - 107)*5 : (this.audioDataArray[n] - 127)*5;
         //positions[offset +1 + n*9] = (this.audioDataArray[n] - 128)*5;
       }
 
