@@ -5,12 +5,12 @@ import { PolyhedronComponent } from './polyhedron/polyhedron.component';
 
 const routes: Routes = [
   {
-    path: 'poly',
-    component: PolyhedronComponent
+    path: 'cubes',
+    component: MainComponent
   },
   {
     path: '**',
-    component: MainComponent
+    component: PolyhedronComponent
   }
 ];
 
