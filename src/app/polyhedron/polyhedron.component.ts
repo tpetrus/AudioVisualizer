@@ -18,7 +18,7 @@ export class PolyhedronComponent {
     public flags!: FlagsMesh;
     private readonly axesHelper: boolean = false;
     // Depth*Width must equal a power of 2
-    private readonly flagDepth: number = 16;
+    private readonly flagDepth: number = 4;
     private readonly flagWidth: number = 256;
     public animate = () => {
       requestAnimationFrame(this.animate);
@@ -29,7 +29,6 @@ export class PolyhedronComponent {
     }
 
     public initializeScene() {
-
         this.processAudio();
         this.scene = new THREE.Scene();
 
@@ -52,7 +51,7 @@ export class PolyhedronComponent {
 
         this.camera = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 1, 5000);
 
-        this.camera.position.set(0, 0, 4500);
+        this.camera.position.set(-800, 0, 4500);
 
         new OrbitControls(this.camera, this.renderer.domElement);
 
@@ -69,10 +68,7 @@ export class PolyhedronComponent {
       let geometry = this.flags.geometry;
 
       for(let n = 0; n < numFlags; n++) {
-        //positions[offset + n*9] = this.audioDataArray[n] - 120 > 0 ? (this.audioDataArray[n] - 120)*1.5 : 5;
-        //positions[offset + n*9] = this.audioDataArray[n] - 120 > 0 ? (this.audioDataArray[n] - 120)*3 : (this.audioDataArray[n] - 120)*-3;
-        positions[offset + n*9] = this.audioDataArray[n] > 160 ? (this.audioDataArray[n] - 147)*5 : this.audioDataArray[n] < 100 ? (this.audioDataArray[n] - 107)*5 : (this.audioDataArray[n] - 127)*5;
-        //positions[offset +1 + n*9] = (this.audioDataArray[n] - 128)*5;
+        positions[offset + n*9] = this.audioDataArray[n] > 160 || this.audioDataArray[n] < 100 ? ((this.audioDataArray[n] + 100000)/2 - 50064)*4 : (this.audioDataArray[n] - 128)*5.5;
       }
 
       geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
