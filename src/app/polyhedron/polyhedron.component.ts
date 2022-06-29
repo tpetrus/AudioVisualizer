@@ -68,7 +68,8 @@ export class PolyhedronComponent {
       let geometry = this.flags.geometry;
 
       for(let n = 0; n < numFlags; n++) {
-        positions[offset + n*9] = this.audioDataArray[n] > 160 || this.audioDataArray[n] < 100 ? ((this.audioDataArray[n] + 100000)/2 - 50064)*4 : (this.audioDataArray[n] - 128)*5.5;
+        positions[offset + n*9] = this.audioDataArray[n] > 175 || this.audioDataArray[n] < 85 ? ((this.audioDataArray[n] + 1000000)/2 - 500064)*5 : (this.audioDataArray[n] - 128)*6;
+        //positions[offset + n*9] = (this.audioDataArray[n] - 128)*6;
       }
 
       geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );
