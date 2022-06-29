@@ -90,6 +90,12 @@ export class FlagsMesh {
         if(material) {
             this.material = material;
         }
+        if(blockSize) {
+            this.blockSize = blockSize;
+        }
+        if(distance) {
+            this.distance = distance;
+        }
         if(positions){
             this.positions = positions;
         }
