@@ -19,7 +19,8 @@ export class AudioService {
     }
 
     constructor() {
-          this.generateAudioStream().then((stream) => {
+      this.getMediaDevices().then(stream => {console.log(stream)});
+      this.generateAudioStream().then((stream) => {
             console.log(stream.getAudioTracks());
           this.audioStream = stream;
           this.audioContext = new AudioContext();
