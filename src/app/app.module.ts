@@ -5,13 +5,11 @@ import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { PolyhedronComponent } from './polyhedron/polyhedron.component';
 import { AudioService } from './services/audio.service';
-import { AudioSelectionComponent } from './audio-selection/audio-selection.component';
 
 @NgModule({
   declarations: [
     AppComponent,
-    PolyhedronComponent,
-    AudioSelectionComponent
+    PolyhedronComponent
   ],
   imports: [
     BrowserModule,

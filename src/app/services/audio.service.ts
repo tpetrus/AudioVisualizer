@@ -19,14 +19,12 @@ export class AudioService {
     }
 
     constructor() {
-      this.getMediaDevices().then(stream => {console.log(stream)});
       this.generateAudioStream().then((stream) => {
-            console.log(stream.getAudioTracks());
-          this.audioStream = stream;
-          this.audioContext = new AudioContext();
-          this.analyser = this.audioContext.createAnalyser();
-          this.source = this.audioContext.createMediaStreamSource(stream);
-          this.source.connect(this.analyser);
+        this.audioStream = stream;
+        this.audioContext = new AudioContext();
+        this.analyser = this.audioContext.createAnalyser();
+        this.source = this.audioContext.createMediaStreamSource(stream);
+        this.source.connect(this.analyser);
       });
     }
 
