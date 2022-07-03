@@ -1,5 +1,4 @@
 import { Component } from "@angular/core";
-import { ActivatedRoute } from "@angular/router";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { AudioService } from "../services/audio.service";
