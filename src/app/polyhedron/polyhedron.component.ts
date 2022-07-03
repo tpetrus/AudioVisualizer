@@ -10,7 +10,7 @@ import { FlagsMesh } from "src/assets/meshes/flags.mesh";
   styleUrls: ['./polyhedron.component.scss']
 })
 export class PolyhedronComponent {
-    private readonly axesHelper: boolean = true;
+    private readonly axesHelper: boolean = false;
     private readonly showFrequency: boolean = false;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
@@ -93,7 +93,7 @@ export class PolyhedronComponent {
 
         //positions[offset+3 + n*9] = this.fourierData[n] > 175 || this.fourierData[n] < 85 ? ((this.fourierData[n] + 1000000)/2 - 500064)*3 : (this.fourierData[n] - 128)*5;
 
-        positions[offset+3 + n*9] = (this.fourierData[n] - 128)*6 - (this.fourierData[n] - 128)*2;
+        positions[offset+3 + n*9] = (this.fourierData[n] - 128)*6 - (this.fourierData[n] - 128)*3;
         // positions[offset+6 + n*9] = (this.fourierData[n] - 128)*6;
       }
 
