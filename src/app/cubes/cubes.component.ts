@@ -4,11 +4,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { AudioService } from "../services/audio.service";
 
 @Component({
-    selector: 'main',
-    templateUrl: './main.component.html',
-    styleUrls: ['./main.component.scss']
+    selector: 'cubes',
+    templateUrl: './cubes.component.html',
+    styleUrls: ['./cubes.component.scss']
   })
-export class MainComponent {
+export class CubesComponent {
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
     public renderer!: THREE.WebGLRenderer;

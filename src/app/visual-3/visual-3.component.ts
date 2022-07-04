@@ -5,13 +5,13 @@ import { AudioService } from "../services/audio.service";
 import { FlagsMesh } from "src/assets/meshes/flags.mesh";
 
 @Component({
-  selector: 'app-polyhedron',
-  templateUrl: './polyhedron.component.html',
-  styleUrls: ['./polyhedron.component.scss']
+  selector: 'app-visual-3',
+  templateUrl: './visual-3.component.html',
+  styleUrls: ['./visual-3.component.scss']
 })
-export class PolyhedronComponent {
+export class Visual3Component {
     private readonly axesHelper: boolean = false;
-    private readonly showFrequency: boolean = false;
+    private readonly showFrequency: boolean = true;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
     public renderer!: THREE.WebGLRenderer;
@@ -87,14 +87,7 @@ export class PolyhedronComponent {
       let geometry = this.fourier.geometry;
 
       for(let n = 0; n < numFlags; n++) {
-        //positions[offset + n*9] = this.fourierData[n] > 175 || this.fourierData[n] < 85 ? ((this.fourierData[n] + 1000000)/2 - 500064)*3 : (this.fourierData[n] - 128)*5;
-        //positions[offset+3 + n*9] = this.fourierData[n] > 175 || this.fourierData[n] < 85 ? ((this.fourierData[n] + 1000000)/2 - 500064)*3 : (this.fourierData[n] - 128)*5;
-        //positions[offset+6 + n*9] = this.fourierData[n] > 175 || this.fourierData[n] < 85 ? ((this.fourierData[n] + 1000000)/2 - 500064)*3 : (this.fourierData[n] - 128)*5;
-
-        //positions[offset+3 + n*9] = this.fourierData[n] > 175 || this.fourierData[n] < 85 ? ((this.fourierData[n] + 1000000)/2 - 500064)*3 : (this.fourierData[n] - 128)*5;
-
-        positions[offset+3 + n*9] = (this.fourierData[n] - 128)*6 - (this.fourierData[n] - 128)*3;
-        // positions[offset+6 + n*9] = (this.fourierData[n] - 128)*6;
+        positions[offset+3 + n*9] = (this.fourierData[n] - 128)*5.5 - (this.fourierData[n] - 128)*3;
       }
 
       geometry.setAttribute( 'position', new THREE.Float32BufferAttribute( positions, 3 ) );

@@ -1,5 +1,5 @@
-import { fragmentShader } from 'src/app/polyhedron/lib/fragment-shaders';
-import { vertexShader } from 'src/app/polyhedron/lib/vertex-shaders';
+import { fragmentShader } from './lib/fragment-shaders';
+import { vertexShader } from './lib/vertex-shaders';
 import * as THREE from 'three';
 
 export class FlagsMesh {

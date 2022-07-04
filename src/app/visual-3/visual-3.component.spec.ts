@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { PolyhedronComponent } from './polyhedron.component';
+import { PolyhedronComponent } from './visual-3.component';
 
 describe('PolyhedronComponent', () => {
   let component: PolyhedronComponent;
