@@ -1,14 +1,19 @@
-<div class="d-flex my-3 flex-column justify-content-center">
-    <h1 class="mx-auto text-light">
-        AudioVisualizer
-    </h1>
-    <h3 class="mx-auto text-light">
-        Dashboard
-    </h3>
+<div class="d-flex my-5 flex-column justify-content-center">
+    <img class="title mx-auto my-3" src="assets/logos/title.png">
 </div>
 
-<div class="d-flex justify-content-evenly d-flex mx-5">
-    <div class="square m-2 flex-fill" [style.background-image]="'url(assets/visualization-images/cubes.png)'" (click)="onVisualizationClick('cubes')"></div>
-    <div class="square m-2 flex-fill" [style.background-image]="'url(assets/visualization-images/basic-color-wave.png)'" (click)="onVisualizationClick('basic-color-wave')"></div>
-    <div class="square m-2 flex-fill" [style.background-image]="'url(assets/visualization-images/coming-soon.png)'"></div>
+<div class="d-flex justify-content-evenly d-flex">
+    <div class="square flex-fill" [style.background-image]="'url(assets/visualization-images/cubes.png)'" (click)="onVisualizationClick('cubes')"></div>
+    <div class="square flex-fill" [style.background-image]="'url(assets/visualization-images/basic-color-wave.png)'" (click)="onVisualizationClick('basic-color-wave')"></div>
+    <div class="square-unused flex-fill" [style.background-image]="'url(assets/visualization-images/coming-soon.png)'"></div>
+</div>
+<div class="d-flex justify-content-evenly d-flex">
+    <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
+    <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
+    <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
+</div>
+<div class="d-flex justify-content-evenly d-flex">
+    <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
+    <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
+    <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
 </div>
