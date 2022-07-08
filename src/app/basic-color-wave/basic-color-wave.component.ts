@@ -40,7 +40,7 @@ export class BasicColorWaveComponent {
     }
 
     public initializeScene() {
-        this.processAudio();
+        this.initializeAudio();
         this.container = document.getElementById('container');
         this.scene = new THREE.Scene();
 
@@ -143,7 +143,7 @@ export class BasicColorWaveComponent {
       return colorValues;
   }
 
-    public processAudio() {
+    public initializeAudio() {
       this.audio.fftSize = this.flagDepth*this.flagWidth*2;
       this.audio.smoothingTimeConstant = 0;
       var bufferLength = this.audio.frequencyBinCount;
@@ -158,7 +158,7 @@ export class BasicColorWaveComponent {
         if(analyser) {
             this.audio = analyser;
             this.initializeScene();
-            this.processAudio();
+            this.initializeAudio();
             this.animate();
         }
       });
