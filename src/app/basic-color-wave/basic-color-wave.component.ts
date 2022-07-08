@@ -12,6 +12,7 @@ import { FlagsMesh } from "src/assets/meshes/flags.mesh";
 export class BasicColorWaveComponent {
     private readonly axesHelper: boolean = false;
     private readonly showFrequency: boolean = true;
+    public container!: HTMLElement | null;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
     public renderer!: THREE.WebGLRenderer;
@@ -40,6 +41,7 @@ export class BasicColorWaveComponent {
 
     public initializeScene() {
         this.processAudio();
+        this.container = document.getElementById('container');
         this.scene = new THREE.Scene();
 
         this.renderer = new THREE.WebGLRenderer();
@@ -78,7 +80,7 @@ export class BasicColorWaveComponent {
 
         this.renderer.shadowMap.enabled = true;
 
-        document.body.appendChild(this.renderer.domElement);
+        this.container?.appendChild(this.renderer.domElement);
     }
 
     public animateFourierMesh() {

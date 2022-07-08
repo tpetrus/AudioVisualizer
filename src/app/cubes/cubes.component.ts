@@ -9,6 +9,7 @@ import { AudioService } from "../services/audio.service";
     styleUrls: ['./cubes.component.scss']
   })
 export class CubesComponent {
+    public container!: HTMLElement | null;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
     public renderer!: THREE.WebGLRenderer;
@@ -20,6 +21,7 @@ export class CubesComponent {
     public cubeArray: THREE.Mesh[] = [];
 
     public initializeScene() {
+        this.container = document.getElementById('container');
         this.scene = new THREE.Scene();
 
         this.renderer = new THREE.WebGLRenderer();
@@ -49,7 +51,7 @@ export class CubesComponent {
 
         this.renderer.shadowMap.enabled = true;
 
-        document.body.appendChild(this.renderer.domElement);
+        this.container?.appendChild(this.renderer.domElement);
     }
 
     public processAudio() {
