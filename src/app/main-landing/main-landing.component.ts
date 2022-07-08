@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-main-landing',
@@ -6,6 +7,14 @@ import { Component } from '@angular/core';
   styleUrls: ['./main-landing.component.scss']
 })
 export class MainLandingComponent  {
+  public readonly BASIC_COLOR_WAVE_URL = "assets/visualization-images/basic-color-wave.png";
+  public _router: Router;
 
-  constructor() { }
+  constructor(router: Router) { 
+    this._router = router;
+  }
+
+  public onVisualizationClick(pageUrl: string) {
+    this._router.navigateByUrl(pageUrl);
+  }
 }
