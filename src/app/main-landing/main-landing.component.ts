@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
 import { Font, FontLoader } from 'three/examples/jsm/loaders/FontLoader';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
+import { rainbowStrobeAnimation } from '../utilities/color-animations';
 
 @Component({
   selector: 'app-main-landing',
@@ -19,6 +20,7 @@ export class MainLandingComponent implements OnDestroy {
   public titleSize: string = '25%';
   public container!: HTMLElement | null;
   public camera!: THREE.PerspectiveCamera;
+  public light!: THREE.DirectionalLight;
   public scene!: THREE.Scene;
   public renderer!: THREE.WebGLRenderer;
   public font!: Font;
@@ -27,6 +29,7 @@ export class MainLandingComponent implements OnDestroy {
   public animationId!: number;
   public animate = () => {
     this.animationId = requestAnimationFrame(this.animate);
+    //rainbowStrobeAnimation(this.light!.color);
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -34,38 +37,34 @@ export class MainLandingComponent implements OnDestroy {
         this.container = document.getElementById('title');
 
 				// CAMERA
-				this.camera = new THREE.PerspectiveCamera( 30, this.container!.clientWidth / this.container!.clientHeight, 1, 1500 );
-				this.camera.position.set( 0, 0, 200 );
+				this.camera = new THREE.PerspectiveCamera( 30, window.innerWidth / this.container!.clientHeight, 1, 1500 );
+				this.camera.position.set( 0, 0, 150 );
 
 				// SCENE
 
-				this.scene = new THREE.Scene();
+				 this.scene = new THREE.Scene();
 				this.scene.background = new THREE.Color( 0x000000 );
 				this.scene.fog = new THREE.Fog( 0xffffff, 0, 1100);
 
 				// LIGHTS
 
-				const dirLight = new THREE.DirectionalLight( 0xffffff, 3 );
-				dirLight.position.set( 0, 0, 1 ).normalize();
-				this.scene.add( dirLight );
+				this.light = new THREE.DirectionalLight( 0x0003ff, 3 );
+				this.light.position.set( 0, 0, 1 ).normalize();
+				this.scene.add( this.light );
 
-				const pointLight = new THREE.PointLight( 0xffffff, 1 );
-				pointLight.position.set( 0, 100, 20 );
-				this.scene.add( pointLight );
-
-        this.loadFont();
+        this.generateText();
         //this.scene.add(new THREE.AxesHelper(10));
 
         // RENDERER
 
         this.renderer = new THREE.WebGLRenderer();
-        this.renderer.setSize(this.container!.clientWidth, this.container!.clientHeight);
+        this.renderer.setSize(window.innerWidth, this.container!.clientHeight);
         this.renderer.physicallyCorrectLights = true;
 				this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
 				this.container?.appendChild( this.renderer.domElement );
 
-        new OrbitControls(this.camera, this.renderer.domElement);
+        //new OrbitControls(this.camera, this.renderer.domElement);
   }
 
   public onVisualizationClick(pageUrl: string) {
@@ -84,17 +83,15 @@ export class MainLandingComponent implements OnDestroy {
     this.audio.getByteTimeDomainData(this.fourierData);
   }
 
-  public loadFont() {
+  public generateText() {
     const loader = new FontLoader();
     loader.load( 'assets/fonts/paladins_gradient.json', (response) => {
       this.font = response;
-      this.createText();
+      this.createTextMesh();
     });
   }
 
-
-  public createText() {
-    this.loadFont();
+  public createTextMesh() {
     this.textGeometry = new TextGeometry('AudioVisualizer', {
       font: this.font,
       size: 10
