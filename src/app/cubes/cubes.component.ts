@@ -1,4 +1,4 @@
-import { Component } from "@angular/core";
+import { Component, OnDestroy } from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { AudioService } from "../services/audio.service";
@@ -8,7 +8,7 @@ import { AudioService } from "../services/audio.service";
     templateUrl: './cubes.component.html',
     styleUrls: ['./cubes.component.scss']
   })
-export class CubesComponent {
+export class CubesComponent implements OnDestroy{
     public container!: HTMLElement | null;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
@@ -19,6 +19,7 @@ export class CubesComponent {
     public cube2!: THREE.Mesh;
     public hemiLight!: THREE.HemisphereLight;
     public cubeArray: THREE.Mesh[] = [];
+    public animationId!: number;
 
     public initializeScene() {
         this.container = document.getElementById('container');
@@ -37,7 +38,7 @@ export class CubesComponent {
         light.position.set(-10, 0, 10).normalize();
         this.scene.add(light2);
 
-        this.scene.add(new THREE.AxesHelper(10))
+        this.scene.add(new THREE.AxesHelper(10));
 
         this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 500);
         this.camera.position.set(0, 0, 20);
@@ -92,7 +93,7 @@ export class CubesComponent {
         private readonly _audioService: AudioService
     ) {
         const animate = () => {
-            requestAnimationFrame(animate);
+            this.animationId = requestAnimationFrame(animate);
 
             this.animateCubes();
 
@@ -107,5 +108,10 @@ export class CubesComponent {
                 animate();
             }
         });
+    }
+
+    public ngOnDestroy(): void {
+        this.scene.clear();
+        cancelAnimationFrame(this.animationId);
     }
 }

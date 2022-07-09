@@ -1,4 +1,4 @@
-import { Component } from "@angular/core";
+import { Component, OnDestroy } from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { AudioService } from "../services/audio.service";
@@ -9,7 +9,7 @@ import { FlagsMesh } from "src/assets/meshes/flags.mesh";
   templateUrl: './basic-color-wave.component.html',
   styleUrls: ['./basic-color-wave.component.scss']
 })
-export class BasicColorWaveComponent {
+export class BasicColorWaveComponent implements OnDestroy {
     private readonly axesHelper: boolean = false;
     private readonly showFrequency: boolean = true;
     public container!: HTMLElement | null;
@@ -28,8 +28,9 @@ export class BasicColorWaveComponent {
     private readonly numFlags: number = this.flagDepth*this.flagWidth;
     private readonly flagSize: number = 5;
     private readonly flagDistance: number = 10;
+    public animationId!: number;
     public animate = () => {
-      requestAnimationFrame(this.animate);
+      this.animationId = requestAnimationFrame(this.animate);
 
       this.animateFourierMesh();
       if(this.showFrequency){ 
@@ -162,5 +163,10 @@ export class BasicColorWaveComponent {
             this.animate();
         }
       });
+    }
+
+    ngOnDestroy(): void {
+      this.scene.clear();
+      cancelAnimationFrame(this.animationId);
     }
 }
