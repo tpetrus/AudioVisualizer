@@ -159,7 +159,9 @@ export class BasicColorWaveComponent implements OnDestroy {
     }
 
     ngOnDestroy(): void {
-      this.scene.clear();
-      cancelAnimationFrame(this.animationId);
+      if(this.scene && this.animationId) {
+        this.scene.clear();
+        cancelAnimationFrame(this.animationId);
+      }
     }
 }
