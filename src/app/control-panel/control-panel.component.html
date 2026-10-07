@@ -1,0 +1,20 @@
+<div class="panel">
+    <button class="toggle" (click)="collapsed = !collapsed">
+        {{ collapsed ? '☰ Settings' : '✕ Close' }}
+    </button>
+    <div class="body" *ngIf="!collapsed">
+        <div class="row" *ngFor="let control of controls">
+            <label [attr.for]="control.key">{{ control.label }}</label>
+            <ng-container [ngSwitch]="control.type">
+                <input *ngSwitchCase="'range'" type="range" [id]="control.key" [min]="control.min" [max]="control.max"
+                    [step]="control.step" [value]="control.value" (input)="control.value = +asInput($event).value">
+                <input *ngSwitchCase="'checkbox'" type="checkbox" [id]="control.key" [checked]="!!control.value"
+                    (change)="control.value = asInput($event).checked">
+                <input *ngSwitchCase="'color'" type="color" [id]="control.key" [value]="control.value"
+                    (input)="control.value = asInput($event).value">
+            </ng-container>
+            <span class="value" *ngIf="control.type === 'range'">{{ control.value }}</span>
+        </div>
+        <button class="reset" (click)="reset()">Reset</button>
+    </div>
+</div>

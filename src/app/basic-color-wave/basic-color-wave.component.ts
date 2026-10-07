@@ -2,6 +2,8 @@ import { Component, OnDestroy } from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { AudioService } from "../services/audio.service";
+import { VisualizerControl } from "../control-panel/control-panel.component";
+import { controlValue } from "../control-panel/controls";
 import { FlagsMesh } from "src/assets/meshes/flags.mesh";
 
 @Component({
@@ -11,7 +13,6 @@ import { FlagsMesh } from "src/assets/meshes/flags.mesh";
 })
 export class BasicColorWaveComponent implements OnDestroy {
   private readonly axesHelper: boolean = false;
-  private readonly showFrequency: boolean = true;
   public container!: HTMLElement | null;
   public scene!: THREE.Scene;
   public camera!: THREE.PerspectiveCamera;
@@ -29,11 +30,19 @@ export class BasicColorWaveComponent implements OnDestroy {
   private readonly flagSize: number = 5;
   private readonly flagDistance: number = 10;
   public animationId!: number;
+  public controls: VisualizerControl[] = [
+    { key: 'waveAmplitude', label: 'Wave amplitude', type: 'range', min: 0, max: 5, step: 0.1, value: 2.5 },
+    { key: 'frequencyScale', label: 'Frequency scale', type: 'range', min: 0, max: 3, step: 0.1, value: 1 },
+    { key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0 },
+    { key: 'showFrequency', label: 'Show frequency', type: 'checkbox', value: true },
+  ];
   public animate = () => {
     this.animationId = requestAnimationFrame(this.animate);
 
+    this.audio.smoothingTimeConstant = controlValue<number>(this.controls, 'smoothing');
+    this.frequency.mesh.visible = controlValue<boolean>(this.controls, 'showFrequency');
     this.animateFourierMesh();
-    if (this.showFrequency) {
+    if (this.frequency.mesh.visible) {
       this.animateFrequencyMesh();
     }
 
@@ -69,9 +78,7 @@ export class BasicColorWaveComponent implements OnDestroy {
 
     this.frequency.mesh.position.set(-this.flagWidth * this.flagSize / 2, 0, -50);
 
-    if (this.showFrequency) {
-      this.scene.add(this.frequency.mesh);
-    }
+    this.scene.add(this.frequency.mesh);
 
     this.camera = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 1, 5000);
 
@@ -87,12 +94,13 @@ export class BasicColorWaveComponent implements OnDestroy {
   public animateFourierMesh() {
     this.audio.getByteTimeDomainData(this.fourierData);
     let offset = 1;
+    const amplitude = controlValue<number>(this.controls, 'waveAmplitude');
     let numFlags = this.fourier.getNumberOfFlags();
     let positions = this.fourier.positions;
     let geometry = this.fourier.geometry;
 
     for (let n = 0; n < numFlags; n++) {
-      positions[offset + 3 + n * 9] = (this.fourierData[n] - 128) * 5.5 - (this.fourierData[n] - 128) * 3;
+      positions[offset + 3 + n * 9] = (this.fourierData[n] - 128) * amplitude;
     }
 
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
@@ -101,12 +109,13 @@ export class BasicColorWaveComponent implements OnDestroy {
   public animateFrequencyMesh() {
     this.audio.getByteFrequencyData(this.frequencyData);
     let offset = 4;
+    const scale = controlValue<number>(this.controls, 'frequencyScale');
     let numFlags = this.frequency.getNumberOfFlags();
     let positions = this.frequency.positions;
     let geometry = this.frequency.geometry;
 
     for (let n = 0; n < numFlags; n++) {
-      positions[offset + n * 9] = this.frequencyData[n];
+      positions[offset + n * 9] = this.frequencyData[n] * scale;
     }
 
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));

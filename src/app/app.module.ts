@@ -6,11 +6,15 @@ import { AppComponent } from './app.component';
 import { BasicColorWaveComponent } from './basic-color-wave/basic-color-wave.component';
 import { AudioService } from './services/audio.service';
 import { MainLandingComponent } from './main-landing/main-landing.component';
+import { CubesComponent } from './cubes/cubes.component';
+import { ControlPanelComponent } from './control-panel/control-panel.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     BasicColorWaveComponent,
+    CubesComponent,
+    ControlPanelComponent,
     MainLandingComponent
   ],
   imports: [

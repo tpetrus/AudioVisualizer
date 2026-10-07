@@ -2,6 +2,8 @@ import { Component, OnDestroy } from "@angular/core";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { AudioService } from "../services/audio.service";
+import { VisualizerControl } from "../control-panel/control-panel.component";
+import { controlValue } from "../control-panel/controls";
 
 @Component({
     selector: 'cubes',
@@ -20,6 +22,16 @@ export class CubesComponent implements OnDestroy {
     public hemiLight!: THREE.HemisphereLight;
     public cubeArray: THREE.Mesh[] = [];
     public animationId!: number;
+    private axes!: THREE.AxesHelper;
+    private appliedColor = '';
+    public controls: VisualizerControl[] = [
+        { key: 'sensitivity', label: 'Sensitivity', type: 'range', min: 20, max: 200, step: 1, value: 70 },
+        { key: 'threshold', label: 'Noise gate', type: 'range', min: 128, max: 160, step: 1, value: 130 },
+        { key: 'rotation', label: 'Rotation speed', type: 'range', min: 0, max: 0.1, step: 0.005, value: 0.01 },
+        { key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0 },
+        { key: 'color', label: 'Cube color', type: 'color', value: '#8826c7' },
+        { key: 'axes', label: 'Show axes', type: 'checkbox', value: true },
+    ];
 
     public initializeScene() {
         this.container = document.getElementById('container');
@@ -38,7 +50,8 @@ export class CubesComponent implements OnDestroy {
         light.position.set(-10, 0, 10).normalize();
         this.scene.add(light2);
 
-        this.scene.add(new THREE.AxesHelper(10));
+        this.axes = new THREE.AxesHelper(10);
+        this.scene.add(this.axes);
 
         this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 500);
         this.camera.position.set(0, 0, 20);
@@ -72,19 +85,25 @@ export class CubesComponent implements OnDestroy {
     }
 
     public animateCubes() {
+        const sensitivity = controlValue<number>(this.controls, 'sensitivity');
+        const threshold = controlValue<number>(this.controls, 'threshold');
+        const rotation = controlValue<number>(this.controls, 'rotation');
+        const color = controlValue<string>(this.controls, 'color');
+
+        this.audio.smoothingTimeConstant = controlValue<number>(this.controls, 'smoothing');
+        this.axes.visible = controlValue<boolean>(this.controls, 'axes');
         this.audio.getByteTimeDomainData(this.audioDataArray);
+
+        const colorChanged = color !== this.appliedColor;
+        this.appliedColor = color;
 
         this.cubeArray.forEach((cube, index) => {
             let value = this.audioDataArray[index];
-            if (value < 130) {
-                cube.position.z = 1;
-                cube.rotation.x += .01;
-                cube.rotation.y += .01;
-            }
-            else {
-                cube.position.z = value / 70;
-                cube.rotation.x += .01;
-                cube.rotation.y += .01;
+            cube.position.z = value < threshold ? 1 : value / sensitivity;
+            cube.rotation.x += rotation;
+            cube.rotation.y += rotation;
+            if (colorChanged) {
+                (cube.material as THREE.MeshLambertMaterial).color.set(color);
             }
         })
     }
