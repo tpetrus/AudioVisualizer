@@ -1,5 +1,6 @@
 import { Injectable } from "@angular/core";
-import { Observable } from "rxjs";
+import { Observable, ReplaySubject } from "rxjs";
+import { delay } from "rxjs/operators";
 
 @Injectable({
     providedIn: 'root'
@@ -7,34 +8,35 @@ import { Observable } from "rxjs";
 export class AudioService {
     private audioStream: MediaStream | undefined;
     private audioContext: AudioContext | undefined;
-    private analyser!: AnalyserNode;
+    private analyser: AnalyserNode | undefined;
     private source: MediaStreamAudioSourceNode | undefined;
+    private analyser$ = new ReplaySubject<AnalyserNode>(1);
 
-    public async generateAudioStream(): Promise<MediaStream> {
-        return await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    }
+    // Captures whatever the computer is playing (system/tab audio). Must be called from a user gesture.
+    public async startCapture(): Promise<void> {
+      if (this.analyser) {
+        return;
+      }
 
-    public async getMediaDevices(): Promise<MediaDeviceInfo[]> {
-      return await navigator.mediaDevices.enumerateDevices();
-    }
+      const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach(track => track.stop());
+        throw new Error('No audio was shared. Choose a screen or tab and enable "Share system audio".');
+      }
 
-    constructor() {
-      this.generateAudioStream().then((stream) => {
-        this.audioStream = stream;
-        this.audioContext = new AudioContext();
-        this.analyser = this.audioContext.createAnalyser();
-        this.source = this.audioContext.createMediaStreamSource(stream);
-        this.source.connect(this.analyser);
-      });
+      // Only audio is needed; drop the video track.
+      stream.getVideoTracks().forEach(track => track.stop());
+
+      this.audioStream = stream;
+      this.audioContext = new AudioContext();
+      this.analyser = this.audioContext.createAnalyser();
+      this.source = this.audioContext.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+      this.source.connect(this.analyser);
+      this.analyser$.next(this.analyser);
     }
 
     public getAnalyser(): Observable<AnalyserNode> {
-            let analyserObservable = new Observable<AnalyserNode>(observer => {
-              setTimeout(() => {
-                observer.next(this.analyser);
-              }, 1000);
-            });
-        
-            return analyserObservable;
+      // Delay so subscribers (which build their scene in the constructor) run after their view has rendered.
+      return this.analyser$.pipe(delay(0));
     }
 }

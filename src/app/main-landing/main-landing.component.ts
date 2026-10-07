@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy } from '@angular/core';
+import { AfterViewInit, Component, HostListener, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AudioService } from '../services/audio.service';
 import * as THREE from 'three';
@@ -12,7 +12,9 @@ import { rainbowStrobeAnimation } from '../utilities/color-animations';
   templateUrl: './main-landing.component.html',
   styleUrls: ['./main-landing.component.scss']
 })
-export class MainLandingComponent implements OnDestroy {
+export class MainLandingComponent implements AfterViewInit, OnDestroy {
+  public captureStarted = false;
+  public captureError = '';
   public readonly BASIC_COLOR_WAVE_URL = "assets/visualization-images/basic-color-wave.png";
   public _router: Router;
   public audio!: AnalyserNode;
@@ -76,6 +78,9 @@ export class MainLandingComponent implements OnDestroy {
   }
 
   public onVisualizationClick(pageUrl: string) {
+    if (!this.captureStarted) {
+      return;
+    }
     this._router.navigateByUrl(pageUrl);
   }
 
@@ -126,16 +131,27 @@ export class MainLandingComponent implements OnDestroy {
     this.scene.add(this.textMesh);
   }
 
-  constructor(router: Router, audioService: AudioService) {
+  constructor(router: Router, private readonly _audioService: AudioService) {
     this._router = router;
-    audioService.getAnalyser().subscribe(async analyser => {
-      if(analyser) {
-          this.audio = analyser;
-          this.initializeAudio();
-          this.initializeScene();
-          this.animate();
-      }
+    this._audioService.getAnalyser().subscribe(analyser => {
+      this.audio = analyser;
+      this.initializeAudio();
+      this.captureStarted = true;
     });
+  }
+
+  ngAfterViewInit(): void {
+    this.initializeScene();
+    this.animate();
+  }
+
+  public async startCapture() {
+    this.captureError = '';
+    try {
+      await this._audioService.startCapture();
+    } catch (e) {
+      this.captureError = e instanceof Error ? e.message : 'Unable to capture audio.';
+    }
   }
 
   ngOnDestroy(): void {
