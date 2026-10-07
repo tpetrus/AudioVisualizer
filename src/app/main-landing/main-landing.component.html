@@ -2,11 +2,12 @@
     <div id="title" class="d-flex flex-column justify-content-center">
     </div>
 
-    <div class="text-center py-2" *ngIf="!captureStarted">
-        <button class="btn btn-primary" (click)="startCapture()">Capture system audio</button>
-        <div class="text-danger mt-1" *ngIf="captureError">{{ captureError }}</div>
-        <div class="text-secondary small mt-1">Pick a screen or tab and enable "Share system audio".</div>
+    <div class="text-center py-1 small text-secondary" *ngIf="captureStarted">
+        Audio source active ·
+        <a href="#" class="link-light" (click)="$event.preventDefault(); dialogOpen = true">Audio settings</a>
     </div>
+
+    <app-audio-source-dialog *ngIf="dialogOpen" (closed)="dialogOpen = false"></app-audio-source-dialog>
 
     <div class="d-flex justify-content-evenly d-flex">
         <div class="square flex-fill" [style.background-image]="'url(assets/visualization-images/cubes.png)'" (click)="onVisualizationClick('cubes')"></div>

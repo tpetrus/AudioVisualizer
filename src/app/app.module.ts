@@ -8,6 +8,7 @@ import { AudioService } from './services/audio.service';
 import { MainLandingComponent } from './main-landing/main-landing.component';
 import { CubesComponent } from './cubes/cubes.component';
 import { ControlPanelComponent } from './control-panel/control-panel.component';
+import { AudioSourceDialogComponent } from './audio-source-dialog/audio-source-dialog.component';
 
 @NgModule({
   declarations: [
@@ -15,6 +16,7 @@ import { ControlPanelComponent } from './control-panel/control-panel.component';
     BasicColorWaveComponent,
     CubesComponent,
     ControlPanelComponent,
+    AudioSourceDialogComponent,
     MainLandingComponent
   ],
   imports: [

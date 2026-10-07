@@ -1,0 +1,103 @@
+<div class="backdrop" (click)="close()">
+  <div class="dialog bg-dark text-light" role="dialog" aria-modal="true" aria-labelledby="audio-dialog-title" (click)="$event.stopPropagation()">
+    <div class="d-flex align-items-start justify-content-between mb-3">
+      <h5 id="audio-dialog-title" class="mb-0">Audio source</h5>
+      <button type="button" class="btn-close btn-close-white" aria-label="Close" *ngIf="canClose" (click)="close()"></button>
+    </div>
+
+    <ng-container *ngIf="canClose && !showChooser">
+      <div class="small mb-2">
+        <span class="text-secondary">Using:</span> {{ trackInfo || 'active source' }}
+      </div>
+      <div class="progress mb-2" style="height: 8px;">
+        <div class="progress-bar" [class.bg-success]="!silent" [class.bg-warning]="silent" [style.width.%]="level * 100"></div>
+      </div>
+      <div class="small text-warning mb-3" *ngIf="silent">
+        No audio signal detected. Make sure something is playing, then check:
+        <ul class="mb-0">
+          <li>Windows Sound settings → Recording → Stereo Mix → Properties → <b>Levels</b>: volume should not be 0 or muted.</li>
+          <li>Settings → Privacy &amp; security → Microphone: allow microphone access and desktop apps.</li>
+          <li>Your browser may be using a different "Stereo Mix" entry; try the others in the list.</li>
+          <li>Stereo Mix can't capture a device that is its own sound device (USB/HDMI/Bluetooth). Use Voicemeeter Banana instead; see the setup guide under "Choose a different source".</li>
+        </ul>
+      </div>
+      <div class="d-flex gap-2 justify-content-end">
+        <button class="btn btn-outline-light" (click)="showChooser = true">Choose a different source</button>
+        <button class="btn btn-primary" (click)="close()">Done</button>
+      </div>
+    </ng-container>
+
+    <ng-container *ngIf="!canClose || showChooser">
+      <p class="text-secondary small" *ngIf="!canClose">Choose where the audio should come from to get started.</p>
+
+      <div class="row g-3 justify-content-center">
+        <div class="col-md-6">
+          <div class="card bg-dark text-light h-100">
+            <div class="card-body d-flex flex-column">
+              <h6 class="card-title">Share screen or tab audio</h6>
+              <p class="card-text small text-secondary flex-grow-1">
+                Nothing to set up. Your browser will ask what to share; enable "Share system audio".
+                You'll need to do this again after a page refresh.
+              </p>
+              <button class="btn btn-primary" [disabled]="busy" (click)="startScreenCapture()">Share audio</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card bg-dark text-light h-100">
+            <div class="card-body d-flex flex-column">
+              <h6 class="card-title">Use an audio input device</h6>
+              <p class="card-text small text-secondary flex-grow-1">
+                Pick a microphone, Stereo Mix or a virtual cable that carries your computer's output.
+                Remembered across refreshes.
+              </p>
+              <button class="btn btn-outline-light" *ngIf="!devices.length" [disabled]="busy" (click)="loadDevices()">Choose device</button>
+              <ng-container *ngIf="devices.length">
+                <select class="form-select mb-2" [value]="selectedDeviceId" (change)="onDeviceSelected($event)">
+                  <option *ngFor="let device of devices" [value]="device.deviceId" [selected]="device.deviceId === selectedDeviceId">
+                    {{ device.label || 'Unnamed device' }}
+                  </option>
+                </select>
+                <button class="btn btn-primary" [disabled]="busy" (click)="startDeviceCapture()">Start</button>
+              </ng-container>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-danger text-center mt-2" *ngIf="captureError">{{ captureError }}</div>
+
+      <details class="how-to card bg-dark text-light mt-3">
+        <summary class="card-body py-2">How do I set up Stereo Mix?</summary>
+        <div class="card-body pt-0 small">
+          <p class="mb-1">Stereo Mix is a Windows recording device that carries everything your computer is playing.</p>
+          <ol>
+            <li>Right-click the speaker icon in the taskbar and choose <b>Sound settings</b>, then <b>More sound settings</b> (under Advanced).</li>
+            <li>Open the <b>Recording</b> tab.</li>
+            <li>Right-click an empty area and tick <b>Show Disabled Devices</b>.</li>
+            <li>Right-click <b>Stereo Mix</b> and choose <b>Enable</b>.</li>
+            <li>Come back here, click <b>Choose device</b>, and pick <b>Stereo Mix</b>.</li>
+          </ol>
+          <p class="mb-1"><b>No Stereo Mix, or it stays silent?</b> Stereo Mix can't capture audio from a device that is
+            its own sound device (for example USB, HDMI or Bluetooth headsets and DACs), and many drivers hide it entirely.
+            The most reliable workaround is <b>Voicemeeter Banana</b> (free, from vb-audio.com), which acts as a virtual mixer:</p>
+          <ol>
+            <li>Install Voicemeeter Banana and restart your computer.</li>
+            <li>Open Voicemeeter. At the top right, click <b>A1</b> and choose your real speakers or headset (use the <i>WDM</i> or <i>MME</i> entry).</li>
+            <li>In Windows Sound settings, set your default playback device to <b>Voicemeeter Input</b>.</li>
+            <li>In Voicemeeter, make sure <b>A1</b> is lit on the <i>Voicemeeter VAIO</i> strip, and also light <b>B1</b>. A1 sends sound to your headset, B1 sends it to this app.</li>
+            <li>Back here, click <b>Choose device</b> and pick <b>Voicemeeter Out B1</b> (or <b>Voicemeeter Output</b>).</li>
+          </ol>
+          <p class="mb-1">Alternatives:</p>
+          <ul class="mb-0">
+            <li>A simpler virtual cable such as <b>VB-Cable</b>: set <i>CABLE Input</i> as your Windows playback device, then pick <i>CABLE Output</i> here. To still hear the audio, open <i>CABLE Output</i>'s properties in the Recording tab, go to <b>Listen</b>, and tick <b>Listen to this device</b> with your speakers selected.</li>
+            <li>The screen/tab audio option, which needs no setup.</li>
+          </ul>
+        </div>
+      </details>
+
+      <div class="text-end mt-3" *ngIf="canClose">
+        <button class="btn btn-outline-light" (click)="showChooser = false">Back</button>
+      </div>
+    </ng-container>
+  </div>
+</div>

@@ -14,7 +14,7 @@ import { rainbowStrobeAnimation } from '../utilities/color-animations';
 })
 export class MainLandingComponent implements AfterViewInit, OnDestroy {
   public captureStarted = false;
-  public captureError = '';
+  public dialogOpen = false;
   public readonly BASIC_COLOR_WAVE_URL = "assets/visualization-images/basic-color-wave.png";
   public _router: Router;
   public audio!: AnalyserNode;
@@ -138,6 +138,8 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
       this.initializeAudio();
       this.captureStarted = true;
     });
+    // A remembered input device reopens silently; otherwise the audio dialog must be completed first.
+    this._audioService.resumeSavedSource().then(resumed => this.dialogOpen = !resumed);
   }
 
   ngAfterViewInit(): void {
@@ -145,14 +147,6 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
     this.animate();
   }
 
-  public async startCapture() {
-    this.captureError = '';
-    try {
-      await this._audioService.startCapture();
-    } catch (e) {
-      this.captureError = e instanceof Error ? e.message : 'Unable to capture audio.';
-    }
-  }
 
   ngOnDestroy(): void {
     if(this.scene && this.animationId) {
