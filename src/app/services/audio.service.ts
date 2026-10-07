@@ -12,6 +12,10 @@ export class AudioService {
     private source: MediaStreamAudioSourceNode | undefined;
     private analyser$ = new ReplaySubject<AnalyserNode>(1);
 
+    public get isCapturing(): boolean {
+      return !!this.analyser;
+    }
+
     // Captures whatever the computer is playing (system/tab audio). Must be called from a user gesture.
     public async startCapture(): Promise<void> {
       if (this.analyser) {
