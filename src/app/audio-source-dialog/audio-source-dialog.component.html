@@ -12,6 +12,29 @@
       <div class="progress mb-2" style="height: 8px;">
         <div class="progress-bar" [class.bg-success]="!silent" [class.bg-warning]="silent" [style.width.%]="level * 100"></div>
       </div>
+      <div class="form-check form-switch mb-3">
+        <input class="form-check-input" type="checkbox" role="switch" id="normalize-audio"
+          [checked]="normalize" (change)="onNormalizeChange($event)">
+        <label class="form-check-label" for="normalize-audio">Normalize volume</label>
+        <div class="small text-secondary">Automatically adjusts the gain so the visualization looks the same whether the audio is quiet or loud.</div>
+      </div>
+      <details class="normalize-settings mb-3">
+        <summary class="small">Normalization settings</summary>
+        <div class="pt-2">
+          <div class="mb-2" *ngFor="let slider of sliders">
+            <div class="d-flex justify-content-between small">
+              <label [attr.for]="'norm-' + slider.key">{{ slider.label }}</label>
+              <span>{{ normalizeOptions[slider.key] }}{{ slider.unit }}</span>
+            </div>
+            <input type="range" class="form-range" [id]="'norm-' + slider.key"
+              [min]="slider.min" [max]="slider.max" [step]="slider.step"
+              [value]="normalizeOptions[slider.key]" (input)="onSliderInput(slider.key, $event)">
+            <div class="small text-secondary">{{ slider.help }}</div>
+          </div>
+          <button class="btn btn-sm btn-outline-light" (click)="resetNormalizeOptions()">Reset to defaults</button>
+        </div>
+      </details>
+
       <div class="small text-warning mb-3" *ngIf="silent">
         No audio signal detected. Make sure something is playing, then check:
         <ul class="mb-0">

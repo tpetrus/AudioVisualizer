@@ -146,6 +146,10 @@ export class Visual3Component {
       this._audioService.getAnalyser().subscribe(analyser => {
         if(analyser) {
             this.audio = analyser;
+            if (this.scene) {
+                this.processAudio();
+                return;
+            }
             this.initializeScene();
             this.processAudio();
             this.animate();

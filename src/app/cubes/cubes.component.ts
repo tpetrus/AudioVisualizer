@@ -1,4 +1,5 @@
 import { Component, OnDestroy } from "@angular/core";
+import { Subscription } from "rxjs";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { AudioService } from "../services/audio.service";
@@ -22,6 +23,7 @@ export class CubesComponent implements OnDestroy {
     public hemiLight!: THREE.HemisphereLight;
     public cubeArray: THREE.Mesh[] = [];
     public animationId!: number;
+    private audioSubscription: Subscription;
     private axes!: THREE.AxesHelper;
     private appliedColor = '';
     public controls: VisualizerControl[] = [
@@ -119,9 +121,14 @@ export class CubesComponent implements OnDestroy {
             this.renderer.render(this.scene, this.camera);
         }
 
-        this._audioService.getAnalyser().subscribe(analyser => {
+        this.audioSubscription = this._audioService.getAnalyser().subscribe(analyser => {
             if (analyser) {
                 this.audio = analyser;
+                if (this.scene) {
+                    // The audio source changed: keep the scene and just rebind to the new analyser.
+                    this.processAudio();
+                    return;
+                }
                 this.initializeScene();
                 this.processAudio();
                 animate();
@@ -130,6 +137,7 @@ export class CubesComponent implements OnDestroy {
     }
 
     public ngOnDestroy(): void {
+        this.audioSubscription.unsubscribe();
         this.scene.clear();
         cancelAnimationFrame(this.animationId);
     }

@@ -18,6 +18,7 @@ export interface VisualizerControl {
 export class ControlPanelComponent implements OnChanges {
   @Input() controls: VisualizerControl[] = [];
   public collapsed = true;
+  public audioDialogOpen = false;
   private defaults = new Map<string, VisualizerControl['value']>();
 
   public asInput(event: Event): HTMLInputElement {

@@ -1,4 +1,5 @@
 import { Component, OnDestroy } from "@angular/core";
+import { Subscription } from "rxjs";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { AudioService } from "../services/audio.service";
@@ -30,6 +31,7 @@ export class BasicColorWaveComponent implements OnDestroy {
   private readonly flagSize: number = 5;
   private readonly flagDistance: number = 10;
   public animationId!: number;
+  private audioSubscription: Subscription;
   public controls: VisualizerControl[] = [
     { key: 'waveAmplitude', label: 'Wave amplitude', type: 'range', min: 0, max: 5, step: 0.1, value: 2.5 },
     { key: 'frequencyScale', label: 'Frequency scale', type: 'range', min: 0, max: 3, step: 0.1, value: 1 },
@@ -157,9 +159,14 @@ export class BasicColorWaveComponent implements OnDestroy {
   }
 
   constructor(private readonly _audioService: AudioService) {
-    this._audioService.getAnalyser().subscribe(analyser => {
+    this.audioSubscription = this._audioService.getAnalyser().subscribe(analyser => {
       if (analyser) {
         this.audio = analyser;
+        if (this.scene) {
+          // The audio source changed: keep the scene and just rebind to the new analyser.
+          this.initializeAudio();
+          return;
+        }
         this.initializeScene();
         this.initializeAudio();
         this.animate();
@@ -168,6 +175,7 @@ export class BasicColorWaveComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.audioSubscription.unsubscribe();
     if (this.scene && this.animationId) {
       this.scene.clear();
       cancelAnimationFrame(this.animationId);
