@@ -7,8 +7,8 @@ import { AudioService } from "../services/audio.service";
     selector: 'cubes',
     templateUrl: './cubes.component.html',
     styleUrls: ['./cubes.component.scss']
-  })
-export class CubesComponent implements OnDestroy{
+})
+export class CubesComponent implements OnDestroy {
     public container!: HTMLElement | null;
     public scene!: THREE.Scene;
     public camera!: THREE.PerspectiveCamera;
@@ -45,9 +45,9 @@ export class CubesComponent implements OnDestroy{
 
         new OrbitControls(this.camera, this.renderer.domElement);
 
-        for(let x =0; x < 46; x++) {
-            for(let y=0; y < 22; y++)
-            this.createCube(x,y);
+        for (let x = 0; x < 46; x++) {
+            for (let y = 0; y < 22; y++)
+                this.createCube(x, y);
         }
 
         this.renderer.shadowMap.enabled = true;
@@ -62,11 +62,11 @@ export class CubesComponent implements OnDestroy{
     }
 
     public createCube(x: number, y: number) {
-        const geometry = new THREE.BoxGeometry( 1, 1, 1 );
-        const material = new THREE.MeshLambertMaterial( { color: 0x8826C7, depthTest: true, depthWrite: true, side: THREE.FrontSide } );
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshLambertMaterial({ color: 0x8826C7, depthTest: true, depthWrite: true, side: THREE.FrontSide });
         let cube = new THREE.Mesh(geometry, material);
         this.cubeArray.push(cube);
-        cube.position.set(1*x-22, 1*y-10, 0);
+        cube.position.set(1 * x - 22, 1 * y - 10, 0);
         cube.castShadow = true;
         this.scene.add(cube);
     }
@@ -76,13 +76,13 @@ export class CubesComponent implements OnDestroy{
 
         this.cubeArray.forEach((cube, index) => {
             let value = this.audioDataArray[index];
-            if(value < 130) {
+            if (value < 130) {
                 cube.position.z = 1;
                 cube.rotation.x += .01;
                 cube.rotation.y += .01;
             }
             else {
-                cube.position.z = value/70;
+                cube.position.z = value / 70;
                 cube.rotation.x += .01;
                 cube.rotation.y += .01;
             }
@@ -101,7 +101,7 @@ export class CubesComponent implements OnDestroy{
         }
 
         this._audioService.getAnalyser().subscribe(analyser => {
-            if(analyser) {
+            if (analyser) {
                 this.audio = analyser;
                 this.initializeScene();
                 this.processAudio();

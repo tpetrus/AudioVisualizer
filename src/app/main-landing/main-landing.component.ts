@@ -1,4 +1,4 @@
-import { Component, OnDestroy } from '@angular/core';
+import { Component, HostListener, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import { AudioService } from '../services/audio.service';
 import * as THREE from 'three';
@@ -33,38 +33,46 @@ export class MainLandingComponent implements OnDestroy {
     this.renderer.render(this.scene, this.camera);
   }
 
+  @HostListener('window:resize', ['$event'])
+  onResize(event: { target: { innerWidth: number; innerHeight: number; }; }) {
+    this.camera.aspect = event.target.innerWidth / event.target.innerHeight;
+    this.camera.updateProjectionMatrix();
+
+    this.renderer.setSize( event.target.innerWidth, event.target.innerHeight );
+  }
+
   public initializeScene() {
-        this.container = document.getElementById('title');
+    this.container = document.getElementById('title');
 
-				// CAMERA
-				this.camera = new THREE.PerspectiveCamera( 30, window.innerWidth / this.container!.clientHeight, 1, 1500 );
-				this.camera.position.set( 0, 0, 150 );
+    // CAMERA
+    this.camera = new THREE.PerspectiveCamera( 30, window.innerWidth / this.container!.clientHeight, 1, 1500 );
+    this.camera.position.set( 0, 0, 150 );
 
-				// SCENE
+    // SCENE
 
-				 this.scene = new THREE.Scene();
-				this.scene.background = new THREE.Color( 0x000000 );
-				this.scene.fog = new THREE.Fog( 0xffffff, 0, 1100);
+      this.scene = new THREE.Scene();
+    this.scene.background = new THREE.Color( 0x000000 );
+    this.scene.fog = new THREE.Fog( 0xffffff, 0, 1100);
 
-				// LIGHTS
+    // LIGHTS
 
-				this.light = new THREE.DirectionalLight( 0x0003ff, 3 );
-				this.light.position.set( 0, 0, 1 ).normalize();
-				this.scene.add( this.light );
+    this.light = new THREE.DirectionalLight( 0x0003ff, 3 );
+    this.light.position.set( 0, 0, 1 ).normalize();
+    this.scene.add( this.light );
 
-        this.generateText();
-        //this.scene.add(new THREE.AxesHelper(10));
+    this.generateText();
+    //this.scene.add(new THREE.AxesHelper(10));
 
-        // RENDERER
+    // RENDERER
 
-        this.renderer = new THREE.WebGLRenderer();
-        this.renderer.setSize(window.innerWidth, this.container!.clientHeight);
-        this.renderer.physicallyCorrectLights = true;
-				this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer = new THREE.WebGLRenderer();
+    this.renderer.setSize(window.innerWidth, this.container!.clientHeight);
+    this.renderer.physicallyCorrectLights = true;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
-				this.container?.appendChild( this.renderer.domElement );
+    this.container?.appendChild( this.renderer.domElement );
 
-        //new OrbitControls(this.camera, this.renderer.domElement);
+    //new OrbitControls(this.camera, this.renderer.domElement);
   }
 
   public onVisualizationClick(pageUrl: string) {
