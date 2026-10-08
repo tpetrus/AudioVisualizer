@@ -5,8 +5,37 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { AudioService } from "../services/audio.service";
 import { VisualizerControl } from "../control-panel/control-panel.component";
 import { controlValue } from "../control-panel/controls";
-import { FlagsMesh } from "src/assets/meshes/flags.mesh";
+import { RoundedFlagsMesh } from "src/assets/meshes/rounded-flags.mesh";
 
+// One sheet of flags showing a slice of the spectrum.
+interface BandDefinition {
+  name: string;
+  // Keys of the settings controls that hold this band's lower/upper edge (Hz) and height multiplier.
+  lowKey: string;
+  highKey: string;
+  heightKey: string;
+  // Analysis window: long for bass (fine frequency detail), short for highs (fast, percussive).
+  fftSize: number;
+  // The band is never smoothed less than this, whatever the "Smoothing" setting is.
+  minSmoothing: number;
+  // The hue runs once from startHue to endHue along the sheet (0..1 of the color wheel).
+  startHue: number;
+  endHue: number;
+}
+
+// A band's sheet along with the audio it reads from.
+interface Sheet {
+  definition: BandDefinition;
+  mesh: RoundedFlagsMesh;
+  analyser?: AnalyserNode;
+  data: Uint8Array;
+  // Current (unscaled) height of every bar, row by row: heights[row * width + column].
+  heights: Float32Array;
+  // Slowly decaying peak of this band, used to balance loudness between bands.
+  peak: number;
+}
+
+// Three sheets, one per band: highs in front, then mids, then bass at the back.
 @Component({
   selector: 'app-basic-color-wave',
   templateUrl: './basic-color-wave.component.html',
@@ -19,40 +48,78 @@ export class BasicColorWaveComponent implements OnDestroy {
   public camera!: THREE.PerspectiveCamera;
   public renderer!: THREE.WebGLRenderer;
   public audio!: AnalyserNode;
-  public fourierData!: Uint8Array;
-  public fourier!: FlagsMesh;
-  public frequencyData!: Uint8Array;
-  public frequency!: FlagsMesh;
 
-  // Depth*Width must equal a power of 2
-  private readonly flagDepth: number = 4;
+  private readonly flagDepth: number = 8;
   private readonly flagWidth: number = 256;
-  private readonly numFlags: number = this.flagDepth * this.flagWidth;
   private readonly flagSize: number = 5;
   private readonly flagDistance: number = 10;
+  // Each sheet is flagDepth rows deep, so leave room for all of them plus a small gap.
+  private readonly sheetSpacing = this.flagDepth * this.flagDistance + 10;
+  // With the default camera (10° vertical field of view, 3800 units back) the bottom edge of the screen is about
+  // 332-341 units below center at the sheets' depths. Every sheet's bars start at this same level, just below it.
+  private readonly baseHeight = -345;
+  // Bars on each sheet further back are taller by a factor of "Growth per sheet" (so heights grow exponentially:
+  // front = frontHeightScale, next = front * growth, next = front * growth^2), so a tall front sheet doesn't hide them.
+  private readonly frontHeightScale = 1.5;
+  // Tip shape from the front row of the front sheet to the last row of the last sheet: an exponent of 1 is a sharp
+  // point, larger values are blunter and rounder (2 is a dome). The bases stay on the base line either way.
+  private readonly frontTipExponent = 1;
+  private readonly backTipExponent = 2.5;
+  // Rows get lower from the farthest row (1) to the nearest (0.55), so the bars behind are not hidden by the ones in front.
+  private readonly rowFalloff = Array.from({ length: this.flagDepth }, (_, row) => 1 - 0.45 * row / (this.flagDepth - 1));
+  // Cells per side of each square. Twice the rows means twice the squares, so this is kept modest.
+  private readonly squareSubdivisions = 5;
+  private readonly minHz = 25;
+  // Band loudness balancing: bars are scaled so a band's recent peak maps to TARGET_LEVEL (0..255), but a quiet
+  // band is never boosted beyond what a PEAK_FLOOR-level signal would give, so silence stays flat.
+  private readonly targetLevel = 200;
+  private readonly peakFloor = 60;
+  private readonly peakDecay = 0.995;
+  // Bars get lazier the further back they are, from the front row of the front sheet (depth 0) to the last row of the
+  // last sheet (depth 1). Each row chases the row in front of it, so a hit travels back as a ripple.
+  //  - rise: the fraction of the gap a bar closes each frame (1 = jump straight up),
+  //  - fall: how fast a bar drops, as a fraction of the "Fall speed" setting.
+  private readonly backRiseRate = 0.1;
+  private readonly backFallFactor = 0.25;
+  private readonly targets = new Float32Array(this.flagWidth);
+
+  // Front to back: highs, mids, bass. Hues go by position: red -> orange, blue -> indigo, indigo -> violet.
+  private readonly bands: BandDefinition[] = [
+    { name: 'Highs', lowKey: 'midsHigh', highKey: 'highsHigh', heightKey: 'highsHeight', fftSize: 1024, minSmoothing: 0.75, startHue: 0, endHue: 0.08 },
+    { name: 'Mids', lowKey: 'bassHigh', highKey: 'midsHigh', heightKey: 'midsHeight', fftSize: 2048, minSmoothing: 0, startHue: 0.667, endHue: 0.736 },
+    { name: 'Bass', lowKey: 'bassLow', highKey: 'bassHigh', heightKey: 'bassHeight', fftSize: 4096, minSmoothing: 0, startHue: 0.736, endHue: 0.806 },
+  ];
+  private sheets: Sheet[] = [];
+
   public animationId!: number;
   private audioSubscription: Subscription;
   public controls: VisualizerControl[] = [
-    { key: 'waveAmplitude', label: 'Wave amplitude', type: 'range', min: 0, max: 5, step: 0.1, value: 2.5 },
-    { key: 'frequencyScale', label: 'Frequency scale', type: 'range', min: 0, max: 3, step: 0.1, value: 1 },
-    { key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0 },
-    { key: 'showFrequency', label: 'Show frequency', type: 'checkbox', value: true },
+    { key: 'bassLow', label: 'Lowest note (Hz)', type: 'range', min: 20, max: 60, step: 5, value: 25 },
+    { key: 'bassHigh', label: 'Bass / mids split (Hz)', type: 'range', min: 120, max: 500, step: 10, value: 250 },
+    { key: 'midsHigh', label: 'Mids / highs split (Hz)', type: 'range', min: 1500, max: 8000, step: 100, value: 4000 },
+    { key: 'highsHigh', label: 'Highest note (Hz)', type: 'range', min: 8000, max: 20000, step: 500, value: 16000 },
+    { key: 'moveX', label: 'Move left / right', type: 'range', min: -1500, max: 1500, step: 10, value: 0 },
+    { key: 'moveY', label: 'Move down / up', type: 'range', min: -300, max: 300, step: 5, value: 0 },
+    { key: 'heightGrowth', label: 'Growth per sheet', type: 'range', min: 1, max: 4, step: 0.1, value: 1.5 },
+    { key: 'masterHeight', label: 'Overall height', type: 'range', min: 0.2, max: 4, step: 0.1, value: 1 },
+    { key: 'bassHeight', label: 'Bass height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
+    { key: 'midsHeight', label: 'Mids height', type: 'range', min: 0, max: 12, step: 0.1, value: 1.3 },
+    { key: 'highsHeight', label: 'Highs height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
+    { key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0.5 },
+    { key: 'fall', label: 'Fall speed', type: 'range', min: 1, max: 30, step: 1, value: 8 },
   ];
   public animate = () => {
     this.animationId = requestAnimationFrame(this.animate);
 
-    this.audio.smoothingTimeConstant = controlValue<number>(this.controls, 'smoothing');
-    this.frequency.mesh.visible = controlValue<boolean>(this.controls, 'showFrequency');
-    this.animateFourierMesh();
-    if (this.frequency.mesh.visible) {
-      this.animateFrequencyMesh();
-    }
+    const smoothing = controlValue<number>(this.controls, 'smoothing');
+    const fall = controlValue<number>(this.controls, 'fall');
+    this.positionSheets();
+    this.sheets.forEach((sheet, index) => this.animateSheet(sheet, index, smoothing, fall));
 
     this.renderer.render(this.scene, this.camera);
   }
 
   public initializeScene() {
-    this.initializeAudio();
     this.container = document.getElementById('container');
     this.scene = new THREE.Scene();
 
@@ -67,20 +134,19 @@ export class BasicColorWaveComponent implements OnDestroy {
       this.scene.add(new THREE.AxesHelper(10))
     }
 
-    this.fourier = new FlagsMesh(this.flagDepth, this.flagWidth, undefined, this.flagSize, this.flagDistance);
-
-    this.fourier.mesh.position.set(-this.flagWidth * this.flagSize / 2, 0, 0);
-
-    this.scene.add(this.fourier.mesh);
-
-
-    let frequencyColors = this.createFrequencyColorArray();
-
-    this.frequency = new FlagsMesh(this.flagDepth, this.flagWidth, undefined, this.flagSize, this.flagDistance, undefined, undefined, frequencyColors);
-
-    this.frequency.mesh.position.set(-this.flagWidth * this.flagSize / 2, 0, -50);
-
-    this.scene.add(this.frequency.mesh);
+    this.sheets = this.bands.map((definition, index) => {
+      const mesh = new RoundedFlagsMesh(this.flagDepth, this.flagWidth, this.flagSize, this.flagDistance,
+        this.createColors(definition.startHue, definition.endHue), this.squareSubdivisions);
+      // The further back a row is, the rounder its tips. Rows are laid out toward the camera, so the last row of a
+      // sheet is its nearest and the first row its farthest.
+      const lastRow = this.bands.length * this.flagDepth - 1;
+      for (let row = 0; row < this.flagDepth; row++) {
+        const depth = index * this.flagDepth + (this.flagDepth - 1 - row);
+        mesh.setProfile(row, this.frontTipExponent + (this.backTipExponent - this.frontTipExponent) * depth / lastRow);
+      }
+      this.scene.add(mesh.mesh);
+      return { definition, mesh, data: new Uint8Array(0), heights: new Float32Array(this.flagWidth * this.flagDepth), peak: 0 };
+    });
 
     this.camera = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 1, 5000);
 
@@ -93,72 +159,116 @@ export class BasicColorWaveComponent implements OnDestroy {
     this.container?.appendChild(this.renderer.domElement);
   }
 
-  public animateFourierMesh() {
-    this.audio.getByteTimeDomainData(this.fourierData);
-    let offset = 1;
-    const amplitude = controlValue<number>(this.controls, 'waveAmplitude');
-    let numFlags = this.fourier.getNumberOfFlags();
-    let attribute = this.fourier.positionAttribute;
-    let positions = attribute.array as Float32Array;
-    // Use the newest samples at the end of the buffer, not the oldest at the start.
-    const newest = this.fourierData.length - numFlags;
+  // Places the stack, shifted by the "Move" sliders.
+  private positionSheets() {
+    // Columns are flagDistance apart, so this centers the sheets on the middle of the screen.
+    const x = -(this.flagWidth - 1) * this.flagDistance / 2 + controlValue<number>(this.controls, 'moveX');
+    const y = this.baseHeight + controlValue<number>(this.controls, 'moveY');
+    this.sheets.forEach((sheet, index) => sheet.mesh.mesh.position.set(x, y, -index * this.sheetSpacing));
+  }
 
-    for (let n = 0; n < numFlags; n++) {
-      positions[offset + 3 + n * 9] = (this.fourierData[newest + n] - 128) * amplitude;
+  // Columns are spaced logarithmically across the band, so the low end of each band gets the most room. The nearest
+  // row of each sheet follows the spectrum directly; every other row chases the row in front of it, rising and
+  // falling more slowly the further back it is.
+  private animateSheet(sheet: Sheet, index: number, smoothing: number, fall: number) {
+    const analyser = sheet.analyser!;
+    analyser.smoothingTimeConstant = Math.max(smoothing, sheet.definition.minSmoothing);
+    analyser.getByteFrequencyData(sheet.data);
+
+    const { lowKey, highKey, heightKey } = sheet.definition;
+    const growth = Math.pow(controlValue<number>(this.controls, 'heightGrowth'), index);
+    const heightScale = this.frontHeightScale * growth;
+    const lowHz = controlValue<number>(this.controls, lowKey);
+    const highHz = controlValue<number>(this.controls, highKey);
+    const height = controlValue<number>(this.controls, heightKey) * controlValue<number>(this.controls, 'masterHeight');
+    const binHz = analyser.context.sampleRate / analyser.fftSize;
+    const lastBin = sheet.data.length - 1;
+    const ratio = highHz / lowHz;
+
+    // Sample the spectrum for each column and find the band's loudest value this frame.
+    let frameMax = 0;
+    for (let column = 0; column < this.flagWidth; column++) {
+      const bin = lowHz * Math.pow(ratio, column / (this.flagWidth - 1)) / binHz;
+      const lower = Math.min(Math.floor(bin), lastBin);
+      const mix = bin - lower;
+      // Interpolate between bins because narrow bands only cover a handful of them.
+      const value = sheet.data[lower] * (1 - mix) + sheet.data[Math.min(lower + 1, lastBin)] * mix;
+      this.targets[column] = value;
+      frameMax = Math.max(frameMax, value);
     }
 
-    attribute.needsUpdate = true;
-  }
+    sheet.peak = Math.max(frameMax, sheet.peak * this.peakDecay);
+    const gain = this.targetLevel / Math.max(sheet.peak, this.peakFloor);
+    const scale = gain * height * heightScale;
+    const lastRow = this.sheets.length * this.flagDepth - 1;
 
-  public animateFrequencyMesh() {
-    this.audio.getByteFrequencyData(this.frequencyData);
-    let offset = 4;
-    const scale = controlValue<number>(this.controls, 'frequencyScale');
-    let numFlags = this.frequency.getNumberOfFlags();
-    let attribute = this.frequency.positionAttribute;
-    let positions = attribute.array as Float32Array;
+    // Rows are laid out toward the camera, so the last row of a sheet is its nearest and the first row its farthest.
+    // Go from the nearest row to the farthest so each row can chase the (already updated) row in front of it.
+    for (let row = this.flagDepth - 1; row >= 0; row--) {
+      // 0 at the nearest row of the front sheet, 1 at the farthest row of the last sheet.
+      const depth = (index * this.flagDepth + (this.flagDepth - 1 - row)) / lastRow;
+      const riseRate = 1 - (1 - this.backRiseRate) * depth;
+      // The fall step is divided by the sheet's scale so it looks the same speed on screen whatever the height.
+      const fallStep = fall / growth * (1 - (1 - this.backFallFactor) * depth);
 
-    for (let n = 0; n < numFlags; n++) {
-      positions[offset + n * 9] = this.frequencyData[n] * scale;
+      for (let column = 0; column < this.flagWidth; column++) {
+        const slot = row * this.flagWidth + column;
+        const target = row === this.flagDepth - 1 ? this.targets[column] : sheet.heights[slot + this.flagWidth];
+        const current = sheet.heights[slot];
+        const next = target > current ? current + (target - current) * riseRate : Math.max(target, current - fallStep);
+        sheet.heights[slot] = next;
+        sheet.mesh.setFlagHeight(column, row, next * scale * this.rowFalloff[row]);
+      }
     }
 
-    attribute.needsUpdate = true;
+    sheet.mesh.positionAttribute.needsUpdate = true;
   }
 
-  public createFrequencyColorArray(): number[] {
-    let numColors = this.numFlags * 3;
-    let colors: number[] = [];
+  // Walks the flags in a snake along the length of the sheet (left to right on one row, right to left on the
+  // next, ...) and advances the hue a small step at every flag, from startHue at the first flag to endHue at the last.
+  private createColors(startHue: number, endHue: number): THREE.Color[] {
+    const totalFlags = this.flagWidth * this.flagDepth;
+    const flagColors: THREE.Color[] = new Array(totalFlags);
+    let step = 0;
 
-    for (let i = 0; i < numColors; i++) {
-      let flagColor = this.generateFrequencyColor();
-      flagColor.forEach(rgbaValue => {
-        colors.push(rgbaValue);
-      })
+    for (let row = 0; row < this.flagDepth; row++) {
+      for (let i = 0; i < this.flagWidth; i++) {
+        const column = row % 2 === 0 ? i : this.flagWidth - 1 - i;
+        const hue = startHue + (endHue - startHue) * step / (totalFlags - 1);
+        flagColors[column * this.flagDepth + row] = new THREE.Color().setHSL(hue, 0.85, 0.55);
+        step++;
+      }
     }
 
-    return colors;
+    return flagColors;
   }
 
-  public generateFrequencyColor(): number[] {
-    let colorValues: number[] = [];
-
-    colorValues.push(30);
-    colorValues.push(30);
-    colorValues.push(30);
-    colorValues.push(0);
-
-    return colorValues;
-  }
-
+  // Gives each sheet its own analyser tapped from the shared one. Called again whenever the audio source changes.
   public initializeAudio() {
-    this.audio.fftSize = this.flagDepth * this.flagWidth * 2;
-    this.audio.smoothingTimeConstant = 0;
-    var bufferLength = this.audio.frequencyBinCount;
-    // Time-domain data holds fftSize samples, oldest first.
-    this.fourierData = new Uint8Array(this.audio.fftSize);
-    this.frequencyData = new Uint8Array(bufferLength);
-    this.audio.getByteTimeDomainData(this.fourierData);
-    this.audio.getByteFrequencyData(this.frequencyData);
+    this.disconnectBands();
+
+    const context = this.audio.context;
+    this.sheets.forEach(sheet => {
+      const analyser = context.createAnalyser();
+      analyser.fftSize = sheet.definition.fftSize;
+      analyser.minDecibels = -90;
+      analyser.maxDecibels = -20;
+      this.audio.connect(analyser);
+      sheet.analyser = analyser;
+      sheet.data = new Uint8Array(analyser.frequencyBinCount);
+    });
+  }
+
+  private disconnectBands() {
+    this.sheets.forEach(sheet => {
+      if (sheet.analyser) {
+        try {
+          this.audio?.disconnect(sheet.analyser);
+        } catch { }
+        sheet.analyser.disconnect();
+        sheet.analyser = undefined;
+      }
+    });
   }
 
   constructor(private readonly _audioService: AudioService) {
@@ -179,6 +289,7 @@ export class BasicColorWaveComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.audioSubscription.unsubscribe();
+    this.disconnectBands();
     if (this.scene && this.animationId) {
       this.scene.clear();
       cancelAnimationFrame(this.animationId);
