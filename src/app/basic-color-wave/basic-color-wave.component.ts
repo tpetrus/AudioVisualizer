@@ -98,14 +98,16 @@ export class BasicColorWaveComponent implements OnDestroy {
     let offset = 1;
     const amplitude = controlValue<number>(this.controls, 'waveAmplitude');
     let numFlags = this.fourier.getNumberOfFlags();
-    let positions = this.fourier.positions;
-    let geometry = this.fourier.geometry;
+    let attribute = this.fourier.positionAttribute;
+    let positions = attribute.array as Float32Array;
+    // Use the newest samples at the end of the buffer, not the oldest at the start.
+    const newest = this.fourierData.length - numFlags;
 
     for (let n = 0; n < numFlags; n++) {
-      positions[offset + 3 + n * 9] = (this.fourierData[n] - 128) * amplitude;
+      positions[offset + 3 + n * 9] = (this.fourierData[newest + n] - 128) * amplitude;
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    attribute.needsUpdate = true;
   }
 
   public animateFrequencyMesh() {
@@ -113,14 +115,14 @@ export class BasicColorWaveComponent implements OnDestroy {
     let offset = 4;
     const scale = controlValue<number>(this.controls, 'frequencyScale');
     let numFlags = this.frequency.getNumberOfFlags();
-    let positions = this.frequency.positions;
-    let geometry = this.frequency.geometry;
+    let attribute = this.frequency.positionAttribute;
+    let positions = attribute.array as Float32Array;
 
     for (let n = 0; n < numFlags; n++) {
       positions[offset + n * 9] = this.frequencyData[n] * scale;
     }
 
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    attribute.needsUpdate = true;
   }
 
   public createFrequencyColorArray(): number[] {
@@ -152,7 +154,8 @@ export class BasicColorWaveComponent implements OnDestroy {
     this.audio.fftSize = this.flagDepth * this.flagWidth * 2;
     this.audio.smoothingTimeConstant = 0;
     var bufferLength = this.audio.frequencyBinCount;
-    this.fourierData = new Uint8Array(bufferLength);
+    // Time-domain data holds fftSize samples, oldest first.
+    this.fourierData = new Uint8Array(this.audio.fftSize);
     this.frequencyData = new Uint8Array(bufferLength);
     this.audio.getByteTimeDomainData(this.fourierData);
     this.audio.getByteFrequencyData(this.frequencyData);

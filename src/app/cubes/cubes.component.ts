@@ -21,7 +21,12 @@ export class CubesComponent implements OnDestroy {
     public cube!: THREE.Mesh;
     public cube2!: THREE.Mesh;
     public hemiLight!: THREE.HemisphereLight;
-    public cubeArray: THREE.Mesh[] = [];
+    // All cubes share one geometry/material, so they are drawn as a single instanced mesh.
+    private readonly columns = 46;
+    private readonly rows = 22;
+    private cubes!: THREE.InstancedMesh;
+    private readonly dummy = new THREE.Object3D();
+    private rotationAngle = 0;
     public animationId!: number;
     private audioSubscription: Subscription;
     private axes!: THREE.AxesHelper;
@@ -60,10 +65,7 @@ export class CubesComponent implements OnDestroy {
 
         new OrbitControls(this.camera, this.renderer.domElement);
 
-        for (let x = 0; x < 46; x++) {
-            for (let y = 0; y < 22; y++)
-                this.createCube(x, y);
-        }
+        this.createCubes();
 
         this.renderer.shadowMap.enabled = true;
 
@@ -71,19 +73,20 @@ export class CubesComponent implements OnDestroy {
     }
 
     public processAudio() {
-        this.audio.fftSize = 2048;
-        var bufferLength = this.audio.frequencyBinCount;
-        this.audioDataArray = new Uint8Array(bufferLength);
+        // Only the waveform is used, and one sample per cube is needed, so the smallest window that fits keeps it crisp (~21 ms).
+        this.audio.fftSize = 1024;
+        // Time-domain data holds fftSize samples, oldest first.
+        this.audioDataArray = new Uint8Array(this.audio.fftSize);
     }
 
-    public createCube(x: number, y: number) {
+    public createCubes() {
         const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshLambertMaterial({ color: 0x8826C7, depthTest: true, depthWrite: true, side: THREE.FrontSide });
-        let cube = new THREE.Mesh(geometry, material);
-        this.cubeArray.push(cube);
-        cube.position.set(1 * x - 22, 1 * y - 10, 0);
-        cube.castShadow = true;
-        this.scene.add(cube);
+        this.cubes = new THREE.InstancedMesh(geometry, material, this.columns * this.rows);
+        this.cubes.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        // Instances move every frame, so the geometry's own bounds can't be used for culling.
+        this.cubes.frustumCulled = false;
+        this.scene.add(this.cubes);
     }
 
     public animateCubes() {
@@ -99,15 +102,27 @@ export class CubesComponent implements OnDestroy {
         const colorChanged = color !== this.appliedColor;
         this.appliedColor = color;
 
-        this.cubeArray.forEach((cube, index) => {
-            let value = this.audioDataArray[index];
-            cube.position.z = value < threshold ? 1 : value / sensitivity;
-            cube.rotation.x += rotation;
-            cube.rotation.y += rotation;
-            if (colorChanged) {
-                (cube.material as THREE.MeshLambertMaterial).color.set(color);
+        if (colorChanged) {
+            (this.cubes.material as THREE.MeshLambertMaterial).color.set(color);
+        }
+
+        // Every cube spins by the same amount, so a single angle is enough.
+        this.rotationAngle += rotation;
+
+        // Use the newest samples at the end of the buffer, not the oldest at the start.
+        const newest = this.audioDataArray.length - this.columns * this.rows;
+
+        for (let x = 0; x < this.columns; x++) {
+            for (let y = 0; y < this.rows; y++) {
+                const index = x * this.rows + y;
+                const value = this.audioDataArray[newest + index];
+                this.dummy.position.set(x - 22, y - 10, value < threshold ? 1 : value / sensitivity);
+                this.dummy.rotation.set(this.rotationAngle, this.rotationAngle, 0);
+                this.dummy.updateMatrix();
+                this.cubes.setMatrixAt(index, this.dummy.matrix);
             }
-        })
+        }
+        this.cubes.instanceMatrix.needsUpdate = true;
     }
 
     constructor(

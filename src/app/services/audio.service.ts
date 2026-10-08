@@ -194,6 +194,24 @@ export class AudioService {
     this.gainNode.gain.setTargetAtTime(wanted, this.audioContext.currentTime, timeConstant);
   }
 
+  // Latencies the browser reports, in ms. Time spent in the OS capture pipeline (e.g. screen-share buffering)
+  // is not visible to the page, so captureLatencyMs is only available when the track reports it.
+  public get latencyInfo(): { sampleRate?: number; baseLatencyMs?: number; outputLatencyMs?: number; captureLatencyMs?: number; analysisWindowMs?: number } {
+    const context = this.audioContext;
+    if (!context) {
+      return {};
+    }
+    const trackLatency = (this.audioStream?.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number })?.latency;
+    return {
+      sampleRate: context.sampleRate,
+      baseLatencyMs: context.baseLatency * 1000,
+      outputLatencyMs: (context as AudioContext & { outputLatency?: number }).outputLatency !== undefined
+        ? (context as AudioContext & { outputLatency: number }).outputLatency * 1000 : undefined,
+      captureLatencyMs: trackLatency !== undefined ? trackLatency * 1000 : undefined,
+      analysisWindowMs: this.analyser ? this.analyser.fftSize / context.sampleRate * 1000 : undefined
+    };
+  }
+
   public get trackInfo(): string {
     const track = this.audioStream?.getAudioTracks()[0];
     return track ? `${track.label} (${track.readyState}${track.muted ? ', muted' : ''})` : '';

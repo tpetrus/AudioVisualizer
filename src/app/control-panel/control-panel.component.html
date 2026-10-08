@@ -17,7 +17,10 @@
         </div>
         <button class="reset" (click)="reset()">Reset</button>
         <button class="reset" (click)="audioDialogOpen = true">Audio settings</button>
+        <label class="stats-toggle"><input type="checkbox" [checked]="showStats" (change)="showStats = asInput($event).checked"> Show performance stats</label>
     </div>
 </div>
+
+<app-perf-stats *ngIf="showStats"></app-perf-stats>
 
 <app-audio-source-dialog *ngIf="audioDialogOpen" (closed)="audioDialogOpen = false"></app-audio-source-dialog>

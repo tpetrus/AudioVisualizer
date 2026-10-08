@@ -7,6 +7,7 @@ import { BasicColorWaveComponent } from './basic-color-wave/basic-color-wave.com
 import { AudioService } from './services/audio.service';
 import { MainLandingComponent } from './main-landing/main-landing.component';
 import { CubesComponent } from './cubes/cubes.component';
+import { PerfStatsComponent } from './perf-stats/perf-stats.component';
 import { ControlPanelComponent } from './control-panel/control-panel.component';
 import { AudioSourceDialogComponent } from './audio-source-dialog/audio-source-dialog.component';
 
@@ -16,6 +17,7 @@ import { AudioSourceDialogComponent } from './audio-source-dialog/audio-source-d
     BasicColorWaveComponent,
     CubesComponent,
     ControlPanelComponent,
+    PerfStatsComponent,
     AudioSourceDialogComponent,
     MainLandingComponent
   ],
