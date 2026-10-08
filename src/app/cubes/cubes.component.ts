@@ -32,12 +32,12 @@ export class CubesComponent implements OnDestroy {
     private axes!: THREE.AxesHelper;
     private appliedColor = '';
     public controls: VisualizerControl[] = [
-        { key: 'sensitivity', label: 'Sensitivity', type: 'range', min: 20, max: 200, step: 1, value: 70 },
-        { key: 'threshold', label: 'Noise gate', type: 'range', min: 128, max: 160, step: 1, value: 130 },
-        { key: 'rotation', label: 'Rotation speed', type: 'range', min: 0, max: 0.1, step: 0.005, value: 0.01 },
-        { key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0 },
-        { key: 'color', label: 'Cube color', type: 'color', value: '#8826c7' },
-        { key: 'axes', label: 'Show axes', type: 'checkbox', value: true },
+        { section: 'Response', key: 'sensitivity', label: 'Sensitivity', type: 'range', min: 20, max: 200, step: 1, value: 70 },
+        { section: 'Response', key: 'threshold', label: 'Noise gate', type: 'range', min: 128, max: 160, step: 1, value: 130 },
+        { section: 'Response', key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0 },
+        { section: 'Look', key: 'rotation', label: 'Rotation speed', type: 'range', min: 0, max: 0.1, step: 0.005, value: 0.01 },
+        { section: 'Look', key: 'color', label: 'Cube color', type: 'color', value: '#8826c7' },
+        { section: 'Look', key: 'axes', label: 'Show axes', type: 'checkbox', value: true },
     ];
 
     public initializeScene() {

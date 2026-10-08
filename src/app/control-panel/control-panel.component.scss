@@ -8,22 +8,51 @@
         background: rgba(20, 20, 20, .8);
         border-radius: 6px;
         padding: 8px;
-        min-width: 120px;
+        box-sizing: border-box;
+        // Long lists scroll vertically instead of running off the screen, but never sideways.
+        max-height: calc(100vh - 24px);
+        overflow-x: hidden;
+        overflow-y: auto;
     }
 
-    .row {
+    // A fixed width while open, so it doesn't shrink when every section is closed.
+    .panel.open {
+        width: 340px;
+    }
+
+    .section {
+        margin-top: 8px;
+        border-top: 1px solid #444;
+        padding-top: 6px;
+    }
+
+    summary {
+        cursor: pointer;
+        font-weight: bold;
+        user-select: none;
+    }
+
+    .modified {
+        margin-left: 6px;
+        font-weight: normal;
+        font-size: 11px;
+        color: #f90;
+    }
+
+    .control-row {
         display: flex;
         align-items: center;
         gap: 8px;
         margin-top: 8px;
     }
 
-    .row label {
+    .control-row label {
         flex: 0 0 110px;
     }
 
-    .row input[type=range] {
+    .control-row input[type=range] {
         flex: 1;
+        min-width: 0;
     }
 
     .value {
@@ -40,12 +69,25 @@
         padding: 4px 8px;
     }
 
+    .field-reset {
+        flex: 0 0 24px;
+        padding: 0;
+        line-height: 20px;
+        font-size: 14px;
+    }
+
     .toggle {
         width: 100%;
     }
 
+    .footer {
+        margin-top: 8px;
+        border-top: 1px solid #444;
+        padding-top: 2px;
+    }
+
     .reset {
-        margin-top: 10px;
+        margin-top: 8px;
         width: 100%;
     }
 
