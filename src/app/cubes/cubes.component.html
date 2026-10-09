@@ -1,2 +1,3 @@
-<app-control-panel [controls]="controls"></app-control-panel>
+<app-control-panel [controls]="controls" [(cameraLocked)]="cameraLocked"
+    [viewChanged]="viewChanged" (resetView)="resetView()"></app-control-panel>
 <div id="container"></div>

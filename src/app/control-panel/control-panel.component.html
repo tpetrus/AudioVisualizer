@@ -1,7 +1,23 @@
 <div class="panel" [class.open]="!collapsed">
-    <button class="toggle" (click)="collapsed = !collapsed">
-        {{ collapsed ? '☰ Settings' : '✕ Close' }}
-    </button>
+    <div class="bar">
+        <button class="lock" type="button" (click)="toggleCameraLock()" [attr.aria-pressed]="cameraLocked"
+            [title]="cameraLocked
+                ? 'View locked: the picture cannot be dragged, rotated or zoomed. Click to unlock it.'
+                : 'View unlocked: drag to rotate, right-drag to pan, scroll to zoom. Click to lock the view in place.'"
+            [attr.aria-label]="cameraLocked ? 'Camera locked. Click to unlock' : 'Camera unlocked. Click to lock'">
+            {{ cameraLocked ? '🔒' : '🔓' }}
+        </button>
+        <button class="reset-view" type="button" *ngIf="viewChanged" (click)="resetView.emit()"
+            title="Reset view: put the picture back where it started" aria-label="Reset view">
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+                <circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" stroke-width="1.5" />
+                <path d="M8 0v3M8 13v3M0 8h3M13 8h3" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+        </button>
+        <button class="toggle" (click)="collapsed = !collapsed">
+            {{ collapsed ? '☰ Settings' : '✕ Close' }}
+        </button>
+    </div>
     <div class="body" *ngIf="!collapsed">
         <details class="section" *ngFor="let section of sections" [open]="isOpen(section)"
             (toggle)="onToggle(section, $event)">

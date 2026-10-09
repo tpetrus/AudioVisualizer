@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges } from "@angular/core";
+import { Component, EventEmitter, Input, OnChanges, Output } from "@angular/core";
 
 export interface VisualizerControl {
   key: string;
@@ -24,12 +24,23 @@ interface ControlSection {
 })
 export class ControlPanelComponent implements OnChanges {
   @Input() controls: VisualizerControl[] = [];
+  // Whether the camera is locked. Locked means the picture can't be dragged, rotated or zoomed.
+  @Input() cameraLocked = true;
+  @Output() cameraLockedChange = new EventEmitter<boolean>();
+  // True when the view has been moved away from where it started; shows the reset-view button.
+  @Input() viewChanged = false;
+  @Output() resetView = new EventEmitter<void>();
   public collapsed = true;
   public audioDialogOpen = false;
   public showStats = false;
   public sections: ControlSection[] = [];
   private defaults = new Map<string, VisualizerControl['value']>();
   private openSections = new Set<string>();
+
+  public toggleCameraLock(): void {
+    this.cameraLocked = !this.cameraLocked;
+    this.cameraLockedChange.emit(this.cameraLocked);
+  }
 
   public asInput(event: Event): HTMLInputElement {
     return event.target as HTMLInputElement;

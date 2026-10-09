@@ -1,3 +1,12 @@
+// Fill the whole window with black, so nothing of the page shows around or under the picture.
+:host {
+    display: block;
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    background-color: black;
+}
+
 #container {
     background-color: black;
 }

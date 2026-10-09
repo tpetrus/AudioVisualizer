@@ -76,8 +76,24 @@
         font-size: 14px;
     }
 
+    .bar {
+        display: flex;
+        gap: 6px;
+    }
+
     .toggle {
-        width: 100%;
+        flex: 1;
+    }
+
+    .lock,
+    .reset-view {
+        flex: 0 0 auto;
+        min-width: 34px;
+    }
+
+    .reset-view svg {
+        display: block;
+        margin: 0 auto;
     }
 
     .footer {

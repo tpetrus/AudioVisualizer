@@ -1,4 +1,4 @@
-import { Component, OnDestroy } from "@angular/core";
+import { Component, HostListener, OnDestroy } from "@angular/core";
 import { Subscription } from "rxjs";
 import * as THREE from "three";
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -67,8 +67,8 @@ export class BasicColorWaveComponent implements OnDestroy {
   // Each sheet is flagDepth rows deep, so leave room for all of them plus a small gap.
   private readonly sheetSpacing = this.flagDepth * this.flagDistance + 10;
   // With the default camera (10° vertical field of view, 3800 units back) the bottom edge of the screen is about
-  // 332-341 units below center at the sheets' depths. Every sheet's bars start at this same level, just below it.
-  private readonly baseHeight = -345;
+  // 326-348 units below center, depending on how far away a row is. Every bar starts at this same level, just below it.
+  private readonly baseHeight = -356;
   // Bars on each sheet further back are taller by a factor of "Growth per sheet" (so heights grow exponentially:
   // front = frontHeightScale, next = front * growth, next = front * growth^2), so a tall front sheet doesn't hide them.
   private readonly frontHeightScale = 1.5;
@@ -104,35 +104,72 @@ export class BasicColorWaveComponent implements OnDestroy {
   private sheets: Sheet[] = [];
 
   public animationId!: number;
+  // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.
+  public cameraLocked = true;
+  private orbit?: OrbitControls;
+  // True once the view has been moved away from its starting position (shows the reset-view button).
+  public viewChanged = false;
+  private defaultCameraPosition = new THREE.Vector3();
+  private defaultTarget = new THREE.Vector3();
+
+  // Remembers where the view started, and watches for it being moved.
+  private trackView(orbit: OrbitControls) {
+    this.defaultCameraPosition.copy(this.camera.position);
+    this.defaultTarget.copy(orbit.target);
+    orbit.addEventListener('change', () => {
+      this.viewChanged = this.camera.position.distanceTo(this.defaultCameraPosition) > 0.5
+        || orbit.target.distanceTo(this.defaultTarget) > 0.5;
+    });
+  }
+
+  public resetView() {
+    this.camera.position.copy(this.defaultCameraPosition);
+    this.orbit!.target.copy(this.defaultTarget);
+    this.orbit!.update();
+    this.viewChanged = false;
+  }
+
   private audioSubscription: Subscription;
   public controls: VisualizerControl[] = [
-      // Heights
-      { section: 'Heights', key: 'masterHeight', label: 'Overall height', type: 'range', min: 0.2, max: 4, step: 0.1, value: 1 },
-      { section: 'Heights', key: 'heightGrowth', label: 'Growth per sheet', type: 'range', min: 1, max: 4, step: 0.1, value: 1.5 },
-      { section: 'Heights', key: 'highsHeight', label: 'Highs height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
-      { section: 'Heights', key: 'midsHeight', label: 'Mids height', type: 'range', min: 0, max: 12, step: 0.1, value: 1.3 },
-      { section: 'Heights', key: 'bassHeight', label: 'Bass height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
-      // Which frequencies each sheet shows
-      { section: 'Frequency ranges', key: 'bassLow', label: 'Lowest note (Hz)', type: 'range', min: 20, max: 60, step: 5, value: 25 },
-      { section: 'Frequency ranges', key: 'bassHigh', label: 'Bass / mids split (Hz)', type: 'range', min: 60, max: 500, step: 10, value: 140 },
-      { section: 'Frequency ranges', key: 'midsHigh', label: 'Mids / highs split (Hz)', type: 'range', min: 1500, max: 8000, step: 100, value: 4000 },
-      { section: 'Frequency ranges', key: 'highsHigh', label: 'Highest note (Hz)', type: 'range', min: 8000, max: 20000, step: 500, value: 16000 },
-      // How the bars move
-      { section: 'Motion', key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0.5 },
-      { section: 'Motion', key: 'fall', label: 'Fall speed', type: 'range', min: 1, max: 30, step: 1, value: 8 },
-      // Where the sheets sit on screen
-      { section: 'Position', key: 'moveX', label: 'Move left / right', type: 'range', min: -1500, max: 1500, step: 10, value: 0 },
-      { section: 'Position', key: 'moveY', label: 'Move down / up', type: 'range', min: -300, max: 300, step: 5, value: 0 },
+    // Heights
+    { section: 'Heights', key: 'masterHeight', label: 'Overall height', type: 'range', min: 0.2, max: 4, step: 0.1, value: 1 },
+    { section: 'Heights', key: 'heightGrowth', label: 'Growth per sheet', type: 'range', min: 1, max: 4, step: 0.1, value: 1.5 },
+    { section: 'Heights', key: 'highsHeight', label: 'Highs height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
+    { section: 'Heights', key: 'midsHeight', label: 'Mids height', type: 'range', min: 0, max: 12, step: 0.1, value: 1.3 },
+    { section: 'Heights', key: 'bassHeight', label: 'Bass height', type: 'range', min: 0, max: 12, step: 0.1, value: 1 },
+    // Which frequencies each sheet shows
+    { section: 'Frequency ranges', key: 'bassLow', label: 'Lowest note (Hz)', type: 'range', min: 20, max: 60, step: 5, value: 25 },
+    { section: 'Frequency ranges', key: 'bassHigh', label: 'Bass / mids split (Hz)', type: 'range', min: 60, max: 500, step: 10, value: 140 },
+    { section: 'Frequency ranges', key: 'midsHigh', label: 'Mids / highs split (Hz)', type: 'range', min: 1500, max: 8000, step: 100, value: 4000 },
+    { section: 'Frequency ranges', key: 'highsHigh', label: 'Highest note (Hz)', type: 'range', min: 8000, max: 20000, step: 500, value: 16000 },
+    // How the bars move
+    { section: 'Motion', key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0.5 },
+    { section: 'Motion', key: 'fall', label: 'Fall speed', type: 'range', min: 1, max: 30, step: 1, value: 8 },
+    // Where the sheets sit on screen
+    { section: 'Position', key: 'moveX', label: 'Move left / right', type: 'range', min: -1500, max: 1500, step: 10, value: 0 },
+    { section: 'Position', key: 'moveY', label: 'Move down / up', type: 'range', min: -300, max: 300, step: 5, value: 0 },
   ];
   public animate = () => {
     this.animationId = requestAnimationFrame(this.animate);
 
     const smoothing = controlValue<number>(this.controls, 'smoothing');
     const fall = controlValue<number>(this.controls, 'fall');
+    this.orbit!.enabled = !this.cameraLocked;
     this.positionSheets();
     this.sheets.forEach((sheet, index) => this.animateSheet(sheet, index, smoothing, fall));
 
     this.renderer.render(this.scene, this.camera);
+  }
+
+  // Keeps the picture filling the window when it is resized or the page is zoomed.
+  @HostListener('window:resize')
+  onResize() {
+    if (!this.renderer) {
+      return;
+    }
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
   public initializeScene() {
@@ -141,6 +178,8 @@ export class BasicColorWaveComponent implements OnDestroy {
 
     this.renderer = new THREE.WebGLRenderer();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    // A canvas is inline by default, which leaves a few pixels of page showing under it.
+    this.renderer.domElement.style.display = 'block';
     this.renderer.physicallyCorrectLights = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
@@ -162,9 +201,13 @@ export class BasicColorWaveComponent implements OnDestroy {
 
     this.camera = new THREE.PerspectiveCamera(10, window.innerWidth / window.innerHeight, 1, 5000);
 
-    this.camera.position.set(-800, 0, 3800);
+    // Straight in front of the middle of the sheets, so the view is symmetrical and the bottom edge of the screen is
+    // at the same height all the way across.
+    this.camera.position.set(0, 0, 3800);
 
-    new OrbitControls(this.camera, this.renderer.domElement);
+    this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
+    this.orbit.enabled = !this.cameraLocked;
+    this.trackView(this.orbit);
 
     this.renderer.shadowMap.enabled = true;
 

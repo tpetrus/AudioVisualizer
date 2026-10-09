@@ -28,6 +28,30 @@ export class CubesComponent implements OnDestroy {
     private readonly dummy = new THREE.Object3D();
     private rotationAngle = 0;
     public animationId!: number;
+    // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.
+    public cameraLocked = true;
+    private orbit?: OrbitControls;
+    // True once the view has been moved away from its starting position (shows the reset-view button).
+    public viewChanged = false;
+    private defaultCameraPosition = new THREE.Vector3();
+    private defaultTarget = new THREE.Vector3();
+
+    // Remembers where the view started, and watches for it being moved.
+    private trackView(orbit: OrbitControls) {
+      this.defaultCameraPosition.copy(this.camera.position);
+      this.defaultTarget.copy(orbit.target);
+      orbit.addEventListener('change', () => {
+        this.viewChanged = this.camera.position.distanceTo(this.defaultCameraPosition) > 0.5
+          || orbit.target.distanceTo(this.defaultTarget) > 0.5;
+      });
+    }
+
+    public resetView() {
+      this.camera.position.copy(this.defaultCameraPosition);
+      this.orbit!.target.copy(this.defaultTarget);
+      this.orbit!.update();
+      this.viewChanged = false;
+    }
     private audioSubscription: Subscription;
     private axes!: THREE.AxesHelper;
     private appliedColor = '';
@@ -63,7 +87,9 @@ export class CubesComponent implements OnDestroy {
         this.camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 500);
         this.camera.position.set(0, 0, 20);
 
-        new OrbitControls(this.camera, this.renderer.domElement);
+        this.orbit = new OrbitControls(this.camera, this.renderer.domElement);
+        this.orbit.enabled = !this.cameraLocked;
+        this.trackView(this.orbit);
 
         this.createCubes();
 
@@ -131,6 +157,7 @@ export class CubesComponent implements OnDestroy {
         const animate = () => {
             this.animationId = requestAnimationFrame(animate);
 
+            this.orbit!.enabled = !this.cameraLocked;
             this.animateCubes();
 
             this.renderer.render(this.scene, this.camera);
