@@ -1,0 +1,13 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "audio-visualizer",
+  "compatibility_date": "2026-10-08",
+  // Static Angular app: serve the build output, and send unknown paths (e.g. /cubes on refresh) to index.html.
+  "assets": {
+    "directory": "./dist/audio-visualizer",
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
