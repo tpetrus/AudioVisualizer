@@ -5,7 +5,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { AudioService } from "../services/audio.service";
 import { VisualizerControl } from "../control-panel/control-panel.component";
 import { controlValue } from "../control-panel/controls";
-import { RoundedFlagsMesh } from "src/assets/meshes/rounded-flags.mesh";
+import { PencilFlagsMesh } from "src/assets/meshes/pencil-flags.mesh";
 
 // One sheet of flags showing a slice of the spectrum.
 interface BandDefinition {
@@ -36,7 +36,7 @@ interface BandDefinition {
 // A band's sheet along with the audio it reads from.
 interface Sheet {
   definition: BandDefinition;
-  mesh: RoundedFlagsMesh;
+  mesh: PencilFlagsMesh;
   analyser?: AnalyserNode;
   // Normalized Gaussian weights for the column blur, centered on the middle entry.
   kernel: Float32Array;
@@ -63,7 +63,6 @@ export class BasicColorWaveComponent implements OnDestroy {
 
   private readonly flagDepth: number = 8;
   private readonly flagWidth: number = 256;
-  private readonly flagSize: number = 5;
   private readonly flagDistance: number = 10;
   // Each sheet is flagDepth rows deep, so leave room for all of them plus a small gap.
   private readonly sheetSpacing = this.flagDepth * this.flagDistance + 10;
@@ -73,14 +72,14 @@ export class BasicColorWaveComponent implements OnDestroy {
   // Bars on each sheet further back are taller by a factor of "Growth per sheet" (so heights grow exponentially:
   // front = frontHeightScale, next = front * growth, next = front * growth^2), so a tall front sheet doesn't hide them.
   private readonly frontHeightScale = 1.5;
-  // Tip shape from the front row of the front sheet to the last row of the last sheet: an exponent of 1 is a sharp
-  // point, larger values are blunter and rounder (2 is a dome). The bases stay on the base line either way.
-  private readonly frontTipExponent = 4;
-  private readonly backTipExponent = 4
+  // Each bar is a pencil: a straight six-sided body (pencilRadius is the distance from its middle to a corner, in the
+  // same units as flagDistance) that ends in a sharpened tip tipLength long. Bars shorter than the tip are all tip.
+  private readonly pencilRadius = 4.2;
+  private readonly tipLength = 26;
+  // How solid the bars are (1 = opaque).
+  private readonly barOpacity = 0.8;
   // Rows get lower from the farthest row (1) to the nearest (0.55), so the bars behind are not hidden by the ones in front.
   private readonly rowFalloff = Array.from({ length: this.flagDepth }, (_, row) => 1 - 0.45 * row / (this.flagDepth - 1));
-  // Cells per side of each square. Twice the rows means twice the squares, so this is kept modest.
-  private readonly squareSubdivisions = 5;
   private readonly minHz = 25;
   // Band loudness balancing: bars are scaled so a band's recent peak maps to TARGET_LEVEL (0..255), but a quiet
   // band is never boosted beyond what a PEAK_FLOOR-level signal would give, so silence stays flat.
@@ -100,7 +99,7 @@ export class BasicColorWaveComponent implements OnDestroy {
   private readonly bands: BandDefinition[] = [
     { name: 'Highs', lowKey: 'midsHigh', highKey: 'highsHigh', heightKey: 'highsHeight', fftSize: 1024, fallFactor: 1, blurColumns: 1.5, minDecibels: -90, minSmoothing: 0.75, startHue: 0, endHue: 0.08 },
     { name: 'Mids', lowKey: 'bassHigh', highKey: 'midsHigh', heightKey: 'midsHeight', fftSize: 2048, fallFactor: 1, blurColumns: 3, minDecibels: -90, minSmoothing: 0, startHue: 0.667, endHue: 0.736 },
-    { name: 'Bass', lowKey: 'bassLow', highKey: 'bassHigh', heightKey: 'bassHeight', fftSize: 4096, fallFactor: 1, blurColumns: 7, minDecibels: -65, minSmoothing: 0.4, startHue: 0.736, endHue: 0.806 },
+    { name: 'Bass', lowKey: 'bassLow', highKey: 'bassHigh', heightKey: 'bassHeight', fftSize: 4096, fallFactor: 1, blurColumns: 7, minDecibels: -90, minSmoothing: 0.4, startHue: 0.736, endHue: 0.806 },
   ];
   private sheets: Sheet[] = [];
 
@@ -152,14 +151,10 @@ export class BasicColorWaveComponent implements OnDestroy {
     }
 
     this.sheets = this.bands.map((definition, index) => {
-      const mesh = new RoundedFlagsMesh(this.flagDepth, this.flagWidth, this.flagSize, this.flagDistance,
-        this.createColors(definition.startHue, definition.endHue), this.squareSubdivisions);
-      // The further back a row is, the rounder its tips. Rows are laid out toward the camera, so the last row of a
-      // sheet is its nearest and the first row its farthest.
-      const lastRow = this.bands.length * this.flagDepth - 1;
+      const mesh = new PencilFlagsMesh(this.flagDepth, this.flagWidth, this.flagDistance,
+        this.createColors(definition.startHue, definition.endHue), this.pencilRadius, this.barOpacity);
       for (let row = 0; row < this.flagDepth; row++) {
-        const depth = index * this.flagDepth + (this.flagDepth - 1 - row);
-        mesh.setProfile(row, this.frontTipExponent + (this.backTipExponent - this.frontTipExponent) * depth / lastRow);
+        mesh.setTipLength(row, this.tipLength);
       }
       this.scene.add(mesh.mesh);
       return { definition, mesh, kernel: this.createKernel(definition.blurColumns), data: new Uint8Array(0), heights: new Float32Array(this.flagWidth * this.flagDepth), peak: 0 };
@@ -243,7 +238,7 @@ export class BasicColorWaveComponent implements OnDestroy {
       }
     }
 
-    sheet.mesh.positionAttribute.needsUpdate = true;
+    sheet.mesh.heightAttribute.needsUpdate = true;
   }
 
   private createKernel(sigma: number): Float32Array {
