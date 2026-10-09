@@ -95,7 +95,6 @@ export class BasicColorWaveComponent implements OnDestroy {
   private readonly targets = new Float32Array(this.flagWidth);
   private readonly blurred = new Float32Array(this.flagWidth);
 
-  
   // Front to back: highs, mids, bass. Hues go by position: red -> orange, blue -> indigo, indigo -> violet.
   private readonly bands: BandDefinition[] = [
     { name: 'Highs', lowKey: 'midsHigh', highKey: 'highsHigh', heightKey: 'highsHeight', fftSize: 1024, fallFactor: 1, blurColumns: 1.5, minDecibels: -90, minSmoothing: 0.75, startHue: 0, endHue: 0.08 },
