@@ -1,3 +1,9 @@
+:host {
+  display: flex;
+  flex-grow: 1;
+  align-self: center;
+}
+
 .backdrop {
   position: fixed;
   inset: 0;

@@ -28,6 +28,11 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
   public font!: Font;
   public textGeometry!: TextGeometry;
   public textMesh!: THREE.Mesh;
+  public taglineMeshes: THREE.Mesh[] = [];
+  public readonly TAGLINE_LINES = [
+    'Spice up your music-listening experience, add vibrancy and motion',
+    'to your DJ set, or whatever else you think of.'
+  ];
   public animationId!: number;
   public animate = () => {
     this.animationId = requestAnimationFrame(this.animate);
@@ -35,12 +40,14 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
     this.renderer.render(this.scene, this.camera);
   }
 
-  @HostListener('window:resize', ['$event'])
-  onResize(event: { target: { innerWidth: number; innerHeight: number; }; }) {
-    this.camera.aspect = event.target.innerWidth / event.target.innerHeight;
+  @HostListener('window:resize')
+  onResize() {
+    const width = window.innerWidth;
+    const height = this.container!.clientHeight;
+    this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
 
-    this.renderer.setSize( event.target.innerWidth, event.target.innerHeight );
+    this.renderer.setSize(width, height);
   }
 
   public initializeScene() {
@@ -67,7 +74,8 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
 
     // RENDERER
 
-    this.renderer = new THREE.WebGLRenderer();
+    this.renderer = new THREE.WebGLRenderer({ antialias: true });
+    this.renderer.setPixelRatio(window.devicePixelRatio);
     this.renderer.setSize(window.innerWidth, this.container!.clientHeight);
     this.renderer.physicallyCorrectLights = true;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -129,6 +137,30 @@ export class MainLandingComponent implements AfterViewInit, OnDestroy {
     this.textMesh.name = "AudioVisualizer";
 
     this.scene.add(this.textMesh);
+    this.createTaglineMeshes();
+  }
+
+  public createTaglineMeshes() {
+    new FontLoader().load('assets/fonts/helvetiker_bold.typeface.json', (font) => this.addTaglineLines(font));
+  }
+
+  private addTaglineLines(font: Font) {
+    const size = 2;
+    const lineHeight = size * 1.8;
+    const material = new THREE.MeshBasicMaterial({ color: 0xb8b8b8, fog: false, toneMapped: false });
+
+    this.TAGLINE_LINES.forEach((line, i) => {
+      const geometry = new TextGeometry(line, { font, size, height: 0.3, curveSegments: 8 });
+      geometry.computeBoundingBox();
+
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.x = -0.5 * (geometry.boundingBox!.max.x - geometry.boundingBox!.min.x);
+      mesh.position.y = -13 - i * lineHeight;
+      mesh.name = 'AudioVisualizerTagline' + i;
+
+      this.taglineMeshes.push(mesh);
+      this.scene.add(mesh);
+    });
   }
 
   constructor(router: Router, private readonly _audioService: AudioService) {

@@ -1,27 +1,21 @@
-<div id="container">
-    <div id="title" class="d-flex flex-column justify-content-center">
-    </div>
-
-    <div class="text-center py-1 small text-secondary" *ngIf="captureStarted">
-        Audio source active ·
-        <a href="#" class="link-light" (click)="$event.preventDefault(); dialogOpen = true">Audio settings</a>
-    </div>
-
+<section id="container" class="min-h-screen overflow-x-hidden">
     <app-audio-source-dialog *ngIf="dialogOpen" (closed)="dialogOpen = false"></app-audio-source-dialog>
+    <header class="text-white">
+        <div id="title">
+        </div>
+    </header>
 
-    <div class="d-flex justify-content-evenly d-flex">
-        <div class="square flex-fill" [style.background-image]="'url(assets/visualization-images/cubes.png)'" (click)="onVisualizationClick('cubes')"></div>
-        <div class="square flex-fill" [style.background-image]="'url(assets/visualization-images/basic-color-wave.png)'" (click)="onVisualizationClick('basic-color-wave')"></div>
-        <div class="square-unused flex-fill" [style.background-image]="'url(assets/visualization-images/coming-soon.png)'"></div>
+    <div class="text-center py-1 text-sm text-white" *ngIf="captureStarted">
+        Audio source active ·
+        <a href="#" class="text-gray-600" (click)="$event.preventDefault(); dialogOpen = true">Audio settings</a>
     </div>
-    <div class="d-flex justify-content-evenly d-flex">
-        <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
-        <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
-        <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
+
+    <div class="grid grid-cols-3">
+        <img class="h-full w-full aspect-[4/3] object-cover hover:opacity-90 cursor-pointer"
+            src="assets/visualization-images/cubes.png" (click)="onVisualizationClick('cubes')" />
+        <img class="h-full w-full aspect-[4/3] object-cover hover:opacity-90 cursor-pointer"
+            src="assets/visualization-images/basic-color-wave.png" (click)="onVisualizationClick('basic-color-wave')" />
+        <img class="h-full w-full aspect-[4/3] object-cover hover:opacity-90 cursor-pointer"
+            src="assets/visualization-images/coming-soon.png" />
     </div>
-    <div class="d-flex justify-content-evenly d-flex">
-        <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
-        <div class="square-unused flex-fill" [style.background-color]="'black'"></div>
-        <div class="square-unused flex-fill" [style.background-color]="'rgb(10, 10, 10)'"></div>
-    </div>
-</div>
+</section>
