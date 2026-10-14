@@ -35,6 +35,7 @@ export class CubesComponent implements OnDestroy {
     private bandBins: [number, number][] = [];
     private bandLevels = new Float32Array(this.bands);
     private readonly baseColor = new THREE.Color();
+    private readonly raisedColor = new THREE.Color();
     private readonly cubeColor = new THREE.Color();
     // The background flashes a tint of the cube colour on bass hits.
     private readonly backgroundColor = new THREE.Color(0x000000);
@@ -84,7 +85,8 @@ export class CubesComponent implements OnDestroy {
         { section: 'Response', key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 0.95, step: 0.05, value: 0.85 },
         { section: 'Look', key: 'depth', label: 'Depth', type: 'range', min: 1, max: 12, step: 0.5, value: 1 },
         { section: 'Look', key: 'spin', label: 'Spin speed', type: 'range', min: 0, max: 0.1, step: 0.005, value: 0.05 },
-        { section: 'Look', key: 'color', label: 'Cube color', type: 'color', value: '#8826c7' },
+        { section: 'Look', key: 'color', label: 'Background cubes', type: 'color', value: '#cc0000' },
+        { section: 'Look', key: 'raisedColor', label: 'Raised cubes', type: 'color', value: '#893001' },
         { section: 'Look', key: 'bassBump', label: 'Bass bump', type: 'checkbox', value: true },
         { section: 'Look', key: 'bgPulse', label: 'Bump intensity', type: 'range', min: 0, max: 1, step: 0.05, value: 0.5, shownWhen: 'bassBump' },
     ];
@@ -279,6 +281,7 @@ export class CubesComponent implements OnDestroy {
         const depth = controlValue<number>(this.controls, 'depth');
         const spin = controlValue<number>(this.controls, 'spin');
         this.baseColor.set(controlValue<string>(this.controls, 'color'));
+        this.raisedColor.set(controlValue<string>(this.controls, 'raisedColor'));
 
         this.updateBandLevels(sensitivity, gate, smoothing);
 
@@ -316,7 +319,8 @@ export class CubesComponent implements OnDestroy {
                 this.dummy.updateMatrix();
                 this.cubes.setMatrixAt(index, this.dummy.matrix);
 
-                this.cubeColor.copy(this.baseColor).multiplyScalar(0.4 + 0.6 * active);
+                // Resting cubes take a dimmed background colour and blend to the full raised colour as they lift.
+                this.cubeColor.copy(this.baseColor).multiplyScalar(0.4).lerp(this.raisedColor, active);
                 this.cubes.setColorAt(index, this.cubeColor);
             }
         }
