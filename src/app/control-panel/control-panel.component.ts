@@ -10,6 +10,8 @@ export interface VisualizerControl {
   step?: number;
   // Controls with the same section are shown together under a collapsible heading, in order of first appearance.
   section?: string;
+  // Key of a checkbox control: this control is only shown while that checkbox is ticked.
+  shownWhen?: string;
 }
 
 interface ControlSection {
@@ -44,6 +46,10 @@ export class ControlPanelComponent implements OnChanges {
 
   public asInput(event: Event): HTMLInputElement {
     return event.target as HTMLInputElement;
+  }
+
+  public isShown(control: VisualizerControl): boolean {
+    return !control.shownWhen || !!this.controls.find(c => c.key === control.shownWhen)?.value;
   }
 
   public isModified(control: VisualizerControl): boolean {

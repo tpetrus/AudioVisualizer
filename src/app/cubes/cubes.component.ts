@@ -36,6 +36,20 @@ export class CubesComponent implements OnDestroy {
     private bandLevels = new Float32Array(this.bands);
     private readonly baseColor = new THREE.Color();
     private readonly cubeColor = new THREE.Color();
+    // The background flashes a tint of the cube colour on bass hits.
+    private readonly backgroundColor = new THREE.Color(0x000000);
+    // The bass is isolated by its own steep low-pass filter chain feeding a separate analyser, so mids and
+    // drums don't leak in the way they do into the coarse low FFT bins.
+    private readonly bassCutoff = 120;
+    private bassFilters: BiquadFilterNode[] = [];
+    private bassAnalyser?: AnalyserNode;
+    // The analyser the filters are tapped from (the audio source can change underneath us).
+    private bassSource?: AnalyserNode;
+    private bassSamples = new Float32Array(0);
+    // Fast and slow followers of the bass energy; a bump is the fast one rising above the slow one.
+    private bassFast = 0;
+    private bassSlow = 0;
+    private bassPulse = 0;
     // How far each cube has turned about its vertical axis.
     private spinAngles = new Float32Array(0);
     public animationId!: number;
@@ -71,6 +85,8 @@ export class CubesComponent implements OnDestroy {
         { section: 'Look', key: 'depth', label: 'Depth', type: 'range', min: 1, max: 12, step: 0.5, value: 1 },
         { section: 'Look', key: 'spin', label: 'Spin speed', type: 'range', min: 0, max: 0.1, step: 0.005, value: 0.05 },
         { section: 'Look', key: 'color', label: 'Cube color', type: 'color', value: '#8826c7' },
+        { section: 'Look', key: 'bassBump', label: 'Bass bump', type: 'checkbox', value: true },
+        { section: 'Look', key: 'bgPulse', label: 'Bump intensity', type: 'range', min: 0, max: 1, step: 0.05, value: 0.5, shownWhen: 'bassBump' },
     ];
 
     public initializeScene() {
@@ -80,7 +96,7 @@ export class CubesComponent implements OnDestroy {
         this.renderer = new THREE.WebGLRenderer();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
 
-        this.scene.background = new THREE.Color(0x000000);
+        this.scene.background = this.backgroundColor;
 
         // A strong key light from the upper left and a dim fill from the right, so the faces of tilted cubes
         // are shaded differently and read as solid shapes.
@@ -102,8 +118,12 @@ export class CubesComponent implements OnDestroy {
         this.trackView(this.orbit);
 
         // The reflections come from a studio-style environment map, not from the black background.
+        // The room's light panel behind the camera mirrors off the cubes' front faces as a glare at the top
+        // of the screen, so it is taken out.
+        const room = new RoomEnvironment();
+        room.children.filter(child => child.position.z > 10).forEach(child => room.remove(child));
         const pmrem = new THREE.PMREMGenerator(this.renderer);
-        this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+        this.scene.environment = pmrem.fromScene(room, 0.04).texture;
         pmrem.dispose();
 
         this.fitGridToView();
@@ -139,6 +159,41 @@ export class CubesComponent implements OnDestroy {
             const end = Math.floor(this.minFrequency * Math.pow(ratio, (band + 1) / this.bands) / binWidth);
             this.bandBins.push([start, Math.max(end, start + 1)]);
         }
+
+        this.connectBassFilter();
+    }
+
+    // Taps the analyser's output through two cascaded low-pass filters (24 dB/octave) into a bass-only analyser.
+    private connectBassFilter() {
+        this.disconnectBassFilter();
+        const context = this.audio.context;
+        this.bassFilters = [0, 1].map(() => {
+            const filter = context.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = this.bassCutoff;
+            filter.Q.value = Math.SQRT1_2;
+            return filter;
+        });
+        this.bassAnalyser = context.createAnalyser();
+        // ~43 ms at 48 kHz: long enough to hold a full cycle of the lowest bass notes.
+        this.bassAnalyser.fftSize = 2048;
+        this.bassSamples = new Float32Array(this.bassAnalyser.fftSize);
+
+        this.bassSource = this.audio;
+        this.audio.connect(this.bassFilters[0]);
+        this.bassFilters[0].connect(this.bassFilters[1]);
+        this.bassFilters[1].connect(this.bassAnalyser);
+        this.bassFast = this.bassSlow = this.bassPulse = 0;
+    }
+
+    private disconnectBassFilter() {
+        if (this.bassSource && this.bassFilters.length) {
+            this.bassSource.disconnect(this.bassFilters[0]);
+        }
+        this.bassFilters.forEach(filter => filter.disconnect());
+        this.bassFilters = [];
+        this.bassSource = undefined;
+        this.bassAnalyser = undefined;
     }
 
     public createCubes() {
@@ -191,6 +246,32 @@ export class CubesComponent implements OnDestroy {
         }
     }
 
+    // 0..1 bass envelope that bumps when the bass (and only the bass) gets louder than it has recently been.
+    // Comparing against its own recent level means it works at any volume, and a busy mix doesn't trigger it.
+    private updateBassPulse(): number {
+        if (!this.bassAnalyser) {
+            return 0;
+        }
+        this.bassAnalyser.getFloatTimeDomainData(this.bassSamples);
+        let sum = 0;
+        for (const sample of this.bassSamples) {
+            sum += sample * sample;
+        }
+        const energy = Math.sqrt(sum / this.bassSamples.length);
+
+        this.bassFast += (energy - this.bassFast) * (energy > this.bassFast ? 0.5 : 0.2);
+        // ~1.5 s memory, so each new bass note or hit stands out against what came before.
+        this.bassSlow += (energy - this.bassSlow) * 0.01;
+
+        // Ignore near-silence, and small wobbles within 15% of the recent level.
+        const ratio = this.bassSlow > 0.005 ? this.bassFast / this.bassSlow : 1;
+        const target = Math.min(1, Math.max(0, (ratio - 1.15) * 1.5));
+
+        // Rises over a couple of frames rather than instantly, and settles over ~0.3 s, so it moves smoothly.
+        this.bassPulse += (target - this.bassPulse) * (target > this.bassPulse ? 0.45 : 0.12);
+        return this.bassPulse;
+    }
+
     public animateCubes() {
         const sensitivity = controlValue<number>(this.controls, 'sensitivity');
         const gate = controlValue<number>(this.controls, 'threshold');
@@ -200,6 +281,13 @@ export class CubesComponent implements OnDestroy {
         this.baseColor.set(controlValue<string>(this.controls, 'color'));
 
         this.updateBandLevels(sensitivity, gate, smoothing);
+
+        const bump = this.updateBassPulse();
+        const bgPulse = controlValue<boolean>(this.controls, 'bassBump') ? controlValue<number>(this.controls, 'bgPulse') : 0;
+        // Capped below full brightness so the cubes stay readable against the flash.
+        this.backgroundColor.copy(this.baseColor).multiplyScalar(bump * bgPulse * 0.6);
+        // The resting cubes behind the meters rise toward the viewer on each bass hit.
+        const backdropLift = bump * bgPulse * 2;
 
         const centerColumn = (this.columns - 1) / 2;
         const centerRow = (this.rows - 1) / 2;
@@ -214,7 +302,7 @@ export class CubesComponent implements OnDestroy {
                 const active = raw * raw * (3 - 2 * raw);
 
                 const index = x * this.rows + y;
-                this.dummy.position.set(x - centerColumn, y - centerRow, active * depth);
+                this.dummy.position.set(x - centerColumn, y - centerRow, active * depth + (1 - active) * backdropLift);
                 this.dummy.scale.setScalar(0.85 + 0.15 * active);
                 // Raised cubes turn to show their top and side, which is what gives them shading.
                 // They also spin slowly while lifted, and ease back to the nearest full turn once they drop.
@@ -265,6 +353,7 @@ export class CubesComponent implements OnDestroy {
 
     public ngOnDestroy(): void {
         this.audioSubscription.unsubscribe();
+        this.disconnectBassFilter();
         this.scene.clear();
         cancelAnimationFrame(this.animationId);
     }

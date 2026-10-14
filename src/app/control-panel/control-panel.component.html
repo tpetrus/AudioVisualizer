@@ -27,7 +27,8 @@
                     {{ modifiedCount(section) }} changed
                 </span>
             </summary>
-            <div class="control-row" *ngFor="let control of section.controls">
+            <ng-container *ngFor="let control of section.controls">
+            <div class="control-row" *ngIf="isShown(control)">
                 <label [attr.for]="control.key">{{ control.label }}</label>
                 <ng-container [ngSwitch]="control.type">
                     <input *ngSwitchCase="'range'" type="range" [id]="control.key" [min]="control.min"
@@ -44,6 +45,7 @@
                     [style.visibility]="isModified(control) ? 'visible' : 'hidden'"
                     (click)="resetControl(control)">↺</button>
             </div>
+            </ng-container>
         </details>
 
         <div class="footer">
