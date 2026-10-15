@@ -6,8 +6,8 @@ import { ComingSoonCard } from './ComingSoonCard';
 import { VisualizationCard } from './VisualizationCard';
 
 const VISUALIZATIONS = [
-    { to: '/cubes', title: 'Cubes', image: '/images/cubes.png' },
-    { to: '/basic-color-wave', title: 'Basic color wave', image: '/images/basic-color-wave.png' },
+    { to: '/cubes', title: 'Cubes', image: '/public/visualization-images/cubes.png' },
+    { to: '/basic-color-wave', title: 'Basic color wave', image: '/public/visualization-images/trio-color-wave.png' },
 ];
 
 export function LandingPage() {
