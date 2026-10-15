@@ -4,6 +4,7 @@ import { useCapturing } from '../audio/useAudioState';
 import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
 import { VisualizationCard } from './VisualizationCard';
+import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
 
 const VISUALIZATIONS = [
     { to: '/cubes', title: 'Cubes', image: '/public/visualization-images/cubes.png' },
@@ -36,8 +37,7 @@ export function LandingPage() {
 
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
-            {/* TODO: Add back after 6b*/}
-            {/* {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />} */}
+            {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
 
             <TitleBanner />
 
