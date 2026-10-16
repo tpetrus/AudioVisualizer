@@ -13,6 +13,7 @@ const DEFAULT_EXPORT_ALLOWED = [
     'vite.config.ts',
     'vitest.config.ts',
     'react-router.config.ts',
+    'playwright.config.ts',
     'eslint.config.js',
     'postcss.config.ts',
     'tailwind.config.js',
@@ -20,7 +21,15 @@ const DEFAULT_EXPORT_ALLOWED = [
 
 export default tseslint.config(
     {
-        ignores: ['build/', '.react-router/', '.wrangler/', 'coverage/', 'node_modules/'],
+        ignores: [
+            'build/',
+            '.react-router/',
+            '.wrangler/',
+            'coverage/',
+            'node_modules/',
+            'playwright-report/',
+            'test-results/',
+        ],
     },
     js.configs.recommended,
     tseslint.configs.recommendedTypeChecked,
@@ -65,6 +74,14 @@ export default tseslint.config(
     {
         files: ['*.{js,ts}', 'scripts/**/*.ts'],
         languageOptions: { globals: globals.node },
+    },
+    {
+        // Playwright specs run in Node but pass callbacks to `page.evaluate`, which run in the browser.
+        files: ['e2e/**/*.ts'],
+        languageOptions: { globals: { ...globals.node, ...globals.browser } },
+        // Playwright fixtures hand over their value with a callback named `use`, which the Hooks rule mistakes for
+        // React's `use` hook.
+        rules: { 'react-hooks/rules-of-hooks': 'off' },
     },
     {
         files: DEFAULT_EXPORT_ALLOWED,
