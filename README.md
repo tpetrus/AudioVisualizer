@@ -90,6 +90,29 @@ virtual audio cable.
 | Serve the build locally like production | `npm run preview` |
 | Deploy to Cloudflare | `npm run deploy` |
 
+## Make your own visualization
+
+This project welcomes forks. The audio capture, volume normalization, beat and tempo tracking, control panel and
+page plumbing are already done, so a new visualizer is just the part you care about: what it draws and how it reacts.
+Every visualizer gets the same ingredients (the spectrum, the waveform, loudness, and the rhythm data above), and the
+two included ones show how different the results can look.
+
+The repo includes a ready-made **add-visualizer skill** that walks an AI coding assistant through the whole job: the
+route, the landing-page card, the page, the three.js scene, the control panel settings, and the cleanup that keeps the
+page from leaking memory or graphics resources. It lives in
+[`.agents/skills/add-visualizer/SKILL.md`](.agents/skills/add-visualizer/SKILL.md) and follows the conventions in
+[`AGENTS.md`](AGENTS.md), so what it produces matches the existing code.
+
+1. Fork the repo and run `npm install` and `npm run dev`.
+2. Open the project in an AI coding assistant that reads `AGENTS.md` and skills, such as Claude Code.
+3. Describe what you want, for example: *"Add a visualizer called pulse-rings: concentric rings that swell with the bass
+   and flip color on every downbeat."* The assistant picks up the skill by itself, or you can name it (in Claude Code,
+   `/add-visualizer`).
+4. Check it in the browser, adjust the settings in the control panel, and iterate by describing what to change.
+
+Before you are done, `npm run typecheck`, `npm run test` and `npm run build` should all pass. Prefer to write it by hand?
+The same SKILL.md is a plain step-by-step guide.
+
 ## How it is built
 
 React 19 and React Router 8 (single-page app), three.js 0.141 (pinned, so do not upgrade it casually), the Web Audio
