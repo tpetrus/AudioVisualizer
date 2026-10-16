@@ -5,6 +5,7 @@ import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
 import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
+import { version } from '../../../package.json';
 
 const VISUALIZATIONS = [
     { to: '/cubes', title: 'Cubes', image: '/visualization-images/cubes.png' },
@@ -38,7 +39,7 @@ export function LandingPage() {
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
             {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
-
+            <span className='text-xs text-gray-500 pl-3'>v{version}</span>
             <TitleBanner />
 
             {capturing && (
