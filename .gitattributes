@@ -1,0 +1,2 @@
+# Prettier and CI (Linux) use LF; this stops Windows autocrlf checkouts from failing `format:check`.
+* text=auto eol=lf

@@ -3,7 +3,12 @@
   "private": true,
   "type": "module",
   "version": "0.1.0-beta",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "build": "react-router build",
     "dev": "react-router dev",
     "typecheck": "react-router typegen && tsc",
@@ -22,6 +27,7 @@
     "three": "^0.141.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@react-router/dev": "^8.4.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.2.2",
@@ -34,10 +40,17 @@
     "@types/three": "^0.141.0",
     "@vitest/coverage-v8": "^5.0.5",
     "autoprefixer": "^10.6.1",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.30",
+    "prettier": "^3.9.10",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.2",
     "vite": "^8.0.3",
     "vitest": "^5.0.4",
     "wrangler": "^4.151.0"
