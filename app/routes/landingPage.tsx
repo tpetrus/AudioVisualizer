@@ -1,7 +1,7 @@
 import { LandingPage } from "~/features/landing/LandingPage";
 import type { Route } from "../+types/root";
 
-export function meta({}: Route.MetaArgs) {
+export function meta(_args: Route.MetaArgs) {
   return [
     { title: "Audio Visualizer" },
     {

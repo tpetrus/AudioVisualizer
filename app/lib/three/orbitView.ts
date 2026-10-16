@@ -5,7 +5,7 @@ const MOVED_THRESHOLD = 0.5;
 
 export interface OrbitView {
     setLocked(locked: boolean): void; // Picture can't be dragged, rotated or zoomed.
-    reset(): void; // Puts camera back where it started.
+    reset: () => void; // Puts camera back where it started.
     dispose(): void;
 }
 

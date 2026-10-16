@@ -31,7 +31,7 @@ export function RequireAudio({ children }: Props) {
         return () => {
             cancelled = true;
         };
-    }, [engine]);
+    }, [engine, status]);
 
     if (status === 'denied') return <Navigate to="/" replace></Navigate>;
     if (status === 'pending') return;

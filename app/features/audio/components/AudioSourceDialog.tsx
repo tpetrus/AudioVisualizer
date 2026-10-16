@@ -38,6 +38,8 @@ export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
     const choosing = !canClose || showChooser;
 
     return (
+        // The backdrop click is a mouse convenience only; keyboard users close the dialog with Escape (handled above).
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop dismissal has a keyboard equivalent
         <div
             className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/75 p-4"
             onClick={(event) => {

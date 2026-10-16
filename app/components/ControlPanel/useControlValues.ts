@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { type ControlDefinition, type ControlValue, defaultValues } from './controls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 

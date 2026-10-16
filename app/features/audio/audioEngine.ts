@@ -210,7 +210,7 @@ export class AudioEngine {
 
         try {
             // Only resume silently when the permission is already granted; never trigger a prompt on page load.
-            const permission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+            const permission = await navigator.permissions.query({ name: 'microphone' });
             if (permission.state !== 'granted') {
                 return false;
             }

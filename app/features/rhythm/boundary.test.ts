@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOUNDARY_HARD, BOUNDARY_NONE, BOUNDARY_SOFT, BoundaryDetector, type BoundaryKind } from './boundary';
-import {
-    BAND_COUNT,
-    CHROMA_BINS,
-    FRAME_CHROMA_OFFSET,
-    FRAME_ENERGY_OFFSET,
-    FRAME_RMS_OFFSET,
-    FRAME_STRIDE,
-} from './rhythmConfig';
+import { BAND_COUNT, FRAME_CHROMA_OFFSET, FRAME_ENERGY_OFFSET, FRAME_RMS_OFFSET, FRAME_STRIDE } from './rhythmConfig';
 import { createRandom } from './testSignals';
 
 const FRAME_RATE = 100;
