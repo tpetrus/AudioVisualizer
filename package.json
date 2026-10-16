@@ -11,7 +11,7 @@
     "format:check": "prettier --check .",
     "build": "react-router build",
     "dev": "react-router dev",
-    "typecheck": "react-router typegen && tsc",
+    "typecheck": "react-router typegen && tsc && tsc -p e2e",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",

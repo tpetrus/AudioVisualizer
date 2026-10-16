@@ -1,9 +1,9 @@
 import { chooseInputDevice, expect, expectCanvasRendering, expectSingleCanvas, test } from './fixtures';
-import { VISUALIZERS } from './visualizers';
+import { VISUALIZERS_UNDER_TEST } from './visualizers';
 
 // A direct load of a visualizer URL must be served the app (not a 404) and, with no saved audio source, bounce to the
 // landing page. These need no audio, so they also run against production (`BASE_URL=... --grep @smoke`).
-for (const visualizer of VISUALIZERS) {
+for (const visualizer of VISUALIZERS_UNDER_TEST) {
     test(
         `loading ${visualizer.path} directly without a saved source redirects to the landing page`,
         { tag: '@smoke' },
@@ -18,7 +18,7 @@ for (const visualizer of VISUALIZERS) {
     );
 }
 
-for (const visualizer of VISUALIZERS) {
+for (const visualizer of VISUALIZERS_UNDER_TEST) {
     test(`reloading ${visualizer.path} with a saved input device resumes without going back to the landing page`, async ({
         page,
     }) => {

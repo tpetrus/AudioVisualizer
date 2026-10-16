@@ -10,8 +10,12 @@ const ALLOWED_PROBLEMS: readonly AllowedProblem[] = [];
 
 const WEBGL_CONTEXT_WARNING = 'Too many active WebGL contexts';
 
-// Stands in for `getDisplayMedia`, which needs a real picker dialog that cannot be automated. It returns what the app
-// asks for: a stream with an audio track (a steady tone) and a video track (the app discards the video).
+// The one browser API these tests replace, and only for tests that list `screenCaptureStub`: `getDisplayMedia` opens
+// the operating system's screen picker, which cannot be automated, and a headless Linux runner has no system audio to
+// capture anyway. Only this browser call is swapped; every line of app code (AudioEngine, the dialog, the scenes)
+// runs unmodified and receives a real MediaStream with a real audio track. The input-device path uses no stub at all:
+// it goes through Chromium's real getUserMedia, served by the fake-device flags in playwright.config.ts.
+// It returns what the app asks for: an audio track (a steady tone) and a video track (the app discards the video).
 function installScreenCaptureStub(): void {
     navigator.mediaDevices.getDisplayMedia = async () => {
         const context = new AudioContext();
@@ -39,7 +43,7 @@ interface Fixtures {
     // Every uncaught exception, console error and WebGL-context warning seen during the test. A fixture so that
     // the check cannot be forgotten: it fails the test on teardown if anything was recorded.
     problems: string[];
-    // Replaces `getDisplayMedia` with a stub that returns an oscillator tone.
+    // Opt-in: list it in a test's parameters to replace `getDisplayMedia` with a stub that returns an oscillator tone.
     screenCaptureStub: void;
 }
 
@@ -66,16 +70,44 @@ export const test = base.extend<Fixtures>({
         },
         { auto: true },
     ],
-    screenCaptureStub: [
-        async ({ page }, use) => {
-            await page.addInitScript(installScreenCaptureStub);
-            await use();
-        },
-        { auto: true },
-    ],
+    screenCaptureStub: async ({ page }, use) => {
+        await page.addInitScript(installScreenCaptureStub);
+        await use();
+    },
 });
 
 export { expect };
+
+// Records every WebGL context the page creates, so a test can count the ones still alive. Call it before the first
+// navigation. The app releases a scene's context with `forceContextLoss()` on unmount, which marks it lost at once.
+export async function trackWebGLContexts(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        const tracked: WebGLRenderingContext[] = [];
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- the wrapper calls it back with the right `this`
+        const original = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, ...args: unknown[]) {
+            const context = (original as (...a: unknown[]) => RenderingContext | null).apply(this, args);
+            if (
+                (context instanceof WebGLRenderingContext || context instanceof WebGL2RenderingContext) &&
+                !tracked.includes(context)
+            ) {
+                tracked.push(context);
+            }
+            return context;
+        } as typeof original;
+        (window as unknown as { __webglContexts: WebGLRenderingContext[] }).__webglContexts = tracked;
+    });
+}
+
+// How many tracked WebGL contexts have not been lost.
+export function liveWebGLContexts(page: Page): Promise<number> {
+    return page.evaluate(
+        () =>
+            (window as unknown as { __webglContexts: WebGLRenderingContext[] }).__webglContexts.filter(
+                (context) => !context.isContextLost(),
+            ).length,
+    );
+}
 
 const audioDialog = (page: Page) => page.getByRole('dialog', { name: 'Audio source' });
 

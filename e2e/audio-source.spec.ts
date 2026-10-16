@@ -1,9 +1,10 @@
 import { chooseInputDevice, chooseScreenCapture, expect, expectSingleCanvas, test } from './fixtures';
-import { VISUALIZERS, openSettings, startVisualizer } from './visualizers';
+import { VISUALIZERS_UNDER_TEST, openSettings, startVisualizer } from './visualizers';
 
-for (const visualizer of VISUALIZERS) {
+for (const visualizer of VISUALIZERS_UNDER_TEST) {
     test(`${visualizer.name}: switching between the input device and screen capture keeps one canvas`, async ({
         page,
+        screenCaptureStub: _stub,
     }) => {
         await startVisualizer(page, visualizer);
         await openSettings(page);
@@ -36,7 +37,10 @@ for (const visualizer of VISUALIZERS) {
     });
 }
 
-test('landing page: the audio source can be changed from "Audio settings"', async ({ page }) => {
+test('landing page: the audio source can be changed from "Audio settings"', async ({
+    page,
+    screenCaptureStub: _stub,
+}) => {
     await page.goto('/');
     await chooseInputDevice(page);
 

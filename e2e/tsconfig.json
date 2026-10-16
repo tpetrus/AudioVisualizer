@@ -1,0 +1,22 @@
+{
+  // The end-to-end tests are their own TypeScript program, separate from the app's (root tsconfig.json excludes e2e/),
+  // so nothing exported from here is offered as an auto-import while writing app code.
+  "include": ["./**/*"],
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "types": ["node"],
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    // The generator script imports the rhythm test signals, which use the app's `~/` alias.
+    "paths": {
+      "~/*": ["../app/*"]
+    },
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true
+  }
+}

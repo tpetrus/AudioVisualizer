@@ -1,5 +1,8 @@
 {
   "include": ["**/*", "**/.server/**/*", "**/.client/**/*", ".react-router/types/**/*"],
+  // e2e/ is its own program (e2e/tsconfig.json) so its exports never show up as auto-imports in app code; .claude holds
+  // agent worktrees, which are separate checkouts.
+  "exclude": ["node_modules", "e2e", ".claude"],
   "compilerOptions": {
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "types": ["node", "vite/client"],

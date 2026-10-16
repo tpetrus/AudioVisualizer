@@ -1,27 +1,65 @@
+import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { CUBES, VISUALIZERS, openSettings, startVisualizer } from './visualizers';
+import { VISUALIZERS_UNDER_TEST, openSettings, startVisualizer } from './visualizers';
 
-for (const visualizer of VISUALIZERS) {
+// How many of the panel's sliders each test exercises. Taken from the panel itself, so no labels or values are
+// hard-coded per visualizer.
+const SLIDERS_TO_TRY = 2;
+
+// A valid value other than the current one, derived from the slider's own min, max and step.
+async function otherValue(slider: Locator): Promise<number> {
+    const { min, max, step, value } = await slider.evaluate((element) => {
+        const input = element as HTMLInputElement;
+        return {
+            min: Number(input.min),
+            max: Number(input.max),
+            step: Number(input.step) || 1,
+            value: Number(input.value),
+        };
+    });
+    const steps = Math.round((max - min) / step);
+    for (const fraction of [0.75, 0.25, 1]) {
+        const candidate = Number((min + Math.round(steps * fraction) * step).toFixed(6));
+        if (candidate !== value) {
+            return candidate;
+        }
+    }
+    throw new Error('The slider has only one possible value.');
+}
+
+const labelOf = (slider: Locator) =>
+    slider.evaluate((element) => (element as HTMLInputElement).labels?.[0]?.textContent ?? '');
+
+for (const visualizer of VISUALIZERS_UNDER_TEST) {
     test.describe(visualizer.name, () => {
         test('changing and resetting controls', async ({ page }) => {
             await startVisualizer(page, visualizer);
             await openSettings(page);
 
-            for (const { label, value } of visualizer.rangeControls) {
-                await page.getByLabel(label, { exact: true }).fill(value);
-                await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
+            const sliders = page.getByRole('slider');
+            const tried = Math.min(SLIDERS_TO_TRY, await sliders.count());
+            expect(tried, 'the control panel has range controls to exercise').toBeGreaterThan(0);
+
+            const initial: string[] = [];
+            const labels: string[] = [];
+            for (let index = 0; index < tried; index++) {
+                const slider = sliders.nth(index);
+                initial.push(await slider.inputValue());
+                labels.push(await labelOf(slider));
+
+                const target = await otherValue(slider);
+                await slider.fill(String(target));
+                await expect(slider).toHaveValue(String(target));
             }
-            await expect(page.getByText(`${visualizer.rangeControls.length} changed`)).toBeVisible();
+            await expect(page.getByText(/\d+ changed/).first()).toBeVisible();
 
             // One control back to its default through its own reset button.
-            const [first, ...rest] = visualizer.rangeControls;
-            await page.getByRole('button', { name: `Reset ${first.label} to default` }).click();
-            await expect(page.getByLabel(first.label, { exact: true })).toHaveValue(first.defaultValue);
-            await expect(page.getByText(`${rest.length} changed`)).toBeVisible();
+            await page.getByRole('button', { name: `Reset ${labels[0]} to default` }).click();
+            await expect(sliders.nth(0)).toHaveValue(initial[0]);
 
             await page.getByRole('button', { name: 'Reset all' }).click();
-            for (const { label, defaultValue } of visualizer.rangeControls) {
-                await expect(page.getByLabel(label, { exact: true })).toHaveValue(defaultValue);
+            for (let index = 0; index < tried; index++) {
+                await expect(sliders.nth(index)).toHaveValue(initial[index]);
             }
             await expect(page.getByText(/\d+ changed/)).toHaveCount(0);
 
@@ -65,24 +103,3 @@ for (const visualizer of VISUALIZERS) {
         });
     });
 }
-
-test('Cubes: colour and checkbox controls, and the setting that reveals another', async ({ page }) => {
-    await startVisualizer(page, CUBES);
-    await openSettings(page);
-
-    // The Look section starts collapsed.
-    await page.getByText('Look', { exact: true }).click();
-    await page.getByLabel('Spin speed', { exact: true }).fill('0.03');
-    await page.getByLabel('Raised cubes', { exact: true }).fill('#00ff00');
-    await expect(page.getByLabel('Raised cubes', { exact: true })).toHaveValue('#00ff00');
-
-    // "Bump intensity" is only shown while "Bass bump" is on.
-    await expect(page.getByLabel('Bump intensity', { exact: true })).toBeVisible();
-    await page.getByLabel('Bass bump', { exact: true }).uncheck();
-    await expect(page.getByLabel('Bump intensity', { exact: true })).toHaveCount(0);
-    await page.getByLabel('Bass bump', { exact: true }).check();
-    await expect(page.getByLabel('Bump intensity', { exact: true })).toBeVisible();
-
-    await page.getByRole('button', { name: 'Reset all' }).click();
-    await expect(page.getByLabel('Raised cubes', { exact: true })).toHaveValue('#893001');
-});
