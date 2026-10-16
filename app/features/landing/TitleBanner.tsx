@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import * as THREE from 'three';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry';
-import { type Font, FontLoader } from 'three/examples/jsm/loaders/FontLoader';
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
+import { type Font, FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
 import useThreeScene, { type SceneSetup } from '~/hooks/useThreeScene';
 
 const TITLE = 'AudioVisualizer';

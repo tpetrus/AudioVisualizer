@@ -1,7 +1,8 @@
 import { type SyntheticEvent, useMemo, useState } from 'react';
 import { ControlInput } from './ControlInput';
-import { type ControlDefinition, type ControlValue, groupBySection, isModified } from './controls';
+import { type ControlDefinition, type ControlValue, groupBySection, isModified, isShown } from './controls';
 import styles from './ControlPanel.module.css';
+
 
 interface ControlPanelProps {
     definitions: readonly ControlDefinition[];
@@ -105,30 +106,31 @@ export function ControlPanel({
                                             </span>
                                         )}
                                     </summary>
-                                    {section.controls.map(definition => {
-                                        const value = values[definition.key];
-                                        return (
-                                            <div key={definition.key} className={styles.controlRow}>
-                                                <label htmlFor={definition.key}>{definition.label}</label>
-                                                <ControlInput
-                                                    definition={definition}
-                                                    value={value}
-                                                    onChange={next => onChange(definition.key, next)}
-                                                />
-                                                {definition.type === 'range' && <span className={styles.value}>{value}</span>}
-                                                <button
-                                                    type="button"
-                                                    className={styles.fieldReset}
-                                                    title="Reset to default"
-                                                    aria-label={`Reset ${definition.label} to default`}
-                                                    style={{ visibility: isModified(definition, value) ? 'visible' : 'hidden' }}
-                                                    onClick={() => onChange(definition.key, definition.default)}
-                                                >
-                                                    ↺
-                                                </button>
-                                            </div>
-                                        );
-                                    })}
+                                    {section.controls
+                                        .filter(definition => isShown(definition, values)).map(definition => {
+                                            const value = values[definition.key];
+                                            return (
+                                                <div key={definition.key} className={styles.controlRow}>
+                                                    <label htmlFor={definition.key}>{definition.label}</label>
+                                                    <ControlInput
+                                                        definition={definition}
+                                                        value={value}
+                                                        onChange={next => onChange(definition.key, next)}
+                                                    />
+                                                    {definition.type === 'range' && <span className={styles.value}>{value}</span>}
+                                                    <button
+                                                        type="button"
+                                                        className={styles.fieldReset}
+                                                        title="Reset to default"
+                                                        aria-label={`Reset ${definition.label} to default`}
+                                                        style={{ visibility: isModified(definition, value) ? 'visible' : 'hidden' }}
+                                                        onClick={() => onChange(definition.key, definition.default)}
+                                                    >
+                                                        ↺
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
                                 </details>
                             );
                         })}

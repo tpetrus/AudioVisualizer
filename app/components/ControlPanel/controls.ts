@@ -2,6 +2,7 @@ interface ControlBase {
     key: string;
     label: string;
     section: string;
+    shownWhen?: string;
 }
 
 export interface RangeControl extends ControlBase {
@@ -43,6 +44,10 @@ export function defaultValues<T extends readonly ControlDefinition[]>(definition
 
 export function isModified(definition: ControlDefinition, value: ControlValue): boolean {
     return value !== definition.default;
+}
+
+export function isShown(definition: ControlDefinition, values: Readonly<Record<string, ControlValue>>): boolean {
+    return !definition.shownWhen || Boolean(values[definition.shownWhen]);
 }
 
 // Groups controls by section, keeping the order in which each section first appears.
