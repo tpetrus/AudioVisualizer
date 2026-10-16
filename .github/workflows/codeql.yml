@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Weekly run so new queries are applied to unchanged code.
+  schedule:
+    - cron: '43 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # Required to upload results to the code scanning dashboard.
+      security-events: write
+      contents: read
+      actions: read
+    strategy:
+      fail-fast: false
+      matrix:
+        # "actions" scans the workflow files themselves (script injection, excessive permissions, etc.).
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Both languages are interpreted, so no build is needed.
+          build-mode: none
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

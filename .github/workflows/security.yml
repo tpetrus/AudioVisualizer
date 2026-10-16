@@ -1,0 +1,55 @@
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # Weekly run so newly published advisories against unchanged dependencies are still reported.
+  schedule:
+    - cron: '17 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Production dependencies are what ships to users, so high/critical advisories block.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # Dev tooling advisories are reported but do not block: they never reach the deployed bundle and are often
+      # unfixable until an upstream release.
+      - name: Audit all dependencies (informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+  dependency-review:
+    # The action diffs the PR's dependency changes against the base branch, so it only makes sense on pull requests.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Needed to post the summary comment when the check fails.
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
