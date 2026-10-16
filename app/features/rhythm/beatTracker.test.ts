@@ -143,3 +143,50 @@ describe('BeatTracker', () => {
         expect(tracker.gridEpoch).toBe(0);
     });
 });
+
+describe('BeatTracker with unusual tempo estimates', () => {
+    // Pushes `seconds` of a steady pulse train (one pulse per half second) at the tempo set beforehand.
+    function pushFlat(tracker: BeatTracker, seconds: number): void {
+        for (let i = 0; i < seconds * FRAME_RATE; i++) {
+            tracker.push(i / FRAME_RATE, i % 50 === 0 ? 1 : 0.05);
+        }
+    }
+
+    it('keeps its grid when the tempo estimate is withdrawn (0 BPM)', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 120, 10);
+        expect(tracker.locked).toBe(true);
+        const epoch = tracker.gridEpoch;
+
+        tracker.setTempo(0);
+
+        expect(tracker.locked).toBe(true);
+        expect(tracker.gridEpoch).toBe(epoch);
+        expect(tracker.periodSeconds).toBeGreaterThan(0);
+    });
+
+    it('cannot align to a tempo faster than the frame rate resolves', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // Under two frames per beat.
+        tracker.setTempo(20000);
+        pushFlat(tracker, 6);
+        expect(tracker.locked).toBe(false);
+    });
+
+    it('cannot align to a tempo so slow that fewer than three beats fit in the history', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // 20 BPM is a 3 s period, and the 6 s of history holds barely two of them.
+        tracker.setTempo(20);
+        pushFlat(tracker, 6);
+        expect(tracker.locked).toBe(false);
+    });
+
+    it('still aligns when the beat period is not a whole number of frames', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // 135 BPM is 44.4 frames a beat: the comb's later pulses are rounded further out than the offsets assume, so
+        // some of them fall past the stored history and are skipped.
+        tracker.setTempo(135);
+        pushFlat(tracker, 3.09);
+        expect(tracker.locked).toBe(true);
+    });
+});

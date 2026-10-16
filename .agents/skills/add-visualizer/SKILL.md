@@ -191,13 +191,19 @@ public/visualization-images/<kebab-name>.png   landing thumbnail (4:3)
    `public/visualization-images/` (URL `/visualization-images/<kebab-name>.png`, never `/public/...`). Keep the grid in
    step: the "More coming soon" tile fills the last cell.
 
+8. **Specs**: co-locate a `.test.ts(x)` with each file you added: the pure maths and the mesh/sheet classes (node
+   environment, tested directly), the scene hook (jsdom, with the `three` mock and `FakeRenderer` from
+   `~/test/fakeThree` plus the other fakes in `app/test/`), and the page (scene hook mocked, so it only checks wiring).
+   Also cover the route module's `meta()` and default export. Follow "Testing" in `docs/agents/conventions.md` and keep
+   `npm run test:coverage` green (95% across the board).
+
 ## Checklist before finishing
 - [ ] No React state read inside `update`; everything changing comes through refs.
 - [ ] No allocations inside `update`; buffers and scratch objects preallocated.
 - [ ] Everything created is freed: mesh classes `dispose()`, tapped analysers disconnected (try/catch), orbit disposed.
 - [ ] Audio rebinding handled with `source !== boundAnalyser`; switching source in "Audio settings" keeps the scene.
 - [ ] Named exports (except the route module); `~/` imports outside the folder; comments explain why.
-- [ ] `npm run typecheck` and `npm run build` pass.
+- [ ] `npm run typecheck`, `npm run test:coverage` and `npm run build` pass.
 - [ ] In `npm run dev`: the card enables after choosing a source, the visualizer reacts, controls work (including
       `shownWhen`), lock/reset view work, resize works, navigating away and back 10 times leaves no console errors or
       WebGL-context warnings, and a direct visit without audio redirects to `/`.

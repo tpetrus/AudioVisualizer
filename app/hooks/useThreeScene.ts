@@ -47,7 +47,7 @@ export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup
 
         let size: SceneSize = { width: container.clientWidth, height: container.clientHeight };
         let isDevEnvironment = import.meta.env.DEV;
-        if (isDevEnvironment && (size.width === 0) || (size.height === 0)) {
+        if (isDevEnvironment && (size.width === 0 || size.height === 0)) {
             console.warn('useThreeScene: the container has no size.  Give it an explicit width and height.')
         }
 

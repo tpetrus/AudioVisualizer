@@ -101,3 +101,48 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - localStorage: only through `storage.ts`. Reads fall back to defaults and merge stored settings over them.
 - Engine actions throw `Error`s with user-facing messages; UI shows them (`SourceChooser`'s `run()` helper).
 - `catch {}` blocks say why swallowing is safe. Listener errors in the engine are logged, not rethrown.
+
+## Testing
+- Specs are co-located: `foo.ts` has `foo.test.ts(x)` beside it. The 95% coverage threshold (`npm run test:coverage`)
+  covers every file under `app/`, so a new file needs a spec in the same change. Don't add `v8 ignore` comments or
+  coverage excludes to get there.
+- The default environment is node, which is fastest and right for pure maths and classes. A spec that needs the DOM
+  starts with `// @vitest-environment jsdom`.
+- Test classes and pure functions directly, with plain inputs and outputs. Only hooks and components need React;
+  render them with Testing Library (`renderHook`, `render`), and use `renderWithProviders` when they need the audio or
+  rhythm context.
+- Prefer the shared fakes in `app/test/` (`fakeWebAudio`, `fakeMedia`, `fakeThree`, `fakeResizeObserver`,
+  `fakeEngines`) over ad-hoc mocks, so every spec fakes the browser the same way. If a fake lacks a member, add it
+  there rather than patching it locally. They install through `vi.stubGlobal`, which `setup.ts` undoes after each test.
+- To fake the GPU, mock `three` with a dynamic import inside the factory, because `vi.mock` is hoisted above the
+  imports: `vi.mock('three', async (importOriginal) => { const { threeFakes } = await import('~/test/fakeThree');
+  return { ...(await importOriginal<typeof import('three')>()), ...threeFakes }; })`. Only the renderer and PMREM
+  generator are replaced; the rest of three runs for real. Drive frames with `FakeRenderer.last.renderFrame(time)`.
+- `userEvent` waits on timers, so it hangs under fake timers unless you pass
+  `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. Fake only the timers you need
+  (`vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })`) so Testing Library's own polling keeps
+  working, and wrap manual `vi.advanceTimersByTime` calls in `act`.
+- Keep the specs honest about the contracts in architecture.md: assert that resources are freed (dispose, disconnect,
+  listeners removed) as well as that the happy path works.
+
+## Testing
+- Specs are co-located: `foo.ts` has `foo.test.ts(x)` beside it. The 95% coverage threshold (`npm run test:coverage`)
+  covers every file under `app/`, so a new file needs a spec in the same change. Don't add `v8 ignore` comments or
+  coverage excludes to get there.
+- The default environment is node, which is fastest and right for pure maths and classes. A spec that needs the DOM
+  starts with `// @vitest-environment jsdom`.
+- Test classes and pure functions directly, with plain inputs and outputs. Only hooks and components need React;
+  render them with Testing Library (`renderHook`, `render`), and use `renderWithProviders` when they need the audio or
+  rhythm context.
+- Prefer the shared fakes in `app/test/` (`fakeWebAudio`, `fakeMedia`, `fakeThree`, `fakeResizeObserver`,
+  `fakeEngines`) over ad-hoc mocks, so every spec fakes the browser the same way. If a fake lacks a member, add it
+  there rather than patching it locally. They install through `vi.stubGlobal`, which `setup.ts` undoes after each test.
+- To fake the GPU, mock `three` with a dynamic import inside the factory, because `vi.mock` is hoisted above the
+  imports: `vi.mock('three', async (importOriginal) => { const { threeFakes } = await import('~/test/fakeThree');
+  return { ...(await importOriginal<typeof import('three')>()), ...threeFakes }; })`. Only the renderer and PMREM
+  generator are replaced; the rest of three runs for real. Drive frames with `FakeRenderer.last.renderFrame(time)`.
+- `userEvent` waits on timers, so it hangs under fake timers unless you pass
+  `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. Fake only the timers you need
+  (`vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })`) so Testing Library's own polling keeps
+  working, and wrap manual `vi.advanceTimersByTime` calls in `act`.
+- Assert that resources are freed (dispose, disconnect, listeners removed) as well as that the happy path works.

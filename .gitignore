@@ -7,3 +7,5 @@
 /build/
 
 .wrangler
+# Coverage report
+/coverage/

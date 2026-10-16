@@ -9,13 +9,14 @@ standards below are the ones agreed during that port. Follow them so new code re
 |---|---|
 | Dev server (HMR) | `npm run dev` |
 | Type-check (also regenerates route types) | `npm run typecheck` |
-| Unit tests (vitest, node environment) | `npm run test` |
+| Unit tests (vitest, node environment by default) | `npm run test` |
+| Unit tests with coverage (fails under 95%) | `npm run test:coverage` |
 | Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
 | Production build (static SPA → `build/client`) | `npm run build` |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Deploy to Cloudflare | `npm run deploy` |
 
-Before finishing any change: `npm run typecheck`, `npm run test` and `npm run build` must all pass with no errors. For anything that
+Before finishing any change: `npm run typecheck`, `npm run test`, `npm run test:coverage` and `npm run build` must all pass with no errors. For anything that
 renders, also check it in `npm run dev` (see "Verifying changes" below).
 
 ## Stack
@@ -40,6 +41,7 @@ app/
     visualizers/meshes/          shared mesh classes + GLSL shader strings
   components/                    shared, feature-agnostic UI (ControlPanel, PerformanceStats, RhythmStats)
   hooks/                         shared hooks (useThreeScene, useLatestRef)
+  test/                          shared test fakes and helpers (not shipped)
   lib/three/                     three.js helpers (disposeScene, createOrbitView)
 public/                          static files served from / (fonts/, visualization-images/)
 ```
@@ -70,18 +72,21 @@ Use `app/features/visualizers/cubes/` and `app/features/visualizers/trio-color-w
 implementations; new code should look like them.
 
 ## Verifying changes
-- `npm run typecheck`, `npm run test` and `npm run build` pass.
+- `npm run typecheck`, `npm run test`, `npm run test:coverage` and `npm run build` pass.
 - In `npm run dev`: choose an audio source on `/`, open each visualizer, change controls, toggle the camera lock and reset
   view, switch the audio source from the panel's "Audio settings", and navigate away and back several times. The console
   must stay free of errors and of "Too many active WebGL contexts" warnings, and the page should contain one `<canvas>`
   per scene.
 - Deploy-affecting changes: `npm run preview`, then load `/`, `/cubes` and `/trio-color-wave` directly by URL.
 
+## Testing
+Specs sit next to the file they test (`foo.ts` -> `foo.test.ts`). `npm run test:coverage` enforces 95% for lines,
+statements, functions and branches over `app/**` (`vitest.config.ts`); keep it green, and write specs rather than
+excluding files. Specs run in node by default; DOM specs start with `// @vitest-environment jsdom`. The shared fakes in
+`app/test/` (Web Audio, media devices, the three.js renderer, ResizeObserver, injected engine and tracker,
+`renderWithProviders`) replace ad-hoc mocks. Some rhythm specs use `it.fails` to record known tracker weaknesses;
+fixing one makes its test fail until `.fails` is removed. See "Testing" in `docs/agents/conventions.md`.
+
 ## Known gaps (don't copy, don't build on)
-- **Thin test coverage.** `npm run test` runs vitest in the node environment (`vitest.config.ts`), and only the rhythm
-  modules have specs (`app/features/rhythm/*.test.ts`, with synthetic audio in `testSignals.ts`). Some of those use
-  `it.fails` to record known tracker weaknesses; fixing one makes its test fail until `.fails` is removed. Nothing yet
-  covers the audio helpers (`bands.ts`, `spectrum.ts`, `storage.ts`, `controls.ts`), React components or hooks; `jsdom`
-  and Testing Library are installed for those but unused. Run a spec in jsdom with `// @vitest-environment jsdom`.
 - **Leftover Tailwind 3 / PostCSS config.** `tailwind.config.js` and `postcss.config.ts` are not used by the Tailwind 4
   Vite plugin. Configure Tailwind in `app/app.css` (`@theme`), not in those files.

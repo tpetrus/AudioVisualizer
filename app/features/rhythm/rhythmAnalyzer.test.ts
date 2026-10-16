@@ -337,3 +337,34 @@ describe('RhythmAnalyzer API', () => {
         expect(analyzer.state.songChangeCount).toBe(1);
     });
 });
+
+describe('RhythmAnalyzer after a gap in the audio clock', () => {
+    // A pulse every half second at 100 frames/s, with a steady level so the frames do not count as silence.
+    function pulseFrames(count: number): Float32Array {
+        const frames = new Float32Array(count * FRAME_STRIDE);
+        for (let i = 0; i < count; i++) {
+            frames[i * FRAME_STRIDE] = i % 50 === 0 ? 1 : 0.02;
+            frames[i * FRAME_STRIDE + 6] = 0.2;
+        }
+        return frames;
+    }
+
+    it('declares the overdue beat and keeps going when the worklet stalled for seconds', () => {
+        const analyzer = new RhythmAnalyzer(100);
+        analyzer.pushBatch(0, pulseFrames(1500), 1500);
+        analyzer.updatePhase(15);
+        const beatsBefore = analyzer.state.beatCount;
+        expect(beatsBefore).toBeGreaterThan(0);
+
+        // The next frame arrives 10 s late. The beat it declares fell far back in time, beyond the stored history,
+        // so its features cannot be measured; that must not break the analysis or the counters.
+        const frames = pulseFrames(1);
+        analyzer.pushFrame(25, frames, 0);
+        analyzer.updatePhase(25);
+
+        expect(analyzer.state.beatCount).toBeGreaterThanOrEqual(beatsBefore);
+        expect(Number.isFinite(analyzer.state.meterConfidence)).toBe(true);
+        expect(analyzer.state.beatPhase).toBeGreaterThanOrEqual(0);
+        expect(analyzer.state.beatPhase).toBeLessThan(1);
+    });
+});

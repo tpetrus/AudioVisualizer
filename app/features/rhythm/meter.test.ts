@@ -150,3 +150,16 @@ describe('MeterEstimator', () => {
         expect(feeder.meter.beatsPerBar).toBe(4);
     });
 });
+
+describe('MeterEstimator with sparse evidence', () => {
+    it('claims no meter when the beats are so far apart that nothing is remembered between them', () => {
+        const meter = new MeterEstimator();
+        // A beat every 1000 s: the evidence of each beat has all but vanished by the next one.
+        for (let index = 1; index <= 30; index++) {
+            meter.addBeat(index, index % 4 === 0 ? 2 : 1, index % 4 === 0 ? 2 : 1, 0.2, 1000);
+        }
+        expect(meter.beatsPerBar).toBeUndefined();
+        expect(meter.confidence).toBeGreaterThanOrEqual(0);
+        expect(meter.confidence).toBeLessThanOrEqual(1);
+    });
+});
