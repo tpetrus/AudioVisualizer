@@ -48,11 +48,11 @@ refreshed in place, so there is nothing to allocate or subscribe to.
 |---|---|
 | **`bpm`** | The speed of the song in beats per minute (how fast you would tap your foot). 0 means it has not worked it out yet. |
 | **`tempoConfidence`** | 0 to 1: how sure it is about the BPM. |
-| **`beatPhase`** | 0 to 1: how far you are between one beat and the next. 0 is the instant of a beat; 0.5 is halfway to the next. Use it for smooth pulses that stay in time. |
+| **`beatPhase`** | 0 to 1: how far you are between one beat and the next. 0 is the instant of a beat; 0.5 is halfway to the next. Use it for smooth pulses that stay in time. It is empty (`undefined`) until the first beat is found, so check for that before using it. |
 | **`beatCount`** | A running total of beats heard. Remember the last value you saw; if it changed, a beat just happened. |
 | **`beatsPerBar`** | 3 or 4: whether the music counts in threes (a waltz) or fours (most pop and rock). `undefined` means it cannot tell. |
 | **`meterConfidence`** | 0 to 1: how sure it is about the 3 or 4. Only trust it above about 0.5 (`METER_VISUAL_CONFIDENCE`). |
-| **`barPhase`** | 0 to 1: how far through the current bar of 3 or 4 beats you are. Without a confident meter it behaves like `beatPhase`. |
+| **`barPhase`** | 0 to 1: how far through the current bar of 3 or 4 beats you are. It is empty (`undefined`) while the meter is unsure, so check for that before using it. |
 | **`downbeatCount`** | A running total of the "ONE" beats, the strong first beat of each bar. Same compare-with-last-value trick as `beatCount`. It only advances when the meter is confident. |
 | **`nextBeatTime`** | When the next beat will land, in the audio clock's seconds. Lets you start a movement early so it arrives on the beat. |
 | **`bandOnsets`** | Three 0 to 1 numbers (kick, mid, high) that spike when a drum-like hit lands in that range, then fade. Kick is the thud, mid is snares and vocals, high is hats and cymbals. |

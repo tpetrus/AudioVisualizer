@@ -8,9 +8,11 @@ export interface RhythmState {
     // Tempo in beats per minute, or 0 while unknown.
     bpm: number;
     // 0..1 position inside the current beat / bar. Only meaningful after `updatePhase()` for the current frame.
-    beatPhase: number;
-    barPhase: number;
-    // undefined means "unsure": barPhase then equals beatPhase.
+    // beatPhase is undefined until a beat has been found: 0 would read as "exactly on a beat".
+    beatPhase: number | undefined;
+    // undefined while the meter is unsure (no beats per bar, or no tempo yet): a bar position is not known then, and
+    // reusing the beat position would look like a real bar that is only one beat long.
+    barPhase: number | undefined;
     beatsPerBar: BeatsPerBar | undefined;
     // 0..1 trust in the tempo and in the meter.
     tempoConfidence: number;
@@ -32,8 +34,8 @@ export interface RhythmState {
 export function createRhythmState(): RhythmState {
     return {
         bpm: 0,
-        beatPhase: 0,
-        barPhase: 0,
+        beatPhase: undefined,
+        barPhase: undefined,
         beatsPerBar: undefined,
         tempoConfidence: 0,
         meterConfidence: 0,
@@ -51,8 +53,8 @@ export function createRhythmState(): RhythmState {
 // them with a remembered value keeps working across resets.
 export function clearRhythmState(state: RhythmState): void {
     state.bpm = 0;
-    state.beatPhase = 0;
-    state.barPhase = 0;
+    state.beatPhase = undefined;
+    state.barPhase = undefined;
     state.beatsPerBar = undefined;
     state.tempoConfidence = 0;
     state.meterConfidence = 0;

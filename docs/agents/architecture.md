@@ -172,7 +172,7 @@ AudioEngine analyser ─▶ AudioWorkletNode (rhythmProcessor.worklet.ts: OnsetE
 | Read by | render loops, polling overlays | React components via `useBeatsPerBar()` / `useSongChangeCount()` |
 | Shape | one preallocated mutable object, same reference forever | stable primitives, `notify()` last |
 
-`state` holds `bpm`, `beatPhase`, `barPhase` (0..1), `beatsPerBar` (`3 | 4 | undefined` = unsure), `tempoConfidence`,
+`state` holds `bpm`, `beatPhase` (0..1, or `undefined` until a beat is found), `barPhase` (0..1, or `undefined` while the meter is unsure), `beatsPerBar` (`3 | 4 | undefined` = unsure), `tempoConfidence`,
 `meterConfidence`, `bandOnsets` (kick, mid, high), `chroma`, `novelty`, `nextBeatTime` (AudioContext seconds) and three
 counters. Never copy these into `useState`.
 
@@ -180,8 +180,8 @@ counters. Never copy these into `useState`.
 Analysis runs about 100 ms behind the audio, so a stored phase would always be late. Call
 `tracker.updatePhase()` once per animation frame (it defaults to the bound context's `currentTime`). It extrapolates from
 the newest declared beat and period, then writes `beatPhase`, `barPhase`, `nextBeatTime`, `beatCount` and
-`downbeatCount`. It is O(1) and allocates nothing. Without a confident meter `barPhase` equals `beatPhase` and
-`downbeatCount` does not advance. The tracker also calls it after each message, so the counters advance even if no
+`downbeatCount`. It is O(1) and allocates nothing. While the meter is unsure `barPhase` is `undefined` (check it
+before use) and `downbeatCount` does not advance. The tracker also calls it after each message, so the counters advance even if no
 visualizer is mounted.
 
 ### The counters pattern

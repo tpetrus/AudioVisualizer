@@ -18,8 +18,8 @@ interface Reading {
     kick: number;
     mid: number;
     high: number;
-    beatPhase: number;
-    barPhase: number;
+    beatPhase: number | undefined;
+    barPhase: number | undefined;
     flash: boolean;
 }
 
@@ -31,8 +31,8 @@ const IDLE: Reading = {
     kick: 0,
     mid: 0,
     high: 0,
-    beatPhase: 0,
-    barPhase: 0,
+    beatPhase: undefined,
+    barPhase: undefined,
     flash: false,
 };
 
@@ -77,7 +77,8 @@ export function RhythmStats() {
 
     const bands = [reading.kick, reading.mid, reading.high];
     const dialBeats = reading.beatsPerBar ?? UNSURE_DIAL_BEATS;
-    const activeBeat = Math.min(dialBeats - 1, Math.floor(reading.barPhase * dialBeats));
+    // No bar position while the meter is unsure, so no segment lights up.
+    const activeBeat = reading.barPhase === undefined ? -1 : Math.min(dialBeats - 1, Math.floor(reading.barPhase * dialBeats));
 
     return (
         <div className="pointer-events-none fixed bottom-3 right-3 z-10 w-56 rounded-md bg-black/75 px-2.5 py-2 font-mono text-xs text-[#9f9]">
@@ -112,7 +113,7 @@ export function RhythmStats() {
                 ))}
             </div>
             <div className="mt-1 h-1 rounded bg-white/15">
-                <div className="h-full rounded bg-[#9f9]" style={{ width: percent(reading.beatPhase) }} />
+                <div className="h-full rounded bg-[#9f9]" style={{ width: percent(reading.beatPhase ?? 0) }} />
             </div>
         </div>
     );

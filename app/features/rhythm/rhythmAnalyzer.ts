@@ -162,8 +162,8 @@ export class RhythmAnalyzer {
     updatePhase(now: number): void {
         const state = this.state;
         if (!this.hasAnchor) {
-            state.beatPhase = 0;
-            state.barPhase = 0;
+            state.beatPhase = undefined;
+            state.barPhase = undefined;
             return;
         }
         // A stalled analysis must freeze the phase rather than run on forever.
@@ -182,7 +182,7 @@ export class RhythmAnalyzer {
         const meter = this.meter.beatsPerBar;
         const anchorPosition = this.meter.barPosition(this.anchorBeatIndex);
         if (meter === undefined || anchorPosition < 0) {
-            state.barPhase = fraction;
+            state.barPhase = undefined;
             return;
         }
         const position = anchorPosition + wholeBeats;

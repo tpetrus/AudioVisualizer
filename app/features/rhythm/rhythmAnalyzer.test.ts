@@ -275,7 +275,8 @@ describe('RhythmAnalyzer API', () => {
         single.updatePhase(15);
         expect(batch.state.bpm).toBe(single.state.bpm);
         expect(batch.state.beatCount).toBe(single.state.beatCount);
-        expect(batch.state.beatPhase).toBeCloseTo(single.state.beatPhase, 9);
+        expect(batch.state.beatPhase).toBeDefined();
+        expect(batch.state.beatPhase).toBeCloseTo(single.state.beatPhase ?? NaN, 9);
         expect(batch.framesProcessed).toBe(1500);
     });
 
@@ -284,20 +285,30 @@ describe('RhythmAnalyzer API', () => {
         const analyzer = new RhythmAnalyzer(100);
         let lastBeats = 0;
         let lastDownbeats = 0;
+        let sawBeatPhase = false;
         for (let i = 0; i < 2000; i++) {
             analyzer.pushFrame(i / 100, frames, i * FRAME_STRIDE);
             analyzer.updatePhase(i / 100);
             const state = analyzer.state;
-            expect(state.beatPhase).toBeGreaterThanOrEqual(0);
-            expect(state.beatPhase).toBeLessThan(1);
-            expect(state.barPhase).toBeGreaterThanOrEqual(0);
-            expect(state.barPhase).toBeLessThan(1);
+            // No beat phase before the first beat is found, and none again after a reset.
+            if (state.beatPhase !== undefined) {
+                expect(state.beatPhase).toBeGreaterThanOrEqual(0);
+                expect(state.beatPhase).toBeLessThan(1);
+                sawBeatPhase = true;
+            }
+            // The bar position exists exactly when the meter does.
+            expect(state.barPhase === undefined).toBe(state.beatsPerBar === undefined);
+            if (state.barPhase !== undefined) {
+                expect(state.barPhase).toBeGreaterThanOrEqual(0);
+                expect(state.barPhase).toBeLessThan(1);
+            }
             expect(state.beatCount).toBeGreaterThanOrEqual(lastBeats);
             expect(state.downbeatCount).toBeGreaterThanOrEqual(lastDownbeats);
             lastBeats = state.beatCount;
             lastDownbeats = state.downbeatCount;
         }
         expect(lastBeats).toBeGreaterThan(0);
+        expect(sawBeatPhase).toBe(true);
     });
 
     it('freezes the extrapolated phase when the analysis stalls', () => {
