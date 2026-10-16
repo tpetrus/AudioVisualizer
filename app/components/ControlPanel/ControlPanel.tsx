@@ -2,6 +2,8 @@ import { type SyntheticEvent, useMemo, useState } from 'react';
 import { ControlInput } from './ControlInput';
 import { type ControlDefinition, type ControlValue, groupBySection, isModified, isShown } from './controls';
 import styles from './ControlPanel.module.css';
+import { PerformanceStats } from '~/components/PerformanceStats/PerformanceStats';
+import { AudioSourceDialog } from '~/features/audio/components/AudioSourceDialog';
 
 
 interface ControlPanelProps {
@@ -153,9 +155,8 @@ export function ControlPanel({
                 )}
             </div>
 
-            {/* TODO*/}
-            {/* {showStats && <PerfStats />}
-            {audioDialogOpen && <AudioSourceDialog onClose={() => setAudioDialogOpen(false)} />} */}
+            {showStats && <PerformanceStats />}
+            {audioDialogOpen && <AudioSourceDialog onClose={() => setAudioDialogOpen(false)} />}
         </>
     );
 }
