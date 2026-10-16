@@ -116,33 +116,38 @@ export async function expectSingleCanvas(page: Page): Promise<void> {
     expect(await canvasCount(page)).toBe(1);
 }
 
-// Counts the distinct colours in a PNG, decoded in the page because the test process has no image decoder.
-function distinctColours(page: Page, png: Buffer): Promise<number> {
-    return page.evaluate(async (base64) => {
-        const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
-        const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
-        const scratch = document.createElement('canvas');
-        scratch.width = bitmap.width;
-        scratch.height = bitmap.height;
-        const context = scratch.getContext('2d')!;
-        context.drawImage(bitmap, 0, 0);
-        const { data } = context.getImageData(0, 0, scratch.width, scratch.height);
-        const colours = new Set<number>();
-        for (let i = 0; i < data.length; i += 4) {
-            colours.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
-        }
-        return colours.size;
-    }, png.toString('base64'));
+// Counts the distinct colours the WebGL canvas last drew. The app does not preserve the drawing buffer, so the pixels
+// are only readable until the frame is composited. This callback runs in the same animation frame as, and after, the
+// scene's own render callback (which was registered earlier), while the finished frame is still in the buffer. That
+// needs no change to the app, and unlike a screenshot it does not queue behind a slow software-rendered frame.
+function distinctColours(page: Page): Promise<number> {
+    return page.evaluate(
+        () =>
+            new Promise<number>((resolve) => {
+                requestAnimationFrame(() => {
+                    const canvas = document.querySelector('canvas')!;
+                    const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+                    if (!gl) {
+                        resolve(0);
+                        return;
+                    }
+                    const width = gl.drawingBufferWidth;
+                    const height = gl.drawingBufferHeight;
+                    const pixels = new Uint8Array(width * height * 4);
+                    gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+                    const colours = new Set<number>();
+                    for (let i = 0; i < pixels.length; i += 4) {
+                        colours.add((pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2]);
+                    }
+                    resolve(colours.size);
+                });
+            }),
+    );
 }
 
-// Passes once the canvas shows more than one flat colour. The WebGL buffer cannot be read back without changing the
-// app (it does not preserve the drawing buffer), so this screenshots the composited canvas instead.
+// Passes once the canvas shows more than a single flat colour.
 export async function expectCanvasRendering(page: Page): Promise<void> {
-    const canvas = page.locator('canvas');
     await expect
-        .poll(async () => distinctColours(page, await canvas.screenshot()), {
-            message: 'the canvas is still a single flat colour',
-            timeout: 15_000,
-        })
+        .poll(() => distinctColours(page), { message: 'the canvas is still a single flat colour', timeout: 20_000 })
         .toBeGreaterThan(8);
 }
