@@ -10,7 +10,8 @@ export class BassPulse {
     private readonly source: AnalyserNode;
     private readonly filters: BiquadFilterNode[];
     private readonly analyser: AnalyserNode;
-    private readonly samples: Float32Array;
+    // Backed by a plain ArrayBuffer, which the Web Audio API requires (not a SharedArrayBuffer).
+    private readonly samples: Float32Array<ArrayBuffer>;
     // Fast and slow followers of the bass energy; a bump is the fast one rising above the slow one.
     private fast = 0;
     private slow = 0;

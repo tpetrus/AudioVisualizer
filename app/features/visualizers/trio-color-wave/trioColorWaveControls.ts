@@ -1,6 +1,6 @@
 import type { ControlDefinition, ControlValues } from "~/components/ControlPanel/controls";
 
-export const colorWaveControls = [
+export const trioColorWaveControls = [
     // Heights
     { section: 'Heights', key: 'masterHeight', label: 'Overall height', type: 'range', min: 0.2, max: 4, step: 0.1, default: 1 },
     { section: 'Heights', key: 'heightGrowth', label: 'Growth per sheet', type: 'range', min: 1, max: 4, step: 0.1, default: 1.5 },
@@ -20,4 +20,4 @@ export const colorWaveControls = [
     { section: 'Position', key: 'moveY', label: 'Move down / up', type: 'range', min: -300, max: 300, step: 5, default: 0 },
 ] as const satisfies readonly ControlDefinition[];
 
-export type ColorWaveControlValues = ControlValues<typeof colorWaveControls>;
+export type TrioColorWaveControlValues = ControlValues<typeof trioColorWaveControls>;

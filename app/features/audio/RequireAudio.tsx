@@ -10,7 +10,8 @@ type Status = 'ok' | 'denied' | 'pending';
 
 export default function RequireAudio({ children }: Props) {
     const engine = useAudio();
-    const [status, setStatus] = useState<Status>('pending')
+    // Already capturing (e.g. arriving from the landing page): show the page straight away.
+    const [status, setStatus] = useState<Status>(() => engine.getIsCapturing() ? 'ok' : 'pending')
 
     useEffect(() => {
         if (status !== 'pending') return;
@@ -27,7 +28,7 @@ export default function RequireAudio({ children }: Props) {
                 }
             });
 
-        return () => { cancelled = false };
+        return () => { cancelled = true };
     }, [engine])
 
     if (status === 'denied') return <Navigate to='/' replace></Navigate>;

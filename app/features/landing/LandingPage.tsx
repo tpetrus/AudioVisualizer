@@ -7,8 +7,8 @@ import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
 
 const VISUALIZATIONS = [
-    { to: '/cubes', title: 'Cubes', image: '/public/visualization-images/cubes.png' },
-    { to: '/basic-color-wave', title: 'Basic color wave', image: '/public/visualization-images/trio-color-wave.png' },
+    { to: '/cubes', title: 'Cubes', image: '/visualization-images/cubes.png' },
+    { to: '/trio-color-wave', title: 'Trio color wave', image: '/visualization-images/trio-color-wave.png' },
 ];
 
 export function LandingPage() {
