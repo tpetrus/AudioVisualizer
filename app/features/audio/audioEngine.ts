@@ -1,40 +1,43 @@
-import { clearNormalizeSettings, clearSource, loadNormalize, loadNormalizeSettings, loadSource, saveNormalizeSettings, saveSource, setNormalize } from "./storage";
-import { DEFAULT_AUDIO_GRAPH, DEFAULT_NORMALIZE_SETTINGS, type AudioGraph, type NormalizeSettings, type SavedSource } from "./types";
+import { clearNormalizeSettings, clearSource, loadNormalize, loadNormalizeSettings, loadSource, saveNormalize, saveNormalizeSettings, saveSource } from "./storage";
+import { DEFAULT_NORMALIZE_SETTINGS, type AudioGraph, type NormalizeSettings, type SavedSource } from "./types";
 
 const AGC_INTERVAL_MS = 30;
 const ATTACK_TIME_CONSTANT = 0.02;
 const MIN_GAIN = 0.25;
+const METER_FFT_SIZE = 1024;
 
+// Captures audio, normalizes its volume, and exposes the analyser the visualizations read. Framework-free: React
+// reads it through `subscribe` + the arrow-property getters (see useAudioState.ts).
 export class AudioEngine {
-    private graph: AudioGraph = DEFAULT_AUDIO_GRAPH;
+    // A complete graph while capturing, undefined otherwise.
+    private graph: AudioGraph | undefined;
     private agcTimer?: number;
     private envelope = 0;
-    private normalizeSettings: NormalizeSettings = this.loadNormalizeSettings();
-    private normalize: boolean;
-    private meterData = new Uint8Array(1024);
+    private normalizeSettings: NormalizeSettings = loadNormalizeSettings();
+    private normalize: boolean = loadNormalize();
+    private readonly meterData = new Uint8Array(METER_FFT_SIZE);
     private resumePromise: Promise<boolean> | undefined;
 
-    private listeners = new Set<() => void>();
+    private readonly listeners = new Set<() => void>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
     }
 
-    public getAnalyser = () => this.graph.analyser;
-    public getIsCapturing = () => !!this.graph.analyser;
+    // Snapshot getters for useSyncExternalStore: arrow properties so `this` survives being passed around, and each
+    // returns the same value (same reference) until something changes.
+    public getAnalyser = () => this.graph?.analyser;
+    public getIsCapturing = () => this.graph !== undefined;
     public getNormalizeOptions = () => this.normalizeSettings;
     public getNormalize = () => this.normalize;
 
-    constructor() {
-        this.normalize = loadNormalize();
-    }
-
-    public setNormalize(enabled: boolean) {
-        setNormalize(enabled);
-        this.notify();
-        if (!enabled) {
-            this.graph.gainNode?.gain.setTargetAtTime(1, this.graph.audioContext!.currentTime, 0.05);
+    public setNormalize(enabled: boolean): void {
+        this.normalize = enabled;
+        saveNormalize(enabled);
+        if (!enabled && this.graph) {
+            this.graph.gainNode.gain.setTargetAtTime(1, this.graph.audioContext.currentTime, 0.05);
         }
+        this.notify();
     }
 
     public updateNormalizeOptions(changes: Partial<NormalizeSettings>): void {
@@ -45,8 +48,8 @@ export class AudioEngine {
 
     public resetNormalizeOptions(): void {
         this.normalizeSettings = { ...DEFAULT_NORMALIZE_SETTINGS };
-        this.notify();
         clearNormalizeSettings();
+        this.notify();
     }
 
     public get savedSource(): SavedSource | undefined {
@@ -64,7 +67,7 @@ export class AudioEngine {
         // Only audio is needed; drop the video track.
         stream.getVideoTracks().forEach(track => track.stop());
         await this.connect(stream);
-        this.saveSource({ mode: 'screen' });
+        saveSource({ mode: 'screen' });
     }
 
     // Captures an audio input device (microphone, Stereo Mix, virtual cable, ...). The browser remembers the permission.
@@ -80,7 +83,7 @@ export class AudioEngine {
             video: false
         });
         await this.connect(stream);
-        this.saveSource({ mode: 'device', deviceId });
+        saveSource({ mode: 'device', deviceId });
     }
 
     // Lists audio input devices. Labels are only available once permission has been granted.
@@ -102,16 +105,15 @@ export class AudioEngine {
         return this.resumePromise;
     }
 
-    // Current peak level (0..1) of the incoming audio, for the signal meter. Uses its own analyser so it
-    // doesn't depend on the visualizations' fftSize/smoothing settings.
-    // Peak level (0..1) of the incoming audio, before normalization.
+    // Peak level (0..1) of the incoming audio, before normalization. Uses its own analyser so it doesn't depend on
+    // the visualizations' fftSize/smoothing settings.
     public getLevel(): number {
-        return this.readPeak(this.graph.meter);
+        return this.readPeak(this.graph?.meter);
     }
 
     // Peak level (0..1) the visualizations actually receive, after normalization.
     public getOutputLevel(): number {
-        return this.readPeak(this.graph.outputMeter);
+        return this.readPeak(this.graph?.outputMeter);
     }
 
     private readPeak(meter: AnalyserNode | undefined): number {
@@ -129,9 +131,10 @@ export class AudioEngine {
     // Nudges the gain so loud and quiet sources produce the same visualization. Measures the raw input
     // (before the gain stage) and tracks a slowly decaying peak envelope.
     private updateGain(): void {
-        if (!this.graph.gainNode || !this.graph.audioContext || !this.normalize) {
+        if (!this.graph || !this.normalize) {
             return;
         }
+        const { gainNode, audioContext } = this.graph;
 
         const { targetPeak, maxGain, peakHold, releaseTime, noiseFloor } = this.normalizeSettings;
         // Per-tick decay that halves the envelope every `peakHold` seconds.
@@ -144,40 +147,31 @@ export class AudioEngine {
 
         const wanted = Math.min(maxGain, Math.max(MIN_GAIN, targetPeak / this.envelope));
         // Fast attack when too loud, slower release when too quiet, to avoid pumping.
-        const timeConstant = wanted < this.graph.gainNode.gain.value ? ATTACK_TIME_CONSTANT : releaseTime;
-        this.graph.gainNode.gain.setTargetAtTime(wanted, this.graph.audioContext.currentTime, timeConstant);
+        const timeConstant = wanted < gainNode.gain.value ? ATTACK_TIME_CONSTANT : releaseTime;
+        gainNode.gain.setTargetAtTime(wanted, audioContext.currentTime, timeConstant);
     }
 
     // Latencies the browser reports, in ms. Time spent in the OS capture pipeline (e.g. screen-share buffering)
     // is not visible to the page, so captureLatencyMs is only available when the track reports it.
     public get latencyInfo(): { sampleRate?: number; baseLatencyMs?: number; outputLatencyMs?: number; captureLatencyMs?: number; analysisWindowMs?: number } {
-        const context = this.graph.audioContext;
-        if (!context) {
+        if (!this.graph) {
             return {};
         }
-        const trackLatency = (this.graph.audioStream?.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number })?.latency;
+        const { audioContext: context, audioStream, analyser } = this.graph;
+        const trackLatency = (audioStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number })?.latency;
         return {
             sampleRate: context.sampleRate,
             baseLatencyMs: context.baseLatency * 1000,
             outputLatencyMs: (context as AudioContext & { outputLatency?: number }).outputLatency !== undefined
                 ? (context as AudioContext & { outputLatency: number }).outputLatency * 1000 : undefined,
             captureLatencyMs: trackLatency !== undefined ? trackLatency * 1000 : undefined,
-            analysisWindowMs: this.graph.analyser ? this.graph.analyser.fftSize / context.sampleRate * 1000 : undefined
+            analysisWindowMs: analyser.fftSize / context.sampleRate * 1000
         };
     }
 
     public get trackInfo(): string {
-        const track = this.graph.audioStream?.getAudioTracks()[0];
+        const track = this.graph?.audioStream.getAudioTracks()[0];
         return track ? `${track.label} (${track.readyState}${track.muted ? ', muted' : ''})` : '';
-    }
-
-    public teardown(): void {
-        clearInterval(this.agcTimer);
-        this.envelope = 0;
-        this.graph.audioStream?.getTracks().forEach(track => track.stop());
-        this.graph.source?.disconnect();
-        this.graph.audioContext?.close();
-        this.graph = DEFAULT_AUDIO_GRAPH;
     }
 
     public stopCapture(): void {
@@ -208,45 +202,56 @@ export class AudioEngine {
         }
     }
 
+    // Replaces any current capture with `stream`. The new graph is built before the old one is torn down, so
+    // subscribers go straight from the old analyser to the new one and never see an "undefined" state.
     private async connect(stream: MediaStream): Promise<void> {
-        this.teardown();
-        this.graph.audioStream = stream;
-        this.graph.audioContext = new AudioContext();
+        const audioContext = new AudioContext();
         // Contexts created outside a user gesture (e.g. on page load) start suspended and would read silence.
-        await this.graph.audioContext.resume();
-        this.graph.analyser = this.graph.audioContext.createAnalyser();
-        this.graph.source = this.graph.audioContext.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
-        this.graph.gainNode = this.graph.audioContext.createGain();
-        this.graph.source.connect(this.graph.gainNode);
-        this.graph.gainNode.connect(this.graph.analyser);
-        this.graph.meter = this.graph.audioContext.createAnalyser();
-        this.graph.meter.fftSize = 1024;
-        this.graph.source.connect(this.graph.meter);
-        this.graph.outputMeter = this.graph.audioContext.createAnalyser();
-        this.graph.outputMeter.fftSize = 1024;
-        this.graph.gainNode.connect(this.graph.outputMeter);
+        await audioContext.resume();
+
+        const source = audioContext.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+        const gainNode = audioContext.createGain();
+        const analyser = audioContext.createAnalyser();
+        const meter = audioContext.createAnalyser();
+        meter.fftSize = METER_FFT_SIZE;
+        const outputMeter = audioContext.createAnalyser();
+        outputMeter.fftSize = METER_FFT_SIZE;
+
+        source.connect(gainNode);
+        gainNode.connect(analyser);
+        source.connect(meter);
+        gainNode.connect(outputMeter);
+
+        this.teardown();
+        this.graph = { audioStream: stream, audioContext, source, gainNode, analyser, meter, outputMeter };
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();
     }
 
-    private loadNormalizeSettings(): NormalizeSettings {
-        return loadNormalizeSettings();
-    }
-
-    private saveSource(source: SavedSource): void {
-        saveSource(source)
+    // Stops the current capture without notifying (callers decide when subscribers hear about it).
+    private teardown(): void {
+        clearInterval(this.agcTimer);
+        this.envelope = 0;
+        if (!this.graph) {
+            return;
+        }
+        const { audioStream, source, audioContext } = this.graph;
+        this.graph = undefined;
+        audioStream.getTracks().forEach(track => track.stop());
+        source.disconnect();
+        void audioContext.close();
     }
 
     private notify(): void {
-        const listenersCopy = [...this.listeners];
-        listenersCopy.forEach(l => {
+        // Copy first: a listener may unsubscribe while we iterate.
+        for (const listener of [...this.listeners]) {
             try {
-                l();
+                listener();
+            } catch (error) {
+                // One failing subscriber must not stop the others from hearing the update.
+                console.error('AudioEngine listener failed', error);
             }
-            catch {
-
-            }
-        })
+        }
     }
 }
 

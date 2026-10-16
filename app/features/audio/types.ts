@@ -1,13 +1,17 @@
 export type AudioSourceMode = 'screen' | 'device';
 
+// The Web Audio nodes for one capture. They exist together or not at all: the engine holds a complete graph while
+// capturing and `undefined` otherwise.
 export interface AudioGraph {
-    audioStream: MediaStream | undefined;
-    audioContext: AudioContext | undefined;
-    source: MediaStreamAudioSourceNode | undefined;
-    analyser: AnalyserNode | undefined;
-    meter: AnalyserNode | undefined;
-    outputMeter: AnalyserNode | undefined;
-    gainNode: GainNode | undefined;
+    audioStream: MediaStream;
+    audioContext: AudioContext;
+    source: MediaStreamAudioSourceNode;
+    gainNode: GainNode;
+    // What the visualizations read: the input after normalization.
+    analyser: AnalyserNode;
+    // Peak meters for the raw input (before the gain) and the normalized output.
+    meter: AnalyserNode;
+    outputMeter: AnalyserNode;
 }
 
 export interface SavedSource {
@@ -31,13 +35,3 @@ export const DEFAULT_NORMALIZE_SETTINGS: NormalizeSettings = {
     releaseTime: 0.4,
     noiseFloor: 0.004
 };
-
-export const DEFAULT_AUDIO_GRAPH: AudioGraph = {
-    audioStream: undefined,
-    audioContext: undefined,
-    source: undefined,
-    analyser: undefined,
-    meter: undefined,
-    outputMeter: undefined,
-    gainNode: undefined
-}

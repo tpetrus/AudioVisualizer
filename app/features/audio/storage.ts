@@ -1,89 +1,63 @@
 import { DEFAULT_NORMALIZE_SETTINGS, type NormalizeSettings, type SavedSource } from "./types";
 
-const STORAGE_KEY = 'audioVisualizer.source';
+// Keys are unchanged from the Angular app, so settings saved there still load.
+const SOURCE_KEY = 'audioVisualizer.source';
 const NORMALIZE_KEY = 'audioVisualizer.normalize';
 const NORMALIZE_SETTINGS_KEY = 'audioVisualizer.normalizeSettings';
 
-export function loadNormalize() {
-    try { return localStorage.getItem(NORMALIZE_KEY) !== 'false' }
-    catch {
-        return true;
-    }
+export function loadSource(): SavedSource | undefined {
+    return read<SavedSource | undefined>(SOURCE_KEY, undefined);
 }
 
-export function setNormalize(enabled: boolean) {
-    try {
-        localStorage.setItem(NORMALIZE_KEY, String(enabled));
-    } catch { }
+export function saveSource(source: SavedSource): void {
+    write(SOURCE_KEY, source);
 }
 
-export function saveNormalizeSettings(s: NormalizeSettings) {
-    try {
-        localStorage.setItem(NORMALIZE_SETTINGS_KEY, JSON.stringify(s));
-    } catch { }
+export function clearSource(): void {
+    write(SOURCE_KEY, undefined);
 }
 
-export function clearNormalizeSettings() {
-    try {
-        localStorage.removeItem(NORMALIZE_SETTINGS_KEY);
-    } catch { }
+export function loadNormalize(): boolean {
+    return read(NORMALIZE_KEY, true);
 }
 
-export function loadNormalizeSettings() {
+export function saveNormalize(enabled: boolean): void {
+    write(NORMALIZE_KEY, enabled);
+}
+
+// Merged over the defaults, so a setting added later never loads as undefined.
+export function loadNormalizeSettings(): NormalizeSettings {
+    return { ...DEFAULT_NORMALIZE_SETTINGS, ...read<Partial<NormalizeSettings>>(NORMALIZE_SETTINGS_KEY, {}) };
+}
+
+export function saveNormalizeSettings(settings: NormalizeSettings): void {
+    write(NORMALIZE_SETTINGS_KEY, settings);
+}
+
+export function clearNormalizeSettings(): void {
+    write(NORMALIZE_SETTINGS_KEY, undefined);
+}
+
+// localStorage can throw (private mode, quota, blocked storage) and can hold corrupt JSON from older versions,
+// so every read falls back to `fallback` and every write fails quietly.
+function read<T>(key: string, fallback: T): T {
     try {
-        return { ...DEFAULT_NORMALIZE_SETTINGS, ...JSON.parse(localStorage.getItem(NORMALIZE_SETTINGS_KEY) ?? '{}') };
+        const stored = localStorage.getItem(key);
+        return stored === null ? fallback : JSON.parse(stored) as T;
     } catch {
-        return { ...DEFAULT_NORMALIZE_SETTINGS };
-    }
-}
-
-export function loadSource() {
-    try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null') ?? undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-export function saveSource(source: SavedSource) {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(source));
-    } catch { }
-}
-
-export function clearSource() {
-    try {
-        localStorage.removeItem(STORAGE_KEY);
-    } catch { }
-}
-
-
-// TODO: Implement
-function read<T>(name: string, fallback: T): T {
-    try {
-        return localStorage.getItem(name) as T
-    }
-    catch {
         return fallback;
     }
 }
 
-// TODO: Implement
-function write<T>(name: string, value: T | undefined): void {
-    if (value === undefined) {
-        try {
-            localStorage.removeItem(name);
-            return;
-        }
-        catch {
-            return;
-        }
-    }
+// Stores `value` as JSON, or removes the key when `value` is undefined.
+function write(key: string, value: unknown): void {
     try {
-        localStorage.setItem(name, String(value));
-        return;
-    }
-    catch {
-
+        if (value === undefined) {
+            localStorage.removeItem(key);
+        } else {
+            localStorage.setItem(key, JSON.stringify(value));
+        }
+    } catch {
+        // Storage unavailable: the setting just won't persist.
     }
 }

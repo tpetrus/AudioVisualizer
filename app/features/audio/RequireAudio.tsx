@@ -1,14 +1,13 @@
-// Screen capture can't survive a page refresh (the browser requires a click to start it), but an input
-
 import { useEffect, useState, type ReactNode } from "react"
 import { useAudio } from "./audioEngineContext";
 import { Navigate } from "react-router";
 
-// device can be reopened silently. If neither works, send the user back to the landing page to choose a source.
 type Props = { children: ReactNode };
 type Status = 'ok' | 'denied' | 'pending';
 
-export default function RequireAudio({ children }: Props) {
+// Screen capture can't survive a page refresh (the browser requires a click to start it), but an input
+// device can be reopened silently. If neither works, send the user back to the landing page to choose a source.
+export function RequireAudio({ children }: Props) {
     const engine = useAudio();
     // Already capturing (e.g. arriving from the landing page): show the page straight away.
     const [status, setStatus] = useState<Status>(() => engine.getIsCapturing() ? 'ok' : 'pending')

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // Frees the GPU memory held by everything in a scene. `scene.clear()` only detaches objects; the
 // geometries, materials and textures stay on the GPU until they are disposed.
-export default function disposeScene(scene: THREE.Scene): void {
+export function disposeScene(scene: THREE.Scene): void {
     scene.traverse(object => {
         if (object instanceof THREE.InstancedMesh) {
             object.dispose(); // frees the per-instance matrix/color buffers

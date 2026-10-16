@@ -4,8 +4,8 @@ import { BANDS } from './trioColorWaveConfig';
 import { TrioColorWaveSheet } from './trioColorWaveSheet';
 import type { TrioColorWaveControlValues } from './trioColorWaveControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
-import useThreeScene from '~/hooks/useThreeScene';
-import createOrbitView from '~/lib/three/orbitView';
+import { useThreeScene } from '~/hooks/useThreeScene';
+import { createOrbitView } from '~/lib/three/orbitView';
 
 // A narrow field of view from far away flattens the perspective, so the sheets read like a 2D stack.
 const CAMERA_FOV = 10;

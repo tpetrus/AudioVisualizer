@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import * as THREE from 'three';
-import disposeScene from '~/lib/three/disposeScene';
+import { disposeScene } from '~/lib/three/disposeScene';
 
 // Higher ratios are more computation for little value (ex 3x screens = 9x pixels)
 const MAX_PIXEL_RATIO = 2;
@@ -34,7 +34,7 @@ export interface ThreeSceneOptions {
 
 // Owns a three.js renderer inside `containerRef`: creates it, sizes it to the container, runs the render loop,
 // follows resizes, and frees every GPU resource on unmount. `setup` builds the scene's content once.
-export default function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup: SceneSetup, { antialias = false }: ThreeSceneOptions = {}) {
+export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup: SceneSetup, { antialias = false }: ThreeSceneOptions = {}) {
     // Read through a ref so an inline setup function (new every render) doesn't rebuild the scene.
     const setupRef = useRef(setup);
     useLayoutEffect(() => {

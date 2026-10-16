@@ -6,9 +6,9 @@ import { BassPulse } from './bassPulse';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
-import useThreeScene from '~/hooks/useThreeScene';
-import createOrbitView from '~/lib/three/orbitView';
-import disposeScene from '~/lib/three/disposeScene';
+import { useThreeScene } from '~/hooks/useThreeScene';
+import { createOrbitView } from '~/lib/three/orbitView';
+import { disposeScene } from '~/lib/three/disposeScene';
 
 const CAMERA_FOV = 50;
 const CAMERA_DISTANCE = 32;
