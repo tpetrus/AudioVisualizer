@@ -1,10 +1,29 @@
 import { describe, expect, it } from 'vitest';
 import { defaultValues, groupBySection, isModified, isShown, type ControlDefinition } from './controls';
 
-const range: ControlDefinition = { section: 'A', key: 'amount', label: 'Amount', type: 'range', min: 0, max: 1, step: 0.1, default: 0.5 };
+const range: ControlDefinition = {
+    section: 'A',
+    key: 'amount',
+    label: 'Amount',
+    type: 'range',
+    min: 0,
+    max: 1,
+    step: 0.1,
+    default: 0.5,
+};
 const checkbox: ControlDefinition = { section: 'B', key: 'enabled', label: 'Enabled', type: 'checkbox', default: true };
 const color: ControlDefinition = { section: 'A', key: 'tint', label: 'Tint', type: 'color', default: '#ff0000' };
-const dependent: ControlDefinition = { section: 'B', key: 'extra', label: 'Extra', type: 'range', min: 0, max: 1, step: 1, default: 0, shownWhen: 'enabled' };
+const dependent: ControlDefinition = {
+    section: 'B',
+    key: 'extra',
+    label: 'Extra',
+    type: 'range',
+    min: 0,
+    max: 1,
+    step: 1,
+    default: 0,
+    shownWhen: 'enabled',
+};
 
 describe('defaultValues', () => {
     it('maps every control key to its default, for each control type', () => {
@@ -47,7 +66,7 @@ describe('isShown', () => {
 describe('groupBySection', () => {
     it('groups controls by section, keeping the order in which each section first appears', () => {
         const sections = groupBySection([range, checkbox, color, dependent]);
-        expect(sections.map(section => section.name)).toEqual(['A', 'B']);
+        expect(sections.map((section) => section.name)).toEqual(['A', 'B']);
         expect(sections[0].controls).toEqual([range, color]);
         expect(sections[1].controls).toEqual([checkbox, dependent]);
     });

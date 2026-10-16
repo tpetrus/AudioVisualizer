@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDevice, installFakeMediaDevices, type FakeMediaOptions } from '~/test/fakeMedia';
-import { createFakeStream, installFakeWebAudio, type FakeAnalyserNode, type FakeAudioContext, type FakeGainNode } from '~/test/fakeWebAudio';
+import {
+    createFakeStream,
+    installFakeWebAudio,
+    type FakeAnalyserNode,
+    type FakeAudioContext,
+    type FakeGainNode,
+} from '~/test/fakeWebAudio';
 import { AudioEngine } from './audioEngine';
 import { loadNormalize, loadNormalizeSettings, loadSource, saveNormalizeSettings, saveSource } from './storage';
 import { DEFAULT_NORMALIZE_SETTINGS } from './types';
@@ -74,7 +80,7 @@ describe('screen capture', () => {
 
         await expect(engine.startScreenCapture()).rejects.toThrow('No audio was shared');
 
-        displayStream.getTracks().forEach(track => expect(track.stop).toHaveBeenCalled());
+        displayStream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
         expect(web.contexts).toHaveLength(0);
         expect(engine.getIsCapturing()).toBe(false);
         expect(loadSource()).toBeUndefined();
@@ -126,7 +132,7 @@ describe('getInputDevices', () => {
 
         const result = await engine.getInputDevices();
 
-        expect(result.map(device => device.deviceId)).toEqual(['mic']);
+        expect(result.map((device) => device.deviceId)).toEqual(['mic']);
         expect(media.getUserMedia).toHaveBeenCalledWith({ audio: true, video: false });
         expect(userStream.getTracks()[0].stop).toHaveBeenCalled();
     });
@@ -160,14 +166,17 @@ describe('resumeSavedSource', () => {
         await expect(engine.resumeSavedSource()).resolves.toBe(false);
     });
 
-    it.each<PermissionState>(['denied', 'prompt'])('never prompts: stays off when the microphone permission is %s', async permission => {
-        const { engine, media } = setup({ permission });
-        saveSource({ mode: 'device', deviceId: 'mic' });
+    it.each<PermissionState>(['denied', 'prompt'])(
+        'never prompts: stays off when the microphone permission is %s',
+        async (permission) => {
+            const { engine, media } = setup({ permission });
+            saveSource({ mode: 'device', deviceId: 'mic' });
 
-        await expect(engine.resumeSavedSource()).resolves.toBe(false);
-        expect(media.getUserMedia).not.toHaveBeenCalled();
-        expect(engine.getIsCapturing()).toBe(false);
-    });
+            await expect(engine.resumeSavedSource()).resolves.toBe(false);
+            expect(media.getUserMedia).not.toHaveBeenCalled();
+            expect(engine.getIsCapturing()).toBe(false);
+        },
+    );
 
     it('restores the saved device silently when the permission is already granted', async () => {
         const { engine, media } = setup({ permission: 'granted' });
@@ -232,7 +241,7 @@ describe('replacing and stopping a capture', () => {
         expect(web.contexts).toHaveLength(2);
         // First notification: the old analyser appears; second: it goes straight to the new one.
         expect(seen).toHaveLength(2);
-        expect(seen.every(analyser => analyser !== undefined)).toBe(true);
+        expect(seen.every((analyser) => analyser !== undefined)).toBe(true);
     });
 
     it('stopCapture tears everything down and notifies', async () => {
@@ -281,7 +290,7 @@ describe('subscribe', () => {
 
     it('logs a listener that throws and still tells the others', () => {
         const { engine } = setup();
-        const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
         const failure = new Error('boom');
         const healthy = vi.fn();
         engine.subscribe(() => {
@@ -520,7 +529,7 @@ describe('latencyInfo and trackInfo', () => {
             baseLatencyMs: 10,
             outputLatencyMs: undefined,
             captureLatencyMs: undefined,
-            analysisWindowMs: 2048 / 48000 * 1000,
+            analysisWindowMs: (2048 / 48000) * 1000,
         });
     });
 

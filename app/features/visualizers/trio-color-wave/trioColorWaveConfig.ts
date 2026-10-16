@@ -30,9 +30,45 @@ export interface BandDefinition {
 
 // Front to back: highs, mids, bass. Hues go by position: red -> orange, blue -> indigo, indigo -> violet.
 export const BANDS: readonly BandDefinition[] = [
-    { name: 'Highs', lowKey: 'midsHigh', highKey: 'highsHigh', heightKey: 'highsHeight', fftSize: 1024, fallFactor: 1, blurColumns: 1.5, minDecibels: -90, minSmoothing: 0.75, startHue: 0, endHue: 0.08 },
-    { name: 'Mids', lowKey: 'bassHigh', highKey: 'midsHigh', heightKey: 'midsHeight', fftSize: 2048, fallFactor: 1, blurColumns: 3, minDecibels: -90, minSmoothing: 0, startHue: 0.667, endHue: 0.736 },
-    { name: 'Bass', lowKey: 'bassLow', highKey: 'bassHigh', heightKey: 'bassHeight', fftSize: 4096, fallFactor: 1, blurColumns: 7, minDecibels: -90, minSmoothing: 0.4, startHue: 0.736, endHue: 0.806 },
+    {
+        name: 'Highs',
+        lowKey: 'midsHigh',
+        highKey: 'highsHigh',
+        heightKey: 'highsHeight',
+        fftSize: 1024,
+        fallFactor: 1,
+        blurColumns: 1.5,
+        minDecibels: -90,
+        minSmoothing: 0.75,
+        startHue: 0,
+        endHue: 0.08,
+    },
+    {
+        name: 'Mids',
+        lowKey: 'bassHigh',
+        highKey: 'midsHigh',
+        heightKey: 'midsHeight',
+        fftSize: 2048,
+        fallFactor: 1,
+        blurColumns: 3,
+        minDecibels: -90,
+        minSmoothing: 0,
+        startHue: 0.667,
+        endHue: 0.736,
+    },
+    {
+        name: 'Bass',
+        lowKey: 'bassLow',
+        highKey: 'bassHigh',
+        heightKey: 'bassHeight',
+        fftSize: 4096,
+        fallFactor: 1,
+        blurColumns: 7,
+        minDecibels: -90,
+        minSmoothing: 0.4,
+        startHue: 0.736,
+        endHue: 0.806,
+    },
 ];
 
 export const ANALYSER_MAX_DECIBELS = -20;
@@ -57,7 +93,7 @@ export const BAR_OPACITY = 0.8;
 // Rows get lower from the farthest row (1) to the nearest (0.55), so the bars behind are not hidden by the ones in front.
 export const ROW_FALLOFF: readonly number[] = Array.from(
     { length: FLAG_DEPTH },
-    (_, row) => 1 - 0.45 * row / (FLAG_DEPTH - 1),
+    (_, row) => 1 - (0.45 * row) / (FLAG_DEPTH - 1),
 );
 
 // Band loudness balancing: bars are scaled so a band's recent peak maps to TARGET_LEVEL (0..255), but a quiet

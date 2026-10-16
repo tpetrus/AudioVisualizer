@@ -21,14 +21,20 @@ export interface ProviderOptions {
     route?: string;
 }
 
-function createWrapper({ engine = new FakeAudioEngine(), tracker = new FakeRhythmTracker(), route = '/' }: ProviderOptions = {}) {
+function createWrapper({
+    engine = new FakeAudioEngine(),
+    tracker = new FakeRhythmTracker(),
+    route = '/',
+}: ProviderOptions = {}) {
     // RhythmProvider calls `tracker.start(engine)` in an effect, which is a spy on the fake, so nothing runs.
     function Wrapper({ children }: { children: ReactNode }) {
-        return <AudioProvider engine={asEngine(engine)}>
-            <RhythmProvider tracker={asTracker(tracker)}>
-                <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
-            </RhythmProvider>
-        </AudioProvider>;
+        return (
+            <AudioProvider engine={asEngine(engine)}>
+                <RhythmProvider tracker={asTracker(tracker)}>
+                    <MemoryRouter initialEntries={[route]}>{children}</MemoryRouter>
+                </RhythmProvider>
+            </AudioProvider>
+        );
     }
     return { Wrapper, engine, tracker };
 }

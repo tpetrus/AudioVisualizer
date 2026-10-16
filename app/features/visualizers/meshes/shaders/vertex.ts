@@ -1,4 +1,4 @@
-export const vertexShader = /*glsl*/`
+export const vertexShader = /*glsl*/ `
 precision highp float;
 precision highp int;
 

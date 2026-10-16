@@ -81,7 +81,7 @@ describe('useTrioColorWaveScene', () => {
 
         it('centers the sheets and stacks them back to front, shifted by the Move sliders', () => {
             const { sheets, frame, valuesRef } = mountScene();
-            const centerX = -(FLAG_WIDTH - 1) * FLAG_DISTANCE / 2;
+            const centerX = (-(FLAG_WIDTH - 1) * FLAG_DISTANCE) / 2;
             sheets().forEach((sheet, index) => {
                 expect(sheet.position.x).toBeCloseTo(centerX);
                 expect(sheet.position.y).toBe(BASE_HEIGHT);
@@ -91,7 +91,7 @@ describe('useTrioColorWaveScene', () => {
             valuesRef.current = { ...valuesRef.current, moveX: 100, moveY: -20 };
             frame(16);
 
-            sheets().forEach(sheet => {
+            sheets().forEach((sheet) => {
                 expect(sheet.position.x).toBeCloseTo(centerX + 100);
                 expect(sheet.position.y).toBe(BASE_HEIGHT - 20);
             });
@@ -104,10 +104,10 @@ describe('useTrioColorWaveScene', () => {
 
             frame(16);
 
-            sheets().forEach(sheet => expect(tallestBar(sheet)).toBe(0));
+            sheets().forEach((sheet) => expect(tallestBar(sheet)).toBe(0));
         });
 
-        it('gives each sheet its own analyser tapped from the source, with that band\'s window', () => {
+        it("gives each sheet its own analyser tapped from the source, with that band's window", () => {
             const { context, analyser, node } = createAnalyser();
             mountScene({ analyser: node });
 
@@ -133,14 +133,14 @@ describe('useTrioColorWaveScene', () => {
         it('raises the bars from the spectrum, never smoothing a band less than its minimum', () => {
             const { context, node } = createAnalyser();
             const { sheets, frame } = mountScene({ analyser: node });
-            context.createdAnalysers.forEach(tap => tap.setByteFrequencyData(255));
+            context.createdAnalysers.forEach((tap) => tap.setByteFrequencyData(255));
 
             frame(16);
             frame(32);
 
-            sheets().forEach(sheet => expect(tallestBar(sheet)).toBeGreaterThan(0));
+            sheets().forEach((sheet) => expect(tallestBar(sheet)).toBeGreaterThan(0));
             // Smoothing control defaults to 0.5: highs are held to 0.75, bass to 0.4 (below the control, so 0.5 wins).
-            expect(context.createdAnalysers.map(tap => tap.smoothingTimeConstant)).toEqual([0.75, 0.5, 0.5]);
+            expect(context.createdAnalysers.map((tap) => tap.smoothingTimeConstant)).toEqual([0.75, 0.5, 0.5]);
         });
 
         it('rebinds when the analyser changes, releasing the previous taps', () => {
@@ -151,7 +151,7 @@ describe('useTrioColorWaveScene', () => {
             rerender({ analyser: second.node, cameraLocked: true });
             frame(16);
 
-            first.context.createdAnalysers.forEach(tap => {
+            first.context.createdAnalysers.forEach((tap) => {
                 expect(first.analyser.disconnect).toHaveBeenCalledWith(tap);
                 expect(tap.disconnect).toHaveBeenCalled();
             });
@@ -197,10 +197,17 @@ describe('useTrioColorWaveScene', () => {
         });
 
         it('resetView does nothing while there is no container to build a scene in', () => {
-            const { result } = renderHook(() => useTrioColorWaveScene(
-                { current: null },
-                { analyser: undefined, valuesRef: { current: defaultValues(trioColorWaveControls) }, cameraLocked: true, onViewChanged: vi.fn() },
-            ));
+            const { result } = renderHook(() =>
+                useTrioColorWaveScene(
+                    { current: null },
+                    {
+                        analyser: undefined,
+                        valuesRef: { current: defaultValues(trioColorWaveControls) },
+                        cameraLocked: true,
+                        onViewChanged: vi.fn(),
+                    },
+                ),
+            );
 
             expect(() => result.current.resetView()).not.toThrow();
         });
@@ -227,7 +234,7 @@ describe('useTrioColorWaveScene', () => {
             expect(renderer.dispose).toHaveBeenCalledTimes(1);
             expect(renderer.forceContextLoss).toHaveBeenCalledTimes(1);
             expect(scene.children).toHaveLength(0);
-            context.createdAnalysers.forEach(tap => {
+            context.createdAnalysers.forEach((tap) => {
                 expect(analyser.disconnect).toHaveBeenCalledWith(tap);
                 expect(tap.disconnect).toHaveBeenCalled();
             });

@@ -7,8 +7,8 @@ const SILENCE_TIMEOUT_MS = 4000;
 const SIGNAL_THRESHOLD = 0.01;
 
 interface LevelMeter {
-    level: number;     // 0..1, after normalization: what the visualizations receive
-    silent: boolean;   // the raw input has been quiet for SILENCE_TIMEOUT_MS
+    level: number; // 0..1, after normalization: what the visualizations receive
+    silent: boolean; // the raw input has been quiet for SILENCE_TIMEOUT_MS
     trackInfo: string; // label and state of the captured track
 }
 

@@ -40,11 +40,11 @@ export class FakeRenderer {
     toneMapping = 0;
 
     // Spies for the calls a spec inspects: sizing, pixel ratio, rendering and the two teardown calls.
-    readonly setSize = vi.fn((_width: number, _height: number, _updateStyle?: boolean) => { });
-    readonly setPixelRatio = vi.fn((_ratio: number) => { });
-    readonly render = vi.fn((_scene: unknown, _camera: unknown) => { });
-    readonly dispose = vi.fn(() => { });
-    readonly forceContextLoss = vi.fn(() => { });
+    readonly setSize = vi.fn((_width: number, _height: number, _updateStyle?: boolean) => {});
+    readonly setPixelRatio = vi.fn((_ratio: number) => {});
+    readonly render = vi.fn((_scene: unknown, _camera: unknown) => {});
+    readonly dispose = vi.fn(() => {});
+    readonly forceContextLoss = vi.fn(() => {});
 
     // The callback the code under test registered; null once it unregistered (three's `setAnimationLoop(null)`).
     animationLoop: ((time: number) => void) | null = null;
@@ -70,7 +70,7 @@ export class FakePmrem {
     // Has a `dispose` spy because disposeScene disposes the scene's environment texture.
     readonly texture = { isTexture: true, dispose: vi.fn() } as unknown as Texture;
     readonly fromScene = vi.fn((_scene: unknown, _sigma?: number) => ({ texture: this.texture }));
-    readonly dispose = vi.fn(() => { });
+    readonly dispose = vi.fn(() => {});
 
     constructor(readonly renderer?: unknown) {
         FakePmrem.instances.push(this);

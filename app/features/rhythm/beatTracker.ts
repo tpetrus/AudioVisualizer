@@ -103,7 +103,11 @@ export class BeatTracker {
         this.meanEnvelope += (onset - this.meanEnvelope) * BEAT_ENVELOPE_MEAN_SMOOTHING;
 
         if (!this.aligned) {
-            if (this.tempoPeriod > 0 && this.count >= this.initMinFrames && ++this.framesSinceInitTry >= INIT_RETRY_FRAMES) {
+            if (
+                this.tempoPeriod > 0 &&
+                this.count >= this.initMinFrames &&
+                ++this.framesSinceInitTry >= INIT_RETRY_FRAMES
+            ) {
                 this.framesSinceInitTry = 0;
                 this.align();
             }

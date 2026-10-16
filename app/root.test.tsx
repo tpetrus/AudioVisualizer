@@ -23,10 +23,12 @@ describe('links', () => {
     it('preconnects to the font hosts and loads the Inter and Nunito stylesheets', () => {
         const list = links() as Array<{ rel: string; href: string; crossOrigin?: string }>;
 
-        expect(list.filter(link => link.rel === 'preconnect').map(link => link.href))
-            .toEqual(['https://fonts.googleapis.com', 'https://fonts.gstatic.com']);
-        expect(list.find(link => link.href === 'https://fonts.gstatic.com')?.crossOrigin).toBe('anonymous');
-        const stylesheets = list.filter(link => link.rel === 'stylesheet').map(link => link.href);
+        expect(list.filter((link) => link.rel === 'preconnect').map((link) => link.href)).toEqual([
+            'https://fonts.googleapis.com',
+            'https://fonts.gstatic.com',
+        ]);
+        expect(list.find((link) => link.href === 'https://fonts.gstatic.com')?.crossOrigin).toBe('anonymous');
+        const stylesheets = list.filter((link) => link.rel === 'stylesheet').map((link) => link.href);
         expect(stylesheets).toHaveLength(2);
         expect(stylesheets[0]).toContain('family=Inter');
         expect(stylesheets[1]).toContain('family=Nunito');
@@ -44,7 +46,11 @@ describe('Layout', () => {
     function renderLayout() {
         // <html> cannot be mounted inside the test's container <div>, so the document is rendered to a string.
         return new DOMParser().parseFromString(
-            renderToStaticMarkup(<Layout><Probe /></Layout>),
+            renderToStaticMarkup(
+                <Layout>
+                    <Probe />
+                </Layout>,
+            ),
             'text/html',
         );
     }
@@ -54,7 +60,9 @@ describe('Layout', () => {
 
         expect(doc.documentElement.getAttribute('lang')).toBe('en');
         expect(doc.querySelector('meta[charset]')?.getAttribute('charset')).toBe('utf-8');
-        expect(doc.querySelector('meta[name="viewport"]')?.getAttribute('content')).toBe('width=device-width, initial-scale=1');
+        expect(doc.querySelector('meta[name="viewport"]')?.getAttribute('content')).toBe(
+            'width=device-width, initial-scale=1',
+        );
     });
 
     it('puts meta and links in the head, and the scripts after the content in the body', () => {
@@ -62,7 +70,9 @@ describe('Layout', () => {
 
         expect(doc.head.querySelector('meta[name="meta-stand-in"]')).not.toBeNull();
         expect(doc.head.querySelector('link[rel="links-stand-in"]')).not.toBeNull();
-        const bodyOrder = Array.from(doc.body.children).map(child => child.getAttribute('data-stand-in') ?? child.tagName.toLowerCase());
+        const bodyOrder = Array.from(doc.body.children).map(
+            (child) => child.getAttribute('data-stand-in') ?? child.tagName.toLowerCase(),
+        );
         expect(bodyOrder).toEqual(['p', 'scroll-restoration', 'scripts']);
     });
 
@@ -86,7 +96,7 @@ describe('App', () => {
 
 describe('ErrorBoundary', () => {
     function renderError(error: unknown) {
-        return render(<ErrorBoundary {...{ error } as Route.ErrorBoundaryProps} />);
+        return render(<ErrorBoundary {...({ error } as Route.ErrorBoundaryProps)} />);
     }
     // The shape of a route error response, which is how React Router reports a thrown `Response`.
     const response = (status: number, statusText: string) => ({ status, statusText, internal: false, data: null });

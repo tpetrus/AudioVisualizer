@@ -206,14 +206,19 @@ function median(values: number[]): number {
     return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
-function findSidecar(wavPath: string, genre: string, annotations: string | undefined, extension: string): string | undefined {
+function findSidecar(
+    wavPath: string,
+    genre: string,
+    annotations: string | undefined,
+    extension: string,
+): string | undefined {
     const name = basename(wavPath, extname(wavPath)) + extension;
     const candidates = [
         annotations ? join(annotations, genre, name) : '',
         annotations ? join(annotations, name) : '',
         join(wavPath, '..', name),
-    ].filter(path => path !== '');
-    return candidates.find(path => existsSync(path));
+    ].filter((path) => path !== '');
+    return candidates.find((path) => existsSync(path));
 }
 
 function readAnnotation(wavPath: string, genre: string, annotations: string | undefined): Annotation {
@@ -259,14 +264,14 @@ function readAnnotation(wavPath: string, genre: string, annotations: string | un
 
 function listWavs(directory: string): string[] {
     return readdirSync(directory)
-        .filter(name => name.toLowerCase().endsWith('.wav'))
+        .filter((name) => name.toLowerCase().endsWith('.wav'))
         .sort()
-        .map(name => join(directory, name));
+        .map((name) => join(directory, name));
 }
 
 function loadClips(options: Options): Clip[] {
     const genres = readdirSync(options.dataset)
-        .filter(name => statSync(join(options.dataset, name)).isDirectory())
+        .filter((name) => statSync(join(options.dataset, name)).isDirectory())
         .sort();
     const paths: { path: string; genre: string }[] = [];
     for (const genre of genres) {
@@ -277,7 +282,10 @@ function loadClips(options: Options): Clip[] {
     // Spread a limited selection evenly so every genre is still represented.
     const selected =
         paths.length > options.maxFiles
-            ? Array.from({ length: options.maxFiles }, (_, i) => paths[Math.floor((i * paths.length) / options.maxFiles)])
+            ? Array.from(
+                  { length: options.maxFiles },
+                  (_, i) => paths[Math.floor((i * paths.length) / options.maxFiles)],
+              )
             : paths;
     const clips: Clip[] = [];
     for (const { path, genre } of selected) {
@@ -291,7 +299,7 @@ function loadClips(options: Options): Clip[] {
             sampleRate: wav.sampleRate,
             pcm: wav.samples.subarray(0, limit),
             bpm: annotation.bpm,
-            downbeats: annotation.downbeats?.filter(time => time <= limit / wav.sampleRate),
+            downbeats: annotation.downbeats?.filter((time) => time <= limit / wav.sampleRate),
         });
     }
     return clips;
@@ -300,7 +308,7 @@ function loadClips(options: Options): Clip[] {
 // ---- Metrics ----
 
 function isTempoMatch(estimate: number, truth: number, ratios: readonly number[]): boolean {
-    return ratios.some(ratio => Math.abs(estimate / (truth * ratio) - 1) <= TEMPO_TOLERANCE);
+    return ratios.some((ratio) => Math.abs(estimate / (truth * ratio) - 1) <= TEMPO_TOLERANCE);
 }
 
 // F-measure of detected events against truth times, matched one to one within the tolerance.
@@ -327,7 +335,7 @@ function fMeasure(events: number[], truth: number[], tolerance: number): number 
 // Majority meter and median tempo over the last few seconds of a run: the answer the tracker settled on.
 function finalAnswer(run: RunResult): { meter: BeatsPerBar | undefined; bpm: number } {
     const end = run.samples[run.samples.length - 1]?.time ?? 0;
-    const tail = run.samples.filter(sample => sample.time >= end - FINAL_WINDOW_SECONDS);
+    const tail = run.samples.filter((sample) => sample.time >= end - FINAL_WINDOW_SECONDS);
     const votes = new Map<BeatsPerBar | undefined, number>();
     for (const sample of tail) {
         votes.set(sample.beatsPerBar, (votes.get(sample.beatsPerBar) ?? 0) + 1);
@@ -340,7 +348,7 @@ function finalAnswer(run: RunResult): { meter: BeatsPerBar | undefined; bpm: num
             meter = candidate;
         }
     }
-    return { meter, bpm: median(tail.map(sample => sample.bpm)) };
+    return { meter, bpm: median(tail.map((sample) => sample.bpm)) };
 }
 
 function percent(part: number, whole: number): string {
@@ -404,15 +412,15 @@ function evaluateSingles(clips: Clip[]): void {
             f1Total += fMeasure(run.downbeatEvents, clip.downbeats, DOWNBEAT_TOLERANCE);
             // The steady-state score only judges the part after the tracker first reported the right meter.
             const lockedAt = lock === undefined ? Infinity : lock;
-            const events = run.downbeatEvents.filter(time => time >= lockedAt);
-            const truth = clip.downbeats.filter(time => time >= lockedAt);
+            const events = run.downbeatEvents.filter((time) => time >= lockedAt);
+            const truth = clip.downbeats.filter((time) => time >= lockedAt);
             steadyF1Total += fMeasure(events, truth, DOWNBEAT_TOLERANCE);
         }
     }
 
     const three = meterHits.get(3) ?? { hit: 0, total: 0 };
     const four = meterHits.get(4) ?? { hit: 0, total: 0 };
-    const recalls = [three, four].filter(entry => entry.total > 0).map(entry => entry.hit / entry.total);
+    const recalls = [three, four].filter((entry) => entry.total > 0).map((entry) => entry.hit / entry.total);
     const balanced = recalls.length === 0 ? NaN : recalls.reduce((sum, value) => sum + value, 0) / recalls.length;
 
     console.log('\nSingle files');
@@ -427,7 +435,9 @@ function evaluateSingles(clips: Clip[]): void {
     console.log(
         `  downbeat F1 (+-70ms)  ${f1Files === 0 ? 'n/a (no beat annotations)' : `${(f1Total / f1Files).toFixed(3)} whole file, ${(steadyF1Total / f1Files).toFixed(3)} after lock (${f1Files} files)`}`,
     );
-    console.log(`  song changes per file ${(falseResets / Math.max(1, clips.length)).toFixed(2)} (every one is a false reset)`);
+    console.log(
+        `  song changes per file ${(falseResets / Math.max(1, clips.length)).toFixed(2)} (every one is a false reset)`,
+    );
 }
 
 function evaluatePairs(clips: Clip[], options: Options): void {
@@ -464,14 +474,18 @@ function evaluatePairs(clips: Clip[], options: Options): void {
                 relock.push(lock);
             }
             // Expected: anything from the join to a few seconds after the music resumed. Everything else is false.
-            const expected = run.songChangeEvents.filter(time => time >= join - 0.5 && time <= resume + EXPECTED_RESET_SECONDS);
+            const expected = run.songChangeEvents.filter(
+                (time) => time >= join - 0.5 && time <= resume + EXPECTED_RESET_SECONDS,
+            );
             falseResets += run.songChangeEvents.length - expected.length;
-            if (gap > 0 && !run.songChangeEvents.some(time => time >= join - 0.5 && time <= resume)) {
+            if (gap > 0 && !run.songChangeEvents.some((time) => time >= join - 0.5 && time <= resume)) {
                 missed++;
             }
         }
         console.log(`\nSong pairs, ${gap > 0 ? `${gap} s gap` : 'gapless'} (${pairs.length} pairs)`);
-        console.log(`  median re-lock time   ${seconds(relock)} after the second song starts (${failedToRelock} never re-locked)`);
+        console.log(
+            `  median re-lock time   ${seconds(relock)} after the second song starts (${failedToRelock} never re-locked)`,
+        );
         console.log(`  false resets          ${falseResets} (${(falseResets / pairs.length).toFixed(2)} per pair)`);
         if (gap > 0) {
             console.log(`  gaps with no hard reset ${missed}`);

@@ -6,7 +6,6 @@ import { PerformanceStats } from '~/components/PerformanceStats/PerformanceStats
 import { RhythmStats } from '~/components/RhythmStats/RhythmStats';
 import { AudioSourceDialog } from '~/features/audio/components/AudioSourceDialog';
 
-
 interface ControlPanelProps {
     definitions: readonly ControlDefinition[];
     values: Readonly<Record<string, ControlValue>>;
@@ -35,12 +34,12 @@ export function ControlPanel({
     const sections = useMemo(() => groupBySection(definitions), [definitions]);
     // Start with just the first section open so the panel stays short.
     const [openSections, setOpenSections] = useState<ReadonlySet<string>>(
-        () => new Set(sections.slice(0, 1).map(section => section.name)),
+        () => new Set(sections.slice(0, 1).map((section) => section.name)),
     );
 
     const onSectionToggle = (name: string, event: SyntheticEvent<HTMLDetailsElement>) => {
         const open = event.currentTarget.open;
-        setOpenSections(current => {
+        setOpenSections((current) => {
             if (current.has(name) === open) {
                 return current;
             }
@@ -64,9 +63,11 @@ export function ControlPanel({
                         onClick={() => onCameraLockedChange(!cameraLocked)}
                         aria-pressed={cameraLocked}
                         aria-label={cameraLocked ? 'Camera locked. Click to unlock' : 'Camera unlocked. Click to lock'}
-                        title={cameraLocked
-                            ? 'View locked: the picture cannot be dragged, rotated or zoomed. Click to unlock it.'
-                            : 'View unlocked: drag to rotate, right-drag to pan, scroll to zoom. Click to lock the view in place.'}
+                        title={
+                            cameraLocked
+                                ? 'View locked: the picture cannot be dragged, rotated or zoomed. Click to unlock it.'
+                                : 'View unlocked: drag to rotate, right-drag to pan, scroll to zoom. Click to lock the view in place.'
+                        }
                     >
                         {cameraLocked ? '🔒' : '🔓'}
                     </button>
@@ -84,34 +85,38 @@ export function ControlPanel({
                             </svg>
                         </button>
                     )}
-                    <button type="button" className={styles.toggle} onClick={() => setCollapsed(current => !current)}>
+                    <button type="button" className={styles.toggle} onClick={() => setCollapsed((current) => !current)}>
                         {collapsed ? '☰ Settings' : '✕ Close'}
                     </button>
                 </div>
 
                 {!collapsed && (
                     <div>
-                        {sections.map(section => {
-                            const modifiedCount = section.controls
-                                .filter(definition => isModified(definition, values[definition.key]))
-                                .length;
+                        {sections.map((section) => {
+                            const modifiedCount = section.controls.filter((definition) =>
+                                isModified(definition, values[definition.key]),
+                            ).length;
                             return (
                                 <details
                                     key={section.name}
                                     className={styles.section}
                                     open={openSections.has(section.name)}
-                                    onToggle={event => onSectionToggle(section.name, event)}
+                                    onToggle={(event) => onSectionToggle(section.name, event)}
                                 >
                                     <summary>
                                         {section.name}
                                         {modifiedCount > 0 && (
-                                            <span className={styles.modified} title="Settings changed from their defaults">
+                                            <span
+                                                className={styles.modified}
+                                                title="Settings changed from their defaults"
+                                            >
                                                 {modifiedCount} changed
                                             </span>
                                         )}
                                     </summary>
                                     {section.controls
-                                        .filter(definition => isShown(definition, values)).map(definition => {
+                                        .filter((definition) => isShown(definition, values))
+                                        .map((definition) => {
                                             const value = values[definition.key];
                                             return (
                                                 <div key={definition.key} className={styles.controlRow}>
@@ -119,15 +124,21 @@ export function ControlPanel({
                                                     <ControlInput
                                                         definition={definition}
                                                         value={value}
-                                                        onChange={next => onChange(definition.key, next)}
+                                                        onChange={(next) => onChange(definition.key, next)}
                                                     />
-                                                    {definition.type === 'range' && <span className={styles.value}>{value}</span>}
+                                                    {definition.type === 'range' && (
+                                                        <span className={styles.value}>{value}</span>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         className={styles.fieldReset}
                                                         title="Reset to default"
                                                         aria-label={`Reset ${definition.label} to default`}
-                                                        style={{ visibility: isModified(definition, value) ? 'visible' : 'hidden' }}
+                                                        style={{
+                                                            visibility: isModified(definition, value)
+                                                                ? 'visible'
+                                                                : 'hidden',
+                                                        }}
                                                         onClick={() => onChange(definition.key, definition.default)}
                                                     >
                                                         ↺
@@ -140,7 +151,9 @@ export function ControlPanel({
                         })}
 
                         <div className={styles.footer}>
-                            <button type="button" className={styles.reset} onClick={onResetAll}>Reset all</button>
+                            <button type="button" className={styles.reset} onClick={onResetAll}>
+                                Reset all
+                            </button>
                             <button type="button" className={styles.reset} onClick={() => setAudioDialogOpen(true)}>
                                 Audio settings
                             </button>
@@ -148,7 +161,7 @@ export function ControlPanel({
                                 <input
                                     type="checkbox"
                                     checked={showStats}
-                                    onChange={event => setShowStats(event.currentTarget.checked)}
+                                    onChange={(event) => setShowStats(event.currentTarget.checked)}
                                 />{' '}
                                 Show performance stats
                             </label>
@@ -156,7 +169,7 @@ export function ControlPanel({
                                 <input
                                     type="checkbox"
                                     checked={showRhythm}
-                                    onChange={event => setShowRhythm(event.currentTarget.checked)}
+                                    onChange={(event) => setShowRhythm(event.currentTarget.checked)}
                                 />{' '}
                                 Show rhythm stats
                             </label>

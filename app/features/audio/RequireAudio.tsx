@@ -1,6 +1,6 @@
-import { useEffect, useState, type ReactNode } from "react"
-import { useAudio } from "./audioEngineContext";
-import { Navigate } from "react-router";
+import { useEffect, useState, type ReactNode } from 'react';
+import { useAudio } from './audioEngineContext';
+import { Navigate } from 'react-router';
 
 type Props = { children: ReactNode };
 type Status = 'ok' | 'denied' | 'pending';
@@ -10,15 +10,16 @@ type Status = 'ok' | 'denied' | 'pending';
 export function RequireAudio({ children }: Props) {
     const engine = useAudio();
     // Already capturing (e.g. arriving from the landing page): show the page straight away.
-    const [status, setStatus] = useState<Status>(() => engine.getIsCapturing() ? 'ok' : 'pending')
+    const [status, setStatus] = useState<Status>(() => (engine.getIsCapturing() ? 'ok' : 'pending'));
 
     useEffect(() => {
         if (status !== 'pending') return;
         let cancelled = false;
-        engine.resumeSavedSource()
+        engine
+            .resumeSavedSource()
             .then((isRunning) => {
                 if (!cancelled) {
-                    setStatus(isRunning ? 'ok' : 'denied')
+                    setStatus(isRunning ? 'ok' : 'denied');
                 }
             })
             .catch(() => {
@@ -27,10 +28,12 @@ export function RequireAudio({ children }: Props) {
                 }
             });
 
-        return () => { cancelled = true };
-    }, [engine])
+        return () => {
+            cancelled = true;
+        };
+    }, [engine, status]);
 
-    if (status === 'denied') return <Navigate to='/' replace></Navigate>;
+    if (status === 'denied') return <Navigate to="/" replace></Navigate>;
     if (status === 'pending') return;
-    return <>{children}</>
+    return <>{children}</>;
 }

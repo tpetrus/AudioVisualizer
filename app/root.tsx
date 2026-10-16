@@ -1,11 +1,4 @@
-import {
-  isRouteErrorResponse,
-  Links,
-  Meta,
-  Outlet,
-  Scripts,
-  ScrollRestoration,
-} from "react-router";
+import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -25,8 +18,8 @@ export const links: Route.LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oxygen+Mono&display=swap"
-  }
+    href: "https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oxygen+Mono&display=swap",
+  },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -40,9 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <AudioProvider>
-          <RhythmProvider>
-            {children}
-          </RhythmProvider>
+          <RhythmProvider>{children}</RhythmProvider>
         </AudioProvider>
         <ScrollRestoration />
         <Scripts />
@@ -62,10 +53,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 
   if (isRouteErrorResponse(error)) {
     message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
+    details = error.status === 404 ? "The requested page could not be found." : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;

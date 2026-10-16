@@ -185,7 +185,12 @@ export function addNoise(pcm: Float32Array, amplitude: number, seed: number): Fl
 }
 
 // A pure sine, for front-end checks.
-export function sine(hz: number, seconds: number, amplitude = 0.5, sampleRate: number = TEST_SAMPLE_RATE): Float32Array {
+export function sine(
+    hz: number,
+    seconds: number,
+    amplitude = 0.5,
+    sampleRate: number = TEST_SAMPLE_RATE,
+): Float32Array {
     const pcm = new Float32Array(Math.round(seconds * sampleRate));
     for (let i = 0; i < pcm.length; i++) {
         pcm[i] = amplitude * Math.sin((2 * Math.PI * hz * i) / sampleRate);
@@ -275,7 +280,7 @@ export function runPipeline(pcm: Float32Array, options: RunOptions = {}): RunRes
 // Seconds after `from` at which the reported meter first equals `meter` and then stays so until `until` (or the end
 // of the samples), or undefined if it never settles.
 export function timeToLock(samples: Sample[], meter: BeatsPerBar, from = 0, until = Infinity): number | undefined {
-    const window = samples.filter(sample => sample.time >= from && sample.time <= until);
+    const window = samples.filter((sample) => sample.time >= from && sample.time <= until);
     let lockedSince: number | undefined;
     for (const sample of window) {
         if (sample.beatsPerBar === meter) {
@@ -289,13 +294,13 @@ export function timeToLock(samples: Sample[], meter: BeatsPerBar, from = 0, unti
 
 // Fraction of downbeat events (after `after` seconds) within `tolerance` seconds of a true downbeat.
 export function downbeatHitRate(events: number[], truth: number[], after: number, tolerance = 0.12): number {
-    const relevant = events.filter(time => time >= after);
+    const relevant = events.filter((time) => time >= after);
     if (relevant.length === 0) {
         return 0;
     }
     let hits = 0;
     for (const event of relevant) {
-        if (truth.some(t => Math.abs(t - event) <= tolerance)) {
+        if (truth.some((t) => Math.abs(t - event) <= tolerance)) {
             hits++;
         }
     }

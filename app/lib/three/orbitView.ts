@@ -5,7 +5,7 @@ const MOVED_THRESHOLD = 0.5;
 
 export interface OrbitView {
     setLocked(locked: boolean): void; // Picture can't be dragged, rotated or zoomed.
-    reset(): void; // Puts camera back where it started.
+    reset: () => void; // Puts camera back where it started.
     dispose(): void;
 }
 
@@ -16,7 +16,11 @@ interface OrbitViewOptions {
 
 // Orbit controls that remember starting view (shared by visualizers' lock and reset-view buttons).
 // ** Position camera before calling this: its current position becomes view that reset() returns to. **
-export function createOrbitView(camera: THREE.Camera, domElement: HTMLElement, { locked = true, onViewChanged }: OrbitViewOptions = {}): OrbitView {
+export function createOrbitView(
+    camera: THREE.Camera,
+    domElement: HTMLElement,
+    { locked = true, onViewChanged }: OrbitViewOptions = {},
+): OrbitView {
     const controls = new OrbitControls(camera, domElement);
     controls.enabled = !locked;
 
@@ -29,11 +33,13 @@ export function createOrbitView(camera: THREE.Camera, domElement: HTMLElement, {
             changed = next;
             onViewChanged?.(next);
         }
-    }
+    };
 
-    const onChange = () => setChanged(
-        camera.position.distanceTo(defaultPosition) > MOVED_THRESHOLD || controls.target.distanceTo(defaultTarget) > MOVED_THRESHOLD
-    )
+    const onChange = () =>
+        setChanged(
+            camera.position.distanceTo(defaultPosition) > MOVED_THRESHOLD ||
+                controls.target.distanceTo(defaultTarget) > MOVED_THRESHOLD,
+        );
 
     controls.addEventListener('change', onChange);
 
@@ -56,6 +62,6 @@ export function createOrbitView(camera: THREE.Camera, domElement: HTMLElement, {
     return {
         setLocked,
         reset,
-        dispose
-    }
+        dispose,
+    };
 }

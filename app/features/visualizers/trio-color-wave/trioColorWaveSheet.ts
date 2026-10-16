@@ -85,7 +85,7 @@ export class TrioColorWaveSheet {
 
     // Centers the sheet on the screen, stacks it behind the ones in front, and applies the "Move" sliders.
     public place(moveX: number, moveY: number): void {
-        const x = -(FLAG_WIDTH - 1) * FLAG_DISTANCE / 2 + moveX;
+        const x = (-(FLAG_WIDTH - 1) * FLAG_DISTANCE) / 2 + moveX;
         this.flags.mesh.position.set(x, BASE_HEIGHT + moveY, -this.index * SHEET_SPACING);
     }
 
@@ -123,13 +123,14 @@ export class TrioColorWaveSheet {
             const depth = (this.index * FLAG_DEPTH + (FLAG_DEPTH - 1 - row)) / lastRow;
             const riseRate = 1 - (1 - BACK_RISE_RATE) * depth;
             // The fall step is divided by the sheet's scale so it looks the same speed on screen whatever the height.
-            const fallStep = values.fall * fallFactor / growth * (1 - (1 - BACK_FALL_FACTOR) * depth);
+            const fallStep = ((values.fall * fallFactor) / growth) * (1 - (1 - BACK_FALL_FACTOR) * depth);
 
             for (let column = 0; column < FLAG_WIDTH; column++) {
                 const slot = row * FLAG_WIDTH + column;
                 const target = row === FLAG_DEPTH - 1 ? this.blurred[column] : this.heights[slot + FLAG_WIDTH];
                 const current = this.heights[slot];
-                const next = target > current ? current + (target - current) * riseRate : Math.max(target, current - fallStep);
+                const next =
+                    target > current ? current + (target - current) * riseRate : Math.max(target, current - fallStep);
                 this.heights[slot] = next;
                 this.flags.setFlagHeight(column, row, next * scale * ROW_FALLOFF[row]);
             }
@@ -154,7 +155,7 @@ export function createSheetColors(startHue: number, endHue: number, width: numbe
     for (let row = 0; row < depth; row++) {
         for (let i = 0; i < width; i++) {
             const column = row % 2 === 0 ? i : width - 1 - i;
-            const hue = startHue + (endHue - startHue) * step / (totalFlags - 1);
+            const hue = startHue + ((endHue - startHue) * step) / (totalFlags - 1);
             colors[column * depth + row] = new THREE.Color().setHSL(hue, 0.85, 0.55);
             step++;
         }

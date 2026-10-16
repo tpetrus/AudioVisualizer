@@ -1,4 +1,4 @@
-import { DEFAULT_NORMALIZE_SETTINGS, type NormalizeSettings, type SavedSource } from "./types";
+import { DEFAULT_NORMALIZE_SETTINGS, type NormalizeSettings, type SavedSource } from './types';
 
 // Keys are unchanged from the Angular app, so settings saved there still load.
 const SOURCE_KEY = 'audioVisualizer.source';
@@ -43,7 +43,7 @@ export function clearNormalizeSettings(): void {
 function read<T>(key: string, fallback: T): T {
     try {
         const stored = localStorage.getItem(key);
-        return stored === null ? fallback : JSON.parse(stored) as T;
+        return stored === null ? fallback : (JSON.parse(stored) as T);
     } catch {
         return fallback;
     }

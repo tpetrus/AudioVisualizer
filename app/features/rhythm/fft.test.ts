@@ -18,7 +18,7 @@ function naiveDft(re: Float64Array, im: Float64Array): { re: Float64Array; im: F
 }
 
 describe('Fft', () => {
-    it.each([2, 8, 64, 256, 1024])('matches a naive DFT on random complex input (size %i)', size => {
+    it.each([2, 8, 64, 256, 1024])('matches a naive DFT on random complex input (size %i)', (size) => {
         const random = createRandom(size);
         const re = new Float32Array(size);
         const im = new Float32Array(size);
@@ -58,7 +58,7 @@ describe('Fft', () => {
         expect(Array.from(second)).toEqual(Array.from(first));
     });
 
-    it.each([0, 1, 3, 100, 1000, 1023])('throws for the unsupported size %i', size => {
+    it.each([0, 1, 3, 100, 1000, 1023])('throws for the unsupported size %i', (size) => {
         expect(() => new Fft(size)).toThrow(/power of two/);
     });
 });

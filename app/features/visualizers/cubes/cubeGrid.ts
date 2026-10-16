@@ -13,11 +13,11 @@ export interface GridSize {
 }
 
 export interface CubeLook {
-    depth: number;             // how far a fully raised cube moves toward the camera
-    spin: number;              // spin speed while raised
+    depth: number; // how far a fully raised cube moves toward the camera
+    spin: number; // spin speed while raised
     restingColor: THREE.Color; // resting cubes show a dimmed version of this
-    raisedColor: THREE.Color;  // color of a fully raised cube
-    backdropLift: number;      // how far resting cubes rise toward the viewer (bass bump)
+    raisedColor: THREE.Color; // color of a fully raised cube
+    backdropLift: number; // how far resting cubes rise toward the viewer (bass bump)
 }
 
 // Covers the view at the grid's depth (plus a margin), whatever the window's shape.
@@ -106,7 +106,8 @@ export class CubeGrid {
                 if (active > 0.05) {
                     this.spinAngles[index] += spin * 70 * Math.pow(Math.min(1, level), 3);
                 } else {
-                    this.spinAngles[index] += (Math.round(this.spinAngles[index] / TURN) * TURN - this.spinAngles[index]) * 0.1;
+                    this.spinAngles[index] +=
+                        (Math.round(this.spinAngles[index] / TURN) * TURN - this.spinAngles[index]) * 0.1;
                 }
                 this.dummy.rotation.set(-0.55 * active, 0.7 * active + this.spinAngles[index], 0);
                 this.dummy.updateMatrix();

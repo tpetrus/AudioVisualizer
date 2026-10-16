@@ -95,7 +95,7 @@ describe('BassPulse', () => {
     it('disconnects its filters and analyser on dispose', () => {
         harness.pulse.dispose();
         expect(harness.source.disconnect).toHaveBeenCalledWith(harness.filters[0]);
-        harness.filters.forEach(filter => expect(filter.disconnect).toHaveBeenCalled());
+        harness.filters.forEach((filter) => expect(filter.disconnect).toHaveBeenCalled());
         expect(harness.bassAnalyser.disconnect).toHaveBeenCalled();
     });
 
@@ -104,7 +104,7 @@ describe('BassPulse', () => {
             throw new Error('context closed');
         });
         expect(() => harness.pulse.dispose()).not.toThrow();
-        harness.filters.forEach(filter => expect(filter.disconnect).toHaveBeenCalled());
+        harness.filters.forEach((filter) => expect(filter.disconnect).toHaveBeenCalled());
         expect(harness.bassAnalyser.disconnect).toHaveBeenCalled();
     });
 });

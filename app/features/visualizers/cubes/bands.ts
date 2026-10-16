@@ -6,7 +6,7 @@ export type BinRange = readonly [start: number, end: number];
 
 export interface BandResponse {
     sensitivity: number;
-    gate: number;      // 0..1: levels below this are treated as silence
+    gate: number; // 0..1: levels below this are treated as silence
     smoothing: number; // 0..1: how slowly levels fall
 }
 
@@ -15,8 +15,8 @@ export function createBandBins(bandCount: number, sampleRate: number, fftSize: n
     const binWidth = sampleRate / fftSize;
     const ratio = MAX_FREQUENCY / MIN_FREQUENCY;
     return Array.from({ length: bandCount }, (_, band) => {
-        const start = Math.floor(MIN_FREQUENCY * Math.pow(ratio, band / bandCount) / binWidth);
-        const end = Math.floor(MIN_FREQUENCY * Math.pow(ratio, (band + 1) / bandCount) / binWidth);
+        const start = Math.floor((MIN_FREQUENCY * Math.pow(ratio, band / bandCount)) / binWidth);
+        const end = Math.floor((MIN_FREQUENCY * Math.pow(ratio, (band + 1) / bandCount)) / binWidth);
         return [start, Math.max(end, start + 1)] as const;
     });
 }
@@ -36,13 +36,11 @@ export function updateBandLevels(
             sum += spectrum[bin];
         }
         // Music carries less energy at high frequencies, so tilt the spectrum up a little.
-        const tilt = 1 + 0.8 * band / bandCount;
+        const tilt = 1 + (0.8 * band) / bandCount;
         const raw = Math.min(1, (sum / (end - start) / 255) * sensitivity * tilt);
         const target = Math.max(0, (raw - gate) / (1 - gate));
 
         const level = levels[band];
-        levels[band] = target > level
-            ? level + (target - level) * 0.6
-            : level * smoothing + target * (1 - smoothing);
+        levels[band] = target > level ? level + (target - level) * 0.6 : level * smoothing + target * (1 - smoothing);
     }
 }

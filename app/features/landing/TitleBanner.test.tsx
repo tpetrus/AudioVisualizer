@@ -27,7 +27,10 @@ vi.mock('three/examples/jsm/geometries/TextGeometry.js', async () => {
 function deferred<T>() {
     let resolve!: (value: T) => void;
     let reject!: (error: unknown) => void;
-    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
     return { promise, resolve, reject };
 }
 
@@ -46,7 +49,7 @@ describe('TitleBanner', () => {
         installFakeResizeObserver();
         loadAsync = vi.spyOn(FontLoader.prototype, 'loadAsync').mockResolvedValue(font);
         // jsdom lays nothing out, so the container has no size and the hook warns about it.
-        vi.spyOn(console, 'warn').mockImplementation(() => { });
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
     });
 
     afterEach(() => {
@@ -57,7 +60,9 @@ describe('TitleBanner', () => {
         render(<TitleBanner />);
 
         expect(screen.getByRole('heading', { level: 1, name: 'AudioVisualizer' })).toBeInTheDocument();
-        expect(screen.getByText(/Spice up your music-listening experience, add vibrancy and motion to your DJ set/)).toBeInTheDocument();
+        expect(
+            screen.getByText(/Spice up your music-listening experience, add vibrancy and motion to your DJ set/),
+        ).toBeInTheDocument();
     });
 
     it('creates an antialiased renderer with a canvas inside the banner', () => {
@@ -70,21 +75,27 @@ describe('TitleBanner', () => {
 
     it('loads both fonts and adds the title and two tagline lines to the scene', async () => {
         render(<TitleBanner />);
-        await vi.waitFor(() => expect(renderedScene().children.some(child => child.name === 'AudioVisualizer')).toBe(true));
+        await vi.waitFor(() =>
+            expect(renderedScene().children.some((child) => child.name === 'AudioVisualizer')).toBe(true),
+        );
 
         expect(loadAsync).toHaveBeenCalledWith('/fonts/paladins_gradient.json');
         expect(loadAsync).toHaveBeenCalledWith('/fonts/helvetiker_bold.typeface.json');
         const meshes = renderedScene().children.filter((child): child is Mesh => 'isMesh' in child);
-        expect(meshes.map(mesh => mesh.name)).toEqual(['AudioVisualizer', 'AudioVisualizerTagline0', 'AudioVisualizerTagline1']);
+        expect(meshes.map((mesh) => mesh.name)).toEqual([
+            'AudioVisualizer',
+            'AudioVisualizerTagline0',
+            'AudioVisualizerTagline1',
+        ]);
         // Each line is centred horizontally (the stand-in geometry is 10 wide) and the tagline lines stack downward.
-        expect(meshes.map(mesh => mesh.position.x)).toEqual([-5, -5, -5]);
+        expect(meshes.map((mesh) => mesh.position.x)).toEqual([-5, -5, -5]);
         expect(meshes[1].position.y).toBeGreaterThan(meshes[2].position.y);
     });
 
     it('adds a light to the scene straight away', () => {
         render(<TitleBanner />);
 
-        expect(renderedScene().children.some(child => 'isDirectionalLight' in child)).toBe(true);
+        expect(renderedScene().children.some((child) => 'isDirectionalLight' in child)).toBe(true);
     });
 
     it('adds nothing when the banner unmounted before the fonts arrived', async () => {
@@ -95,13 +106,13 @@ describe('TitleBanner', () => {
 
         unmount();
         title.resolve(font);
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
-        expect(scene.children.filter(child => 'isMesh' in child)).toHaveLength(0);
+        expect(scene.children.filter((child) => 'isMesh' in child)).toHaveLength(0);
     });
 
     it('logs a font that failed to load while the banner is still showing', async () => {
-        const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
         const failure = new Error('404');
         loadAsync.mockRejectedValue(failure);
         render(<TitleBanner />);
@@ -110,14 +121,14 @@ describe('TitleBanner', () => {
     });
 
     it('stays quiet about a font that failed after the banner unmounted', async () => {
-        const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
         const title = deferred<Font>();
         loadAsync.mockReturnValue(title.promise);
         const { unmount } = render(<TitleBanner />);
 
         unmount();
         title.reject(new Error('late failure'));
-        await new Promise(resolve => setTimeout(resolve, 0));
+        await new Promise((resolve) => setTimeout(resolve, 0));
 
         expect(error).not.toHaveBeenCalled();
     });

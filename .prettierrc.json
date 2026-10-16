@@ -1,0 +1,17 @@
+{
+  "printWidth": 120,
+  "tabWidth": 4,
+  "singleQuote": true,
+  "semi": true,
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": ["*.json", "*.jsonc", "*.md", "*.yml", "*.yaml"],
+      "options": { "tabWidth": 2 }
+    },
+    {
+      "files": ["app/root.tsx", "app/routes.ts", "app/routes/**"],
+      "options": { "tabWidth": 2, "singleQuote": false }
+    }
+  ]
+}

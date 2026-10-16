@@ -39,11 +39,14 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
                     role="switch"
                     className="mr-2 h-4 w-4 align-middle accent-blue-500"
                     checked={normalize}
-                    onChange={event => engine.setNormalize(event.currentTarget.checked)}
+                    onChange={(event) => engine.setNormalize(event.currentTarget.checked)}
                 />
-                <label className="cursor-pointer" htmlFor={normalizeId}>Normalize volume</label>
+                <label className="cursor-pointer" htmlFor={normalizeId}>
+                    Normalize volume
+                </label>
                 <div className="text-sm text-gray-400">
-                    Automatically adjusts the gain so the visualization looks the same whether the audio is quiet or loud.
+                    Automatically adjusts the gain so the visualization looks the same whether the audio is quiet or
+                    loud.
                 </div>
             </div>
 
@@ -52,8 +55,12 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
             {silent && <SilenceWarning />}
 
             <div className="flex justify-end gap-2">
-                <button type="button" className={outlineButton} onClick={onChooseSource}>Choose a different source</button>
-                <button type="button" className={primaryButton} onClick={onDone}>Done</button>
+                <button type="button" className={outlineButton} onClick={onChooseSource}>
+                    Choose a different source
+                </button>
+                <button type="button" className={primaryButton} onClick={onDone}>
+                    Done
+                </button>
             </div>
         </>
     );

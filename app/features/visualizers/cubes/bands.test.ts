@@ -39,7 +39,10 @@ describe('createBandBins', () => {
 describe('updateBandLevels', () => {
     const response: BandResponse = { sensitivity: 1, gate: 0, smoothing: 0.5 };
     // Two single-bin bands, so the maths is easy to follow.
-    const bins = [[0, 1], [1, 2]] as const;
+    const bins = [
+        [0, 1],
+        [1, 2],
+    ] as const;
 
     it('rises quickly toward a louder band', () => {
         const levels = new Float32Array(2);

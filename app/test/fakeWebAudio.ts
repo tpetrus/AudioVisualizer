@@ -35,8 +35,8 @@ export class FakeAudioParam {
 // Base for every node: `connect`/`disconnect` are spies and the owning context is kept (RhythmTracker reads
 // `analyser.context`).
 export class FakeAudioNode {
-    readonly connect = vi.fn((_destination?: unknown) => { });
-    readonly disconnect = vi.fn((_destination?: unknown) => { });
+    readonly connect = vi.fn((_destination?: unknown) => {});
+    readonly disconnect = vi.fn((_destination?: unknown) => {});
     readonly context: FakeAudioContext;
 
     constructor(context?: FakeAudioContext) {
@@ -88,7 +88,11 @@ export class FakeAnalyserNode extends FakeAudioNode {
     });
 }
 
-function copyInto(target: { length: number;[index: number]: number }, source: ArrayLike<number>, fallback: number): void {
+function copyInto(
+    target: { length: number; [index: number]: number },
+    source: ArrayLike<number>,
+    fallback: number,
+): void {
     for (let i = 0; i < target.length; i++) {
         target[i] = i < source.length ? source[i] : fallback;
     }
@@ -115,7 +119,10 @@ export class FakeMediaStreamTrack {
     });
     readonly getSettings = vi.fn(() => this.settings);
 
-    constructor(readonly kind: 'audio' | 'video' = 'audio', public label = `fake ${kind} track`) { }
+    constructor(
+        readonly kind: 'audio' | 'video' = 'audio',
+        public label = `fake ${kind} track`,
+    ) {}
 }
 
 export class FakeMediaStream {
@@ -126,19 +133,26 @@ export class FakeMediaStream {
         this.tracks = [...tracks];
     }
     readonly getTracks = () => [...this.tracks];
-    readonly getAudioTracks = () => this.tracks.filter(track => track.kind === 'audio');
-    readonly getVideoTracks = () => this.tracks.filter(track => track.kind === 'video');
+    readonly getAudioTracks = () => this.tracks.filter((track) => track.kind === 'audio');
+    readonly getVideoTracks = () => this.tracks.filter((track) => track.kind === 'video');
 }
 
 export class FakeMediaStreamAudioSourceNode extends FakeAudioNode {
-    constructor(context: FakeAudioContext, readonly mediaStream: FakeMediaStream) {
+    constructor(
+        context: FakeAudioContext,
+        readonly mediaStream: FakeMediaStream,
+    ) {
         super(context);
     }
 }
 
 // A stream as the browser's capture dialogs return it. Screen capture with "share audio" off is `{ audio: false }`.
-export function createFakeStream({ audio = true, video = false, label = 'fake audio track', latency }:
-    { audio?: boolean; video?: boolean; label?: string; latency?: number } = {}): FakeMediaStream {
+export function createFakeStream({
+    audio = true,
+    video = false,
+    label = 'fake audio track',
+    latency,
+}: { audio?: boolean; video?: boolean; label?: string; latency?: number } = {}): FakeMediaStream {
     const tracks: FakeMediaStreamTrack[] = [];
     if (audio) {
         const track = new FakeMediaStreamTrack('audio', label);
@@ -168,10 +182,10 @@ export class FakeAudioWorklet {
     });
 
     resolveAll(): void {
-        this.pending.splice(0).forEach(deferred => deferred.resolve());
+        this.pending.splice(0).forEach((deferred) => deferred.resolve());
     }
     rejectAll(error: unknown = new Error('addModule failed')): void {
-        this.pending.splice(0).forEach(deferred => deferred.reject(error));
+        this.pending.splice(0).forEach((deferred) => deferred.reject(error));
     }
 }
 
@@ -233,7 +247,11 @@ export class FakeAudioWorkletNode extends FakeAudioNode {
     readonly processorPort: MessagePort;
     onprocessorerror: ((event: Event) => void) | null = null;
 
-    constructor(context: FakeAudioContext, readonly name: string, readonly options?: unknown) {
+    constructor(
+        context: FakeAudioContext,
+        readonly name: string,
+        readonly options?: unknown,
+    ) {
         super(context);
         const channel = new MessageChannel();
         this.port = channel.port1;

@@ -65,7 +65,7 @@ export class BassPulse {
         } catch {
             // Already disconnected: the source's audio context was closed when the capture stopped.
         }
-        this.filters.forEach(filter => filter.disconnect());
+        this.filters.forEach((filter) => filter.disconnect());
         this.analyser.disconnect();
     }
 }

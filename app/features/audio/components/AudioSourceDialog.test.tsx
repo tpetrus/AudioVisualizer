@@ -65,7 +65,9 @@ describe('AudioSourceDialog', () => {
 
         it('closes from the close button, Done, Escape and a click on the backdrop', async () => {
             const onClose = vi.fn();
-            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, { engine: capturingEngine() });
+            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, {
+                engine: capturingEngine(),
+            });
 
             await user.click(screen.getByRole('button', { name: 'Close' }));
             await user.click(screen.getByRole('button', { name: 'Done' }));
@@ -77,7 +79,9 @@ describe('AudioSourceDialog', () => {
 
         it('ignores other keys and clicks inside the dialog', async () => {
             const onClose = vi.fn();
-            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, { engine: capturingEngine() });
+            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, {
+                engine: capturingEngine(),
+            });
 
             await user.keyboard('a{Enter}');
             await user.click(screen.getByRole('dialog'));
@@ -87,7 +91,9 @@ describe('AudioSourceDialog', () => {
 
         it('switches to the chooser and back without closing', async () => {
             const onClose = vi.fn();
-            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, { engine: capturingEngine() });
+            const { user } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, {
+                engine: capturingEngine(),
+            });
 
             await user.click(screen.getByRole('button', { name: 'Choose a different source' }));
             expect(screen.getByRole('button', { name: 'Share audio' })).toBeInTheDocument();
@@ -100,7 +106,9 @@ describe('AudioSourceDialog', () => {
         });
 
         it('returns to the active source panel after starting a new source', async () => {
-            const { user, engine } = renderWithProviders(<AudioSourceDialog onClose={vi.fn()} />, { engine: capturingEngine() });
+            const { user, engine } = renderWithProviders(<AudioSourceDialog onClose={vi.fn()} />, {
+                engine: capturingEngine(),
+            });
             await user.click(screen.getByRole('button', { name: 'Choose a different source' }));
 
             await user.click(screen.getByRole('button', { name: 'Share audio' }));
@@ -112,7 +120,9 @@ describe('AudioSourceDialog', () => {
 
     it('stops listening for Escape once it is closed', async () => {
         const onClose = vi.fn();
-        const { user, unmount } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, { engine: capturingEngine() });
+        const { user, unmount } = renderWithProviders(<AudioSourceDialog onClose={onClose} />, {
+            engine: capturingEngine(),
+        });
         unmount();
 
         await user.keyboard('{Escape}');

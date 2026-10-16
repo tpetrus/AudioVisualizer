@@ -56,14 +56,14 @@ export function PerformanceStats() {
             // Read the counters now: they're reset below, before React runs the state update.
             const frameStats: FrameStats | undefined = frames
                 ? {
-                    fps: Math.round(1000 / (totalMs / frames)),
-                    avgFrameMs: (totalMs / frames).toFixed(1),
-                    worstFrameMs: worstMs.toFixed(1),
-                    slowFrames: slow,
-                }
+                      fps: Math.round(1000 / (totalMs / frames)),
+                      avgFrameMs: (totalMs / frames).toFixed(1),
+                      worstFrameMs: worstMs.toFixed(1),
+                      slowFrames: slow,
+                  }
                 : undefined;
             const audio = engine.latencyInfo;
-            setStats(current => ({ frames: frameStats ?? current.frames, audio }));
+            setStats((current) => ({ frames: frameStats ?? current.frames, audio }));
             frames = totalMs = worstMs = slow = 0;
         }, SAMPLE_INTERVAL_MS);
 
@@ -76,15 +76,24 @@ export function PerformanceStats() {
     const { frames, audio } = stats;
     return (
         <div className="pointer-events-none fixed bottom-3 left-3 z-10 rounded-md bg-black/75 px-2.5 py-2 font-mono text-xs text-[#9f9]">
-            <div><b>Rendering</b></div>
-            <div>GPU: {gpu}</div>
-            <div>{frames.fps} fps · avg {frames.avgFrameMs} ms</div>
             <div>
-                worst frame {frames.worstFrameMs} ms · slow frames (&gt;{SLOW_FRAME_MS} ms, last {SAMPLE_INTERVAL_MS / 1000} s): {frames.slowFrames}
+                <b>Rendering</b>
             </div>
-            <div className="mt-1.5"><b>Audio</b></div>
+            <div>GPU: {gpu}</div>
+            <div>
+                {frames.fps} fps · avg {frames.avgFrameMs} ms
+            </div>
+            <div>
+                worst frame {frames.worstFrameMs} ms · slow frames (&gt;{SLOW_FRAME_MS} ms, last{' '}
+                {SAMPLE_INTERVAL_MS / 1000} s): {frames.slowFrames}
+            </div>
+            <div className="mt-1.5">
+                <b>Audio</b>
+            </div>
             <div>sample rate {audio.sampleRate || '–'} Hz</div>
-            <div>context latency {formatMs(audio.baseLatencyMs)} · output {formatMs(audio.outputLatencyMs)}</div>
+            <div>
+                context latency {formatMs(audio.baseLatencyMs)} · output {formatMs(audio.outputLatencyMs)}
+            </div>
             <div>capture latency {formatMs(audio.captureLatencyMs)}</div>
             <div>analysis window {formatMs(audio.analysisWindowMs)}</div>
         </div>

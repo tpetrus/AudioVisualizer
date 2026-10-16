@@ -20,11 +20,11 @@ describe('disposeScene', () => {
         const scene = new THREE.Scene();
         const materials = [new THREE.MeshBasicMaterial(), new THREE.MeshBasicMaterial()];
         scene.add(new THREE.Mesh(new THREE.BoxGeometry(), materials));
-        const spies = materials.map(material => vi.spyOn(material, 'dispose'));
+        const spies = materials.map((material) => vi.spyOn(material, 'dispose'));
 
         disposeScene(scene);
 
-        spies.forEach(spy => expect(spy).toHaveBeenCalledTimes(1));
+        spies.forEach((spy) => expect(spy).toHaveBeenCalledTimes(1));
     });
 
     it('disposes textures held by a material', () => {

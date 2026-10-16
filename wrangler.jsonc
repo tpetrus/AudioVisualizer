@@ -6,9 +6,9 @@
   // client-side router can handle them.
   "assets": {
     "directory": "./build/client",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
   },
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

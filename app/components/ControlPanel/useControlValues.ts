@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { type ControlDefinition, type ControlValue, defaultValues } from './controls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 
@@ -11,7 +11,7 @@ export function useControlValues<T extends readonly ControlDefinition[]>(definit
 
     // The panel only reports keys taken from `definitions`, so the key/value pair always matches.
     const setValue = useCallback((key: string, value: ControlValue) => {
-        setValues(current => ({ ...current, [key]: value }));
+        setValues((current) => ({ ...current, [key]: value }));
     }, []);
 
     const resetAll = useCallback(() => setValues(defaultValues(definitions)), [definitions]);

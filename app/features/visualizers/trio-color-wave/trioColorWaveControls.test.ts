@@ -4,7 +4,7 @@ import { trioColorWaveControls } from './trioColorWaveControls';
 
 describe('trioColorWaveControls', () => {
     it('has unique keys', () => {
-        const keys = trioColorWaveControls.map(control => control.key);
+        const keys = trioColorWaveControls.map((control) => control.key);
         expect(new Set(keys).size).toBe(keys.length);
     });
 
@@ -26,7 +26,7 @@ describe('trioColorWaveControls', () => {
 
     it('keeps the frequency ranges from overlapping at any slider position', () => {
         const range = (key: string) => {
-            const control = trioColorWaveControls.find(candidate => candidate.key === key);
+            const control = trioColorWaveControls.find((candidate) => candidate.key === key);
             if (!control) throw new Error(`missing control ${key}`);
             return control;
         };
@@ -36,7 +36,11 @@ describe('trioColorWaveControls', () => {
     });
 
     it('groups into the documented sections in order', () => {
-        expect(groupBySection(trioColorWaveControls).map(section => section.name))
-            .toEqual(['Heights', 'Frequency ranges', 'Motion', 'Position']);
+        expect(groupBySection(trioColorWaveControls).map((section) => section.name)).toEqual([
+            'Heights',
+            'Frequency ranges',
+            'Motion',
+            'Position',
+        ]);
     });
 });

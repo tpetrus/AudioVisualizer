@@ -1,6 +1,6 @@
-import { useSyncExternalStore } from "react";
-import { useAudio } from "./audioEngineContext";
-import type { NormalizeSettings } from "./types";
+import { useSyncExternalStore } from 'react';
+import { useAudio } from './audioEngineContext';
+import type { NormalizeSettings } from './types';
 
 export function useAnalyser(): AnalyserNode | undefined {
     const engine = useAudio();

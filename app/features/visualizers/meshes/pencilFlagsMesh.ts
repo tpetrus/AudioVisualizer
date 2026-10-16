@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { vertexShader } from './shaders/vertex';
-import { fragmentShader } from './shaders/fragment'
+import { fragmentShader } from './shaders/fragment';
 
 // A grid of pencil-shaped bars: a six-sided prism of constant width that rises straight up and ends in a pointed tip.
 //
@@ -29,7 +29,7 @@ export class PencilFlagsMesh {
         distance: number,
         flagColors: THREE.Color[],
         radius: number,
-        opacity: number = 1
+        opacity: number = 1,
     ) {
         this.numDepth = numDepth;
         const flagCount = numDepth * numWidth;
@@ -65,13 +65,13 @@ export class PencilFlagsMesh {
                 ambient: { value: 0.9 },
                 baseShade: { value: 0.5 },
                 tipTint: { value: 0.5 },
-                opacity: { value: opacity }
+                opacity: { value: opacity },
             },
             side: THREE.DoubleSide,
             // See-through bars. They aren't written to the depth buffer, so a bar never hides the ones behind it; rows
             // are stored from the farthest to the nearest, so they blend in a sensible order.
             transparent: true,
-            depthWrite: false
+            depthWrite: false,
         });
 
         this.mesh = new THREE.Mesh(this.geometry, this.material);
@@ -114,8 +114,8 @@ export class PencilFlagsMesh {
         };
 
         for (let i = 0; i < this.sides; i++) {
-            const a0 = i * 2 * Math.PI / this.sides;
-            const a1 = (i + 1) * 2 * Math.PI / this.sides;
+            const a0 = (i * 2 * Math.PI) / this.sides;
+            const a1 = ((i + 1) * 2 * Math.PI) / this.sides;
             const mid = (a0 + a1) / 2;
             const normal = [Math.cos(mid), Math.sin(mid)];
             const [x0, z0] = [Math.cos(a0) * radius, Math.sin(a0) * radius];

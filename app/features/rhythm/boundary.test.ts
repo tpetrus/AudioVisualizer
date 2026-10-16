@@ -1,19 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import {
-    BOUNDARY_HARD,
-    BOUNDARY_NONE,
-    BOUNDARY_SOFT,
-    BoundaryDetector,
-    type BoundaryKind,
-} from './boundary';
-import {
-    BAND_COUNT,
-    CHROMA_BINS,
-    FRAME_CHROMA_OFFSET,
-    FRAME_ENERGY_OFFSET,
-    FRAME_RMS_OFFSET,
-    FRAME_STRIDE,
-} from './rhythmConfig';
+import { BOUNDARY_HARD, BOUNDARY_NONE, BOUNDARY_SOFT, BoundaryDetector, type BoundaryKind } from './boundary';
+import { BAND_COUNT, FRAME_CHROMA_OFFSET, FRAME_ENERGY_OFFSET, FRAME_RMS_OFFSET, FRAME_STRIDE } from './rhythmConfig';
 import { createRandom } from './testSignals';
 
 const FRAME_RATE = 100;
@@ -67,7 +54,7 @@ function play(stream: Stream, seconds: number, timbre: Timbre | 'silence'): void
 }
 
 function count(results: BoundaryKind[], kind: BoundaryKind): number {
-    return results.filter(result => result === kind).length;
+    return results.filter((result) => result === kind).length;
 }
 
 describe('BoundaryDetector silence', () => {
@@ -160,7 +147,13 @@ describe('BoundaryDetector novelty', () => {
 });
 
 describe('BoundaryDetector tempo cue', () => {
-    function pushTempos(detector: BoundaryDetector, from: number, seconds: number, bpm: number, confidence = 0.8): BoundaryKind[] {
+    function pushTempos(
+        detector: BoundaryDetector,
+        from: number,
+        seconds: number,
+        bpm: number,
+        confidence = 0.8,
+    ): BoundaryKind[] {
         const results: BoundaryKind[] = [];
         for (let t = from; t < from + seconds; t += 0.25) {
             results.push(detector.pushTempo(t, bpm, confidence));
@@ -181,7 +174,7 @@ describe('BoundaryDetector tempo cue', () => {
         pushTempos(detector, 0, 10, 100);
         const blip = pushTempos(detector, 10, 1.5, 130);
         const back = pushTempos(detector, 11.5, 10, 100);
-        expect([...blip, ...back].every(kind => kind === BOUNDARY_NONE)).toBe(true);
+        expect([...blip, ...back].every((kind) => kind === BOUNDARY_NONE)).toBe(true);
     });
 
     it('does not treat half or double speed as a new song', () => {
@@ -189,7 +182,7 @@ describe('BoundaryDetector tempo cue', () => {
         pushTempos(detector, 0, 10, 100);
         const half = pushTempos(detector, 10, 8, 50);
         const double = pushTempos(detector, 18, 8, 200);
-        expect([...half, ...double].every(kind => kind === BOUNDARY_NONE)).toBe(true);
+        expect([...half, ...double].every((kind) => kind === BOUNDARY_NONE)).toBe(true);
     });
 
     it('tolerates small drifts around the reference tempo', () => {

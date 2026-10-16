@@ -7,11 +7,39 @@ import type { ControlDefinition } from './controls';
 import { useControlValues } from './useControlValues';
 
 const definitions = [
-    { section: 'Response', key: 'sensitivity', label: 'Sensitivity', type: 'range', min: 0, max: 2, step: 0.1, default: 1 },
-    { section: 'Response', key: 'smoothing', label: 'Smoothing', type: 'range', min: 0, max: 1, step: 0.1, default: 0.5 },
+    {
+        section: 'Response',
+        key: 'sensitivity',
+        label: 'Sensitivity',
+        type: 'range',
+        min: 0,
+        max: 2,
+        step: 0.1,
+        default: 1,
+    },
+    {
+        section: 'Response',
+        key: 'smoothing',
+        label: 'Smoothing',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.1,
+        default: 0.5,
+    },
     { section: 'Look', key: 'tint', label: 'Tint', type: 'color', default: '#ff0000' },
     { section: 'Look', key: 'bump', label: 'Bass bump', type: 'checkbox', default: true },
-    { section: 'Look', key: 'bumpSize', label: 'Bump size', type: 'range', min: 0, max: 1, step: 0.1, default: 0.5, shownWhen: 'bump' },
+    {
+        section: 'Look',
+        key: 'bumpSize',
+        label: 'Bump size',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.1,
+        default: 0.5,
+        shownWhen: 'bump',
+    },
 ] as const satisfies readonly ControlDefinition[];
 
 interface HarnessProps {
@@ -23,18 +51,29 @@ interface HarnessProps {
 }
 
 // Holds the values the way a visualizer page does, so changes made through the panel show up in it.
-function Harness({ onResetAll, onCameraLockedChange = () => { }, onResetView = () => { }, viewChanged = false, cameraLocked = true }: HarnessProps) {
+function Harness({
+    onResetAll,
+    onCameraLockedChange = () => {},
+    onResetView = () => {},
+    viewChanged = false,
+    cameraLocked = true,
+}: HarnessProps) {
     const { values, setValue, resetAll } = useControlValues(definitions);
-    return <ControlPanel
-        definitions={definitions}
-        values={values}
-        onChange={setValue}
-        onResetAll={() => { resetAll(); onResetAll?.(); }}
-        cameraLocked={cameraLocked}
-        onCameraLockedChange={onCameraLockedChange}
-        viewChanged={viewChanged}
-        onResetView={onResetView}
-    />;
+    return (
+        <ControlPanel
+            definitions={definitions}
+            values={values}
+            onChange={setValue}
+            onResetAll={() => {
+                resetAll();
+                onResetAll?.();
+            }}
+            cameraLocked={cameraLocked}
+            onCameraLockedChange={onCameraLockedChange}
+            viewChanged={viewChanged}
+            onResetView={onResetView}
+        />
+    );
 }
 
 // The GPU probe in PerformanceStats needs a canvas context, which jsdom does not provide.
@@ -109,7 +148,9 @@ describe('ControlPanel', () => {
         expect(reset).toHaveStyle({ visibility: 'hidden' });
 
         fireEvent.change(screen.getByLabelText('Sensitivity'), { target: { value: '0.2' } });
-        expect(screen.getByRole('button', { name: 'Reset Sensitivity to default' })).toHaveStyle({ visibility: 'visible' });
+        expect(screen.getByRole('button', { name: 'Reset Sensitivity to default' })).toHaveStyle({
+            visibility: 'visible',
+        });
     });
 
     it('shows a conditional control only while the control it depends on is on', async () => {

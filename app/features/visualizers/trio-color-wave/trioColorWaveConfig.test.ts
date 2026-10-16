@@ -13,27 +13,30 @@ import {
     TARGET_LEVEL,
 } from './trioColorWaveConfig';
 
-const controlKeys = new Set<string>(trioColorWaveControls.map(control => control.key));
+const controlKeys = new Set<string>(trioColorWaveControls.map((control) => control.key));
 
 describe('BANDS', () => {
     it('lists the sheets front to back: highs, mids, bass', () => {
-        expect(BANDS.map(band => band.name)).toEqual(['Highs', 'Mids', 'Bass']);
+        expect(BANDS.map((band) => band.name)).toEqual(['Highs', 'Mids', 'Bass']);
     });
 
-    it.each(BANDS.map(band => [band.name, band] as const))('%s refers only to controls that exist', (_name, band) => {
+    it.each(BANDS.map((band) => [band.name, band] as const))('%s refers only to controls that exist', (_name, band) => {
         expect(controlKeys.has(band.lowKey)).toBe(true);
         expect(controlKeys.has(band.highKey)).toBe(true);
         expect(controlKeys.has(band.heightKey)).toBe(true);
     });
 
-    it.each(BANDS.map(band => [band.name, band] as const))('%s uses a power-of-two window and valid ranges', (_name, band) => {
-        expect(Math.log2(band.fftSize) % 1).toBe(0);
-        expect(band.minSmoothing).toBeGreaterThanOrEqual(0);
-        expect(band.minSmoothing).toBeLessThan(1);
-        expect(band.blurColumns).toBeGreaterThan(0);
-        expect(band.minDecibels).toBeLessThan(0);
-        expect(band.startHue).toBeLessThanOrEqual(band.endHue);
-    });
+    it.each(BANDS.map((band) => [band.name, band] as const))(
+        '%s uses a power-of-two window and valid ranges',
+        (_name, band) => {
+            expect(Math.log2(band.fftSize) % 1).toBe(0);
+            expect(band.minSmoothing).toBeGreaterThanOrEqual(0);
+            expect(band.minSmoothing).toBeLessThan(1);
+            expect(band.blurColumns).toBeGreaterThan(0);
+            expect(band.minDecibels).toBeLessThan(0);
+            expect(band.startHue).toBeLessThanOrEqual(band.endHue);
+        },
+    );
 
     it('gives the bass the longest window and the most blur', () => {
         const [highs, mids, bass] = BANDS;
