@@ -269,8 +269,10 @@ export class MeterEstimator {
 
         // The downbeat position follows the evidence, but only when another position is clearly better.
         const currentContrast = this.contrast(hypothesisIndex(this.current, this.downbeatPosition));
-        if (own.position !== this.downbeatPosition
-            && this.contrast(hypothesisIndex(this.current, own.position)) > currentContrast + METER_PHASE_SWITCH_MARGIN) {
+        if (
+            own.position !== this.downbeatPosition &&
+            this.contrast(hypothesisIndex(this.current, own.position)) > currentContrast + METER_PHASE_SWITCH_MARGIN
+        ) {
             this.downbeatPosition = own.position;
         }
 

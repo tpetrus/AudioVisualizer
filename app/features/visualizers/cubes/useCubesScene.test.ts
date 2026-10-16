@@ -44,7 +44,13 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
 
     const hook = renderHook(
         ({ analyser, cameraLocked }: Props) =>
-            useCubesScene(containerRef, { analyser, rhythm: asTracker(tracker), valuesRef, cameraLocked, onViewChanged }),
+            useCubesScene(containerRef, {
+                analyser,
+                rhythm: asTracker(tracker),
+                valuesRef,
+                cameraLocked,
+                onViewChanged,
+            }),
         { initialProps: { analyser: undefined, cameraLocked: true, ...initial } as Props },
     );
 
@@ -53,9 +59,22 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
     const frame = (time = 16) => renderer.renderFrame(time);
     frame(0);
     const [scene, camera] = renderer.render.mock.calls[0] as unknown as [Scene, PerspectiveCamera];
-    const gridMesh = () => scene.children.find((child): child is InstancedMesh => (child as InstancedMesh).isInstancedMesh);
+    const gridMesh = () =>
+        scene.children.find((child): child is InstancedMesh => (child as InstancedMesh).isInstancedMesh);
 
-    return { ...hook, renderer, scene, camera, gridMesh, frame, tracker, valuesRef, onViewChanged, resizes, containerRef };
+    return {
+        ...hook,
+        renderer,
+        scene,
+        camera,
+        gridMesh,
+        frame,
+        tracker,
+        valuesRef,
+        onViewChanged,
+        resizes,
+        containerRef,
+    };
 }
 
 // z of cube number `index`, read from its instance matrix (translation z is element 14 of a column-major matrix).
@@ -79,7 +98,7 @@ describe('useCubesScene', () => {
             expect(containerRef.current.contains(renderer.domElement)).toBe(true);
             expect(scene.background).toBeInstanceOf(Color);
             expect(scene.environment).not.toBeNull();
-            expect(scene.children.filter(child => (child as { isLight?: boolean }).isLight)).toHaveLength(3);
+            expect(scene.children.filter((child) => (child as { isLight?: boolean }).isLight)).toHaveLength(3);
             expect(camera.position.z).toBe(32);
             expect(camera.fov).toBe(50);
             // 800x600 at this fov shows 30 rows; the grid adds a margin of 2 rows and columns around the view.
@@ -94,9 +113,9 @@ describe('useCubesScene', () => {
             expect(pmrem.fromScene).toHaveBeenCalledWith(expect.objectContaining({ isScene: true }), 0.04);
             expect(pmrem.dispose).toHaveBeenCalledTimes(1);
             const room = pmrem.fromScene.mock.calls[0][0] as Scene;
-            const hidden = room.children.filter(child => child.position.z > 10);
+            const hidden = room.children.filter((child) => child.position.z > 10);
             expect(hidden.length).toBeGreaterThan(0);
-            expect(hidden.every(child => !child.visible)).toBe(true);
+            expect(hidden.every((child) => !child.visible)).toBe(true);
         });
     });
 
@@ -273,7 +292,7 @@ describe('useCubesScene', () => {
 
             const after = gridMesh();
             expect(after).not.toBe(before);
-            expect(scene.children.filter(child => (child as InstancedMesh).isInstancedMesh)).toHaveLength(1);
+            expect(scene.children.filter((child) => (child as InstancedMesh).isInstancedMesh)).toHaveLength(1);
             // aspect 2: 60 columns of visible width plus the margin
             expect(after?.count).toBe(62 * 32);
         });
@@ -349,16 +368,18 @@ describe('useCubesScene', () => {
         });
 
         it('resetView does nothing while there is no container to build a scene in', () => {
-            const { result } = renderHook(() => useCubesScene(
-                { current: null },
-                {
-                    analyser: undefined,
-                    rhythm: asTracker(new FakeRhythmTracker()),
-                    valuesRef: { current: defaultValues(cubesControls) },
-                    cameraLocked: true,
-                    onViewChanged: vi.fn(),
-                },
-            ));
+            const { result } = renderHook(() =>
+                useCubesScene(
+                    { current: null },
+                    {
+                        analyser: undefined,
+                        rhythm: asTracker(new FakeRhythmTracker()),
+                        valuesRef: { current: defaultValues(cubesControls) },
+                        cameraLocked: true,
+                        onViewChanged: vi.fn(),
+                    },
+                ),
+            );
 
             expect(() => result.current.resetView()).not.toThrow();
         });
@@ -376,7 +397,10 @@ describe('useCubesScene', () => {
     describe('unmount', () => {
         it('frees the renderer, the grid, the bass tap and the controls', () => {
             const { context, analyser, node } = createAnalyser();
-            const { unmount, renderer, scene, gridMesh, frame, camera } = mountScene({ analyser: node, cameraLocked: false });
+            const { unmount, renderer, scene, gridMesh, frame, camera } = mountScene({
+                analyser: node,
+                cameraLocked: false,
+            });
             frame(16);
             const mesh = gridMesh();
             expect(mesh).toBeDefined();

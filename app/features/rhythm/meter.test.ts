@@ -47,12 +47,15 @@ describe('MeterEstimator', () => {
         [3, 1],
         [3, 2],
         [3, 3],
-    ])('settles on %i beats per bar when the accent falls on beat index %i of the counter', (beatsPerBar, downbeatIndex) => {
-        const feeder = createFeeder();
-        feed(feeder, 60, beatsPerBar, downbeatIndex);
-        expect(feeder.meter.beatsPerBar).toBe(beatsPerBar);
-        expect(feeder.meter.confidence).toBeGreaterThan(0.5);
-    });
+    ])(
+        'settles on %i beats per bar when the accent falls on beat index %i of the counter',
+        (beatsPerBar, downbeatIndex) => {
+            const feeder = createFeeder();
+            feed(feeder, 60, beatsPerBar, downbeatIndex);
+            expect(feeder.meter.beatsPerBar).toBe(beatsPerBar);
+            expect(feeder.meter.confidence).toBeGreaterThan(0.5);
+        },
+    );
 
     it('gives bar position 0 on the accented beat and counts on from it', () => {
         for (const beatsPerBar of [3, 4] as const) {

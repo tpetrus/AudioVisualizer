@@ -41,7 +41,7 @@ describe('CubesPage', () => {
         act(() => engine.setAnalyser(analyser));
 
         expect(latestOptions().analyser).toBe(analyser);
-        const defaults = Object.fromEntries(cubesControls.map(control => [control.key, control.default]));
+        const defaults = Object.fromEntries(cubesControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
     });
 

@@ -22,7 +22,10 @@ describe('useAnalyser and useCapturing', () => {
     it('follow the engine as a source starts and stops', () => {
         const first = fakeAnalyser();
         const second = fakeAnalyser();
-        const { result, engine } = renderHookWithProviders(() => ({ analyser: useAnalyser(), capturing: useCapturing() }));
+        const { result, engine } = renderHookWithProviders(() => ({
+            analyser: useAnalyser(),
+            capturing: useCapturing(),
+        }));
 
         act(() => engine.setAnalyser(first));
         expect(result.current).toEqual({ analyser: first, capturing: true });

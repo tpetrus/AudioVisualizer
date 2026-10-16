@@ -32,7 +32,7 @@ describe('LandingPage', () => {
             const engine = capturingEngine();
             engine.resumeSavedSource.mockResolvedValue(true);
             renderWithProviders(<LandingPage />, { engine });
-            await act(async () => { });
+            await act(async () => {});
 
             expect(engine.resumeSavedSource).toHaveBeenCalledTimes(1);
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -44,7 +44,7 @@ describe('LandingPage', () => {
         it('opens the audio dialog and locks the visualizations', async () => {
             const engine = new FakeAudioEngine();
             renderWithProviders(<LandingPage />, { engine });
-            await act(async () => { });
+            await act(async () => {});
 
             expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
             expect(screen.queryByRole('link')).not.toBeInTheDocument();
@@ -56,7 +56,7 @@ describe('LandingPage', () => {
             const engine = new FakeAudioEngine();
             engine.resumeSavedSource.mockRejectedValue(new Error('denied'));
             renderWithProviders(<LandingPage />, { engine });
-            await act(async () => { });
+            await act(async () => {});
 
             expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
         });
@@ -67,7 +67,7 @@ describe('LandingPage', () => {
                 engine.setAnalyser(asWebAudio<AnalyserNode>({}));
             });
             const { user } = renderWithProviders(<LandingPage />, { engine });
-            await act(async () => { });
+            await act(async () => {});
 
             await user.click(screen.getByRole('button', { name: 'Share audio' }));
             await user.click(screen.getByRole('button', { name: 'Done' }));
@@ -81,7 +81,7 @@ describe('LandingPage', () => {
         const engine = capturingEngine();
         engine.resumeSavedSource.mockResolvedValue(true);
         const { user } = renderWithProviders(<LandingPage />, { engine });
-        await act(async () => { });
+        await act(async () => {});
 
         await user.click(screen.getByRole('button', { name: 'Audio settings' }));
         expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
@@ -93,14 +93,22 @@ describe('LandingPage', () => {
     it('does not open the dialog for a result that arrives after it unmounted', async () => {
         const resolved = new FakeAudioEngine();
         let resolveResume!: (value: boolean) => void;
-        resolved.resumeSavedSource.mockReturnValue(new Promise<boolean>(resolve => { resolveResume = resolve; }));
+        resolved.resumeSavedSource.mockReturnValue(
+            new Promise<boolean>((resolve) => {
+                resolveResume = resolve;
+            }),
+        );
         const first = renderWithProviders(<LandingPage />, { engine: resolved });
         first.unmount();
         await act(async () => resolveResume(false));
 
         const rejected = new FakeAudioEngine();
         let rejectResume!: (error: unknown) => void;
-        rejected.resumeSavedSource.mockReturnValue(new Promise<boolean>((_, reject) => { rejectResume = reject; }));
+        rejected.resumeSavedSource.mockReturnValue(
+            new Promise<boolean>((_, reject) => {
+                rejectResume = reject;
+            }),
+        );
         const second = renderWithProviders(<LandingPage />, { engine: rejected });
         second.unmount();
         await act(async () => rejectResume(new Error('late')));

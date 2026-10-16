@@ -40,22 +40,27 @@ export function installFakeMediaDevices(options: FakeMediaOptions = {}) {
         permission = 'granted',
     } = options;
 
-    const settle = <T,>(value: T | Error): Promise<T> => value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
+    const settle = <T>(value: T | Error): Promise<T> =>
+        value instanceof Error ? Promise.reject(value) : Promise.resolve(value);
 
     const getDisplayMedia = vi.fn(async (_constraints?: unknown) => settle(displayStream));
     const getUserMedia = vi.fn(async (_constraints?: unknown) => settle(userStream));
     const enumerateDevices = vi.fn(async () => devices);
     const query = vi.fn(async (_descriptor?: unknown) =>
-        permission instanceof Error ? Promise.reject(permission) : { state: permission });
+        permission instanceof Error ? Promise.reject(permission) : { state: permission },
+    );
 
     const mediaDevices = { getDisplayMedia, getUserMedia, enumerateDevices };
     const permissions = { query };
 
     // A child of the real navigator (not a copy), so everything else on it (userAgent, ...) keeps working.
-    vi.stubGlobal('navigator', Object.create(navigator, {
-        mediaDevices: { value: mediaDevices, configurable: true },
-        permissions: { value: permissions, configurable: true },
-    }));
+    vi.stubGlobal(
+        'navigator',
+        Object.create(navigator, {
+            mediaDevices: { value: mediaDevices, configurable: true },
+            permissions: { value: permissions, configurable: true },
+        }),
+    );
 
     return { mediaDevices, permissions, getDisplayMedia, getUserMedia, enumerateDevices, query };
 }

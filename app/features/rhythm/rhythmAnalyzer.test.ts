@@ -98,7 +98,9 @@ describe('RhythmAnalyzer on click tracks', () => {
                 });
 
                 it(`${bpm} BPM: downbeats fall on the accented beat`, () => {
-                    expect(downbeatHitRate(result().value.downbeatEvents, result().truth.downbeatTimes, 30)).toBeGreaterThan(0.9);
+                    expect(
+                        downbeatHitRate(result().value.downbeatEvents, result().truth.downbeatTimes, 30),
+                    ).toBeGreaterThan(0.9);
                 });
 
                 it(`${bpm} BPM: counters never decrease`, () => {
@@ -117,7 +119,11 @@ describe('RhythmAnalyzer on tempo changes', () => {
     it('follows a slow tempo ramp from 100 to 120 BPM', () => {
         const track = renderTrack({ seconds: 50, bpm: 100, endBpm: 120, beatsPerBar: 4 });
         const result = runPipeline(track.pcm);
-        report('ramp', { bpm: last(result).bpm, confidence: last(result).meterConfidence, meter: last(result).beatsPerBar });
+        report('ramp', {
+            bpm: last(result).bpm,
+            confidence: last(result).meterConfidence,
+            meter: last(result).beatsPerBar,
+        });
         expect(octaveError(last(result).bpm, 119)).toBeLessThan(0.06);
         expectMonotonicCounters(result.samples);
     });
@@ -139,7 +145,7 @@ describe('RhythmAnalyzer on song boundaries', () => {
         expect(result.songChangeEvents[0]).toBeGreaterThan(29.9);
         expect(result.songChangeEvents[0]).toBeLessThan(32.3);
         // Right after the reset nothing is known any more.
-        const justAfter = result.samples.find(sample => sample.time >= 32.1);
+        const justAfter = result.samples.find((sample) => sample.time >= 32.1);
         expect(justAfter?.beatsPerBar).toBeUndefined();
         expect(justAfter?.bpm).toBe(0);
         // And the second song is learned from scratch.
@@ -167,9 +173,9 @@ describe('RhythmAnalyzer on song boundaries', () => {
         report('gapless 3->4', {
             relock: lock,
             songChanges: last(result).songChangeCount,
-            before: result.samples.find(s => s.time >= 35.9)?.beatsPerBar,
+            before: result.samples.find((s) => s.time >= 35.9)?.beatsPerBar,
         });
-        expect(result.samples.find(sample => sample.time >= 35.9)?.beatsPerBar).toBe(3);
+        expect(result.samples.find((sample) => sample.time >= 35.9)?.beatsPerBar).toBe(3);
         expect(lock).toBeDefined();
         expect(lock ?? Infinity).toBeLessThan(25);
         expect(last(result).beatsPerBar).toBe(4);
@@ -210,7 +216,7 @@ describe('RhythmAnalyzer on song boundaries', () => {
         const chorus = renderTrack({ seconds: 24, bpm: 100, beatsPerBar: 4, gain: 1, chordChange: true, noise: 0.05 });
         const pcm = concat(verse.pcm, verse.pcm, chorus.pcm, chorus.pcm, verse.pcm);
         const result = runPipeline(pcm, { sampleEvery: 0.25 });
-        const flipped = result.samples.filter(sample => sample.beatsPerBar === 3);
+        const flipped = result.samples.filter((sample) => sample.beatsPerBar === 3);
         report('chorus', {
             songChanges: last(result).songChangeCount,
             flipped: flipped.length,
@@ -229,7 +235,7 @@ describe('RhythmAnalyzer on material without a clear meter', () => {
         const result = runPipeline(pcm);
         report('noise', { meter: last(result).beatsPerBar, confidence: last(result).meterConfidence });
         const confident = result.samples.filter(
-            sample => sample.beatsPerBar !== undefined && sample.meterConfidence > METER_VISUAL_CONFIDENCE,
+            (sample) => sample.beatsPerBar !== undefined && sample.meterConfidence > METER_VISUAL_CONFIDENCE,
         );
         expect(confident).toHaveLength(0);
     });
@@ -239,7 +245,7 @@ describe('RhythmAnalyzer on material without a clear meter', () => {
         const result = runPipeline(track.pcm);
         report('flat', { meter: last(result).beatsPerBar, confidence: last(result).meterConfidence });
         const confident = result.samples.filter(
-            sample => sample.beatsPerBar !== undefined && sample.meterConfidence > METER_VISUAL_CONFIDENCE,
+            (sample) => sample.beatsPerBar !== undefined && sample.meterConfidence > METER_VISUAL_CONFIDENCE,
         );
         expect(confident).toHaveLength(0);
     });

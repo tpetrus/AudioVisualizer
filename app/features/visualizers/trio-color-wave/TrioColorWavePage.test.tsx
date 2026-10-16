@@ -40,7 +40,7 @@ describe('TrioColorWavePage', () => {
         act(() => engine.setAnalyser(analyser));
 
         expect(latestOptions().analyser).toBe(analyser);
-        const defaults = Object.fromEntries(trioColorWaveControls.map(control => [control.key, control.default]));
+        const defaults = Object.fromEntries(trioColorWaveControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
     });
 

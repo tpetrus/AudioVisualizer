@@ -15,7 +15,9 @@ function CurrentPath() {
 function renderGuarded(engine: FakeAudioEngine) {
     return renderWithProviders(
         <>
-            <RequireAudio><p>visualizer</p></RequireAudio>
+            <RequireAudio>
+                <p>visualizer</p>
+            </RequireAudio>
             <CurrentPath />
         </>,
         { engine, route: '/cubes' },
@@ -25,7 +27,10 @@ function renderGuarded(engine: FakeAudioEngine) {
 function deferred<T>() {
     let resolve!: (value: T) => void;
     let reject!: (error: unknown) => void;
-    const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej; });
+    const promise = new Promise<T>((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
     return { promise, resolve, reject };
 }
 
@@ -57,7 +62,7 @@ describe('RequireAudio', () => {
         engine.resumeSavedSource.mockResolvedValue(false);
         renderGuarded(engine);
 
-        await act(async () => { });
+        await act(async () => {});
         expect(screen.getByLabelText('current path')).toHaveTextContent(/^\/$/);
         expect(screen.queryByText('visualizer')).not.toBeInTheDocument();
     });
@@ -67,7 +72,7 @@ describe('RequireAudio', () => {
         engine.resumeSavedSource.mockRejectedValue(new Error('denied'));
         renderGuarded(engine);
 
-        await act(async () => { });
+        await act(async () => {});
         expect(screen.getByLabelText('current path')).toHaveTextContent(/^\/$/);
     });
 

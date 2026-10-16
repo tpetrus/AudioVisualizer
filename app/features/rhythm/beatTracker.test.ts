@@ -59,7 +59,7 @@ describe('BeatTracker', () => {
         expect(run.lockedAt ?? Infinity).toBeLessThan(5);
     });
 
-    it.each([70, 100, 120, 160, 180])('declares beats one period apart at %i BPM', bpm => {
+    it.each([70, 100, 120, 160, 180])('declares beats one period apart at %i BPM', (bpm) => {
         const tracker = new BeatTracker(FRAME_RATE);
         const run = drive(tracker, bpm, 30);
         const period = 60 / bpm;

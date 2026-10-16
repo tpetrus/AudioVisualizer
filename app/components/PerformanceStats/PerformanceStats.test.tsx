@@ -27,7 +27,8 @@ function stubWebGl(options: { webgl2?: boolean; webgl?: boolean; debugInfo?: boo
     const loseContext = vi.fn();
     const gl = {
         getExtension: vi.fn((name: string) => {
-            if (name === 'WEBGL_debug_renderer_info') return options.debugInfo === false ? null : { UNMASKED_RENDERER_WEBGL: 1 };
+            if (name === 'WEBGL_debug_renderer_info')
+                return options.debugInfo === false ? null : { UNMASKED_RENDERER_WEBGL: 1 };
             if (name === 'WEBGL_lose_context') return options.loseContext === false ? null : { loseContext };
             return null;
         }),
@@ -46,12 +47,20 @@ describe('PerformanceStats', () => {
         vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
         frameCallbacks = new Map();
         nextFrameId = 1;
-        vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
-            const id = nextFrameId++;
-            frameCallbacks.set(id, callback);
-            return id;
-        }));
-        vi.stubGlobal('cancelAnimationFrame', vi.fn((id: number) => { frameCallbacks.delete(id); }));
+        vi.stubGlobal(
+            'requestAnimationFrame',
+            vi.fn((callback: FrameRequestCallback) => {
+                const id = nextFrameId++;
+                frameCallbacks.set(id, callback);
+                return id;
+            }),
+        );
+        vi.stubGlobal(
+            'cancelAnimationFrame',
+            vi.fn((id: number) => {
+                frameCallbacks.delete(id);
+            }),
+        );
     });
 
     afterEach(() => {
@@ -111,7 +120,9 @@ describe('PerformanceStats', () => {
         runFrame(1000);
         runFrame(1020);
         runFrame(1070);
-        act(() => { vi.advanceTimersByTime(500); });
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
 
         expect(screen.getByText('29 fps · avg 35.0 ms')).toBeInTheDocument();
         expect(screen.getByText(/worst frame 50\.0 ms/)).toHaveTextContent('slow frames (>25 ms, last 0.5 s): 1');
@@ -124,10 +135,14 @@ describe('PerformanceStats', () => {
 
         runFrame(100);
         runFrame(120);
-        act(() => { vi.advanceTimersByTime(500); });
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
         expect(screen.getByText('50 fps · avg 20.0 ms')).toBeInTheDocument();
 
-        act(() => { vi.advanceTimersByTime(500); });
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
         expect(screen.getByText('50 fps · avg 20.0 ms')).toBeInTheDocument();
         expect(screen.getByText(/slow frames/)).toHaveTextContent(': 0');
     });
@@ -153,7 +168,9 @@ describe('PerformanceStats', () => {
         expect(screen.getByText('sample rate – Hz')).toBeInTheDocument();
 
         engine.latencyInfo = { sampleRate: 44100, analysisWindowMs: 46.4 };
-        act(() => { vi.advanceTimersByTime(500); });
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
         expect(screen.getByText('sample rate 44100 Hz')).toBeInTheDocument();
         expect(screen.getByText('analysis window 46.4 ms')).toBeInTheDocument();
     });

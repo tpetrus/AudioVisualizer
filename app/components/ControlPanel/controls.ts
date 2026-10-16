@@ -26,11 +26,14 @@ export interface ColorControl extends ControlBase {
 export type ControlDefinition = RangeControl | CheckboxControl | ColorControl;
 export type ControlValue = ControlDefinition['default'];
 
-type ValueOf<C extends ControlDefinition> =
-    C extends RangeControl ? number : C extends CheckboxControl ? boolean : string;
+type ValueOf<C extends ControlDefinition> = C extends RangeControl
+    ? number
+    : C extends CheckboxControl
+      ? boolean
+      : string;
 
 export type ControlValues<T extends readonly ControlDefinition[]> = {
-    [C in T[number]as C['key']]: ValueOf<C>;
+    [C in T[number] as C['key']]: ValueOf<C>;
 };
 
 export interface ControlSection {
@@ -39,7 +42,9 @@ export interface ControlSection {
 }
 
 export function defaultValues<T extends readonly ControlDefinition[]>(definitions: T): ControlValues<T> {
-    return Object.fromEntries(definitions.map(definition => [definition.key, definition.default])) as ControlValues<T>;
+    return Object.fromEntries(
+        definitions.map((definition) => [definition.key, definition.default]),
+    ) as ControlValues<T>;
 }
 
 export function isModified(definition: ControlDefinition, value: ControlValue): boolean {

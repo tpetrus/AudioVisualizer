@@ -28,7 +28,7 @@ export function useTrioColorWaveScene(
     const analyserRef = useLatestRef(analyser);
     const cameraLockedRef = useLatestRef(cameraLocked);
     const onViewChangedRef = useLatestRef(onViewChanged);
-    const resetViewRef = useRef<() => void>(() => { });
+    const resetViewRef = useRef<() => void>(() => {});
 
     useThreeScene(containerRef, ({ scene, renderer, size }) => {
         renderer.physicallyCorrectLights = true;
@@ -36,7 +36,7 @@ export function useTrioColorWaveScene(
         scene.background = new THREE.Color(0x000000);
 
         const sheets = BANDS.map((band, index) => new TrioColorWaveSheet(band, index, BANDS.length));
-        sheets.forEach(sheet => scene.add(sheet.flags.mesh));
+        sheets.forEach((sheet) => scene.add(sheet.flags.mesh));
 
         const camera = new THREE.PerspectiveCamera(CAMERA_FOV, size.width / size.height, 1, 5000);
         // Straight in front of the middle of the sheets, so the view is symmetrical and the bottom edge of the screen is
@@ -45,7 +45,7 @@ export function useTrioColorWaveScene(
 
         const orbit = createOrbitView(camera, renderer.domElement, {
             locked: cameraLockedRef.current,
-            onViewChanged: changed => onViewChangedRef.current(changed),
+            onViewChanged: (changed) => onViewChangedRef.current(changed),
         });
         resetViewRef.current = orbit.reset;
 
@@ -61,7 +61,7 @@ export function useTrioColorWaveScene(
                 // A new source: keep the scene and give each sheet a fresh analyser tapped from it.
                 const source = analyserRef.current;
                 if (source && source !== boundAnalyser) {
-                    sheets.forEach(sheet => sheet.connect(source));
+                    sheets.forEach((sheet) => sheet.connect(source));
                     boundAnalyser = source;
                 }
 
@@ -73,7 +73,7 @@ export function useTrioColorWaveScene(
 
             dispose: () => {
                 orbit.dispose();
-                sheets.forEach(sheet => sheet.dispose());
+                sheets.forEach((sheet) => sheet.dispose());
             },
         };
     });

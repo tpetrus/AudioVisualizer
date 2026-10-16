@@ -50,7 +50,7 @@ const setupTitleScene: SceneSetup = ({ scene, renderer, size, signal }) => {
             }
             scene.add(createTitleMesh(titleFont), ...createTaglineMeshes(taglineFont));
         })
-        .catch(error => {
+        .catch((error) => {
             if (!signal.aborted) {
                 console.error('Failed to load the title fonts', error);
             }

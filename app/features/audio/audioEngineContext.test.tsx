@@ -9,7 +9,7 @@ import { useAudio } from './audioEngineContext';
 describe('useAudio', () => {
     it('throws a helpful error outside <AudioProvider>', () => {
         // React logs the error thrown during render; it is the expected outcome here.
-        vi.spyOn(console, 'error').mockImplementation(() => { });
+        vi.spyOn(console, 'error').mockImplementation(() => {});
 
         expect(() => renderHook(() => useAudio())).toThrow('useAudio must be used inside <AudioProvider>');
     });

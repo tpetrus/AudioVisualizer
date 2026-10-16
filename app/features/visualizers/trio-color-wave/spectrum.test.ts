@@ -27,7 +27,7 @@ describe('blur', () => {
         const values = new Float32Array(8).fill(5);
         const out = new Float32Array(8);
         blur(values, createKernel(1.5), out);
-        out.forEach(value => expect(value).toBeCloseTo(5, 4));
+        out.forEach((value) => expect(value).toBeCloseTo(5, 4));
     });
 
     it('spreads a spike over its neighbours while keeping the total', () => {

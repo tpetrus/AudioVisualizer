@@ -28,8 +28,10 @@ import {
 function isRelatedPulse(lag: number, reference: number): boolean {
     const ratio = Math.max(lag, reference) / Math.min(lag, reference);
     const multiple = Math.round(ratio);
-    return multiple <= TEMPO_RELATED_MAX_MULTIPLE
-        && Math.abs(Math.log2(ratio / multiple)) < TEMPO_COMPETITOR_EXCLUSION_OCTAVES;
+    return (
+        multiple <= TEMPO_RELATED_MAX_MULTIPLE &&
+        Math.abs(Math.log2(ratio / multiple)) < TEMPO_COMPETITOR_EXCLUSION_OCTAVES
+    );
 }
 
 // Estimates tempo from the onset envelope: autocorrelation over the last few seconds, weighted by a log-Gaussian
@@ -175,8 +177,11 @@ export class TempoTracker {
             switched = false;
             for (const divisor of TEMPO_FASTER_DIVISORS) {
                 const faster = this.peakNear(bestLag / divisor, lastLag);
-                if (faster > 0
-                    && correlation[faster] * this.prior(faster) >= TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag)) {
+                if (
+                    faster > 0 &&
+                    correlation[faster] * this.prior(faster) >=
+                        TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag)
+                ) {
                     bestLag = faster;
                     bestScore = this.scores[faster];
                     switched = true;

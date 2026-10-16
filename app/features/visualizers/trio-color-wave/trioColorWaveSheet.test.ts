@@ -103,7 +103,7 @@ describe('TrioColorWaveSheet', () => {
         it('centres the sheet horizontally and puts it on the base line', () => {
             harness.sheet.place(0, 0);
             const { position } = harness.sheet.flags.mesh;
-            expect(position.x).toBeCloseTo(-(FLAG_WIDTH - 1) * FLAG_DISTANCE / 2, 5);
+            expect(position.x).toBeCloseTo((-(FLAG_WIDTH - 1) * FLAG_DISTANCE) / 2, 5);
             expect(position.y).toBe(BASE_HEIGHT);
             expect(position.z).toBeCloseTo(0, 10);
         });
@@ -112,7 +112,7 @@ describe('TrioColorWaveSheet', () => {
             const back = createHarness(2);
             back.sheet.place(100, 25);
             const { position } = back.sheet.flags.mesh;
-            expect(position.x).toBeCloseTo(-(FLAG_WIDTH - 1) * FLAG_DISTANCE / 2 + 100, 5);
+            expect(position.x).toBeCloseTo((-(FLAG_WIDTH - 1) * FLAG_DISTANCE) / 2 + 100, 5);
             expect(position.y).toBe(BASE_HEIGHT + 25);
             expect(position.z).toBe(-2 * SHEET_SPACING);
         });
@@ -121,7 +121,7 @@ describe('TrioColorWaveSheet', () => {
     describe('update', () => {
         it('does nothing before it is connected', () => {
             harness.sheet.update(values);
-            expect(Array.from(harness.sheet.flags.heightAttribute.array).every(height => height === 0)).toBe(true);
+            expect(Array.from(harness.sheet.flags.heightAttribute.array).every((height) => height === 0)).toBe(true);
         });
 
         it('keeps the bars flat for silence', () => {
@@ -181,8 +181,10 @@ describe('TrioColorWaveSheet', () => {
             back.sheet.update(values);
             // The second sheet's nearest row is a third of the way back (8 of 23 rows), so it rises at a slower rate.
             const rise = 1 - (1 - BACK_RISE_RATE) * (FLAG_DEPTH / (SHEET_COUNT * FLAG_DEPTH - 1));
-            expect(heightOf(back.sheet, 100, FRONT_ROW))
-                .toBeCloseTo(200 * rise * 1.5 * values.heightGrowth * ROW_FALLOFF[FRONT_ROW], 2);
+            expect(heightOf(back.sheet, 100, FRONT_ROW)).toBeCloseTo(
+                200 * rise * 1.5 * values.heightGrowth * ROW_FALLOFF[FRONT_ROW],
+                2,
+            );
         });
 
         it('does not boost a quiet band beyond what the peak floor allows, so near-silence stays small', () => {
@@ -190,7 +192,10 @@ describe('TrioColorWaveSheet', () => {
             harness.tap().setByteFrequencyData(6);
             harness.sheet.update(values);
             // Gain is 200 / 60, not 200 / 6.
-            expect(heightOf(harness.sheet, 100, FRONT_ROW)).toBeCloseTo(6 * (200 / 60) * 1.5 * ROW_FALLOFF[FRONT_ROW], 2);
+            expect(heightOf(harness.sheet, 100, FRONT_ROW)).toBeCloseTo(
+                6 * (200 / 60) * 1.5 * ROW_FALLOFF[FRONT_ROW],
+                2,
+            );
         });
 
         it('smooths the analyser by at least the band minimum, whatever the setting', () => {

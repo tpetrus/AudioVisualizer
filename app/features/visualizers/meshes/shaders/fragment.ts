@@ -1,4 +1,4 @@
-export const fragmentShader = /*glsl*/`
+export const fragmentShader = /*glsl*/ `
 precision highp float;
 
 uniform float opacity;

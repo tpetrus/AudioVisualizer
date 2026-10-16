@@ -78,19 +78,24 @@ export function RhythmStats() {
     const bands = [reading.kick, reading.mid, reading.high];
     const dialBeats = reading.beatsPerBar ?? UNSURE_DIAL_BEATS;
     // No bar position while the meter is unsure, so no segment lights up.
-    const activeBeat = reading.barPhase === undefined ? -1 : Math.min(dialBeats - 1, Math.floor(reading.barPhase * dialBeats));
+    const activeBeat =
+        reading.barPhase === undefined ? -1 : Math.min(dialBeats - 1, Math.floor(reading.barPhase * dialBeats));
 
     return (
         <div className="pointer-events-none fixed bottom-3 right-3 z-10 w-56 rounded-md bg-black/75 px-2.5 py-2 font-mono text-xs text-[#9f9]">
             <div className="flex items-center justify-between">
                 <b>Rhythm</b>
-                <span className={reading.flash ? 'rounded bg-[#9f9] px-1 text-black' : 'px-1 opacity-30'}>new song</span>
+                <span className={reading.flash ? 'rounded bg-[#9f9] px-1 text-black' : 'px-1 opacity-30'}>
+                    new song
+                </span>
             </div>
             <div>
-                {reading.bpm > 0 ? `${reading.bpm.toFixed(1)} BPM` : 'tempo: listening'} · {percent(reading.tempoConfidence)}
+                {reading.bpm > 0 ? `${reading.bpm.toFixed(1)} BPM` : 'tempo: listening'} ·{' '}
+                {percent(reading.tempoConfidence)}
             </div>
             <div>
-                {reading.beatsPerBar ? `${reading.beatsPerBar} beats per bar` : 'meter: unsure'} · {percent(reading.meterConfidence)}
+                {reading.beatsPerBar ? `${reading.beatsPerBar} beats per bar` : 'meter: unsure'} ·{' '}
+                {percent(reading.meterConfidence)}
             </div>
             <div className="mt-1.5 space-y-0.5">
                 {bands.map((level, index) => (
@@ -106,9 +111,13 @@ export function RhythmStats() {
                 {Array.from({ length: dialBeats }, (_, beat) => (
                     <div
                         key={beat}
-                        className={beat === activeBeat
-                            ? beat === 0 && reading.beatsPerBar ? 'h-3 flex-1 rounded bg-[#ff9]' : 'h-3 flex-1 rounded bg-[#9f9]'
-                            : 'h-3 flex-1 rounded bg-white/15'}
+                        className={
+                            beat === activeBeat
+                                ? beat === 0 && reading.beatsPerBar
+                                    ? 'h-3 flex-1 rounded bg-[#ff9]'
+                                    : 'h-3 flex-1 rounded bg-[#9f9]'
+                                : 'h-3 flex-1 rounded bg-white/15'
+                        }
                     />
                 ))}
             </div>

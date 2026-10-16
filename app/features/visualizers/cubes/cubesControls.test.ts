@@ -4,7 +4,7 @@ import { cubesControls } from './cubesControls';
 
 describe('cubesControls', () => {
     it('has unique keys', () => {
-        const keys = cubesControls.map(control => control.key);
+        const keys = cubesControls.map((control) => control.key);
         expect(new Set(keys).size).toBe(keys.length);
     });
 
@@ -19,7 +19,7 @@ describe('cubesControls', () => {
     });
 
     it('uses #rrggbb defaults for colour controls', () => {
-        const colors = cubesControls.filter(control => control.type === 'color');
+        const colors = cubesControls.filter((control) => control.type === 'color');
         expect(colors.length).toBeGreaterThan(0);
         for (const control of colors) {
             expect(control.default).toMatch(/^#[0-9a-f]{6}$/i);
@@ -29,13 +29,13 @@ describe('cubesControls', () => {
     it('only depends on a checkbox control that exists', () => {
         for (const control of cubesControls) {
             if (!('shownWhen' in control)) continue;
-            const controller = cubesControls.find(other => other.key === control.shownWhen);
+            const controller = cubesControls.find((other) => other.key === control.shownWhen);
             expect(controller?.type).toBe('checkbox');
         }
     });
 
     it('produces a default value for every control and groups them into sections', () => {
         expect(Object.keys(defaultValues(cubesControls))).toHaveLength(cubesControls.length);
-        expect(groupBySection(cubesControls).map(section => section.name)).toEqual(['Response', 'Look']);
+        expect(groupBySection(cubesControls).map((section) => section.name)).toEqual(['Response', 'Look']);
     });
 });

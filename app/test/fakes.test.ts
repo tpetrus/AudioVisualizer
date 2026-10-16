@@ -64,7 +64,9 @@ describe('test infrastructure', () => {
         const engine = new AudioEngine();
 
         await expect(engine.startScreenCapture()).rejects.toThrow('cancelled');
-        expect(await navigator.permissions.query({ name: 'microphone' as PermissionName })).toEqual({ state: 'denied' });
+        expect(await navigator.permissions.query({ name: 'microphone' as PermissionName })).toEqual({
+            state: 'denied',
+        });
     });
 
     it('FakeAnalyserNode serves frequency, time-domain and float data', () => {
@@ -129,7 +131,10 @@ describe('test infrastructure', () => {
 
         renderer.renderFrame(10);
         renderer.renderFrame(26);
-        expect(update.mock.calls).toEqual([[10, 0], [26, 16]]);
+        expect(update.mock.calls).toEqual([
+            [10, 0],
+            [26, 16],
+        ]);
         expect(renderer.render).toHaveBeenCalledTimes(2);
 
         resizes.resize(800, 400);

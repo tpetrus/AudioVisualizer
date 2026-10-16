@@ -11,7 +11,7 @@ export function sampleLogSpectrum(
     const lastBin = spectrum.length - 1;
     const ratio = highHz / lowHz;
     for (let column = 0; column < columns; column++) {
-        const bin = lowHz * Math.pow(ratio, column / (columns - 1)) / binHz;
+        const bin = (lowHz * Math.pow(ratio, column / (columns - 1))) / binHz;
         const lower = Math.min(Math.floor(bin), lastBin);
         const mix = bin - lower;
         out[column] = spectrum[lower] * (1 - mix) + spectrum[Math.min(lower + 1, lastBin)] * mix;
@@ -27,7 +27,7 @@ export function createKernel(sigma: number): Float32Array {
         kernel[i + radius] = Math.exp(-(i * i) / (2 * sigma * sigma));
         total += kernel[i + radius];
     }
-    return kernel.map(weight => weight / total);
+    return kernel.map((weight) => weight / total);
 }
 
 // Convolves `values` with `kernel` into `out`, repeating the edge values past the ends.

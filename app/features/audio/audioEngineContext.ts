@@ -1,5 +1,5 @@
-import { createContext, useContext } from "react";
-import type { AudioEngine } from "./audioEngine";
+import { createContext, useContext } from 'react';
+import type { AudioEngine } from './audioEngine';
 
 export const AudioEngineContext = createContext<AudioEngine | null>(null);
 

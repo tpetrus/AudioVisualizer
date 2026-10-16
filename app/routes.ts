@@ -4,7 +4,7 @@ export default [
   index("routes/landingPage.tsx"),
   // Visualizers need a running audio source.
   layout("routes/requireAudioLayout.tsx", [
-    route('/cubes', "routes/cubesPage.tsx"),
-    route('/trio-color-wave', "routes/trioColorWavePage.tsx"),
+    route("/cubes", "routes/cubesPage.tsx"),
+    route("/trio-color-wave", "routes/trioColorWavePage.tsx"),
   ]),
 ] satisfies RouteConfig;

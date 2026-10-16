@@ -17,7 +17,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
                     max={definition.max}
                     step={definition.step}
                     value={Number(value)}
-                    onChange={event => onChange(Number(event.currentTarget.value))}
+                    onChange={(event) => onChange(Number(event.currentTarget.value))}
                 />
             );
         case 'checkbox':
@@ -26,7 +26,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
                     type="checkbox"
                     id={definition.key}
                     checked={Boolean(value)}
-                    onChange={event => onChange(event.currentTarget.checked)}
+                    onChange={(event) => onChange(event.currentTarget.checked)}
                 />
             );
         case 'color':
@@ -35,7 +35,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
                     type="color"
                     id={definition.key}
                     value={String(value)}
-                    onChange={event => onChange(event.currentTarget.value)}
+                    onChange={(event) => onChange(event.currentTarget.value)}
                 />
             );
     }

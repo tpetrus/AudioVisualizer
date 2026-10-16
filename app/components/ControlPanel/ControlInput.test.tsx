@@ -4,7 +4,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { ControlInput } from './ControlInput';
 import type { CheckboxControl, ColorControl, RangeControl } from './controls';
 
-const range: RangeControl = { type: 'range', key: 'gain', label: 'Gain', section: 'A', min: 0, max: 2, step: 0.5, default: 1 };
+const range: RangeControl = {
+    type: 'range',
+    key: 'gain',
+    label: 'Gain',
+    section: 'A',
+    min: 0,
+    max: 2,
+    step: 0.5,
+    default: 1,
+};
 const checkbox: CheckboxControl = { type: 'checkbox', key: 'bump', label: 'Bump', section: 'A', default: true };
 const color: ColorControl = { type: 'color', key: 'tint', label: 'Tint', section: 'A', default: '#ff0000' };
 

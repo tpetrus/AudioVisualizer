@@ -53,14 +53,14 @@ function drive(tracker: TempoTracker, envelope: Float32Array): Trace {
 describe('TempoTracker', () => {
     // 160 and 180 BPM used to come out at half speed; the faster-pulse preference and envelope smoothing in tempo.ts
     // fixed that, and these keep it fixed.
-    it.each([70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180])('finds %i BPM within 4%%', bpm => {
+    it.each([70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180])('finds %i BPM within 4%%', (bpm) => {
         const tracker = new TempoTracker(FRAME_RATE);
         drive(tracker, pulseTrain(bpm, 20));
         expect(Math.abs(tracker.bpm / bpm - 1)).toBeLessThan(0.04);
         expect(tracker.confidence).toBeGreaterThan(0.3);
     });
 
-    it.each([160, 180])('finds %i BPM up to an octave', bpm => {
+    it.each([160, 180])('finds %i BPM up to an octave', (bpm) => {
         const tracker = new TempoTracker(FRAME_RATE);
         drive(tracker, pulseTrain(bpm, 20));
         const ratio = tracker.bpm / bpm;

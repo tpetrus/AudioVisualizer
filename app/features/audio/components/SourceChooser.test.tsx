@@ -54,7 +54,11 @@ describe('SourceChooser', () => {
         let finish!: () => void;
         const onStarted = vi.fn();
         const { user, engine } = renderWithProviders(<SourceChooser showIntro={false} onStarted={onStarted} />);
-        engine.startScreenCapture.mockReturnValue(new Promise<void>(resolve => { finish = resolve; }));
+        engine.startScreenCapture.mockReturnValue(
+            new Promise<void>((resolve) => {
+                finish = resolve;
+            }),
+        );
 
         await user.click(screen.getByRole('button', { name: 'Share audio' }));
         expect(screen.getByRole('button', { name: 'Share audio' })).toBeDisabled();
@@ -95,7 +99,7 @@ describe('SourceChooser', () => {
         await user.click(screen.getByRole('button', { name: 'Choose device' }));
 
         const select = screen.getByRole('combobox', { name: 'Audio input device' });
-        expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual(['Microphone', 'Stereo Mix']);
+        expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual(['Microphone', 'Stereo Mix']);
         expect(select).toHaveValue('mic');
         expect(screen.queryByRole('button', { name: 'Choose device' })).not.toBeInTheDocument();
     });

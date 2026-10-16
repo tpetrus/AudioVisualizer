@@ -6,7 +6,9 @@ import { renderWithProviders } from '~/test/renderWithProviders';
 import { RhythmStats } from './RhythmStats';
 
 function sample(times = 1) {
-    act(() => { vi.advanceTimersByTime(100 * times); });
+    act(() => {
+        vi.advanceTimersByTime(100 * times);
+    });
 }
 
 describe('RhythmStats', () => {
@@ -52,7 +54,7 @@ describe('RhythmStats', () => {
         expect(screen.getByText('123.5 BPM · 80%')).toBeInTheDocument();
         expect(screen.getByText('3 beats per bar · 55%')).toBeInTheDocument();
         expect(screen.getByText('kick')).toBeInTheDocument();
-        const widths = Array.from(container.querySelectorAll<HTMLElement>('.h-full')).map(bar => bar.style.width);
+        const widths = Array.from(container.querySelectorAll<HTMLElement>('.h-full')).map((bar) => bar.style.width);
         // kick, mid, high, then the beat-phase bar.
         expect(widths).toEqual(['100%', '50%', '25%', '40%']);
         // Three segments for a 3/4 bar.

@@ -34,12 +34,16 @@ export interface ThreeSceneOptions {
 
 // Owns a three.js renderer inside `containerRef`: creates it, sizes it to the container, runs the render loop,
 // follows resizes, and frees every GPU resource on unmount. `setup` builds the scene's content once.
-export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup: SceneSetup, { antialias = false }: ThreeSceneOptions = {}) {
+export function useThreeScene(
+    containerRef: RefObject<HTMLElement | null>,
+    setup: SceneSetup,
+    { antialias = false }: ThreeSceneOptions = {},
+) {
     // Read through a ref so an inline setup function (new every render) doesn't rebuild the scene.
     const setupRef = useRef(setup);
     useLayoutEffect(() => {
         setupRef.current = setup;
-    })
+    });
 
     useEffect(() => {
         const container = containerRef.current;
@@ -48,7 +52,7 @@ export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup
         let size: SceneSize = { width: container.clientWidth, height: container.clientHeight };
         let isDevEnvironment = import.meta.env.DEV;
         if (isDevEnvironment && (size.width === 0 || size.height === 0)) {
-            console.warn('useThreeScene: the container has no size.  Give it an explicit width and height.')
+            console.warn('useThreeScene: the container has no size.  Give it an explicit width and height.');
         }
 
         const controller = new AbortController();
@@ -66,9 +70,8 @@ export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup
         const scene = new THREE.Scene();
         let handle: SceneHandle;
         try {
-            handle = setupRef.current({ scene, renderer, size, signal: controller.signal })
-        }
-        catch (error) {
+            handle = setupRef.current({ scene, renderer, size, signal: controller.signal });
+        } catch (error) {
             disposeScene(scene);
             renderer.dispose();
             renderer.forceContextLoss();
@@ -94,12 +97,12 @@ export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup
         observer.observe(container);
 
         let lastTime: number | undefined;
-        renderer.setAnimationLoop(time => {
+        renderer.setAnimationLoop((time) => {
             const delta = lastTime === undefined ? 0 : time - lastTime;
             lastTime = time;
             handle.update?.(time, delta);
             renderer.render(scene, camera);
-        })
+        });
 
         const teardown = () => {
             renderer.setAnimationLoop(null);
@@ -110,10 +113,10 @@ export function useThreeScene(containerRef: RefObject<HTMLElement | null>, setup
             renderer.dispose();
             renderer.forceContextLoss();
             canvas.remove();
-        }
+        };
 
         return teardown;
-    }, [containerRef, antialias])
+    }, [containerRef, antialias]);
 }
 
 function updateCamera(camera: THREE.PerspectiveCamera, { width, height }: SceneSize): void {

@@ -31,7 +31,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
     private consumed = 0;
     private started = false;
 
-    private readonly onFrame: FrameSink = frame => {
+    private readonly onFrame: FrameSink = (frame) => {
         if (this.batchCount === 0) {
             // The window is centred half its length before its end.
             this.batchTime0 = (this.startSample + frame.endSample - FFT_SIZE / 2) / sampleRate;

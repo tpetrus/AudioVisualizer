@@ -65,7 +65,11 @@ describe('PencilFlagsMesh', () => {
         for (let column = 0; column < WIDTH; column++) {
             for (let row = 0; row < DEPTH; row++) {
                 const flag = column * DEPTH + row;
-                expect([offsets.getX(flag), offsets.getY(flag), offsets.getZ(flag)]).toEqual([DISTANCE * column, 1, DISTANCE * row]);
+                expect([offsets.getX(flag), offsets.getY(flag), offsets.getZ(flag)]).toEqual([
+                    DISTANCE * column,
+                    1,
+                    DISTANCE * row,
+                ]);
                 expect(colors.getX(flag)).toBeCloseTo(source[flag].r, 6);
                 expect(colors.getY(flag)).toBeCloseTo(source[flag].g, 6);
                 expect(colors.getZ(flag)).toBeCloseTo(source[flag].b, 6);
@@ -86,7 +90,7 @@ describe('PencilFlagsMesh', () => {
         const heights = Array.from(flags.heightAttribute.array);
         expect(heights[2 * DEPTH + 1]).toBe(42);
         expect(heights[0]).toBe(7);
-        expect(heights.filter(height => height !== 0)).toHaveLength(2);
+        expect(heights.filter((height) => height !== 0)).toHaveLength(2);
     });
 
     it('sets the tip length for every bar in one row only, and flags the upload', () => {

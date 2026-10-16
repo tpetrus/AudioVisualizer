@@ -1,10 +1,14 @@
 import { LandingPage } from "~/features/landing/LandingPage";
 import type { Route } from "../+types/root";
 
-export function meta({ }: Route.MetaArgs) {
+export function meta({}: Route.MetaArgs) {
   return [
     { title: "Audio Visualizer" },
-    { name: "description", content: "Spice up your music-listening experience, add vibrancy and motion, to your DJ set, or whatever else you think of." },
+    {
+      name: "description",
+      content:
+        "Spice up your music-listening experience, add vibrancy and motion, to your DJ set, or whatever else you think of.",
+    },
   ];
 }
 

@@ -54,7 +54,7 @@ function play(
     while (offset < total) {
         const size = Array.isArray(blockSizes) ? blockSizes[index++ % blockSizes.length] : blockSizes;
         const end = Math.min(total, offset + size);
-        harness.processor.process([channels.map(channel => channel.subarray(offset, end))]);
+        harness.processor.process([channels.map((channel) => channel.subarray(offset, end))]);
         harness.state.currentFrame += end - offset;
         offset = end;
     }
@@ -97,7 +97,7 @@ describe('rhythm processor worklet', () => {
         // Window centre = context start + frame end - half a window.
         expect(message.time0).toBeCloseTo((startFrame + FIRST_FRAME_END - FFT_SIZE / 2) / SAMPLE_RATE, 10);
         // The second batch starts exactly one batch of hops later.
-        expect(batches[1].message.time0 - message.time0).toBeCloseTo(BATCH_FRAMES * HOP / SAMPLE_RATE, 10);
+        expect(batches[1].message.time0 - message.time0).toBeCloseTo((BATCH_FRAMES * HOP) / SAMPLE_RATE, 10);
         // A 0.5 amplitude sine has an RMS of 0.5 / sqrt(2).
         expect(message.frames[FRAME_RMS_OFFSET]).toBeCloseTo(0.5 / Math.SQRT2, 2);
     });

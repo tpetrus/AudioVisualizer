@@ -54,7 +54,7 @@ function trackBatches(seconds: number, bpm: number): FrameBatch[] {
     const batches: FrameBatch[] = [];
     let current: FrameBatch | undefined;
     for (let offset = 0; offset < pcm.length; offset += 128) {
-        extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), frame => {
+        extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
             if (!current) {
                 current = {
                     time0: (frame.endSample - FFT_SIZE / 2) / TEST_SAMPLE_RATE,
@@ -158,7 +158,7 @@ describe('RhythmTracker', () => {
             expect(harness.web.workletNodes[1].context).toBe(next.context);
 
             // A duplicate subscription would have bound the new analyser twice.
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
             expect(harness.web.workletNodes).toHaveLength(2);
         });
 
@@ -232,7 +232,7 @@ describe('RhythmTracker', () => {
             second.context.audioWorklet.resolveAll();
 
             const node = await attachedNode(harness.web);
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
             expect(harness.web.workletNodes).toHaveLength(1);
             expect(node.context).toBe(second.context);
             expect(first.connect).not.toHaveBeenCalled();
@@ -246,7 +246,7 @@ describe('RhythmTracker', () => {
 
             harness.engine.setAnalyser(undefined);
             analyser.context.audioWorklet.resolveAll();
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(harness.web.workletNodes).toHaveLength(0);
         });
@@ -266,14 +266,16 @@ describe('RhythmTracker', () => {
         });
 
         it('logs a failed load and retries it on the next bind', async () => {
-            const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
             const analyser = createAnalyser();
             const failure = new Error('network down');
             analyser.context.audioWorklet.failWith = failure;
             harness.engine.setAnalyser(asAnalyser(analyser));
             harness.tracker.start(asEngine(harness.engine));
 
-            await vi.waitFor(() => expect(error).toHaveBeenCalledWith('RhythmTracker could not start the audio worklet', failure));
+            await vi.waitFor(() =>
+                expect(error).toHaveBeenCalledWith('RhythmTracker could not start the audio worklet', failure),
+            );
             expect(harness.web.workletNodes).toHaveLength(0);
 
             analyser.context.audioWorklet.failWith = undefined;
@@ -284,7 +286,7 @@ describe('RhythmTracker', () => {
         });
 
         it('stays quiet about a failed load that no longer matters', async () => {
-            const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
             const analyser = createAnalyser();
             analyser.context.audioWorklet.manual = true;
             harness.engine.setAnalyser(asAnalyser(analyser));
@@ -292,13 +294,13 @@ describe('RhythmTracker', () => {
 
             harness.engine.setAnalyser(undefined);
             analyser.context.audioWorklet.rejectAll();
-            await new Promise(resolve => setTimeout(resolve, 10));
+            await new Promise((resolve) => setTimeout(resolve, 10));
 
             expect(error).not.toHaveBeenCalled();
         });
 
         it('reports a processor error from the current node only', async () => {
-            const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
             const analyser = createAnalyser();
             harness.engine.setAnalyser(asAnalyser(analyser));
             harness.tracker.start(asEngine(harness.engine));
@@ -333,7 +335,10 @@ describe('RhythmTracker', () => {
             const handlers: Array<(event: unknown) => void> = [];
             const original = EventTarget.prototype.addEventListener;
             vi.spyOn(EventTarget.prototype, 'addEventListener').mockImplementation(function (
-                this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions,
+                this: EventTarget,
+                type: string,
+                listener: EventListenerOrEventListenerObject | null,
+                options?: boolean | AddEventListenerOptions,
             ) {
                 if (type === 'message' && typeof listener === 'function') {
                     handlers.push(listener as (event: unknown) => void);
@@ -393,14 +398,14 @@ describe('RhythmTracker', () => {
             node.processorPort.postMessage(flatBatch(0.1));
             node.processorPort.postMessage(flatBatch(0.2));
             // Nothing observable marks the end of the last message, so give the port time to deliver them.
-            await new Promise(resolve => setTimeout(resolve, 20));
+            await new Promise((resolve) => setTimeout(resolve, 20));
 
             expect(harness.tracker.state.bandOnsets[0]).toBeGreaterThan(0);
             expect(listener).not.toHaveBeenCalled();
         });
 
         it('stops notifying an unsubscribed listener, and a throwing listener does not block the others', async () => {
-            const error = vi.spyOn(console, 'error').mockImplementation(() => { });
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
             const removed = vi.fn();
             const healthy = vi.fn();
             const failure = new Error('boom');
@@ -439,7 +444,7 @@ describe('RhythmTracker', () => {
             }
             await vi.waitFor(() => expect(state.bpm).toBeGreaterThan(0));
             // Let every queued batch arrive before reading the final state.
-            await new Promise(resolve => setTimeout(resolve, 50));
+            await new Promise((resolve) => setTimeout(resolve, 50));
 
             expect(state.bpm).toBeGreaterThan(115);
             expect(state.bpm).toBeLessThan(125);

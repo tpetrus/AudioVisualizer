@@ -40,7 +40,7 @@ export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
     return (
         <div
             className="fixed inset-0 z-[1050] flex items-center justify-center bg-black/75 p-4"
-            onClick={event => {
+            onClick={(event) => {
                 if (event.target === event.currentTarget) {
                     close();
                 }
@@ -55,7 +55,9 @@ export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
                 className="max-h-[90vh] w-full max-w-[780px] overflow-y-auto rounded-lg border border-[#444] bg-neutral-800 p-5 text-gray-100 outline-none"
             >
                 <div className="mb-3 flex items-start justify-between">
-                    <h2 id={titleId} className="mb-0 text-xl font-medium">Audio source</h2>
+                    <h2 id={titleId} className="mb-0 text-xl font-medium">
+                        Audio source
+                    </h2>
                     {canClose && (
                         <button
                             type="button"

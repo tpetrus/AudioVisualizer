@@ -45,7 +45,7 @@ export function useCubesScene(
     const analyserRef = useLatestRef(analyser);
     const cameraLockedRef = useLatestRef(cameraLocked);
     const onViewChangedRef = useLatestRef(onViewChanged);
-    const resetViewRef = useRef<() => void>(() => { });
+    const resetViewRef = useRef<() => void>(() => {});
 
     useThreeScene(containerRef, ({ scene, renderer, size }) => {
         const camera = new THREE.PerspectiveCamera(CAMERA_FOV, size.width / size.height, 1, 500);
@@ -59,7 +59,7 @@ export function useCubesScene(
 
         const orbit = createOrbitView(camera, renderer.domElement, {
             locked: cameraLockedRef.current,
-            onViewChanged: changed => onViewChangedRef.current(changed),
+            onViewChanged: (changed) => onViewChangedRef.current(changed),
         });
         resetViewRef.current = orbit.reset;
 
@@ -120,7 +120,10 @@ export function useCubesScene(
                 if (rhythmState.downbeatCount !== seenDownbeats) {
                     seenDownbeats = rhythmState.downbeatCount;
                     // Only a meter the tracker is sure about gets an accent; a guessed bar would pulse on the wrong beat.
-                    if (rhythmState.beatsPerBar !== undefined && rhythmState.meterConfidence >= METER_VISUAL_CONFIDENCE) {
+                    if (
+                        rhythmState.beatsPerBar !== undefined &&
+                        rhythmState.meterConfidence >= METER_VISUAL_CONFIDENCE
+                    ) {
                         downbeatAccent = 1;
                     }
                 }
@@ -172,8 +175,8 @@ function createEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
     // The room's light panel behind the camera mirrors off the cubes' front faces as a glare at the top of the
     // screen, so it is hidden. Hidden rather than removed, so disposeScene(room) below still frees it.
     room.children
-        .filter(child => child.position.z > 10)
-        .forEach(child => {
+        .filter((child) => child.position.z > 10)
+        .forEach((child) => {
             child.visible = false;
         });
 

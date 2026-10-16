@@ -1,5 +1,14 @@
-import { clearNormalizeSettings, clearSource, loadNormalize, loadNormalizeSettings, loadSource, saveNormalize, saveNormalizeSettings, saveSource } from "./storage";
-import { DEFAULT_NORMALIZE_SETTINGS, type AudioGraph, type NormalizeSettings, type SavedSource } from "./types";
+import {
+    clearNormalizeSettings,
+    clearSource,
+    loadNormalize,
+    loadNormalizeSettings,
+    loadSource,
+    saveNormalize,
+    saveNormalizeSettings,
+    saveSource,
+} from './storage';
+import { DEFAULT_NORMALIZE_SETTINGS, type AudioGraph, type NormalizeSettings, type SavedSource } from './types';
 
 const AGC_INTERVAL_MS = 30;
 const ATTACK_TIME_CONSTANT = 0.02;
@@ -22,7 +31,7 @@ export class AudioEngine {
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
-    }
+    };
 
     // Snapshot getters for useSyncExternalStore: arrow properties so `this` survives being passed around, and each
     // returns the same value (same reference) until something changes.
@@ -60,12 +69,12 @@ export class AudioEngine {
     public async startScreenCapture(): Promise<void> {
         const stream = await navigator.mediaDevices.getDisplayMedia({ audio: true, video: true });
         if (stream.getAudioTracks().length === 0) {
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach((track) => track.stop());
             throw new Error('No audio was shared. Choose a screen or tab and enable "Share system audio".');
         }
 
         // Only audio is needed; drop the video track.
-        stream.getVideoTracks().forEach(track => track.stop());
+        stream.getVideoTracks().forEach((track) => track.stop());
         await this.connect(stream);
         saveSource({ mode: 'screen' });
     }
@@ -78,9 +87,9 @@ export class AudioEngine {
                 // Processing meant for voice calls would mangle music.
                 echoCancellation: false,
                 noiseSuppression: false,
-                autoGainControl: false
+                autoGainControl: false,
             },
-            video: false
+            video: false,
         });
         await this.connect(stream);
         saveSource({ mode: 'device', deviceId });
@@ -89,10 +98,10 @@ export class AudioEngine {
     // Lists audio input devices. Labels are only available once permission has been granted.
     public async getInputDevices(): Promise<MediaDeviceInfo[]> {
         const probe = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        probe.getTracks().forEach(track => track.stop());
+        probe.getTracks().forEach((track) => track.stop());
 
         const devices = await navigator.mediaDevices.enumerateDevices();
-        return devices.filter(device => device.kind === 'audioinput' && device.deviceId !== 'communications');
+        return devices.filter((device) => device.kind === 'audioinput' && device.deviceId !== 'communications');
     }
 
     // Restores a previously used input device without any prompt. Screen capture can't be restored.
@@ -101,7 +110,7 @@ export class AudioEngine {
             return Promise.resolve(true);
         }
 
-        this.resumePromise ??= this.tryResume().finally(() => this.resumePromise = undefined);
+        this.resumePromise ??= this.tryResume().finally(() => (this.resumePromise = undefined));
         return this.resumePromise;
     }
 
@@ -153,19 +162,29 @@ export class AudioEngine {
 
     // Latencies the browser reports, in ms. Time spent in the OS capture pipeline (e.g. screen-share buffering)
     // is not visible to the page, so captureLatencyMs is only available when the track reports it.
-    public get latencyInfo(): { sampleRate?: number; baseLatencyMs?: number; outputLatencyMs?: number; captureLatencyMs?: number; analysisWindowMs?: number } {
+    public get latencyInfo(): {
+        sampleRate?: number;
+        baseLatencyMs?: number;
+        outputLatencyMs?: number;
+        captureLatencyMs?: number;
+        analysisWindowMs?: number;
+    } {
         if (!this.graph) {
             return {};
         }
         const { audioContext: context, audioStream, analyser } = this.graph;
-        const trackLatency = (audioStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number })?.latency;
+        const trackLatency = (
+            audioStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number }
+        )?.latency;
         return {
             sampleRate: context.sampleRate,
             baseLatencyMs: context.baseLatency * 1000,
-            outputLatencyMs: (context as AudioContext & { outputLatency?: number }).outputLatency !== undefined
-                ? (context as AudioContext & { outputLatency: number }).outputLatency * 1000 : undefined,
+            outputLatencyMs:
+                (context as AudioContext & { outputLatency?: number }).outputLatency !== undefined
+                    ? (context as AudioContext & { outputLatency: number }).outputLatency * 1000
+                    : undefined,
             captureLatencyMs: trackLatency !== undefined ? trackLatency * 1000 : undefined,
-            analysisWindowMs: analyser.fftSize / context.sampleRate * 1000
+            analysisWindowMs: (analyser.fftSize / context.sampleRate) * 1000,
         };
     }
 
@@ -237,7 +256,7 @@ export class AudioEngine {
         }
         const { audioStream, source, audioContext } = this.graph;
         this.graph = undefined;
-        audioStream.getTracks().forEach(track => track.stop());
+        audioStream.getTracks().forEach((track) => track.stop());
         source.disconnect();
         void audioContext.close();
     }

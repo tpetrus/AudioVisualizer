@@ -1,11 +1,5 @@
 import { BeatTracker } from './beatTracker';
-import {
-    BOUNDARY_HARD,
-    BOUNDARY_NONE,
-    BOUNDARY_SOFT,
-    BoundaryDetector,
-    type BoundaryKind,
-} from './boundary';
+import { BOUNDARY_HARD, BOUNDARY_NONE, BOUNDARY_SOFT, BoundaryDetector, type BoundaryKind } from './boundary';
 import { MeterEstimator } from './meter';
 import {
     BAND_COUNT,
@@ -306,8 +300,16 @@ export class RhythmAnalyzer {
         this.featureTotal = total;
 
         const gap = Math.round(CHROMA_GAP_SECONDS * this.frameRate);
-        const beforeCount = this.sumChroma(beatBack + gap, beatBack + Math.round(0.5 * period * this.frameRate), this.chromaBefore);
-        const afterCount = this.sumChroma(Math.max(0, beatBack - Math.round(BEAT_WINDOW_FRACTION * period * this.frameRate)), beatBack, this.chromaAfter);
+        const beforeCount = this.sumChroma(
+            beatBack + gap,
+            beatBack + Math.round(0.5 * period * this.frameRate),
+            this.chromaBefore,
+        );
+        const afterCount = this.sumChroma(
+            Math.max(0, beatBack - Math.round(BEAT_WINDOW_FRACTION * period * this.frameRate)),
+            beatBack,
+            this.chromaAfter,
+        );
         let dot = 0;
         let normBefore = 0;
         let normAfter = 0;
@@ -316,9 +318,10 @@ export class RhythmAnalyzer {
             normBefore += this.chromaBefore[i] * this.chromaBefore[i];
             normAfter += this.chromaAfter[i] * this.chromaAfter[i];
         }
-        this.featureChroma = beforeCount > 0 && afterCount > 0 && normBefore > EPSILON && normAfter > EPSILON
-            ? 1 - dot / Math.sqrt(normBefore * normAfter)
-            : 0;
+        this.featureChroma =
+            beforeCount > 0 && afterCount > 0 && normBefore > EPSILON && normAfter > EPSILON
+                ? 1 - dot / Math.sqrt(normBefore * normAfter)
+                : 0;
     }
 
     // Adds up the chroma of the frames from `fromBack` to `toBack` frames ago (inclusive) into `out` and returns how

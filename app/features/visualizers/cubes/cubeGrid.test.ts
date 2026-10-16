@@ -80,8 +80,8 @@ describe('CubeGrid', () => {
         grid.update(new Float32Array(2), LOOK);
 
         // Off-centre cells are at rest: laid out around the middle, at the backdrop lift.
-        expect(positionOf(grid, 0, 0).toArray()).toEqual([-1, -1, 0.5].map(value => expect.closeTo(value, 5)));
-        expect(positionOf(grid, 2, 2).toArray()).toEqual([1, 1, 0.5].map(value => expect.closeTo(value, 5)));
+        expect(positionOf(grid, 0, 0).toArray()).toEqual([-1, -1, 0.5].map((value) => expect.closeTo(value, 5)));
+        expect(positionOf(grid, 2, 2).toArray()).toEqual([1, 1, 0.5].map((value) => expect.closeTo(value, 5)));
     });
 
     it('raises the middle of a column to full depth when its band is loud, and fills outward like a meter', () => {

@@ -33,35 +33,42 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
         }
     };
 
-    const startScreenCapture = () => run(async () => {
-        await engine.startScreenCapture();
-        onStarted();
-    });
+    const startScreenCapture = () =>
+        run(async () => {
+            await engine.startScreenCapture();
+            onStarted();
+        });
 
-    const loadDevices = () => run(async () => {
-        const found = await engine.getInputDevices();
-        if (!found.length) {
-            throw new Error('No audio input devices were found.');
-        }
-        const saved = engine.savedSource?.deviceId;
-        setDevices(found);
-        setSelectedDeviceId(found.find(device => device.deviceId === saved)?.deviceId ?? found[0].deviceId);
-    });
+    const loadDevices = () =>
+        run(async () => {
+            const found = await engine.getInputDevices();
+            if (!found.length) {
+                throw new Error('No audio input devices were found.');
+            }
+            const saved = engine.savedSource?.deviceId;
+            setDevices(found);
+            setSelectedDeviceId(found.find((device) => device.deviceId === saved)?.deviceId ?? found[0].deviceId);
+        });
 
-    const startDeviceCapture = () => run(async () => {
-        await engine.startDeviceCapture(selectedDeviceId);
-        onStarted();
-    });
+    const startDeviceCapture = () =>
+        run(async () => {
+            await engine.startDeviceCapture(selectedDeviceId);
+            onStarted();
+        });
 
     return (
         <>
-            {showIntro && <p className="text-sm text-gray-400">Choose where the audio should come from to get started.</p>}
+            {showIntro && (
+                <p className="text-sm text-gray-400">Choose where the audio should come from to get started.</p>
+            )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <SourceCard
                     title="Share screen or tab audio"
-                    description={'Nothing to set up. Your browser will ask what to share; enable "Share system audio". '
-                        + "You'll need to do this again after a page refresh."}
+                    description={
+                        'Nothing to set up. Your browser will ask what to share; enable "Share system audio". ' +
+                        "You'll need to do this again after a page refresh."
+                    }
                 >
                     <button type="button" className={primaryButton} disabled={busy} onClick={startScreenCapture}>
                         Share audio
@@ -82,15 +89,20 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                                 className="mb-2 w-full rounded border border-gray-600 bg-neutral-900 px-2 py-1.5 text-gray-100"
                                 aria-label="Audio input device"
                                 value={selectedDeviceId}
-                                onChange={event => setSelectedDeviceId(event.currentTarget.value)}
+                                onChange={(event) => setSelectedDeviceId(event.currentTarget.value)}
                             >
-                                {devices.map(device => (
+                                {devices.map((device) => (
                                     <option key={device.deviceId} value={device.deviceId}>
                                         {device.label || 'Unnamed device'}
                                     </option>
                                 ))}
                             </select>
-                            <button type="button" className={primaryButton} disabled={busy} onClick={startDeviceCapture}>
+                            <button
+                                type="button"
+                                className={primaryButton}
+                                disabled={busy}
+                                onClick={startDeviceCapture}
+                            >
                                 Start
                             </button>
                         </>
@@ -98,13 +110,19 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                 </SourceCard>
             </div>
 
-            {error && <div className="mt-2 text-center text-red-500" role="alert">{error}</div>}
+            {error && (
+                <div className="mt-2 text-center text-red-500" role="alert">
+                    {error}
+                </div>
+            )}
 
             <StereoMixHelp />
 
             {onBack && (
                 <div className="mt-3 text-right">
-                    <button type="button" className={outlineButton} onClick={onBack}>Back</button>
+                    <button type="button" className={outlineButton} onClick={onBack}>
+                        Back
+                    </button>
                 </div>
             )}
         </>

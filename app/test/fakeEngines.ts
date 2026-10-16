@@ -40,11 +40,13 @@ export class FakeAudioEngine {
     readonly getOutputLevel = vi.fn(() => this.outputLevel);
 
     // Actions are spies so a spec can assert on them; each resolves immediately unless the spec overrides it.
-    readonly startScreenCapture = vi.fn(async () => { });
-    readonly startDeviceCapture = vi.fn(async (_deviceId: string) => { });
+    readonly startScreenCapture = vi.fn(async () => {});
+    readonly startDeviceCapture = vi.fn(async (_deviceId: string) => {});
     readonly getInputDevices = vi.fn(async (): Promise<MediaDeviceInfo[]> => []);
     readonly resumeSavedSource = vi.fn(async () => this.analyser !== undefined);
-    readonly forgetSavedSource = vi.fn(() => { this.saved = undefined; });
+    readonly forgetSavedSource = vi.fn(() => {
+        this.saved = undefined;
+    });
     readonly stopCapture = vi.fn(() => this.setAnalyser(undefined));
     readonly setNormalize = vi.fn((enabled: boolean) => {
         this.normalize = enabled;
@@ -66,7 +68,7 @@ export class FakeAudioEngine {
     }
 
     notify(): void {
-        [...this.listeners].forEach(listener => listener());
+        [...this.listeners].forEach((listener) => listener());
     }
 }
 
@@ -84,9 +86,9 @@ export class FakeRhythmTracker {
     readonly getBeatsPerBar = () => this.beatsPerBar;
     readonly getSongChangeCount = () => this.songChangeCount;
 
-    readonly start = vi.fn((_engine: unknown) => { });
-    readonly dispose = vi.fn(() => { });
-    readonly updatePhase = vi.fn((_now?: number) => { });
+    readonly start = vi.fn((_engine: unknown) => {});
+    readonly dispose = vi.fn(() => {});
+    readonly updatePhase = vi.fn((_now?: number) => {});
 
     // The store values change rarely and notify; set them here to re-render subscribed components.
     setBeatsPerBar(value: BeatsPerBar | undefined): void {
@@ -101,7 +103,7 @@ export class FakeRhythmTracker {
     }
 
     private notify(): void {
-        [...this.listeners].forEach(listener => listener());
+        [...this.listeners].forEach((listener) => listener());
     }
 }
 

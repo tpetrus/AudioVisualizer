@@ -20,7 +20,10 @@ function createContainer(width: number, height: number): HTMLDivElement {
 }
 
 // Mounts the hook around a container of the given size and returns what a test usually needs.
-function mount(setup: SceneSetup, { width = 400, height = 300, antialias }: { width?: number; height?: number; antialias?: boolean } = {}) {
+function mount(
+    setup: SceneSetup,
+    { width = 400, height = 300, antialias }: { width?: number; height?: number; antialias?: boolean } = {},
+) {
     const resizes = installFakeResizeObserver();
     const container = createContainer(width, height);
     const containerRef = { current: container };
@@ -69,12 +72,15 @@ describe('useThreeScene', () => {
         { devicePixelRatio: 1, expected: 1 },
         { devicePixelRatio: 1.5, expected: 1.5 },
         { devicePixelRatio: 3, expected: 2 },
-    ])('uses a pixel ratio of $expected on a $devicePixelRatio device (capped at 2)', ({ devicePixelRatio, expected }) => {
-        vi.stubGlobal('devicePixelRatio', devicePixelRatio);
-        mount(() => ({ camera: new PerspectiveCamera() }));
+    ])(
+        'uses a pixel ratio of $expected on a $devicePixelRatio device (capped at 2)',
+        ({ devicePixelRatio, expected }) => {
+            vi.stubGlobal('devicePixelRatio', devicePixelRatio);
+            mount(() => ({ camera: new PerspectiveCamera() }));
 
-        expect(FakeRenderer.last.setPixelRatio).toHaveBeenCalledWith(expected);
-    });
+            expect(FakeRenderer.last.setPixelRatio).toHaveBeenCalledWith(expected);
+        },
+    );
 
     it('does nothing when the container ref is empty', () => {
         const resizes = installFakeResizeObserver();
@@ -90,7 +96,7 @@ describe('useThreeScene', () => {
 
     it('hands setup the scene, renderer, initial size and an abort signal', () => {
         let received: SceneContext | undefined;
-        mount(context => {
+        mount((context) => {
             received = context;
             return { camera: new PerspectiveCamera() };
         });
@@ -104,12 +110,18 @@ describe('useThreeScene', () => {
     describe('when setup throws', () => {
         it('frees the renderer, rethrows and never attaches a canvas', () => {
             // React logs the uncaught effect error; the noise is not what is under test.
-            vi.spyOn(console, 'error').mockImplementation(() => { });
+            vi.spyOn(console, 'error').mockImplementation(() => {});
             const container = createContainer(400, 300);
             installFakeResizeObserver();
             const failure = new Error('setup failed');
 
-            expect(() => renderHook(() => useThreeScene({ current: container }, () => { throw failure; }))).toThrow(failure);
+            expect(() =>
+                renderHook(() =>
+                    useThreeScene({ current: container }, () => {
+                        throw failure;
+                    }),
+                ),
+            ).toThrow(failure);
 
             const renderer = FakeRenderer.last;
             expect(renderer.dispose).toHaveBeenCalledTimes(1);
@@ -130,7 +142,11 @@ describe('useThreeScene', () => {
             renderer.renderFrame(116);
             renderer.renderFrame(150);
 
-            expect(update.mock.calls).toEqual([[100, 0], [116, 16], [150, 34]]);
+            expect(update.mock.calls).toEqual([
+                [100, 0],
+                [116, 16],
+                [150, 34],
+            ]);
             expect(renderer.render).toHaveBeenCalledTimes(3);
             expect(renderer.render).toHaveBeenLastCalledWith(expect.objectContaining({ isScene: true }), camera);
         });
@@ -248,7 +264,7 @@ describe('useThreeScene', () => {
             { name: 'both', width: 0, height: 0 },
         ])('warns in development when the $name is 0', ({ width, height }) => {
             vi.stubEnv('DEV', true);
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => { });
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
             mount(() => ({ camera: new PerspectiveCamera() }), { width, height });
 
@@ -257,7 +273,7 @@ describe('useThreeScene', () => {
 
         it('does not warn in development when the container has a size', () => {
             vi.stubEnv('DEV', true);
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => { });
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
             mount(() => ({ camera: new PerspectiveCamera() }));
 
@@ -271,7 +287,7 @@ describe('useThreeScene', () => {
             { name: 'both', width: 0, height: 0 },
         ])('never warns in production when the $name is 0', ({ width, height }) => {
             vi.stubEnv('DEV', false);
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => { });
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
             mount(() => ({ camera: new PerspectiveCamera() }), { width, height });
 
@@ -288,12 +304,14 @@ describe('useThreeScene', () => {
                 update: vi.fn(),
                 dispose: vi.fn(() => order.push('handle.dispose')),
             };
-            const { unmount, container, resizes } = mount(context => {
+            const { unmount, container, resizes } = mount((context) => {
                 signal = context.signal;
                 return handle;
             });
             const renderer = FakeRenderer.last;
-            renderer.dispose.mockImplementation(() => { order.push('renderer.dispose'); });
+            renderer.dispose.mockImplementation(() => {
+                order.push('renderer.dispose');
+            });
             expect(container.querySelector('canvas')).not.toBeNull();
 
             unmount();

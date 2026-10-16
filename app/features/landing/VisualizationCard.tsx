@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link } from 'react-router';
 
 interface VisualizationCardProps {
     to: string;
@@ -20,7 +20,10 @@ export function VisualizationCard({ to, title, image, disabled }: VisualizationC
     }
 
     return (
-        <Link to={to} className="block hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
+        <Link
+            to={to}
+            className="block hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+        >
             {thumbnail}
         </Link>
     );

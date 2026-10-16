@@ -50,13 +50,17 @@ describe('ActiveSourcePanel', () => {
 
         engine.level = 0.5;
         engine.outputLevel = 0.5;
-        act(() => { vi.advanceTimersByTime(100); });
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         expect(bar()).toHaveStyle({ width: '50%' });
         expect(bar()).toHaveClass('bg-green-500');
 
         // Normalized output can overshoot full scale; the bar stops at the end.
         engine.outputLevel = 1.7;
-        act(() => { vi.advanceTimersByTime(100); });
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         expect(bar()).toHaveStyle({ width: '100%' });
     });
 
@@ -65,12 +69,16 @@ describe('ActiveSourcePanel', () => {
         const { container } = renderPanel(engine);
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
-        act(() => { vi.advanceTimersByTime(4200); });
+        act(() => {
+            vi.advanceTimersByTime(4200);
+        });
         expect(screen.getByRole('status')).toHaveTextContent('No audio signal detected');
         expect(container.querySelector('.bg-yellow-500')).toBeInTheDocument();
 
         engine.level = 0.3;
-        act(() => { vi.advanceTimersByTime(100); });
+        act(() => {
+            vi.advanceTimersByTime(100);
+        });
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 

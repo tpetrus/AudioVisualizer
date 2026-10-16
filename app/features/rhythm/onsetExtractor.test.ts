@@ -51,7 +51,8 @@ function burst(hz: number, startSeconds: number, totalSeconds: number, amplitude
     for (let i = 0; i < length; i++) {
         // A short attack ramp keeps the burst from splattering energy across every band.
         const attack = Math.min(1, i / (0.004 * TEST_SAMPLE_RATE));
-        pcm[start + i] = amplitude * attack * Math.exp((-6 * i) / length) * Math.sin((2 * Math.PI * hz * i) / TEST_SAMPLE_RATE);
+        pcm[start + i] =
+            amplitude * attack * Math.exp((-6 * i) / length) * Math.sin((2 * Math.PI * hz * i) / TEST_SAMPLE_RATE);
     }
     return pcm;
 }
@@ -95,9 +96,9 @@ describe('OnsetExtractor timing', () => {
         const first: number[] = [];
         const second: number[] = [];
         const pcm = sine(440, 0.5);
-        extractor.push(pcm, frame => first.push(frame.endSample));
+        extractor.push(pcm, (frame) => first.push(frame.endSample));
         extractor.reset();
-        extractor.push(pcm, frame => second.push(frame.endSample));
+        extractor.push(pcm, (frame) => second.push(frame.endSample));
         expect(second).toEqual(first);
     });
 });
@@ -105,25 +106,25 @@ describe('OnsetExtractor timing', () => {
 describe('OnsetExtractor features', () => {
     it('reports the kick band flux on a low burst and the high band flux on a click', () => {
         const low = extract(burst(60, 0.3, 0.8));
-        expect(maxOf(low, f => f.flux[0])).toBeGreaterThan(0.01);
-        expect(maxOf(low, f => f.flux[0])).toBeGreaterThan(3 * maxOf(low, f => f.flux[2]));
+        expect(maxOf(low, (f) => f.flux[0])).toBeGreaterThan(0.01);
+        expect(maxOf(low, (f) => f.flux[0])).toBeGreaterThan(3 * maxOf(low, (f) => f.flux[2]));
 
         const high = extract(burst(6000, 0.3, 0.8));
-        expect(maxOf(high, f => f.flux[2])).toBeGreaterThan(0.01);
-        expect(maxOf(high, f => f.flux[2])).toBeGreaterThan(3 * maxOf(high, f => f.flux[0]));
+        expect(maxOf(high, (f) => f.flux[2])).toBeGreaterThan(0.01);
+        expect(maxOf(high, (f) => f.flux[2])).toBeGreaterThan(3 * maxOf(high, (f) => f.flux[0]));
     });
 
     it('puts a mid-range burst mostly into the mid band', () => {
         const mid = extract(burst(800, 0.3, 0.8));
-        expect(maxOf(mid, f => f.flux[1])).toBeGreaterThan(3 * maxOf(mid, f => f.flux[0]));
-        expect(maxOf(mid, f => f.flux[1])).toBeGreaterThan(3 * maxOf(mid, f => f.flux[2]));
+        expect(maxOf(mid, (f) => f.flux[1])).toBeGreaterThan(3 * maxOf(mid, (f) => f.flux[0]));
+        expect(maxOf(mid, (f) => f.flux[1])).toBeGreaterThan(3 * maxOf(mid, (f) => f.flux[2]));
     });
 
     it('has no flux while the signal is steady', () => {
         const frames = extract(sine(440, 2));
         // Skip the attack at the start of the tone.
         const steady = frames.slice(20);
-        expect(maxOf(steady, f => Math.max(f.flux[0], f.flux[1], f.flux[2]))).toBeLessThan(0.01);
+        expect(maxOf(steady, (f) => Math.max(f.flux[0], f.flux[1], f.flux[2]))).toBeLessThan(0.01);
     });
 
     it('has about zero RMS and zero flux for silence', () => {
