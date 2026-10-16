@@ -9,11 +9,13 @@ standards below are the ones agreed during that port. Follow them so new code re
 |---|---|
 | Dev server (HMR) | `npm run dev` |
 | Type-check (also regenerates route types) | `npm run typecheck` |
+| Unit tests (vitest, node environment) | `npm run test` |
+| Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
 | Production build (static SPA → `build/client`) | `npm run build` |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Deploy to Cloudflare | `npm run deploy` |
 
-Before finishing any change: `npm run typecheck` and `npm run build` must both pass with no errors. For anything that
+Before finishing any change: `npm run typecheck`, `npm run test` and `npm run build` must all pass with no errors. For anything that
 renders, also check it in `npm run dev` (see "Verifying changes" below).
 
 ## Stack
@@ -28,14 +30,15 @@ renders, also check it in `npm run dev` (see "Verifying changes" below).
 ## Where things live
 ```
 app/
-  root.tsx, routes.ts            app shell (AudioProvider) and route table
+  root.tsx, routes.ts            app shell (AudioProvider, RhythmProvider) and route table
   routes/                        thin route modules: meta + render a feature page (default export required here)
   features/
     audio/                       AudioEngine (framework-free), storage, React bindings, guard, source dialog
+    rhythm/                      tempo / beat / 3-vs-4 meter / song-change tracker: pure DSP modules, worklet, RhythmTracker
     landing/                     landing page, 3D title, visualization cards
     visualizers/<name>/          one folder per visualizer (page, scene hook, controls, config, pure maths, classes)
     visualizers/meshes/          shared mesh classes + GLSL shader strings
-  components/                    shared, feature-agnostic UI (ControlPanel, PerformanceStats)
+  components/                    shared, feature-agnostic UI (ControlPanel, PerformanceStats, RhythmStats)
   hooks/                         shared hooks (useThreeScene, useLatestRef)
   lib/three/                     three.js helpers (disposeScene, createOrbitView)
 public/                          static files served from / (fonts/, visualization-images/)
@@ -53,7 +56,8 @@ Full detail and the reasons are in the docs below; these are the ones most often
    listeners are cleared, effects return a cleanup. StrictMode double-mounts in dev to catch misses.
 5. **No allocation per frame.** Preallocate typed arrays, `Color`s, `Matrix4`s and dummies; update in place.
 6. **Reuse the shared pieces** instead of re-implementing them: `useThreeScene`, `createOrbitView`, `disposeScene`,
-   `useLatestRef`, `useControlValues` + `ControlPanel`, `useAudio`/`useAnalyser`, `RequireAudio`.
+   `useLatestRef`, `useControlValues` + `ControlPanel`, `useAudio`/`useAnalyser`, `RequireAudio`, `useRhythm` (beat/bar
+   phase and counters from `tracker.state`).
 7. **Comments explain why**, in plain sentences, above the code they describe. Keep the existing ones when moving code.
 
 ## Read before working
@@ -66,7 +70,7 @@ Use `app/features/visualizers/cubes/` and `app/features/visualizers/trio-color-w
 implementations; new code should look like them.
 
 ## Verifying changes
-- `npm run typecheck` and `npm run build` pass.
+- `npm run typecheck`, `npm run test` and `npm run build` pass.
 - In `npm run dev`: choose an audio source on `/`, open each visualizer, change controls, toggle the camera lock and reset
   view, switch the audio source from the panel's "Audio settings", and navigate away and back several times. The console
   must stay free of errors and of "Too many active WebGL contexts" warnings, and the page should contain one `<canvas>`
@@ -74,8 +78,10 @@ implementations; new code should look like them.
 - Deploy-affecting changes: `npm run preview`, then load `/`, `/cubes` and `/trio-color-wave` directly by URL.
 
 ## Known gaps (don't copy, don't build on)
-- **No tests yet.** `vitest`, `jsdom` and Testing Library are installed but there's no config or `test` script. When adding
-  tests, start with the pure functions (`bands.ts`, `spectrum.ts`, `storage.ts`, `controls.ts`).
+- **Thin test coverage.** `npm run test` runs vitest in the node environment (`vitest.config.ts`), and only the rhythm
+  modules have specs (`app/features/rhythm/*.test.ts`, with synthetic audio in `testSignals.ts`). Some of those use
+  `it.fails` to record known tracker weaknesses; fixing one makes its test fail until `.fails` is removed. Nothing yet
+  covers the audio helpers (`bands.ts`, `spectrum.ts`, `storage.ts`, `controls.ts`), React components or hooks; `jsdom`
+  and Testing Library are installed for those but unused. Run a spec in jsdom with `// @vitest-environment jsdom`.
 - **Leftover Tailwind 3 / PostCSS config.** `tailwind.config.js` and `postcss.config.ts` are not used by the Tailwind 4
   Vite plugin. Configure Tailwind in `app/app.css` (`@theme`), not in those files.
-- `README.md` is still the React Router template text.

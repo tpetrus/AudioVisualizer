@@ -7,6 +7,8 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "typecheck": "react-router typegen && tsc",
+    "test": "vitest run",
+    "eval:rhythm": "esbuild scripts/eval-rhythm.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/eval-rhythm.mjs && node node_modules/.cache/eval-rhythm.mjs",
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy"
   },

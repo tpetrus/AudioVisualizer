@@ -10,6 +10,7 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 import { AudioProvider } from "./features/audio/AudioProvider";
+import { RhythmProvider } from "./features/rhythm/RhythmProvider";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -22,6 +23,10 @@ export const links: Route.LinksFunction = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
   },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oxygen+Mono&display=swap"
+  }
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -35,7 +40,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         <AudioProvider>
-        {children}
+          <RhythmProvider>
+            {children}
+          </RhythmProvider>
         </AudioProvider>
         <ScrollRestoration />
         <Scripts />

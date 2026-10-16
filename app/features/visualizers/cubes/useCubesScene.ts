@@ -7,6 +7,8 @@ import { CubeGrid, gridSizeForView } from './cubeGrid';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
+import { METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
+import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { createOrbitView } from '~/lib/three/orbitView';
 import { disposeScene } from '~/lib/three/disposeScene';
 
@@ -19,9 +21,15 @@ const ANALYSER_SMOOTHING = 0.5;
 const MAX_BACKGROUND_FLASH = 0.6;
 // How far resting cubes rise toward the viewer on a full-strength bass hit.
 const MAX_BACKDROP_LIFT = 2;
+// A confident downbeat adds this fraction of a full bass hit to the backdrop lift, then fades by this factor per
+// frame (about a third of a second at 60 fps). Kept small so it accents the bar without hiding the bass.
+const DOWNBEAT_ACCENT_LIFT = 0.35;
+const DOWNBEAT_ACCENT_DECAY = 0.9;
 
 interface CubesSceneOptions {
     analyser: AnalyserNode | undefined;
+    // The app-wide rhythm tracker: a stable instance, so the scene reads its state without a ref.
+    rhythm: RhythmTracker;
     valuesRef: { readonly current: CubesControlValues };
     // Locked means the picture can't be dragged, rotated or zoomed.
     cameraLocked: boolean;
@@ -31,7 +39,7 @@ interface CubesSceneOptions {
 // Audio-reactive grid of glass cubes rendered into `containerRef`.
 export function useCubesScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, valuesRef, cameraLocked, onViewChanged }: CubesSceneOptions,
+    { analyser, rhythm, valuesRef, cameraLocked, onViewChanged }: CubesSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
@@ -66,6 +74,10 @@ export function useCubesScene(
         let bass: BassPulse | undefined;
         const restingColor = new THREE.Color();
         const raisedColor = new THREE.Color();
+
+        // Compared with the tracker's counter each frame to notice a downbeat without events or allocation.
+        let seenDownbeats = rhythm.state.downbeatCount;
+        let downbeatAccent = 0;
 
         const bandBinsFor = (source: AnalyserNode) =>
             createBandBins(grid.bandCount, source.context.sampleRate, source.fftSize);
@@ -103,6 +115,17 @@ export function useCubesScene(
                     });
                 }
 
+                rhythm.updatePhase();
+                const rhythmState = rhythm.state;
+                if (rhythmState.downbeatCount !== seenDownbeats) {
+                    seenDownbeats = rhythmState.downbeatCount;
+                    // Only a meter the tracker is sure about gets an accent; a guessed bar would pulse on the wrong beat.
+                    if (rhythmState.beatsPerBar !== undefined && rhythmState.meterConfidence >= METER_VISUAL_CONFIDENCE) {
+                        downbeatAccent = 1;
+                    }
+                }
+                downbeatAccent *= DOWNBEAT_ACCENT_DECAY;
+
                 const bump = bass?.update() ?? 0;
                 const pulse = values.bassBump ? bump * values.bgPulse : 0;
                 backgroundColor.copy(restingColor).multiplyScalar(pulse * MAX_BACKGROUND_FLASH);
@@ -112,7 +135,7 @@ export function useCubesScene(
                     spin: values.spin,
                     restingColor,
                     raisedColor,
-                    backdropLift: pulse * MAX_BACKDROP_LIFT,
+                    backdropLift: (pulse + downbeatAccent * DOWNBEAT_ACCENT_LIFT) * MAX_BACKDROP_LIFT,
                 });
             },
 

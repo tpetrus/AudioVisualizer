@@ -3,6 +3,7 @@ import { ControlInput } from './ControlInput';
 import { type ControlDefinition, type ControlValue, groupBySection, isModified, isShown } from './controls';
 import styles from './ControlPanel.module.css';
 import { PerformanceStats } from '~/components/PerformanceStats/PerformanceStats';
+import { RhythmStats } from '~/components/RhythmStats/RhythmStats';
 import { AudioSourceDialog } from '~/features/audio/components/AudioSourceDialog';
 
 
@@ -29,6 +30,7 @@ export function ControlPanel({
 }: ControlPanelProps) {
     const [collapsed, setCollapsed] = useState(true);
     const [showStats, setShowStats] = useState(false);
+    const [showRhythm, setShowRhythm] = useState(false);
     const [audioDialogOpen, setAudioDialogOpen] = useState(false);
     const sections = useMemo(() => groupBySection(definitions), [definitions]);
     // Start with just the first section open so the panel stays short.
@@ -150,12 +152,21 @@ export function ControlPanel({
                                 />{' '}
                                 Show performance stats
                             </label>
+                            <label className={styles.statsToggle}>
+                                <input
+                                    type="checkbox"
+                                    checked={showRhythm}
+                                    onChange={event => setShowRhythm(event.currentTarget.checked)}
+                                />{' '}
+                                Show rhythm stats
+                            </label>
                         </div>
                     </div>
                 )}
             </div>
 
             {showStats && <PerformanceStats />}
+            {showRhythm && <RhythmStats />}
             {audioDialogOpen && <AudioSourceDialog onClose={() => setAudioDialogOpen(false)} />}
         </>
     );

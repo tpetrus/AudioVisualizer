@@ -135,9 +135,80 @@ binds (cubes does), but anything needing different settings or filtering taps it
   is read by the render loop. Updates are immutable.
 - `ControlPanel` is presentational: definitions + values + callbacks (`onChange`, `onResetAll`, `cameraLocked`,
   `onCameraLockedChange`, `viewChanged`, `onResetView`). It also hosts the "Audio settings" dialog and the
-  `PerformanceStats` overlay. Its CSS module scopes element selectors under `.panel`.
+  `PerformanceStats` and `RhythmStats` overlays. Its CSS module scopes element selectors under `.panel`.
 
-## 6. Build and deploy
+## 6. Rhythm: `app/features/rhythm/`
+
+Detects tempo, beat phase, 3-vs-4 meter and song changes from the engine's analyser, so visualizers can pulse on the
+beat, accent beat 1 and re-randomize on a new song. Pure DSP (no ML), about 5 ms of CPU per second of audio.
+
+```
+AudioEngine analyser ─▶ AudioWorkletNode (rhythmProcessor.worklet.ts: OnsetExtractor, ~100 frames/s)
+                              │ port.postMessage(batch of 8 packed frames)
+                              ▼
+ RhythmTracker.onMessage ─▶ RhythmAnalyzer ─▶ TempoTracker → BeatTracker → MeterEstimator
+                              │                       BoundaryDetector (silence / novelty / tempo jump)
+                              ▼
+                       tracker.state (mutated in place)      tracker.subscribe (meter flip, song change only)
+```
+
+- **Pure modules** (`fft`, `onsetExtractor`, `tempo`, `beatTracker`, `meter`, `boundary`, `rhythmAnalyzer`,
+  `rhythmConfig`): no Web Audio, DOM or React; buffers are passed in; they are driven by feature frames and times in
+  seconds, never a wall clock, so they run in Node and in tests. All tuning constants are in `rhythmConfig.ts`.
+- **`RhythmTracker`** (`rhythmTracker.ts`) is the only owner of browser resources, framework-free like `AudioEngine`
+  (`export const rhythmTracker`). Its constructor touches no browser API (index.html is prerendered); `start(engine)` and
+  `dispose()` are called by `RhythmProvider`'s effect. It subscribes to the engine and, whenever `engine.getAnalyser()`
+  changes, creates an `AudioWorkletNode` in the analyser's context and taps it with `analyser.connect(node)`. The
+  engine's graph is never altered. The worklet module is added once per `AudioContext`, and a generation counter stops
+  a slow `addModule` from attaching a stale node after a quick source switch or StrictMode's double mount. Unbinding
+  disconnects the node in try/catch (the old context may be closed) and removes the port listener.
+- The worklet is loaded with Vite's `?worker&url` import. `npm run build` emits it into `build/client/assets/`; in dev
+  Vite serves it as a module. The worklet global scope has no `window`; `sampleRate` and `currentFrame` are globals there.
+
+### `state` versus the store
+| | `tracker.state` | store (`subscribe`, `getBeatsPerBar`, `getSongChangeCount`) |
+|---|---|---|
+| Changes | many times a second | rarely (meter flips, song change) |
+| Read by | render loops, polling overlays | React components via `useBeatsPerBar()` / `useSongChangeCount()` |
+| Shape | one preallocated mutable object, same reference forever | stable primitives, `notify()` last |
+
+`state` holds `bpm`, `beatPhase`, `barPhase` (0..1), `beatsPerBar` (`3 | 4 | undefined` = unsure), `tempoConfidence`,
+`meterConfidence`, `bandOnsets` (kick, mid, high), `chroma`, `novelty`, `nextBeatTime` (AudioContext seconds) and three
+counters. Never copy these into `useState`.
+
+### Reading phase every frame
+Analysis runs about 100 ms behind the audio, so a stored phase would always be late. Call
+`tracker.updatePhase()` once per animation frame (it defaults to the bound context's `currentTime`). It extrapolates from
+the newest declared beat and period, then writes `beatPhase`, `barPhase`, `nextBeatTime`, `beatCount` and
+`downbeatCount`. It is O(1) and allocates nothing. Without a confident meter `barPhase` equals `beatPhase` and
+`downbeatCount` does not advance. The tracker also calls it after each message, so the counters advance even if no
+visualizer is mounted.
+
+### The counters pattern
+`beatCount`, `downbeatCount` and `songChangeCount` only ever increase, across resets too. A render loop keeps the last
+value it saw and compares: `if (state.downbeatCount !== seen) { seen = state.downbeatCount; /* it happened */ }`. No
+events, listeners or allocation. Initialise `seen` from the current value when the scene is built so a mounting
+visualizer does not fire for a past beat. Gate on `state.beatsPerBar !== undefined && state.meterConfidence >=
+METER_VISUAL_CONFIDENCE` before treating a downbeat as real.
+
+### Reset semantics
+- **Hard reset** (clears everything, increments `songChangeCount`): raw RMS below the floor for more than 1 s, or the
+  engine's analyser changes after something was analysed. An `undefined` analyser only stops the analysis; the last state
+  stays readable.
+- **Soft reset** (keeps 20% of the accumulated evidence, increments `songChangeCount`): the last 6 s of band energy and
+  chroma differ strongly from the previous 30 s, or the tempo estimate stays more than 5% away from the reference tempo
+  for 3 s (half and double tempo do not count). Cheap when it fires falsely, for example on a chorus.
+- **Always**: everything the meter learned has a ~20 s half-life, so an undetected change heals by itself. A rebuilt beat
+  grid (tempo jump, octave change) also shrinks the meter's evidence, without counting as a song change.
+
+### How a visualizer consumes it
+Call `useRhythm()` in the page and pass the tracker into `use<Name>Scene` (a stable instance, so no `useLatestRef`). In
+`update()`: `rhythm.updatePhase()`, then read `rhythm.state` and compare counters. See `useCubesScene.ts` (downbeat
+accent). Use `useBeatsPerBar()` / `useSongChangeCount()` only for UI that should re-render on those changes. The debug
+overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" in the control panel) polls `state` every
+100 ms like `PerformanceStats`.
+
+## 7. Build and deploy
 - `react-router build` produces `build/client` (static SPA, `index.html` prerendered) and a `build/server` used only during
   the build. `wrangler.jsonc` serves `build/client` with `not_found_handling: "single-page-application"`, so deep links
   load `index.html`.
