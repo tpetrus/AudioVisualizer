@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Entry JS: chunks index.html loads on first paint (gzip)",
+    "path": [
+      "build/client/assets/manifest-*.js",
+      "build/client/assets/entry.client-*.js",
+      "build/client/assets/jsx-runtime-*.js",
+      "build/client/assets/errorBoundaries-*.js",
+      "build/client/assets/root-*.js",
+      "build/client/assets/lib-*.js",
+      "build/client/assets/audioEngineContext-*.js",
+      "build/client/assets/rhythmConfig-*.js",
+      "build/client/assets/rhythmTrackerContext-*.js"
+    ],
+    "gzip": true,
+    "limit": "135 kB"
+  },
+  {
+    "name": "Total JS: every chunk in assets, including lazy routes and three.js (gzip)",
+    "path": "build/client/assets/*.js",
+    "gzip": true,
+    "limit": "290 kB"
+  },
+  {
+    "name": "Total CSS: every stylesheet in assets (gzip)",
+    "path": "build/client/assets/*.css",
+    "gzip": true,
+    "limit": "6 kB"
+  }
+]
