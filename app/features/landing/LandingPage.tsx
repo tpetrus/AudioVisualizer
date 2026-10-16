@@ -5,12 +5,8 @@ import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
 import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
+import { VISUALIZATIONS } from './visualizations';
 import { version } from '../../../package.json';
-
-const VISUALIZATIONS = [
-    { to: '/cubes', title: 'Cubes', image: '/visualization-images/cubes.png' },
-    { to: '/trio-color-wave', title: 'Trio color wave', image: '/visualization-images/trio-color-wave.png' },
-];
 
 export function LandingPage() {
     const engine = useAudio();
