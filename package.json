@@ -32,7 +32,7 @@
     "three": "^0.141.0"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.64.1",
     "@react-router/dev": "^8.4.0",
     "@size-limit/file": "^14.2.0",
@@ -41,7 +41,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.8",
-    "@types/node": "^26",
+    "@types/node": "^24",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@types/three": "^0.141.0",
@@ -57,7 +57,7 @@
     "prettier": "^3.9.10",
     "size-limit": "^14.2.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "^7.0.2",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.0.3",
     "vitest": "^5.0.4",
