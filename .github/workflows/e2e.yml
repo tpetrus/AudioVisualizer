@@ -16,6 +16,12 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The official Playwright image ships the browsers and their OS libraries, and gives every run the same fonts and
+    # rendering, which the visual-regression baselines in e2e/visual.spec.ts depend on. Keep the tag equal to the
+    # installed @playwright/test version (and to update-snapshots.yml); Dependabot bumps of Playwright need it bumped too.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host
     steps:
       - uses: actions/checkout@v7
 
@@ -26,30 +32,17 @@ jobs:
 
       - run: npm ci
 
-      - name: Read the installed Playwright version
-        id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      # A cache hit has the browser binary but not the OS libraries it needs, so those are always installed.
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - if: steps.browsers.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
       # The tests serve build/client with `wrangler dev`. Build only: deployment is done by Cloudflare Workers
       # Builds on push to main, never from CI.
+      # The build prerenders the SPA shell through a local Vite server. Inside the container "localhost" resolved to an
+      # address that server was not listening on (ECONNREFUSED), so ask Node to prefer IPv4.
       - run: npm run build
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
 
       - run: npm run test:e2e
 
+      # Includes the expected/actual/diff images of any failed visual comparison (under test-results/).
       - uses: actions/upload-artifact@v7
         if: always()
         with:

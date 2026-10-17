@@ -36,7 +36,7 @@ export function LandingPage() {
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
             {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
-            <span className="text-xs text-gray-500 pl-3">v{version}</span>
+            <span className="text-xs text-gray-400 pl-3">v{version}</span>
             <TitleBanner />
 
             {capturing && (
@@ -44,7 +44,7 @@ export function LandingPage() {
                     Audio source active ·{' '}
                     <button
                         type="button"
-                        className="text-gray-600 hover:text-gray-400"
+                        className="text-gray-400 hover:text-white"
                         onClick={() => setDialogOpen(true)}
                     >
                         Audio settings

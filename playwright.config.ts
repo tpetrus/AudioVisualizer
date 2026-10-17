@@ -2,7 +2,8 @@ import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = Boolean(process.env.CI);
-const PORT = 8787;
+// E2E_PORT lets a second checkout run the suite while another dev server already holds the default port.
+const PORT = Number(process.env.E2E_PORT ?? 8787);
 
 // Set BASE_URL to run the suite (or just the `@smoke` tests) against an already-running site, e.g. production:
 //   BASE_URL=https://example.com npx playwright test --grep @smoke
@@ -19,7 +20,13 @@ export default defineConfig({
     fullyParallel: true,
     // Software WebGL is slow, so allow generous time for the first frames and for the audio device to open.
     timeout: 60_000,
-    expect: { timeout: 10_000 },
+    expect: {
+        timeout: 10_000,
+        // Used only by e2e/visual.spec.ts. Baselines are Linux-only. maxDiffPixelRatio absorbs stray anti-aliasing pixels;
+        // threshold is the per-pixel colour tolerance, lowered from the 0.2 default because a clear colour change
+        // (a dark panel turning dark red) slipped under it.
+        toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, animations: 'disabled', caret: 'hide' },
+    },
     // Browsers sharing the one fake-microphone file made getUserMedia hang when run side by side (seen on Windows),
     // so run one at a time. fullyParallel still lets the suite scale up if that is ever fixed.
     workers: 1,

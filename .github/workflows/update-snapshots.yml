@@ -1,0 +1,67 @@
+name: Update visual snapshots
+
+# Regenerates the Linux baselines for e2e/visual.spec.ts and commits them back to the branch it was run on.
+# Run it from the Actions tab (choose the branch), or via the REST API:
+#   POST /repos/{owner}/{repo}/actions/workflows/update-snapshots.yml/dispatches   {"ref": "<branch>"}
+# Review the committed images in the PR diff before merging: a regenerated baseline is an accepted change.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-snapshots-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Must be the same image as the e2e job, and its tag must match the installed @playwright/test version, so the
+    # baselines are rendered by the same browser build and fonts that later compare against them.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      # Building only: deployment is done by Cloudflare Workers Builds on push to main, never from CI.
+      # The build prerenders the SPA shell through a local Vite server. Inside the container "localhost" resolved to an
+      # address that server was not listening on (ECONNREFUSED), so ask Node to prefer IPv4.
+      - run: npm run build
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
+
+      - run: npx playwright test e2e/visual.spec.ts --update-snapshots
+
+      # Commits only the snapshot directories, so nothing else the run produced can end up in the branch.
+      - name: Commit updated snapshots
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all -- 'e2e/*-snapshots/*'
+          if git diff --cached --quiet; then
+            echo "Snapshots are already up to date."
+          else
+            git commit -m "Update visual snapshots"
+            git push
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: update-snapshots-report
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
