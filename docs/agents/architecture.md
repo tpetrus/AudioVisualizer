@@ -81,7 +81,8 @@ layout("routes/requireAudioLayout.tsx", [          // visualizers need audio
 ]),
 ```
 Route modules are thin: `meta()` + a default-exported component that renders the feature page. All logic lives in
-`app/features/`. Landing cards are data (`VISUALIZATIONS` in `features/landing/LandingPage.tsx`).
+`app/features/`. Landing cards are data (`VISUALIZATIONS` in `features/landing/visualizations.ts`). The end-to-end tests
+import the same list, which is why it lives in its own module.
 
 SPA mode (`ssr: false`): `index.html` is prerendered at build time, so module-level code and `useState` initializers
 must not touch `window`/`document` unguarded. Browser-only work goes in effects or event handlers.
@@ -214,3 +215,8 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
   load `index.html`.
 - Static files in `public/` are served from `/` (e.g. `/fonts/x.json`, `/visualization-images/cubes.png`). Never write
   `/public/...` in a URL.
+- Cloudflare Workers Builds is connected to the GitHub repo. A push to `main` builds and deploys production; a PR branch
+  builds and deploys a preview (`wrangler preview`, which needs the empty `previews` block in `wrangler.jsonc`) and
+  posts its URL on the PR. GitHub Actions never deploys: it runs the checks in `AGENTS.md` ("CI and deploys") and, after
+  each production deploy, the `@smoke` tests against the live site (`smoke.yml`, triggered by Cloudflare's
+  "Workers Builds" check run on `main`).
