@@ -1,4 +1,5 @@
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
+import * as THREE from "three";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -21,6 +22,8 @@ export const links: Route.LinksFunction = () => [
     href: "https://fonts.googleapis.com/css2?family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oxygen+Mono&display=swap",
   },
 ];
+
+export const gateCheckThreeKeys = Object.keys(THREE).length;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
