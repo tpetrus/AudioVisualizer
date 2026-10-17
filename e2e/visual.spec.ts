@@ -46,6 +46,7 @@ test('audio source dialog', async ({ page }) => {
 
 for (const visualizer of VISUALIZERS_UNDER_TEST) {
     test(`${visualizer.name} settings panel`, async ({ page }) => {
+        test.setTimeout(120_000);
         // Fake timers (they still run in real time until paused) so the scene can be frozen below.
         await page.clock.install();
         await startVisualizer(page, visualizer);
@@ -62,6 +63,10 @@ for (const visualizer of VISUALIZERS_UNDER_TEST) {
         // The shot is clipped to the panel's box rather than taken with the locator form of the assertion: that form
         // first waits for the element to be "stable" across animation frames, and with the clock paused that wait is
         // unreliable (it passed on some runs and timed out on others). The page is frozen, so a clip is just as exact.
+        // The software-rendered scene can leave a backlog of frames that the first screenshot has to wait out (seconds
+        // on a CI runner), longer than the assertion's own timeout. Take that wait here, with a generous limit, so the
+        // assertion below sees an idle page.
+        await page.screenshot({ timeout: 60_000, type: 'jpeg', quality: 1 });
         const box = await panel.boundingBox();
         expect(box, 'the settings panel is laid out').not.toBeNull();
         await expect(page).toHaveScreenshot(`${visualizer.path.replace(/\W+/g, '')}-settings-panel.png`, {
