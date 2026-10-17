@@ -1,0 +1,4 @@
+/* Injected into visual-regression screenshots (see visual.spec.ts): the animated WebGL output is not compared. */
+canvas {
+    visibility: hidden !important;
+}
