@@ -30,7 +30,7 @@ jobs:
         # "actions" scans the workflow files themselves (script injection, excessive permissions, etc.).
         language: [javascript-typescript, actions]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: github/codeql-action/init@v3
         with:
