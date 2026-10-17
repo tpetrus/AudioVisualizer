@@ -59,8 +59,14 @@ for (const visualizer of VISUALIZERS_UNDER_TEST) {
         const panel = page.getByRole('button', { name: '✕ Close' }).locator('xpath=../..');
         // The panel is translucent over the canvas, so the canvas is hidden rather than masked (see HIDE_CANVAS). The
         // performance and rhythm overlays (time-varying numbers) are off by default and are never opened here.
-        await expect(panel).toHaveScreenshot(`${visualizer.path.replace(/\W+/g, '')}-settings-panel.png`, {
+        // The shot is clipped to the panel's box rather than taken with the locator form of the assertion: that form
+        // first waits for the element to be "stable" across animation frames, and with the clock paused that wait is
+        // unreliable (it passed on some runs and timed out on others). The page is frozen, so a clip is just as exact.
+        const box = await panel.boundingBox();
+        expect(box, 'the settings panel is laid out').not.toBeNull();
+        await expect(page).toHaveScreenshot(`${visualizer.path.replace(/\W+/g, '')}-settings-panel.png`, {
             stylePath: HIDE_CANVAS,
+            clip: box!,
         });
     });
 }
