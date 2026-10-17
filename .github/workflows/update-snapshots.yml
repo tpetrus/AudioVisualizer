@@ -6,10 +6,6 @@ name: Update visual snapshots
 # Review the committed images in the PR diff before merging: a regenerated baseline is an accepted change.
 on:
   workflow_dispatch:
-  # TEMPORARY: a workflow_dispatch workflow cannot be dispatched until it exists on the default branch, so this branch
-  # generates its first baselines on push. Removed in the next commit.
-  push:
-    branches: [ci/a11y-visual]
 
 permissions:
   contents: write
