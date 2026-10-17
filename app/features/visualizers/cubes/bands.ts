@@ -1,4 +1,4 @@
-export const MIN_FREQUENCY = 40;
+export const MIN_FREQUENCY   =   40;
 export const MAX_FREQUENCY = 14000;
 
 // FFT bin range [start, end) covered by one band.
