@@ -44,3 +44,5 @@ export function updateBandLevels(
         levels[band] = target > level ? level + (target - level) * 0.6 : level * smoothing + target * (1 - smoothing);
     }
 }
+
+const unusedGateCheckValue = 42;
