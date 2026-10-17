@@ -14,10 +14,6 @@ on:
   # Heartbeat: catches the site breaking without a deploy (e.g. a Cloudflare-side change).
   schedule:
     - cron: '17 6 * * *'
-  # TEMPORARY, to test this workflow from its branch before it exists on main (remove before merging).
-  pull_request:
-    paths:
-      - .github/workflows/smoke.yml
 
 permissions:
   contents: read
