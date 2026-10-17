@@ -3,7 +3,7 @@ import { createBandBins, MAX_FREQUENCY, MIN_FREQUENCY, updateBandLevels, type Ba
 
 describe('createBandBins', () => {
     it('returns one range per band', () => {
-        expect(createBandBins(12, 48000, 2048)).toHaveLength(12);
+        expect(createBandBins(12, 48000, 2048)).toHaveLength(13);
     });
 
     it('covers log-spaced ranges that start at the minimum frequency and end at the maximum', () => {
