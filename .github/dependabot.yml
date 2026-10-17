@@ -8,6 +8,11 @@ updates:
     open-pull-requests-limit: 5
     # One PR for routine dev-tooling bumps and one for routine runtime bumps; majors arrive as separate PRs.
     groups:
+      # react-router, @react-router/node and @react-router/dev share one version line and break if they drift,
+      # so they update in a single PR (this group takes precedence over the generic ones below).
+      react-router:
+        patterns: ['react-router', '@react-router/*']
+        update-types: [minor, patch]
       dev-dependencies:
         dependency-type: development
         update-types: [minor, patch]
@@ -20,6 +25,15 @@ updates:
       - dependency-name: '@types/three'
       # eslint-plugin-jsx-a11y does not support ESLint 10 yet, so skip major bumps until it does.
       - dependency-name: eslint
+        update-types: ['version-update:semver-major']
+      # @eslint/js must stay on the same major as eslint (9), so it is held back together with it.
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      # typescript-eslint only supports TypeScript <6.1, so a TypeScript major breaks `npm ci` (ERESOLVE) until it catches up.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # @types/node must track the Node major in .nvmrc / engines (24), not the newest Node release.
+      - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
