@@ -1,0 +1,105 @@
+name: Smoke (production)
+
+# Runs the `@smoke` Playwright tests against the live site after each production deploy. This workflow never deploys:
+# Cloudflare Workers Builds deploys on every push to main. It is not a required status check, because it runs after
+# the merge, not before it.
+#
+# The `check_run` trigger only fires for workflow files on the default branch. Cloudflare reports its build as the
+# check run "Workers Builds: audio-visualizer", which is "completed / success" once the deploy has gone live, so no
+# waiting or polling is needed here.
+on:
+  check_run:
+    types: [completed]
+  workflow_dispatch:
+  # Heartbeat: catches the site breaking without a deploy (e.g. a Cloudflare-side change).
+  schedule:
+    - cron: '17 6 * * *'
+  # TEMPORARY, to test this workflow from its branch before it exists on main (remove before merging).
+  pull_request:
+    paths:
+      - .github/workflows/smoke.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.event.check_run.head_sha || github.ref }}
+  cancel-in-progress: false
+
+env:
+  PRODUCTION_URL: https://audio-visualizer.mypoke.workers.dev
+
+jobs:
+  smoke:
+    # check_run fires for every check on every branch, so only the successful production deploy on main is let through.
+    # `head_branch` is on the check suite in the webhook payload, not on the check run itself.
+    if: >-
+      github.event_name != 'check_run' || (
+      github.event.check_run.name == 'Workers Builds: audio-visualizer' &&
+      github.event.check_run.conclusion == 'success' &&
+      github.event.check_run.check_suite.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # A check_run run starts on the default branch's latest commit, which may be newer than the deployed one, so
+      # check out the commit that was deployed. The other triggers use their default ref.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.check_run.head_sha || '' }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Read the installed Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      # A cache hit has the browser binary but not the OS libraries it needs, so those are always installed.
+      - if: steps.browsers.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - if: steps.browsers.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Smoke test production
+        run: npm run test:smoke
+        env:
+          BASE_URL: ${{ env.PRODUCTION_URL }}
+
+      - name: Summarise the failure
+        if: failure()
+        env:
+          COMMIT: ${{ github.event.check_run.head_sha || github.sha }}
+        run: |
+          {
+            echo "## Production smoke test failed"
+            echo
+            echo "- Site: ${PRODUCTION_URL}"
+            echo "- Commit: \`${COMMIT}\`"
+            echo
+            echo "Roll back the bad deploy by hand (this workflow never does it for you):"
+            echo
+            echo "- Cloudflare dashboard: Workers & Pages > audio-visualizer > Deployments > pick the last good version > Rollback"
+            echo "- CLI: \`npx wrangler rollback\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-smoke
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 14
