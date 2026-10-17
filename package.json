@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
     "test:e2e:install": "playwright install --with-deps chromium",
     "e2e:fixture": "esbuild e2e/fixtures/generate-fixture.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/generate-fixture.mjs && node node_modules/.cache/generate-fixture.mjs",
     "eval:rhythm": "esbuild scripts/eval-rhythm.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/eval-rhythm.mjs && node node_modules/.cache/eval-rhythm.mjs",
