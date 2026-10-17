@@ -32,7 +32,7 @@
     "three": "^0.141.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@react-router/dev": "^8.4.0",
     "@size-limit/file": "^14.2.0",
