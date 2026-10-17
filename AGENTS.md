@@ -154,4 +154,9 @@ tests" in `docs/agents/conventions.md`.
 - **Screen capture is stubbed in E2E.** Tests that switch to screen capture replace `getDisplayMedia` with an oscillator
   stream (the OS picker can't be automated), and the Cubes source-switch test doesn't assert that the canvas renders
   after the switch: reading pixels there timed out on CI for reasons not yet understood.
+- **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
+  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, and `npm ci` then fails in CI ("Missing: … from lock
+  file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
+  restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
+  `npm install`.
 - **E2E runs one worker.** With more, Chromium's fake microphone hung on Windows, so the suite runs serially.
