@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = Boolean(process.env.CI);
@@ -12,9 +11,6 @@ const PORT = Number(process.env.E2E_PORT ?? 8787);
 const externalBaseURL = process.env.BASE_URL;
 const baseURL = externalBaseURL ?? `http://localhost:${PORT}`;
 
-// A short click track at 120 BPM. Chromium loops it as the fake microphone, so every test hears the same audio.
-const FAKE_AUDIO_FILE = resolve(import.meta.dirname, 'e2e/fixtures/beat-120bpm.wav');
-
 export default defineConfig({
     testDir: 'e2e',
     fullyParallel: true,
@@ -27,12 +23,12 @@ export default defineConfig({
         // (a dark panel turning dark red) slipped under it.
         toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, animations: 'disabled', caret: 'hide' },
     },
-    // Browsers sharing the one fake-microphone file made getUserMedia hang when run side by side (seen on Windows),
-    // so run one at a time. fullyParallel still lets the suite scale up if that is ever fixed.
+    // Every worker's browser plays its own copy of the fake-microphone file (see e2e/fixtures.ts), so workers do not
+    // interfere. Sharing one file made getUserMedia hang when browsers ran side by side, which once forced one worker.
     workers: 1,
     forbidOnly: CI,
     retries: CI ? 2 : 0,
-    reporter: [['list'], ['html', { open: 'never' }]],
+    reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]], // TEMP-MEASURE
     use: {
         baseURL,
         trace: 'retain-on-failure',
@@ -46,10 +42,10 @@ export default defineConfig({
                 ...devices['Desktop Chrome'],
                 launchOptions: {
                     args: [
-                        // Auto-accept getUserMedia and serve a fake input device that plays FAKE_AUDIO_FILE.
+                        // Auto-accept getUserMedia and serve a fake input device. The audio file it plays is added
+                        // per worker by the launchOptions fixture in e2e/fixtures.ts.
                         '--use-fake-ui-for-media-stream',
                         '--use-fake-device-for-media-stream',
-                        `--use-file-for-fake-audio-capture=${FAKE_AUDIO_FILE}`,
                         '--autoplay-policy=no-user-gesture-required',
                         // The visualizers need WebGL; CI runners have no GPU, so render in software.
                         '--use-angle=swiftshader',
