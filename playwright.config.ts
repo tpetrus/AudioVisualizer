@@ -22,8 +22,10 @@ export default defineConfig({
     timeout: 60_000,
     expect: {
         timeout: 10_000,
-        // Used only by e2e/visual.spec.ts. Baselines are Linux-only; the tolerance absorbs sub-pixel anti-aliasing noise.
-        toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled', caret: 'hide' },
+        // Used only by e2e/visual.spec.ts. Baselines are Linux-only. maxDiffPixelRatio absorbs stray anti-aliasing pixels;
+        // threshold is the per-pixel colour tolerance, lowered from the 0.2 default because a clear colour change
+        // (a dark panel turning dark red) slipped under it.
+        toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, animations: 'disabled', caret: 'hide' },
     },
     // Browsers sharing the one fake-microphone file made getUserMedia hang when run side by side (seen on Windows),
     // so run one at a time. fullyParallel still lets the suite scale up if that is ever fixed.
