@@ -12,7 +12,6 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
             return (
                 <input
                     type="range"
-                    id={definition.key}
                     min={definition.min}
                     max={definition.max}
                     step={definition.step}
