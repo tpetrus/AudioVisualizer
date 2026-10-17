@@ -38,7 +38,11 @@ jobs:
       - run: npm ci
 
       # Building only: deployment is done by Cloudflare Workers Builds on push to main, never from CI.
+      # The build prerenders the SPA shell through a local Vite server. Inside the container "localhost" resolved to an
+      # address that server was not listening on (ECONNREFUSED), so ask Node to prefer IPv4.
       - run: npm run build
+        env:
+          NODE_OPTIONS: --dns-result-order=ipv4first
 
       - run: npx playwright test e2e/visual.spec.ts --update-snapshots
 
