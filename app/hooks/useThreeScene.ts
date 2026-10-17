@@ -74,7 +74,6 @@ export function useThreeScene(
         } catch (error) {
             disposeScene(scene);
             renderer.dispose();
-            renderer.forceContextLoss();
             throw error;
         }
 
@@ -111,7 +110,6 @@ export function useThreeScene(
             handle.dispose?.();
             disposeScene(scene);
             renderer.dispose();
-            renderer.forceContextLoss();
             canvas.remove();
         };
 
