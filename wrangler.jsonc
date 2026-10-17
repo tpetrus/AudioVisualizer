@@ -11,4 +11,7 @@
   "observability": {
     "enabled": true,
   },
+  // Workers Builds runs `wrangler preview` for non-production branches, and that command fails unless this block
+  // exists. It can be empty: assets and compatibility settings stay at the top level.
+  "previews": {},
 }
