@@ -106,7 +106,9 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Tailwind utility classes in JSX by default. Repeated class strings become named constants (`buttonStyles.ts`).
 - Use a CSS Module (`X.module.css`, camelCase class names) only for real stylesheet needs. Scope element selectors under
   the root class (`.panel button`) and mind specificity (`.panel .fieldReset`); CSS Modules only rename classes.
-- Theme tokens go in `app/app.css` (`@theme`). `tailwind.config.js` is not used by Tailwind 4.
+- Theme tokens go in `app/app.css` (`@theme`); there is no Tailwind config file.
+- Fonts are self-hosted (Inter from `@fontsource-variable/inter`, declared in `app/app.css` with `font-display: swap`).
+  Don't add stylesheets or fonts from third-party origins: they block rendering on `/`, which Lighthouse gates.
 
 ## Errors and edge cases
 - localStorage: only through `storage.ts`. Reads fall back to defaults and merge stored settings over them.
@@ -149,10 +151,13 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Locate elements by role and accessible name (`getByRole`, `getByLabelText`), not CSS classes. Wait with web-first
   assertions or `expect.poll`, never fixed sleeps. Software WebGL is slow, so the timeouts are generous; don't rely on
   retries, because a test that passes only on retry is flaky and must be fixed.
-- Opt into the `screenCaptureStub` fixture only in tests that need screen capture; everything else uses the real
-  browser APIs.
+- Screen capture needs no stub: `--use-fake-ui-for-media-stream` makes the browser's own `getDisplayMedia` return the
+  fake input device, so use `chooseScreenCapture`. To check that a scene is still rendering (especially right after a
+  source change), use `trackRenderedFrames` + `expectSceneStillDrawing` (a draw-call counter) rather than a pixel
+  read-back, which waits behind queued software-GL frames and can take many seconds.
 - Leaks are checked by counting live WebGL contexts (`trackWebGLContexts`, `liveWebGLContexts`). A scene must release
-  its context on unmount (`useThreeScene` calls `forceContextLoss()`).
+  its context on unmount (`useThreeScene` calls `forceContextLoss()`). The landing page owns none: its title is an
+  image.
 - Accessibility: call `expectNoA11yViolations` (in `e2e/a11y.ts`) on new pages and dialogs. Serious and critical
   violations fail; fix them in the app rather than excluding rules.
 - Visual regression (`e2e/visual.spec.ts`) screenshots UI only, with the canvas hidden or masked, against Linux

@@ -91,6 +91,7 @@ virtual audio cable.
 | End-to-end tests in Chromium (after a build) | `npm run test:e2e` (first time: `npm run test:e2e:install`) |
 | Smoke tests against the live site | `npm run test:smoke` |
 | Rhythm accuracy on labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` |
+| Regenerate the landing card images / the landing title image | `npm run images` / `npm run title-banner` |
 | Serve the build locally like production | `npm run preview` |
 
 Node 24 is required (`.nvmrc`).
