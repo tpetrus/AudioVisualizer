@@ -26,6 +26,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Needs only node and the lockfile, so it runs before `npm ci` and turns npm's cryptic "Missing: ... from lock
+      # file" into a message that says which entries are gone and how to restore them.
+      - run: node scripts/check-lockfile.ts
+
       - run: npm ci
 
       # Production dependencies are what ships to users, so high/critical advisories block.
