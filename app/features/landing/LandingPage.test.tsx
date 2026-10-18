@@ -27,6 +27,13 @@ describe('LandingPage', () => {
         expect(screen.getByText('More coming soon')).toBeInTheDocument();
     });
 
+    it('prioritises only the first card image, which is the largest contentful paint', () => {
+        renderWithProviders(<LandingPage />, { engine: capturingEngine() });
+
+        expect(screen.getByRole('img', { name: 'Cubes' })).toHaveAttribute('fetchpriority', 'high');
+        expect(screen.getByRole('img', { name: 'Trio color wave' })).not.toHaveAttribute('fetchpriority');
+    });
+
     describe('when a saved source reopens', () => {
         it('goes straight to the visualizations without the audio dialog', async () => {
             const engine = capturingEngine();
