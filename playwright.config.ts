@@ -43,6 +43,11 @@ export default defineConfig({
         {
             name: 'chromium',
             use: {
+                // Keep the default 1280x720 viewport. Shrinking it was measured on CI (ubuntu-latest, 1 worker, two
+                // runs each) and did not make the suite faster, so the software-WebGL cost is not driven by canvas
+                // size: 1280x720 took 208 s and 224 s, 960x540 took 179 s and 222 s, 640x360 took 228 s and 242 s.
+                // A width under 768 px also switches the audio source dialog to one column (Tailwind `md`), which
+                // would change what the tests and the accessibility scans cover. e2e/visual.spec.ts sets its own size.
                 ...devices['Desktop Chrome'],
                 launchOptions: {
                     args: [
