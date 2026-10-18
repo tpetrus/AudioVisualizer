@@ -2,6 +2,7 @@ import { expect, expectCanvasRendering, expectSingleCanvas, test } from './fixtu
 
 test('landing page renders the title, the cards and the audio source dialog', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
+    expect(false).toBe(true); // tmp failure check
 
     await expect(page).toHaveTitle('Audio Visualizer');
     await expect(page.getByRole('heading', { level: 1, name: 'AudioVisualizer' })).toBeAttached();
