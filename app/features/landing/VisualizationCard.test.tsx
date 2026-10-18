@@ -29,8 +29,8 @@ describe('VisualizationCard', () => {
         const sources = [...container.querySelectorAll('picture > source')];
         expect(sources.map((source) => source.getAttribute('type'))).toEqual(['image/avif', 'image/webp']);
         expect(sources.map((source) => source.getAttribute('srcset'))).toEqual([
-            '/cubes-640.avif 640w, /cubes-1280.avif 1280w',
-            '/cubes-640.webp 640w, /cubes-1280.webp 1280w',
+            '/cubes-640.avif 640w, /cubes-1200.avif 1200w',
+            '/cubes-640.webp 640w, /cubes-1200.webp 1200w',
         ]);
         expect(sources.map((source) => source.getAttribute('sizes'))).toEqual(['33vw', '33vw']);
         expect(container.querySelector('picture > img')).toBe(screen.getByRole('img', { name: 'Cubes' }));
@@ -40,8 +40,8 @@ describe('VisualizationCard', () => {
         renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} />);
 
         const img = screen.getByRole('img', { name: 'Cubes' });
-        expect(img).toHaveAttribute('width', '1280');
-        expect(img).toHaveAttribute('height', '960');
+        expect(img).toHaveAttribute('width', '1200');
+        expect(img).toHaveAttribute('height', '900');
         expect(img).toHaveAttribute('decoding', 'async');
     });
 
