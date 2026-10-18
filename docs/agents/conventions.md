@@ -22,8 +22,19 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   type-only imports (`verbatimModuleSyntax` is on).
 - Private helpers that a component needs only locally (e.g. `SourceCard` in `SourceChooser.tsx`) may live in the same
   file without being exported.
-- Match the surrounding file's formatting: `app/features` and `app/components` use 4-space indent and single quotes;
-  the template-generated `app/root.tsx`/`app/routes/*` use 2 spaces and double quotes.
+- Formatting is Prettier's (`.prettierrc.json`): run `npm run format` rather than formatting by hand. It gives
+  `app/features` and `app/components` 4-space indent and single quotes, and keeps the template-generated
+  `app/root.tsx`/`app/routes.ts`/`app/routes/*` at 2 spaces and double quotes. Markdown is not run through Prettier
+  (hand-wrapped at 120 columns, with tables), so match the surrounding doc.
+
+## Linting
+- `npm run lint` runs ESLint with type-aware typescript-eslint rules, react-hooks (`exhaustive-deps` is an error) and
+  jsx-a11y. It also enforces the named-exports rule and forbids app code importing from `e2e/`.
+- Fix the finding rather than silencing it. When a disable is genuinely right, keep it to one line, name the rule and
+  give the reason after `--`: `// eslint-disable-next-line <rule> -- <why>`. Don't turn rules off in `eslint.config.js`
+  to get a change through.
+- Async event handlers on JSX attributes are allowed (`no-misused-promises` has `checksVoidReturn.attributes` off), and
+  unused parameters may be prefixed with `_`.
 
 ## Comments
 - Explain **why** (intent, constraints, the bug a line avoids), not what the code says. Write full sentences, placed above
@@ -125,24 +136,29 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Keep the specs honest about the contracts in architecture.md: assert that resources are freed (dispose, disconnect,
   listeners removed) as well as that the happy path works.
 
-## Testing
-- Specs are co-located: `foo.ts` has `foo.test.ts(x)` beside it. The 95% coverage threshold (`npm run test:coverage`)
-  covers every file under `app/`, so a new file needs a spec in the same change. Don't add `v8 ignore` comments or
-  coverage excludes to get there.
-- The default environment is node, which is fastest and right for pure maths and classes. A spec that needs the DOM
-  starts with `// @vitest-environment jsdom`.
-- Test classes and pure functions directly, with plain inputs and outputs. Only hooks and components need React;
-  render them with Testing Library (`renderHook`, `render`), and use `renderWithProviders` when they need the audio or
-  rhythm context.
-- Prefer the shared fakes in `app/test/` (`fakeWebAudio`, `fakeMedia`, `fakeThree`, `fakeResizeObserver`,
-  `fakeEngines`) over ad-hoc mocks, so every spec fakes the browser the same way. If a fake lacks a member, add it
-  there rather than patching it locally. They install through `vi.stubGlobal`, which `setup.ts` undoes after each test.
-- To fake the GPU, mock `three` with a dynamic import inside the factory, because `vi.mock` is hoisted above the
-  imports: `vi.mock('three', async (importOriginal) => { const { threeFakes } = await import('~/test/fakeThree');
-  return { ...(await importOriginal<typeof import('three')>()), ...threeFakes }; })`. Only the renderer and PMREM
-  generator are replaced; the rest of three runs for real. Drive frames with `FakeRenderer.last.renderFrame(time)`.
-- `userEvent` waits on timers, so it hangs under fake timers unless you pass
-  `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`. Fake only the timers you need
-  (`vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] })`) so Testing Library's own polling keeps
-  working, and wrap manual `vi.advanceTimersByTime` calls in `act`.
-- Assert that resources are freed (dispose, disconnect, listeners removed) as well as that the happy path works.
+## End-to-end tests
+- Playwright specs live in `e2e/` and run against the production build served by `wrangler dev` (`npm run build` first,
+  then `npm run test:e2e`). Chromium gets a fake microphone that plays `e2e/fixtures/beat-120bpm.wav`
+  (`npm run e2e:fixture` regenerates it from `app/features/rhythm/testSignals.ts`) and software WebGL (SwiftShader).
+- Import `test` and `expect` from `./fixtures`, not from `@playwright/test`. The `problems` fixture fails a test on any
+  page error, console error or "Too many active WebGL contexts" warning. Add to its allowlist only for noise the app
+  can't fix, with a reason.
+- Never hardcode the list of visualizers or their controls. Loop over `VISUALIZERS_UNDER_TEST` (from the app's
+  `VISUALIZATIONS`), and derive control values from each input's own `min`/`max`/`step`, so a new visualizer is tested
+  without touching `e2e/`.
+- Locate elements by role and accessible name (`getByRole`, `getByLabelText`), not CSS classes. Wait with web-first
+  assertions or `expect.poll`, never fixed sleeps. Software WebGL is slow, so the timeouts are generous; don't rely on
+  retries, because a test that passes only on retry is flaky and must be fixed.
+- Opt into the `screenCaptureStub` fixture only in tests that need screen capture; everything else uses the real
+  browser APIs.
+- Leaks are checked by counting live WebGL contexts (`trackWebGLContexts`, `liveWebGLContexts`). A scene must release
+  its context on unmount (`useThreeScene` calls `forceContextLoss()`).
+- Accessibility: call `expectNoA11yViolations` (in `e2e/a11y.ts`) on new pages and dialogs. Serious and critical
+  violations fail; fix them in the app rather than excluding rules.
+- Visual regression (`e2e/visual.spec.ts`) screenshots UI only, with the canvas hidden or masked, against Linux
+  baselines. It skips on Windows and macOS. To accept a deliberate change, run the "Update visual snapshots" workflow on
+  your branch, review the images in the PR diff, then push a commit so the checks run again.
+- Tag a test `@smoke` only if it needs no audio fixture and is safe against production; `npm run test:smoke` and the
+  post-deploy workflow run exactly those.
+- `e2e/` is its own TypeScript program (`e2e/tsconfig.json`), so its exports never show up as auto-imports in app code.
+  Keep helpers there unexported unless another spec needs them.

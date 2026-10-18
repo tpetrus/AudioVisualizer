@@ -187,9 +187,11 @@ public/visualization-images/<kebab-name>.png   landing thumbnail (4:3)
    ]),
    ```
 
-7. **Landing card**: add an entry to `VISUALIZATIONS` in `app/features/landing/LandingPage.tsx` and the thumbnail to
+7. **Landing card**: add an entry to `VISUALIZATIONS` in `app/features/landing/visualizations.ts` and the thumbnail to
    `public/visualization-images/` (URL `/visualization-images/<kebab-name>.png`, never `/public/...`). Keep the grid in
-   step: the "More coming soon" tile fills the last cell.
+   step: the "More coming soon" tile fills the last cell. The end-to-end tests read this list, so the new visualizer is
+   tested automatically (rendering, controls, source switching, WebGL leak check, accessibility, deep links). Don't
+   edit `e2e/` for it. Keep the thumbnail small (resized to the card's size, ideally WebP): Lighthouse checks `/`.
 
 8. **Specs**: co-locate a `.test.ts(x)` with each file you added: the pure maths and the mesh/sheet classes (node
    environment, tested directly), the scene hook (jsdom, with the `three` mock and `FakeRenderer` from
@@ -197,13 +199,21 @@ public/visualization-images/<kebab-name>.png   landing thumbnail (4:3)
    Also cover the route module's `meta()` and default export. Follow "Testing" in `docs/agents/conventions.md` and keep
    `npm run test:coverage` green (95% across the board).
 
+9. **Visual baselines**: the new card changes the landing-page screenshot, and the new settings panel gets a screenshot
+   of its own, so the `e2e` check fails on the PR until the baselines are regenerated. Push the branch, run the "Update
+   visual snapshots" workflow on it from the Actions tab, check the committed images in the PR diff, then push any
+   commit (an empty one is fine) so the checks run again. See "CI and deploys" in `AGENTS.md`.
+
 ## Checklist before finishing
 - [ ] No React state read inside `update`; everything changing comes through refs.
 - [ ] No allocations inside `update`; buffers and scratch objects preallocated.
 - [ ] Everything created is freed: mesh classes `dispose()`, tapped analysers disconnected (try/catch), orbit disposed.
 - [ ] Audio rebinding handled with `source !== boundAnalyser`; switching source in "Audio settings" keeps the scene.
 - [ ] Named exports (except the route module); `~/` imports outside the folder; comments explain why.
-- [ ] `npm run typecheck`, `npm run test:coverage` and `npm run build` pass.
+- [ ] `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run build`,
+      `npm run size` and `npm run test:e2e` pass. If the bundle budget fails because the new scene is legitimately
+      bigger, raise the limit in `.size-limit.json` in the same change and say why.
+- [ ] Visual baselines regenerated on the PR branch and reviewed (step 9).
 - [ ] In `npm run dev`: the card enables after choosing a source, the visualizer reacts, controls work (including
       `shownWhen`), lock/reset view work, resize works, navigating away and back 10 times leaves no console errors or
       WebGL-context warnings, and a direct visit without audio redirects to `/`.

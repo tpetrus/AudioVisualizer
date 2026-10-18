@@ -8,16 +8,25 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Task | Command |
 |---|---|
 | Dev server (HMR) | `npm run dev` |
-| Type-check (also regenerates route types) | `npm run typecheck` |
+| Format all files / check formatting (Prettier) | `npm run format` / `npm run format:check` |
+| Lint (ESLint, type-aware) | `npm run lint` |
+| Type-check the app and `e2e/` (also regenerates route types) | `npm run typecheck` |
 | Unit tests (vitest, node environment by default) | `npm run test` |
 | Unit tests with coverage (fails under 95%) | `npm run test:coverage` |
-| Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
 | Production build (static SPA → `build/client`) | `npm run build` |
+| Bundle-size budget (reads the existing build) | `npm run size` |
+| End-to-end tests (Playwright; builds must exist, serves via wrangler) | `npm run test:e2e` (first time: `npm run test:e2e:install`) |
+| Only the visual-regression specs (Linux baselines) | `npm run test:e2e:visual` |
+| Smoke tests against production (or `BASE_URL`) | `npm run test:smoke` |
+| Lighthouse budget on `/` (reads the existing build) | `npm run lighthouse` |
+| Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
+| Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
-| Deploy to Cloudflare | `npm run deploy` |
+| Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
-Before finishing any change: `npm run typecheck`, `npm run test`, `npm run test:coverage` and `npm run build` must all pass with no errors. For anything that
-renders, also check it in `npm run dev` (see "Verifying changes" below).
+Before finishing any change: `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` and
+`npm run build` must pass with no errors. For anything that renders, also run `npm run test:e2e` and check it in
+`npm run dev` (see "Verifying changes" below). CI runs all of these on every pull request.
 
 ## Stack
 - **React 19 + React Router 8 in framework mode, SPA (`ssr: false`).** Routes live in `app/routes.ts`; route modules in
@@ -27,6 +36,10 @@ renders, also check it in `npm run dev` (see "Verifying changes" below).
 - **Tailwind CSS 4** via `@tailwindcss/vite`, entry `app/app.css`. CSS Modules only where a component needs real CSS.
 - **TypeScript strict**, path alias `~/` → `app/` (from `tsconfig.json` `paths`).
 - **Deploy:** Cloudflare Workers static assets (`wrangler.jsonc` serves `build/client`, SPA fallback for deep links).
+  Cloudflare Workers Builds deploys every push to `main` to production (https://audio-visualizer.mypoke.workers.dev)
+  and every PR branch to a preview URL. GitHub Actions only checks; it never deploys.
+- **Tooling:** Node 24 (`.nvmrc`), Prettier, ESLint 9 flat config (`eslint.config.js`), Vitest, Playwright (Chromium),
+  size-limit, Lighthouse CI. Workflows live in `.github/workflows/`.
 
 ## Where things live
 ```
@@ -44,6 +57,10 @@ app/
   test/                          shared test fakes and helpers (not shipped)
   lib/three/                     three.js helpers (disposeScene, createOrbitView)
 public/                          static files served from / (fonts/, visualization-images/)
+e2e/                             Playwright specs and fixtures; its own TypeScript program (e2e/tsconfig.json)
+  visual.spec.ts-snapshots/      Linux screenshot baselines (regenerate with the "Update visual snapshots" workflow)
+scripts/                         node scripts (rhythm evaluation, smoke-test runner)
+.github/                         CI workflows and Dependabot config
 ```
 
 ## Rules that matter most
@@ -72,12 +89,47 @@ Use `app/features/visualizers/cubes/` and `app/features/visualizers/trio-color-w
 implementations; new code should look like them.
 
 ## Verifying changes
-- `npm run typecheck`, `npm run test`, `npm run test:coverage` and `npm run build` pass.
-- In `npm run dev`: choose an audio source on `/`, open each visualizer, change controls, toggle the camera lock and reset
-  view, switch the audio source from the panel's "Audio settings", and navigate away and back several times. The console
-  must stay free of errors and of "Too many active WebGL contexts" warnings, and the page should contain one `<canvas>`
-  per scene.
-- Deploy-affecting changes: `npm run preview`, then load `/`, `/cubes` and `/trio-color-wave` directly by URL.
+- `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` and `npm run build` pass.
+- `npm run test:e2e` passes (after `npm run build`). It automates the manual checks below in Chromium with a fake
+  microphone and software WebGL: every visualizer renders one `<canvas>`, controls, camera lock and reset view work,
+  the audio source can be switched, round trips to each visualizer release their WebGL context, deep links redirect or
+  resume correctly, there are no serious axe violations, and the page logs no errors.
+- Still look at it in `npm run dev` when you change how something looks or moves: the tests check that the scene
+  renders and doesn't leak, not that it looks right. Choose an audio source on `/`, open each visualizer, change
+  controls, and watch the console for errors and "Too many active WebGL contexts" warnings.
+- Deploy-affecting changes: `npm run preview`, then load `/`, `/cubes` and `/trio-color-wave` directly by URL; the PR's
+  Cloudflare preview URL (posted on the PR) is the same check against the real host.
+
+## CI and deploys
+Every pull request runs these checks, and `main` requires them to pass before merging:
+
+| Check (workflow) | What it gates |
+|---|---|
+| `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
+| `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
+| `e2e` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container |
+| `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
+| `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
+| `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
+| Workers Builds (Cloudflare) | the PR builds and deploys to a preview URL |
+
+After a merge, Cloudflare deploys `main` to production and "Smoke (production)" (`smoke.yml`) runs the `@smoke` tests
+against the live site; it also runs daily. If it fails, roll back from the Cloudflare dashboard (Workers →
+audio-visualizer → Deployments) or with `npx wrangler rollback`, then fix forward. Never deploy from CI.
+
+When a gate fails:
+- **Budgets** (`.size-limit.json`, `lighthouserc.json`): if the growth or score drop is intended, change the limit in
+  the same PR and say why in the PR description. Don't loosen a limit to get an unrelated change through.
+- **Visual baselines**: a deliberate UI change (including a new visualizer, which adds a settings-panel screenshot and
+  changes the landing page) needs new baselines. Run the "Update visual snapshots" workflow on the PR branch from the
+  Actions tab, review the committed images in the PR diff, then push any commit (an empty one is fine) so the checks run
+  again; the bot's commit doesn't trigger them.
+- **Dependencies**: Dependabot opens weekly grouped PRs. It never updates `three`/`@types/three` (pinned), and skips
+  majors of `typescript`, `eslint`, `@eslint/js` and `@types/node` on purpose (see the comments in
+  `.github/dependabot.yml`).
+  Never merge a Dependabot PR with failing checks. `@playwright/test` must stay on the same version as the
+  `mcr.microsoft.com/playwright` image tag in `e2e.yml` and `update-snapshots.yml`; bump all three together and
+  regenerate the baselines.
 
 ## Testing
 Specs sit next to the file they test (`foo.ts` -> `foo.test.ts`). `npm run test:coverage` enforces 95% for lines,
@@ -87,6 +139,24 @@ excluding files. Specs run in node by default; DOM specs start with `// @vitest-
 `renderWithProviders`) replace ad-hoc mocks. Some rhythm specs use `it.fails` to record known tracker weaknesses;
 fixing one makes its test fail until `.fails` is removed. See "Testing" in `docs/agents/conventions.md`.
 
+End-to-end specs live in `e2e/` and read the visualizer list from `app/features/landing/visualizations.ts`, so a new
+visualizer is covered without editing them. Use the fixtures in `e2e/fixtures.ts` (they fail a test on any page error,
+console error or WebGL-context warning) and the helpers in `e2e/visualizers.ts`. App code must never import from `e2e/`
+(lint enforces it). Tag tests that are safe to run against production, with no audio fixture, `@smoke`. See "End-to-end
+tests" in `docs/agents/conventions.md`.
+
 ## Known gaps (don't copy, don't build on)
 - **Leftover Tailwind 3 / PostCSS config.** `tailwind.config.js` and `postcss.config.ts` are not used by the Tailwind 4
   Vite plugin. Configure Tailwind in `app/app.css` (`@theme`), not in those files.
+- **Performance is below target.** Lighthouse performance on `/` is about 0.85 against a 0.9 goal, so the gate is set to
+  0.75 for now (oversized card images, about 81 KiB of unused JS on `/`, hashed assets served with `max-age=0`). Raise
+  `lighthouserc.json` when that improves.
+- **Screen capture is stubbed in E2E.** Tests that switch to screen capture replace `getDisplayMedia` with an oscillator
+  stream (the OS picker can't be automated), and the Cubes source-switch test doesn't assert that the canvas renders
+  after the switch: reading pixels there timed out on CI for reasons not yet understood.
+- **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
+  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, and `npm ci` then fails in CI ("Missing: … from lock
+  file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
+  restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
+  `npm install`.
+- **E2E runs one worker.** With more, Chromium's fake microphone hung on Windows, so the suite runs serially.

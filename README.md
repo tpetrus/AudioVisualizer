@@ -83,12 +83,37 @@ virtual audio cable.
 | Task | Command |
 |---|---|
 | Dev server (hot reload) | `npm run dev` |
+| Format / lint | `npm run format` / `npm run lint` |
 | Type-check | `npm run typecheck` |
-| Unit tests | `npm run test` |
-| Rhythm accuracy on labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` |
+| Unit tests (with the 95% coverage check) | `npm run test` (`npm run test:coverage`) |
 | Production build | `npm run build` |
+| Bundle-size and Lighthouse budgets (after a build) | `npm run size`, `npm run lighthouse` |
+| End-to-end tests in Chromium (after a build) | `npm run test:e2e` (first time: `npm run test:e2e:install`) |
+| Smoke tests against the live site | `npm run test:smoke` |
+| Rhythm accuracy on labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` |
 | Serve the build locally like production | `npm run preview` |
-| Deploy to Cloudflare | `npm run deploy` |
+
+Node 24 is required (`.nvmrc`).
+
+## Tests and continuous integration
+
+Every pull request is checked by GitHub Actions before it can be merged:
+
+- **Quality:** formatting (Prettier), linting (ESLint), type checking, unit and component tests with at least 95%
+  coverage, and a production build.
+- **End-to-end:** Playwright drives Chromium with a fake microphone and software WebGL. It opens every visualizer,
+  changes controls, switches the audio source, checks that leaving a visualizer frees its graphics context, checks
+  deep links, runs axe accessibility checks and compares screenshots of the UI.
+- **Budgets:** gzip size limits on the JavaScript and CSS, and Lighthouse scores for the landing page.
+- **Security:** `npm audit`, GitHub's dependency review, and CodeQL. Dependabot opens weekly update PRs.
+
+Deploys are automatic: Cloudflare builds every PR to a preview URL (posted on the PR) and deploys `main` to production
+at https://audio-visualizer.mypoke.workers.dev. After each production deploy, and once a day, a smoke test checks the
+live site. If a deploy goes wrong, roll back from the Cloudflare dashboard or with `npx wrangler rollback`.
+
+Running a fork? The GitHub workflows run on your fork as they are. Deploys come from Cloudflare, not GitHub, so connect
+your own Cloudflare account to the repo (Workers Builds) or ignore that check, and change the production URL in
+`.github/workflows/smoke.yml` and `scripts/smoke.ts`.
 
 ## Make your own visualization
 
@@ -110,8 +135,10 @@ page from leaking memory or graphics resources. It lives in
    `/add-visualizer`).
 4. Check it in the browser, adjust the settings in the control panel, and iterate by describing what to change.
 
-Before you are done, `npm run typecheck`, `npm run test` and `npm run build` should all pass. Prefer to write it by hand?
-The same SKILL.md is a plain step-by-step guide.
+Before you are done, `npm run lint`, `npm run typecheck`, `npm run test:coverage`, `npm run build` and
+`npm run test:e2e` should all pass. The end-to-end tests pick up a new visualizer by themselves; the one extra step is
+regenerating the screenshot baselines on your PR (see the skill). Prefer to write it by hand? The same SKILL.md is a
+plain step-by-step guide.
 
 ## How it is built
 
