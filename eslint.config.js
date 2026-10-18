@@ -5,7 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
-// Files whose default export is required by a tool (React Router, Vite, Vitest, Tailwind, PostCSS) or by ESLint itself.
+// Files whose default export is required by a tool (React Router, Vite, Vitest, Playwright) or by ESLint itself.
 const DEFAULT_EXPORT_ALLOWED = [
     'app/root.tsx',
     'app/routes.ts',
@@ -15,8 +15,6 @@ const DEFAULT_EXPORT_ALLOWED = [
     'react-router.config.ts',
     'playwright.config.ts',
     'eslint.config.js',
-    'postcss.config.ts',
-    'tailwind.config.js',
 ];
 
 export default tseslint.config(
@@ -122,11 +120,6 @@ export default tseslint.config(
             '@typescript-eslint/no-floating-promises': 'off',
             '@typescript-eslint/prefer-promise-reject-errors': 'off',
         },
-    },
-    {
-        // These two leftover Tailwind/PostCSS configs are CommonJS-style and unused by the Tailwind 4 Vite plugin.
-        files: ['postcss.config.ts', 'tailwind.config.js'],
-        rules: { '@typescript-eslint/no-require-imports': 'off' },
     },
     {
         // Plain JS config files are not part of the TypeScript project, so type-aware rules cannot run on them.
