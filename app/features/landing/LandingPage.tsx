@@ -53,8 +53,13 @@ export function LandingPage() {
             )}
 
             <div className="grid grid-cols-3">
-                {VISUALIZATIONS.map((visualization) => (
-                    <VisualizationCard key={visualization.to} {...visualization} disabled={!capturing} />
+                {VISUALIZATIONS.map((visualization, index) => (
+                    <VisualizationCard
+                        key={visualization.to}
+                        {...visualization}
+                        disabled={!capturing}
+                        priority={index === 0}
+                    />
                 ))}
                 <ComingSoonCard />
             </div>
