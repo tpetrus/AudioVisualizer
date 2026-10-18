@@ -107,7 +107,7 @@ Every pull request runs these checks, and `main` requires them to pass before me
 |---|---|
 | `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
 | `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
-| `e2e` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container |
+| `e2e-result` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container, sharded automatically by test count (no edits as tests are added); `e2e-result` is the one check to require |
 | `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
 | `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
 | `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
@@ -159,4 +159,6 @@ tests" in `docs/agents/conventions.md`.
   file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
   restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
   `npm install`.
-- **E2E runs one worker.** With more, Chromium's fake microphone hung on Windows, so the suite runs serially.
+- **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
+  (measured; see the comment on `workers` in `playwright.config.ts`). Each worker gets its own copy of the fake-microphone
+  file (`e2e/fixtures.ts`), which avoids the getUserMedia hang that sharing one file caused on Windows.
