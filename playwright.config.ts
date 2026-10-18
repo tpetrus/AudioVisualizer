@@ -23,12 +23,16 @@ export default defineConfig({
         // (a dark panel turning dark red) slipped under it.
         toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, animations: 'disabled', caret: 'hide' },
     },
-    // Every worker's browser plays its own copy of the fake-microphone file (see e2e/fixtures.ts), so workers do not
-    // interfere. Sharing one file made getUserMedia hang when browsers ran side by side, which once forced one worker.
+    // One worker, on purpose: software WebGL (SwiftShader) is CPU-bound, so extra workers on a 4-vCPU runner starve each
+    // other and tests time out. Measured on CI over two runs, the whole suite took about 390-400 s with 1 worker,
+    // 415-485 s with 2 (flaky retries), and 560-670 s with 3 or 4 (several tests failing even after 2 retries). Speed on
+    // CI comes from splitting the suite across jobs, not from more workers per job.
+    // The fake microphone no longer limits this: each worker's browser plays its own copy of the audio file (see
+    // e2e/fixtures.ts), because browsers sharing one file once hung getUserMedia on Windows. No getUserMedia hang was seen on CI at 2-4 workers.
     workers: 1,
     forbidOnly: CI,
     retries: CI ? 2 : 0,
-    reporter: [['list'], ['html', { open: 'never' }], ['json', { outputFile: 'test-results/results.json' }]], // TEMP-MEASURE
+    reporter: [['list'], ['html', { open: 'never' }]],
     use: {
         baseURL,
         trace: 'retain-on-failure',
