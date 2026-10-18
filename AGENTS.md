@@ -107,7 +107,7 @@ Every pull request runs these checks, and `main` requires them to pass before me
 |---|---|
 | `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
 | `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
-| `e2e` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container |
+| `e2e-result` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container, sharded automatically by test count (no edits as tests are added); `e2e-result` is the one check to require |
 | `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
 | `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
 | `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
