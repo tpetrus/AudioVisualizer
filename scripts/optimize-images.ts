@@ -3,7 +3,7 @@
 // to 4:3 (the card's aspect ratio, so `object-cover` shows the same crop). The PNGs are only read, never modified.
 // Output is deterministic and files are rewritten only when their bytes change, so re-running is a no-op.
 // Usage: npm run images
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 // Shared with the card component so the generated files and the srcset it advertises cannot drift apart.
@@ -19,7 +19,11 @@ function kilobytes(bytes: number): string {
 
 // Writes only when the content differs, so unchanged output keeps its timestamp and git sees no change.
 function writeIfChanged(path: string, data: Buffer): void {
-    if (existsSync(path) && readFileSync(path).equals(data)) return;
+    try {
+        if (readFileSync(path).equals(data)) return;
+    } catch {
+        // No existing file to compare with.
+    }
     writeFileSync(path, data);
 }
 
