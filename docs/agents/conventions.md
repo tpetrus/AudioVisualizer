@@ -160,5 +160,11 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   your branch, review the images in the PR diff, then push a commit so the checks run again.
 - Tag a test `@smoke` only if it needs no audio fixture and is safe against production; `npm run test:smoke` and the
   post-deploy workflow run exactly those.
+- CI shards the suite automatically by test count (`e2e.yml`): the `e2e-plan` job runs `playwright test --list`, and
+  starts `ceil(tests / TESTS_PER_SHARD)` parallel `e2e` jobs, capped at `MAX_SHARDS`. Adding a test or a visualizer
+  needs no workflow edit and no change to the shard count. The single required check is `e2e-result`, whose name
+  doesn't change with the shard count.
+- Keep each test independent and short, and split a long scenario into several tests. Shards are balanced by test
+  count, not duration, so the slowest test sets the floor for a shard's time and a very long test cannot be spread out.
 - `e2e/` is its own TypeScript program (`e2e/tsconfig.json`), so its exports never show up as auto-imports in app code.
   Keep helpers there unexported unless another spec needs them.
