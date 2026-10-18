@@ -8,7 +8,7 @@ interface VisualizationCardProps {
     image: string;
     // True until an audio source is capturing; visualizations need audio to show anything.
     disabled: boolean;
-    // The card whose image is the largest contentful paint: fetched ahead of the others.
+    // Fetch the image ahead of the others. Only for the image that is the largest contentful paint (today the title).
     priority?: boolean;
 }
 

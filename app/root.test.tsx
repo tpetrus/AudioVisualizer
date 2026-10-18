@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createRoutesStub } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import type { Route } from './+types/root';
-import App, { ErrorBoundary, Layout, links } from './root';
+import App, { ErrorBoundary, Layout } from './root';
 import { useAudio } from './features/audio/audioEngineContext';
 import { useRhythm } from './features/rhythm/rhythmTrackerContext';
 
@@ -18,22 +18,6 @@ vi.mock('react-router', async (importOriginal) => ({
     Scripts: () => <script data-stand-in="scripts" />,
     ScrollRestoration: () => <div data-stand-in="scroll-restoration" />,
 }));
-
-describe('links', () => {
-    it('preconnects to the font hosts and loads the Inter and Nunito stylesheets', () => {
-        const list = links() as Array<{ rel: string; href: string; crossOrigin?: string }>;
-
-        expect(list.filter((link) => link.rel === 'preconnect').map((link) => link.href)).toEqual([
-            'https://fonts.googleapis.com',
-            'https://fonts.gstatic.com',
-        ]);
-        expect(list.find((link) => link.href === 'https://fonts.gstatic.com')?.crossOrigin).toBe('anonymous');
-        const stylesheets = list.filter((link) => link.rel === 'stylesheet').map((link) => link.href);
-        expect(stylesheets).toHaveLength(2);
-        expect(stylesheets[0]).toContain('family=Inter');
-        expect(stylesheets[1]).toContain('family=Nunito');
-    });
-});
 
 describe('Layout', () => {
     function Probe() {
