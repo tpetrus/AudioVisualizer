@@ -13,18 +13,18 @@
       "build/client/assets/rhythmTrackerContext-*.js"
     ],
     "gzip": true,
-    "limit": "135 kB"
+    "limit": "133 kB"
   },
   {
     "name": "Total JS: every chunk in assets, including lazy routes and three.js (gzip)",
     "path": "build/client/assets/*.js",
     "gzip": true,
-    "limit": "290 kB"
+    "limit": "275 kB"
   },
   {
     "name": "Total CSS: every stylesheet in assets (gzip)",
     "path": "build/client/assets/*.css",
     "gzip": true,
-    "limit": "6 kB"
+    "limit": "5.8 kB"
   }
 ]
