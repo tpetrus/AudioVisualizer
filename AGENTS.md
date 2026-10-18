@@ -159,4 +159,6 @@ tests" in `docs/agents/conventions.md`.
   file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
   restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
   `npm install`.
-- **E2E runs one worker.** With more, Chromium's fake microphone hung on Windows, so the suite runs serially.
+- **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
+  (measured; see the comment on `workers` in `playwright.config.ts`). Each worker gets its own copy of the fake-microphone
+  file (`e2e/fixtures.ts`), which avoids the getUserMedia hang that sharing one file caused on Windows.

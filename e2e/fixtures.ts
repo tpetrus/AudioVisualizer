@@ -1,4 +1,23 @@
+import { copyFileSync, existsSync, renameSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { expect, test as base, type Page } from '@playwright/test';
+
+// A short click track at 120 BPM. Chromium loops it as the fake microphone, so every test hears the same audio.
+const FAKE_AUDIO_SOURCE = resolve(import.meta.dirname, 'fixtures/beat-120bpm.wav');
+
+// Gives each worker a private copy of the fake-microphone file. Browsers pointed at one shared file made getUserMedia
+// hang when run side by side (seen on Windows). The copy lives in the temp directory, named by parallel index, and is
+// reused by later runs; it is written under a temporary name first so a worker never sees a half-written file.
+function fakeAudioFileFor(parallelIndex: number): string {
+    const target = join(tmpdir(), `audiovisualizer-e2e-beat-120bpm-${parallelIndex}.wav`);
+    if (!existsSync(target)) {
+        const partial = `${target}.${process.pid}.tmp`;
+        copyFileSync(FAKE_AUDIO_SOURCE, partial);
+        renameSync(partial, target);
+    }
+    return target;
+}
 
 // Browser problems that are tolerated in every test. Empty on purpose: add an entry only for noise we cannot fix, and
 // say why, so the list never becomes a place where real errors hide.
@@ -48,6 +67,21 @@ interface Fixtures {
 }
 
 export const test = base.extend<Fixtures>({
+    // Worker-scoped, so it works for any worker count with no configuration. Setting this from playwright.config.ts
+    // would rely on how the config is re-evaluated in each worker process, and on an env var that is unset in the main
+    // process; `workerInfo.parallelIndex` is the documented way to tell workers apart.
+    launchOptions: [
+        async ({ launchOptions }, use, workerInfo) => {
+            await use({
+                ...launchOptions,
+                args: [
+                    ...(launchOptions.args ?? []),
+                    `--use-file-for-fake-audio-capture=${fakeAudioFileFor(workerInfo.parallelIndex)}`,
+                ],
+            });
+        },
+        { scope: 'worker' },
+    ],
     problems: [
         async ({ page }, use) => {
             const problems: string[] = [];
