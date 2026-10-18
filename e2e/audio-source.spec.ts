@@ -64,7 +64,7 @@ test('landing page: the audio source can be changed from "Audio settings"', asyn
 
     // The cards stay enabled with the new source.
     await expect(page.getByRole('link', { name: 'Cubes' })).toBeVisible();
-    await expectSingleCanvas(page);
+    await expect(page.locator('canvas')).toHaveCount(0);
 });
 
 test('landing page: screen capture delivers live, non-silent audio from the browser itself', async ({ page }) => {

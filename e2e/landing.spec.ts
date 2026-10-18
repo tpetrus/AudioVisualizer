@@ -1,4 +1,4 @@
-import { expect, expectCanvasRendering, expectSingleCanvas, test } from './fixtures';
+import { expect, liveWebGLContexts, test, trackWebGLContexts } from './fixtures';
 
 test('landing page renders the title, the cards and the audio source dialog', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
@@ -15,7 +15,19 @@ test('landing page renders the title, the cards and the audio source dialog', { 
     await expect(dialog.getByRole('button', { name: 'Share audio' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Choose device' })).toBeVisible();
 
-    // The 3D title is the only canvas, and it has drawn something (so WebGL and the fonts both loaded).
-    await expectSingleCanvas(page);
-    await expectCanvasRendering(page);
+    // The title is a pre-rendered image (scripts/title-banner), so it has actually loaded and the page has no canvas.
+    await expect
+        .poll(() =>
+            page.locator('header img').evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+        )
+        .toBe(true);
+    await expect(page.locator('canvas')).toHaveCount(0);
+});
+
+test('landing page creates no WebGL context', { tag: '@smoke' }, async ({ page }) => {
+    await trackWebGLContexts(page);
+    await page.goto('/');
+    await expect(page.getByRole('dialog', { name: 'Audio source' })).toBeVisible();
+
+    expect(await liveWebGLContexts(page)).toBe(0);
 });

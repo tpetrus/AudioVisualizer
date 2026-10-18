@@ -33,8 +33,7 @@ test('landing page', async ({ page }) => {
     await chooseInputDevice(page);
     await expect(page.getByRole('link', { name: VISUALIZERS_UNDER_TEST[0].name })).toBeVisible();
     await imagesLoaded(page);
-    // The only canvas is the 3D title, which is animated; nothing overlaps it, so it can be masked.
-    await expect(page).toHaveScreenshot('landing.png', { mask: [page.locator('canvas')] });
+    await expect(page).toHaveScreenshot('landing.png');
 });
 
 test('audio source dialog', async ({ page }) => {

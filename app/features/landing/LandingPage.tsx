@@ -37,7 +37,7 @@ export function LandingPage() {
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
             {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
             <span className="text-xs text-gray-400 pl-3">v{version}</span>
-            <TitleBanner />
+            <TitleBanner priority />
 
             {capturing && (
                 <div className="py-1 text-center text-sm text-white">
@@ -53,13 +53,8 @@ export function LandingPage() {
             )}
 
             <div className="grid grid-cols-3">
-                {VISUALIZATIONS.map((visualization, index) => (
-                    <VisualizationCard
-                        key={visualization.to}
-                        {...visualization}
-                        disabled={!capturing}
-                        priority={index === 0}
-                    />
+                {VISUALIZATIONS.map((visualization) => (
+                    <VisualizationCard key={visualization.to} {...visualization} disabled={!capturing} />
                 ))}
                 <ComingSoonCard />
             </div>

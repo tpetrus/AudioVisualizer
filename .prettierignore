@@ -13,3 +13,4 @@ blob-report/
 playwright/.cache/
 .claude/
 .lighthouseci/
+scripts/title-banner/*.json

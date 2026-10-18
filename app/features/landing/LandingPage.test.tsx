@@ -1,14 +1,11 @@
 // @vitest-environment jsdom
 import { act, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { version } from '../../../package.json';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { asWebAudio } from '~/test/fakeWebAudio';
 import { renderWithProviders } from '~/test/renderWithProviders';
 import { LandingPage } from './LandingPage';
-
-// The 3D title needs WebGL; TitleBanner has its own spec.
-vi.mock('./TitleBanner', () => ({ TitleBanner: () => <div data-testid="title-banner" /> }));
 
 function capturingEngine() {
     const engine = new FakeAudioEngine();
@@ -21,16 +18,17 @@ describe('LandingPage', () => {
         renderWithProviders(<LandingPage />, { engine: capturingEngine() });
 
         expect(screen.getByText(`v${version}`)).toBeInTheDocument();
-        expect(screen.getByTestId('title-banner')).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 1, name: 'AudioVisualizer' })).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Cubes' })).toHaveAttribute('href', '/cubes');
         expect(screen.getByRole('link', { name: 'Trio color wave' })).toHaveAttribute('href', '/trio-color-wave');
         expect(screen.getByText('More coming soon')).toBeInTheDocument();
     });
 
-    it('prioritises only the first card image, which is the largest contentful paint', () => {
-        renderWithProviders(<LandingPage />, { engine: capturingEngine() });
+    it('prioritises only the title image, which is the largest contentful paint', () => {
+        const { container } = renderWithProviders(<LandingPage />, { engine: capturingEngine() });
 
-        expect(screen.getByRole('img', { name: 'Cubes' })).toHaveAttribute('fetchpriority', 'high');
+        expect(container.querySelector('header img')).toHaveAttribute('fetchpriority', 'high');
+        expect(screen.getByRole('img', { name: 'Cubes' })).not.toHaveAttribute('fetchpriority');
         expect(screen.getByRole('img', { name: 'Trio color wave' })).not.toHaveAttribute('fetchpriority');
     });
 
