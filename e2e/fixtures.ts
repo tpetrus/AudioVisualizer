@@ -29,41 +29,10 @@ const ALLOWED_PROBLEMS: readonly AllowedProblem[] = [];
 
 const WEBGL_CONTEXT_WARNING = 'Too many active WebGL contexts';
 
-// The one browser API these tests replace, and only for tests that list `screenCaptureStub`: `getDisplayMedia` opens
-// the operating system's screen picker, which cannot be automated, and a headless Linux runner has no system audio to
-// capture anyway. Only this browser call is swapped; every line of app code (AudioEngine, the dialog, the scenes)
-// runs unmodified and receives a real MediaStream with a real audio track. The input-device path uses no stub at all:
-// it goes through Chromium's real getUserMedia, served by the fake-device flags in playwright.config.ts.
-// It returns what the app asks for: an audio track (a steady tone) and a video track (the app discards the video).
-function installScreenCaptureStub(): void {
-    navigator.mediaDevices.getDisplayMedia = async () => {
-        const context = new AudioContext();
-        await context.resume();
-        const oscillator = context.createOscillator();
-        oscillator.type = 'sawtooth';
-        oscillator.frequency.value = 220;
-        const gain = context.createGain();
-        gain.gain.value = 0.3;
-        const destination = context.createMediaStreamDestination();
-        oscillator.connect(gain);
-        gain.connect(destination);
-        oscillator.start();
-
-        const canvas = document.createElement('canvas');
-        canvas.width = 16;
-        canvas.height = 16;
-        canvas.getContext('2d')?.fillRect(0, 0, 16, 16);
-        const [video] = canvas.captureStream().getVideoTracks();
-        return new MediaStream([...destination.stream.getAudioTracks(), video]);
-    };
-}
-
 interface Fixtures {
     // Every uncaught exception, console error and WebGL-context warning seen during the test. A fixture so that
     // the check cannot be forgotten: it fails the test on teardown if anything was recorded.
     problems: string[];
-    // Opt-in: list it in a test's parameters to replace `getDisplayMedia` with a stub that returns an oscillator tone.
-    screenCaptureStub: void;
 }
 
 export const test = base.extend<Fixtures>({
@@ -104,10 +73,6 @@ export const test = base.extend<Fixtures>({
         },
         { auto: true },
     ],
-    screenCaptureStub: async ({ page }, use) => {
-        await page.addInitScript(installScreenCaptureStub);
-        await use();
-    },
 });
 
 export { expect };
@@ -157,8 +122,14 @@ export async function chooseInputDevice(page: Page): Promise<void> {
     await expect(dialog).toBeHidden();
 }
 
-// Same, with the stubbed screen capture, but it leaves the dialog open on the live-source summary so callers can
-// inspect it. Works from the first-run dialog or after "Choose a different source".
+// Same, with screen capture, but it leaves the dialog open on the live-source summary so callers can inspect it.
+// Works from the first-run dialog or after "Choose a different source". Nothing is replaced: the app calls the real
+// `getDisplayMedia`, which `--use-fake-ui-for-media-stream` (playwright.config.ts) answers with no picker and a stream
+// of the fake input device, so the audio is the same click track as the microphone's.
+// Tab or desktop capture (`--auto-select-tab-capture-source-by-title`, `--auto-select-desktop-capture-source`) also
+// resolves without a picker in the Playwright image's new headless Chromium, but its audio track is silent there, and
+// the default headless shell rejects it with NotSupportedError. `--auto-accept-this-tab-capture` never resolves,
+// because the app does not pass `preferCurrentTab`.
 export async function chooseScreenCapture(page: Page): Promise<void> {
     const dialog = audioDialog(page);
     await dialog.getByRole('button', { name: 'Share audio' }).click();
@@ -216,4 +187,98 @@ export async function expectCanvasRendering(page: Page): Promise<void> {
     await expect
         .poll(() => distinctColours(page), { message: 'the canvas is still a single flat colour', timeout: 20_000 })
         .toBeGreaterThan(8);
+}
+
+// Counts the draw calls the page makes to WebGL, and records how long the gaps between animation frames are. Call it
+// before the first navigation. A draw call is the one thing a scene that is really rendering must keep doing, and
+// reading a counter is instant, so unlike a pixel read-back it cannot queue behind a slow software-rendered frame.
+export async function trackRenderedFrames(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        const stats = { draws: 0, frames: 0, longestGapMs: 0 };
+        const methods = ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced'] as const;
+        for (const prototype of [WebGLRenderingContext.prototype, WebGL2RenderingContext.prototype]) {
+            for (const method of methods) {
+                const slot = prototype as unknown as Record<string, ((...a: unknown[]) => unknown) | undefined>;
+                const original = slot[method];
+                if (!original) continue;
+                slot[method] = function (this: unknown, ...args: unknown[]) {
+                    stats.draws++;
+                    return original.apply(this, args);
+                };
+            }
+        }
+        let last = performance.now();
+        const tick = () => {
+            const now = performance.now();
+            stats.frames++;
+            stats.longestGapMs = Math.max(stats.longestGapMs, now - last);
+            last = now;
+            requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        (window as unknown as { __renderStats: typeof stats }).__renderStats = stats;
+    });
+}
+
+export interface RenderStats {
+    draws: number;
+    frames: number;
+    longestGapMs: number;
+}
+
+export function renderStats(page: Page): Promise<RenderStats> {
+    return page.evaluate(() => ({ ...(window as unknown as { __renderStats: RenderStats }).__renderStats }));
+}
+
+// Passes once the scene has kept drawing for a while: the draw-call count must grow by at least `minimumDraws` between
+// two reads taken about a second apart. Needs trackRenderedFrames(page) before the first navigation.
+export async function expectSceneStillDrawing(page: Page, minimumDraws = 5): Promise<void> {
+    const before = await renderStats(page);
+    await page.waitForTimeout(1000);
+    await expect
+        .poll(async () => (await renderStats(page)).draws - before.draws, {
+            message: 'the scene stopped drawing',
+            timeout: 20_000,
+        })
+        .toBeGreaterThanOrEqual(minimumDraws);
+}
+
+// Records the stream the page's own `getDisplayMedia` call returns, without changing what it returns, and measures the
+// loudest sample of its audio. Call it before the first navigation. Only the app's request goes to the browser; this
+// wrapper just listens to the answer on a separate audio context.
+export async function observeScreenCapture(page: Page): Promise<void> {
+    await page.addInitScript(() => {
+        const observed = { audioTracks: 0, liveAudioTracks: 0, peak: 0 };
+        (window as unknown as { __screenCapture: typeof observed }).__screenCapture = observed;
+        const devices = navigator.mediaDevices;
+        const real = devices.getDisplayMedia.bind(devices);
+        devices.getDisplayMedia = async (options) => {
+            const stream = await real(options);
+            const audio = stream.getAudioTracks();
+            observed.audioTracks = audio.length;
+            observed.liveAudioTracks = audio.filter((track) => track.readyState === 'live').length;
+            const context = new AudioContext();
+            await context.resume();
+            const analyser = context.createAnalyser();
+            context.createMediaStreamSource(new MediaStream(audio)).connect(analyser);
+            const samples = new Uint8Array(analyser.fftSize);
+            window.setInterval(() => {
+                analyser.getByteTimeDomainData(samples);
+                for (const sample of samples) {
+                    observed.peak = Math.max(observed.peak, Math.abs(sample - 128) / 128);
+                }
+            }, 50);
+            return stream;
+        };
+    });
+}
+
+export function observedScreenCapture(
+    page: Page,
+): Promise<{ audioTracks: number; liveAudioTracks: number; peak: number }> {
+    return page.evaluate(
+        () =>
+            (window as unknown as { __screenCapture: { audioTracks: number; liveAudioTracks: number; peak: number } })
+                .__screenCapture,
+    );
 }
