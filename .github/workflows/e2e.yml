@@ -41,6 +41,10 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Needs only node and the lockfile. The shards wait for this job, so one check here guards all of them and
+      # turns npm's cryptic "Missing: ... from lock file" into a message that says which entries are gone.
+      - run: node scripts/check-lockfile.ts
+
       - run: npm ci
 
       - id: plan
