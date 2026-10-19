@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, existsSync, ftruncateSync, lstatSync, openSync, readFileSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { nextVersion, releaseKind } from './nextVersion.ts';
@@ -46,11 +46,42 @@ function isResult(value: ParsedTitle | CommandResult): value is CommandResult {
     return 'code' in value;
 }
 
-// Reading a symlinked package.json would let a pull request point the bot at a file outside the checkout, so the
-// version files must be regular files.
-function readRegularFile(path: string): string {
-    if (lstatSync(path).isSymbolicLink()) throw new Error(`${path} is a symbolic link; refusing to edit it.`);
-    return readFileSync(path, 'utf8');
+// Editing a symlinked package.json would let a pull request point the bot at a file outside the checkout, so the
+// version files must be regular files. Opening with O_NOFOLLOW and then reading and writing through that one
+// descriptor leaves no gap between the check and the edit in which the file could be swapped for a link. Windows has
+// no O_NOFOLLOW, so there the path is checked after opening instead; the bot itself only runs on Linux.
+function openRegularFile(path: string): number {
+    const symlinkError = new Error(`${path} is a symbolic link; refusing to edit it.`);
+    let fd: number;
+    try {
+        fd = openSync(path, constants.O_RDWR | (constants.O_NOFOLLOW ?? 0));
+    } catch (error) {
+        throw (error as NodeJS.ErrnoException).code === 'ELOOP' ? symlinkError : error;
+    }
+    if (constants.O_NOFOLLOW === undefined && lstatSync(path).isSymbolicLink()) {
+        closeSync(fd);
+        throw symlinkError;
+    }
+    return fd;
+}
+
+function overwrite(fd: number, text: string): void {
+    ftruncateSync(fd, 0);
+    writeSync(fd, text, 0);
+}
+
+// Opens every file before calling `edit`, so a link or a missing file fails before anything is written.
+function editRegularFiles(paths: readonly string[], edit: (texts: string[]) => string[] | undefined): boolean {
+    const fds: number[] = [];
+    try {
+        for (const path of paths) fds.push(openRegularFile(path));
+        const edited = edit(fds.map((fd) => readFileSync(fd, 'utf8')));
+        if (edited === undefined) return false;
+        fds.forEach((fd, index) => overwrite(fd, edited[index]));
+        return true;
+    } finally {
+        for (const fd of fds) closeSync(fd);
+    }
 }
 
 function splitLines(text: string): string[] {
@@ -116,10 +147,10 @@ export function runCommand(argv: readonly string[]): CommandResult {
             const packagePath = join(dir, 'package.json');
             const lockPath = join(dir, 'package-lock.json');
             // Both edits are computed before either file is written, so a failure leaves the pair consistent.
-            const packageText = setPackageVersion(readRegularFile(packagePath), version);
-            const lockText = setLockfileVersion(readRegularFile(lockPath), version);
-            writeFileSync(packagePath, packageText);
-            writeFileSync(lockPath, lockText);
+            editRegularFiles([packagePath, lockPath], ([packageText, lockText]) => [
+                setPackageVersion(packageText, version),
+                setLockfileVersion(lockText, version),
+            ]);
             return ok(`Set version to ${version}\n`);
         }
         case 'notes': {
@@ -133,10 +164,11 @@ export function runCommand(argv: readonly string[]): CommandResult {
         case 'resolve-conflicts': {
             const path = positionals[0];
             if (!path) return fail('Missing file argument.');
-            const resolution = resolveVersionConflicts(readRegularFile(path));
-            if (!resolution.resolved) return fail(`${path} has conflicts beyond the version line.`);
-            writeFileSync(path, resolution.text);
-            return ok(`Resolved ${path}\n`);
+            const resolved = editRegularFiles([path], ([text]) => {
+                const resolution = resolveVersionConflicts(text);
+                return resolution.resolved ? [resolution.text] : undefined;
+            });
+            return resolved ? ok(`Resolved ${path}\n`) : fail(`${path} has conflicts beyond the version line.`);
         }
         default:
             // No command is a plain request for help; an unknown one is a mistake in the calling workflow.
