@@ -6,6 +6,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Titles become the PR title, which must be a Conventional Commit: "build(deps): ..." and "build(deps-dev): ...".
+    commit-message:
+      prefix: build
+      include: scope
     # One PR for routine dev-tooling bumps and one for routine runtime bumps; majors arrive as separate PRs.
     groups:
       # react-router, @react-router/node and @react-router/dev share one version line and break if they drift,
@@ -40,6 +44,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Same reason as above: "ci(deps): ...". Workflow-only changes release nothing.
+    commit-message:
+      prefix: ci
+      include: scope
     groups:
       actions:
         patterns: ['*']

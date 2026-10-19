@@ -1,0 +1,226 @@
+name: Version bump
+
+# The version bot. It keeps package.json and package-lock.json at the version the PR title calls for, so nobody edits
+# the version by hand (see "Versioning and releases" in AGENTS.md). It never pushes to main, because every push to main
+# is a production deploy: it only pushes to PR branches.
+#
+# It authenticates as a GitHub App (create-github-app-token) rather than with GITHUB_TOKEN, because pushes made with
+# GITHUB_TOKEN do not start workflows, and the PR's required checks would never re-run on the bot's commit.
+#
+# SECURITY. `pull_request_target` runs with secrets, so it must never run code from the PR. The scripts come from a
+# checkout of the BASE branch (trusted). The PR branch is checked out into a separate directory and is only touched by
+# git and by the base's scripts reading and editing JSON text; no npm or node code from it is ever executed. Fork PRs
+# are skipped, since the bot cannot push to them anyway.
+on:
+  pull_request_target:
+    types: [opened, edited, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # A PR was opened, retitled or pushed to: make its version match its title.
+  bump-pr:
+    if: >-
+      github.event_name == 'pull_request_target' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # One run per PR at a time, so two quick events cannot push over each other. Nothing is cancelled: a title edit
+    # arriving mid-run must still be handled afterwards.
+    concurrency:
+      group: version-bump-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # The bot's own push fires `synchronize`; the version is already right by then, but skipping avoids a pointless
+      # run. Human events (including a title edit) are never skipped.
+      - name: Skip the bot's own events
+        id: actor
+        env:
+          SENDER: ${{ github.event.sender.login }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          if [ "$SENDER" = "$SLUG[bot]" ]; then
+            echo "Triggered by the version bot itself; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Trusted code: the base branch's scripts.
+      - if: steps.actor.outputs.skip != 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          path: base
+          persist-credentials: false
+
+      # Untrusted content: only ever read and edited as data, never executed.
+      - if: steps.actor.outputs.skip != 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          ref: ${{ github.event.pull_request.head.ref }}
+          path: pr
+          token: ${{ steps.app.outputs.token }}
+
+      - if: steps.actor.outputs.skip != 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: base/.nvmrc
+          cache: npm
+          cache-dependency-path: base/package-lock.json
+
+      - if: steps.actor.outputs.skip != 'true'
+        working-directory: base
+        run: npm ci --ignore-scripts
+
+      - name: Set the version
+        if: steps.actor.outputs.skip != 'true'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -euo pipefail
+          base_version=$(jq -r .version base/package.json)
+          if ! expected=$(node base/scripts/release/cli.ts expected-version --base-version "$base_version" "$PR_TITLE"); then
+            # The pr-title check reports the problem; there is nothing sensible to write until the title is fixed.
+            echo "::warning::The PR title is not a Conventional Commit, so no version was set."
+            exit 0
+          fi
+          package_version=$(jq -r .version pr/package.json)
+          lock_version=$(jq -r .version pr/package-lock.json)
+          lock_root_version=$(jq -r '.packages[""].version' pr/package-lock.json)
+          if [ "$package_version" = "$expected" ] && [ "$lock_version" = "$expected" ] && [ "$lock_root_version" = "$expected" ]; then
+            echo "Version is already $expected."
+            exit 0
+          fi
+
+          node base/scripts/release/cli.ts write-version "$expected" --dir pr
+
+          bot_id=$(gh api "/users/$SLUG[bot]" --jq .id)
+          git -C pr config user.name "$SLUG[bot]"
+          git -C pr config user.email "$bot_id+$SLUG[bot]@users.noreply.github.com"
+          git -C pr add package.json package-lock.json
+          git -C pr commit -m "chore: set version to $expected"
+          git -C pr push origin "HEAD:refs/heads/$HEAD_REF"
+
+  # main moved (a PR merged and possibly released): bring every open PR branch up to date and re-derive its version,
+  # because a PR's expected version depends on main's current version. Without this the "branch must be up to date"
+  # rule would leave every other PR stuck until someone merged main by hand.
+  sync-prs:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: version-bump-main
+      cancel-in-progress: false
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app
+        with:
+          app-id: ${{ secrets.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
+      # Full history and the app token, so branches can be merged and pushed. The scripts and the branches live in the
+      # same clone here, but PR branches are only merged and edited as data; nothing from them is ever executed.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: Update open pull requests
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -uo pipefail
+          bot_id=$(gh api "/users/$SLUG[bot]" --jq .id)
+          git config user.name "$SLUG[bot]"
+          git config user.email "$bot_id+$SLUG[bot]@users.noreply.github.com"
+          git config merge.conflictStyle merge
+
+          # Run the bot's scripts from a copy, because checking out a PR branch swaps the working tree under them.
+          scripts="$RUNNER_TEMP/release-scripts"
+          mkdir -p "$scripts"
+          cp -r scripts/release "$scripts/release"
+          ln -s "$PWD/node_modules" "$scripts/node_modules"
+          cli="$scripts/release/cli.ts"
+
+          # Marker that makes the conflict comment post only once per PR.
+          marker='<!-- version-bot:merge-conflict -->'
+
+          git fetch --no-tags origin main
+          main_version=$(git show origin/main:package.json | jq -r .version)
+
+          gh api --paginate "repos/$REPO/pulls?state=open&base=main&per_page=100" \
+            --jq '.[] | select(.head.repo.full_name == "'"$REPO"'") | [.number, .head.ref, .title] | @tsv' |
+          while IFS=$'\t' read -r number ref title; do
+            echo "::group::PR #$number ($ref)"
+            git fetch --no-tags origin "$ref" || { echo "Could not fetch $ref; skipping."; echo "::endgroup::"; continue; }
+            git checkout --quiet --force -B "pr-$number" "origin/$ref"
+
+            if ! git merge --no-edit origin/main; then
+              conflicted=$(git diff --name-only --diff-filter=U)
+              resolvable=true
+              for file in $conflicted; do
+                case "$file" in
+                  package.json | package-lock.json) ;;
+                  *) resolvable=false ;;
+                esac
+              done
+              if [ "$resolvable" = true ]; then
+                for file in $conflicted; do
+                  node "$cli" resolve-conflicts "$file" || resolvable=false
+                done
+              fi
+              if [ "$resolvable" = true ]; then
+                git add package.json package-lock.json
+                git commit --no-edit
+              else
+                git merge --abort
+                echo "::warning::PR #$number conflicts with main beyond the version lines; left for a human."
+                existing=$(gh api --paginate "repos/$REPO/issues/$number/comments" --jq '.[].body' | grep -cF "$marker")
+                if [ "${existing:-0}" -eq 0 ]; then
+                  gh api "repos/$REPO/issues/$number/comments" -f body="$marker
+          The version bot could not merge \`main\` into this branch because of conflicts beyond the version lines. Please merge or rebase \`main\` yourself and resolve them; the bot will set the version afterwards." > /dev/null
+                fi
+                echo "::endgroup::"
+                continue
+              fi
+            fi
+
+            if expected=$(node "$cli" expected-version --base-version "$main_version" "$title"); then
+              package_version=$(jq -r .version package.json)
+              lock_version=$(jq -r .version package-lock.json)
+              lock_root_version=$(jq -r '.packages[""].version' package-lock.json)
+              if [ "$package_version" != "$expected" ] || [ "$lock_version" != "$expected" ] || [ "$lock_root_version" != "$expected" ]; then
+                node "$cli" write-version "$expected"
+                git add package.json package-lock.json
+                git commit -m "chore: set version to $expected"
+              fi
+            else
+              echo "::warning::PR #$number has a title that is not a Conventional Commit; version not set."
+            fi
+
+            if [ "$(git rev-parse HEAD)" != "$(git rev-parse "origin/$ref")" ]; then
+              git push origin "HEAD:refs/heads/$ref" || echo "::warning::Could not push to $ref; it will be retried on the next push to main."
+            else
+              echo "Already up to date."
+            fi
+            echo "::endgroup::"
+          done

@@ -24,6 +24,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
 | Check the lockfile for entries Windows npm drops (see "Known gaps") | `npm run check:lockfile` |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...) | `node scripts/release/cli.ts <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -112,6 +113,8 @@ Every pull request runs these checks, and `main` requires them to pass before me
 | `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
 | `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
 | `e2e-result` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container, sharded automatically by test count (no edits as tests are added); `e2e-result` is the one check to require |
+| `pr-title` (PR checks) | the PR title is a Conventional Commit (see "Versioning and releases") |
+| `version` (PR checks) | `package.json` and `package-lock.json` carry the version the title calls for; docs/ci/test titles change nothing that ships |
 | `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
 | `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
 | `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
@@ -134,6 +137,53 @@ When a gate fails:
   Never merge a Dependabot PR with failing checks. `@playwright/test` must stay on the same version as the
   `mcr.microsoft.com/playwright` image tag in `e2e.yml` and `update-snapshots.yml`; bump all three together and
   regenerate the baselines.
+
+## Versioning and releases
+The version in `package.json` (shown on the landing page) is set by automation from the PR title, and each release is
+tagged and published on GitHub. Nobody edits the version by hand, and nothing is ever pushed to `main` by automation,
+because every push to `main` is a production deploy.
+
+**PR titles are Conventional Commits:** `type(scope)?!?: description`, for example `fix(audio): stop the meter leaking`.
+The merge commit carries the title, so the title is also what the release notes list. Allowed types: `feat`, `fix`,
+`perf`, `refactor`, `build`, `chore`, `revert`, `style`, `docs`, `ci`, `test`. The `pr-title` check enforces it.
+
+| Title | Bump |
+|---|---|
+| any type with `!` before the colon (`feat!:`, `fix(api)!:`) | major |
+| `feat` | minor |
+| `fix`, `perf`, `refactor`, `build`, `chore`, `revert`, `style` | patch |
+| `docs`, `ci`, `test` | none: the version must equal the base branch's |
+
+It is plain semver, including the prerelease: `0.1.0-beta` plus a patch (or a `feat`) is `0.1.0`, and plus a `!` is
+`1.0.0`. A `docs`, `ci` or `test` PR must not change anything that ships (`app/**`, `public/**`, `vite.config.ts`,
+`react-router.config.ts`, `wrangler.jsonc`, or the `dependencies`/`devDependencies` of `package.json`); the `version`
+check fails and asks for a releasing type instead. Dependabot titles are `build(deps): …` / `build(deps-dev): …` and
+`ci(deps): …` (configured in `.github/dependabot.yml`), so npm bumps release a patch and action bumps release nothing.
+
+**What the version bot does** (`version-bump.yml`, running as a GitHub App so its pushes re-run the checks):
+- On every PR event (opened, edited, synchronize, reopened) for a same-repo PR, it computes the expected version from the
+  base branch's `package.json` and the title. If the head differs, it commits `chore: set version to X.Y.Z` to the PR
+  branch, editing only the version lines of `package.json` and `package-lock.json`. It checks out the base branch for its
+  scripts and never runs anything from the PR branch (it runs with secrets under `pull_request_target`).
+- On every push to `main`, it merges `main` into each open same-repo PR branch and re-derives the version, since the
+  expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
+  `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
+- `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
+  `node scripts/release/cli.ts write-version <version>` yourself; the failing check names the exact version.
+
+**What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the
+release notes from the PR titles merged since the previous tag (Features / Fixes / Performance / Other; docs, ci and test
+are left out), creates the tag and a GitHub Release (a pre-release while the version has a prerelease part), and
+otherwise exits. To replace the generated notes for a release, add `.github/release-notes/v<version>.md` in the PR.
+
+**One-time setup** (repository admin):
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps) with repository permissions Contents: read and
+   write, Pull requests: read and write, Workflows: read and write (so merging `main` into a branch that touches
+   workflow files can be pushed), Metadata: read. No webhook is needed. Install it on this repository only.
+2. Add its App ID as the secret `RELEASE_APP_ID` and a generated private key as `RELEASE_APP_PRIVATE_KEY`, in both
+   Settings → Secrets → Actions and Settings → Secrets → Dependabot (Dependabot-triggered runs read only the latter).
+3. In the `main` ruleset, require the `pr-title` and `version` checks and require branches to be up to date before
+   merging.
 
 ## Testing
 Specs sit next to the file they test (`foo.ts` -> `foo.test.ts`). `npm run test:coverage` enforces 95% for lines,
