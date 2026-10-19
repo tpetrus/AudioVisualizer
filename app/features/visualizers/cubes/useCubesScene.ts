@@ -19,6 +19,17 @@ const FFT_SIZE = 2048;
 const ANALYSER_SMOOTHING = 0.5;
 // The background flash is capped below full brightness so the cubes stay readable against it.
 const MAX_BACKGROUND_FLASH = 0.6;
+// Linear colors are encoded to sRGB for display, so a flash scaled linearly would look far brighter than its factor.
+// Raising the factor to this power keeps the on-screen brightness proportional to it.
+const DISPLAY_GAMMA = 2.2;
+// The environment map is shown at this strength. The sRGB output brightens its grey reflections, so at full strength
+// they wash the colors out. (Scene.environmentIntensity is what applies here; a material's envMapIntensity is
+// ignored for a scene environment.)
+const ENVIRONMENT_INTENSITY = 0.3;
+// Light intensities are in physical units. A factor of PI converts the old per-light values (the migration guide's
+// rule), and the rest compensates for sRGB output darkening lit surfaces compared with the old output of raw values.
+// Tuned by rendering fixed levels and matching the on-screen colors of the old (three 0.141) look.
+const LIGHT_SCALE = 5 * Math.PI;
 // How far resting cubes rise toward the viewer on a full-strength bass hit.
 const MAX_BACKDROP_LIFT = 2;
 // A confident downbeat adds this fraction of a full bass hit to the backdrop lift, then fades by this factor per
@@ -55,6 +66,7 @@ export function useCubesScene(
         const backgroundColor = new THREE.Color(0x000000);
         scene.background = backgroundColor;
         scene.environment = createEnvironment(renderer);
+        scene.environmentIntensity = ENVIRONMENT_INTENSITY;
         addLights(scene);
 
         const orbit = createOrbitView(camera, renderer.domElement, {
@@ -131,7 +143,7 @@ export function useCubesScene(
 
                 const bump = bass?.update() ?? 0;
                 const pulse = values.bassBump ? bump * values.bgPulse : 0;
-                backgroundColor.copy(restingColor).multiplyScalar(pulse * MAX_BACKGROUND_FLASH);
+                backgroundColor.copy(restingColor).multiplyScalar((pulse * MAX_BACKGROUND_FLASH) ** DISPLAY_GAMMA);
 
                 grid.update(levels, {
                     depth: values.depth,
@@ -190,13 +202,13 @@ function createEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
 // A strong key light from the upper left and a dim fill from the right, so the faces of tilted cubes
 // are shaded differently and read as solid shapes.
 function addLights(scene: THREE.Scene): void {
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6 * LIGHT_SCALE);
     keyLight.position.set(-6, 8, 10);
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight(0xaab4ff, 0.5);
+    const fillLight = new THREE.DirectionalLight(0xaab4ff, 0.5 * LIGHT_SCALE);
     fillLight.position.set(8, -3, 6);
     scene.add(fillLight);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+    scene.add(new THREE.AmbientLight(0xffffff, 0.25 * LIGHT_SCALE));
 }
