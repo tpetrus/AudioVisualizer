@@ -27,6 +27,22 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   `app/root.tsx`/`app/routes.ts`/`app/routes/*` at 2 spaces and double quotes. Markdown is not run through Prettier
   (hand-wrapped at 120 columns, with tables), so match the surrounding doc.
 
+## Pull request titles
+- Titles are Conventional Commits, `type(scope)?!?: description`, with a lowercase type from `feat`, `fix`, `perf`,
+  `refactor`, `build`, `chore`, `revert`, `style`, `docs`, `ci`, `test`. The scope is optional and free-form
+  (`feat(audio): …`, `build(deps): …`). Write the description in the imperative, lowercase after the colon, with no
+  trailing period; it is printed verbatim in the release notes.
+- Pick the type by what the change does to the shipped site, not by which files it touches: a visible or behavioural
+  addition is `feat`, a bug fix is `fix`, a speed or memory improvement is `perf`, internal cleanup is `refactor`, and
+  dependency or build-tooling changes are `build`. Add `!` before the colon when users or developers must change
+  something to keep working; that is always a major bump.
+- `docs`, `ci` and `test` release nothing, so they may only touch files that don't ship (docs, workflows, specs,
+  scripts). Changing `app/**`, `public/**`, the build config or the dependencies needs a releasing type, otherwise the
+  `version` check fails.
+- Don't edit `version` in `package.json` or `package-lock.json` yourself; the version bot commits `chore: set version to
+  X.Y.Z` to your branch. If you amend or rebase, let the bot run again (or run
+  `node scripts/release/cli.ts write-version <version>`). "Versioning and releases" in AGENTS.md has the full rules.
+
 ## Linting
 - `npm run lint` runs ESLint with type-aware typescript-eslint rules, react-hooks (`exhaustive-deps` is an error) and
   jsx-a11y. It also enforces the named-exports rule and forbids app code importing from `e2e/`.

@@ -33,7 +33,8 @@ test('landing page', async ({ page }) => {
     await chooseInputDevice(page);
     await expect(page.getByRole('link', { name: VISUALIZERS_UNDER_TEST[0].name })).toBeVisible();
     await imagesLoaded(page);
-    await expect(page).toHaveScreenshot('landing.png');
+    // The version changes with every release, so it is masked instead of making each release fail the baseline.
+    await expect(page).toHaveScreenshot('landing.png', { mask: [page.getByTestId('app-version')] });
 });
 
 test('audio source dialog', async ({ page }) => {

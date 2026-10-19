@@ -36,7 +36,9 @@ export function LandingPage() {
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
             {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
-            <span className="text-xs text-gray-400 pl-3">v{version}</span>
+            <span data-testid="app-version" className="text-xs text-gray-400 pl-3">
+                v{version}
+            </span>
             <TitleBanner priority />
 
             {capturing && (
