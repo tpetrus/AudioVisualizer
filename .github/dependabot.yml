@@ -24,7 +24,7 @@ updates:
         dependency-type: production
         update-types: [minor, patch]
     ignore:
-      # three.js is pinned at 0.141 by policy (AGENTS.md); upgrading is a deliberate project, not a bot PR.
+      # three.js is pinned exactly (now r186) by policy (AGENTS.md); upgrading is a deliberate project, not a bot PR.
       - dependency-name: three
       - dependency-name: '@types/three'
       # eslint-plugin-jsx-a11y does not support ESLint 10 yet, so skip major bumps until it does.

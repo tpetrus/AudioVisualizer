@@ -1,7 +1,7 @@
 // Runs inside headless Chromium (bundled for the browser by `npm run title-banner`): draws the title scene once, with
 // the font data compiled in so nothing is fetched, and leaves the frame in the canvas for render.ts to screenshot.
 import * as THREE from 'three';
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js';
+import { FontLoader, type FontData } from 'three/addons/loaders/FontLoader.js';
 import taglineFontData from './helvetiker_bold.typeface.json';
 import titleFontData from './paladins_gradient.json';
 import { setupTitleScene } from './titleScene';
@@ -14,7 +14,12 @@ declare global {
 
 window.drawTitleBanner = (width, height) => {
     const loader = new FontLoader();
-    const fonts = { title: loader.parse(titleFontData), tagline: loader.parse(taglineFontData) };
+    // The JSON files are real font data; the typings only declare the font's metadata as strings, which the files'
+    // numeric fields (e.g. `format`) don't satisfy.
+    const fonts = {
+        title: loader.parse(titleFontData as unknown as FontData),
+        tagline: loader.parse(taglineFontData),
+    };
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     // The page's device scale factor (1 or 2) decides how many pixels the screenshot has.

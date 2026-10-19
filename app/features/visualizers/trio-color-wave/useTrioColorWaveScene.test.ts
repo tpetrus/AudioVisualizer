@@ -71,7 +71,6 @@ describe('useTrioColorWaveScene', () => {
             const { renderer, scene, camera, sheets, container } = mountScene();
 
             expect(container.contains(renderer.domElement)).toBe(true);
-            expect(renderer.physicallyCorrectLights).toBe(true);
             expect(renderer.toneMapping).toBe(ACESFilmicToneMapping);
             expect((scene.background as Color).getHex()).toBe(0x000000);
             expect(sheets()).toHaveLength(BANDS.length);
