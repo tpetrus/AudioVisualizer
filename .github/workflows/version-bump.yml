@@ -194,7 +194,9 @@ jobs:
               else
                 git merge --abort
                 echo "::warning::PR #$number conflicts with main beyond the version lines; left for a human."
-                existing=$(gh api --paginate "repos/$REPO/issues/$number/comments" --jq '.[].body' | grep -cF "$marker")
+                # grep -c exits 1 when it counts no match, and the runner's bash -e would end the whole step there
+                # (before the comment is posted and before later PRs are synced), so a zero count must not fail.
+                existing=$(gh api --paginate "repos/$REPO/issues/$number/comments" --jq '.[].body' | grep -cF "$marker" || true)
                 if [ "${existing:-0}" -eq 0 ]; then
                   gh api "repos/$REPO/issues/$number/comments" -f body="$marker
           The version bot could not merge \`main\` into this branch because of conflicts beyond the version lines. Please merge or rebase \`main\` yourself and resolve them; the bot will set the version afterwards." > /dev/null
