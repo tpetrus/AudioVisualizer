@@ -21,6 +21,10 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Lighthouse budget on `/` (reads the existing build) | `npm run lighthouse` |
 | Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
+| Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
+| Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
+| Check the lockfile for entries Windows npm drops (see "Known gaps") | `npm run check:lockfile` |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...) | `node scripts/release/cli.ts <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -49,17 +53,18 @@ app/
   features/
     audio/                       AudioEngine (framework-free), storage, React bindings, guard, source dialog
     rhythm/                      tempo / beat / 3-vs-4 meter / song-change tracker: pure DSP modules, worklet, RhythmTracker
-    landing/                     landing page, 3D title, visualization cards
+    landing/                     landing page, title banner (a pre-rendered image), visualization cards
     visualizers/<name>/          one folder per visualizer (page, scene hook, controls, config, pure maths, classes)
     visualizers/meshes/          shared mesh classes + GLSL shader strings
   components/                    shared, feature-agnostic UI (ControlPanel, PerformanceStats, RhythmStats)
   hooks/                         shared hooks (useThreeScene, useLatestRef)
   test/                          shared test fakes and helpers (not shipped)
   lib/three/                     three.js helpers (disposeScene, createOrbitView)
-public/                          static files served from / (fonts/, visualization-images/)
+public/                          static files served from / (title-banner.*, visualization-images/, _headers)
 e2e/                             Playwright specs and fixtures; its own TypeScript program (e2e/tsconfig.json)
   visual.spec.ts-snapshots/      Linux screenshot baselines (regenerate with the "Update visual snapshots" workflow)
-scripts/                         node scripts (rhythm evaluation, smoke-test runner)
+scripts/                         node scripts (rhythm evaluation, smoke-test runner, lockfile check, card images)
+  title-banner/                  landing title scene, font JSON and renderer (`npm run title-banner`)
 .github/                         CI workflows and Dependabot config
 ```
 
@@ -91,9 +96,9 @@ implementations; new code should look like them.
 ## Verifying changes
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` and `npm run build` pass.
 - `npm run test:e2e` passes (after `npm run build`). It automates the manual checks below in Chromium with a fake
-  microphone and software WebGL: every visualizer renders one `<canvas>`, controls, camera lock and reset view work,
-  the audio source can be switched, round trips to each visualizer release their WebGL context, deep links redirect or
-  resume correctly, there are no serious axe violations, and the page logs no errors.
+  microphone and software WebGL: every visualizer renders one `<canvas>` and `/` none, controls, camera lock and reset
+  view work, the audio source can be switched, round trips to each visualizer release their WebGL context, deep links
+  redirect or resume correctly, there are no serious axe violations, and the page logs no errors.
 - Still look at it in `npm run dev` when you change how something looks or moves: the tests check that the scene
   renders and doesn't leak, not that it looks right. Choose an audio source on `/`, open each visualizer, change
   controls, and watch the console for errors and "Too many active WebGL contexts" warnings.
@@ -108,6 +113,8 @@ Every pull request runs these checks, and `main` requires them to pass before me
 | `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
 | `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
 | `e2e-result` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container, sharded automatically by test count (no edits as tests are added); `e2e-result` is the one check to require |
+| `pr-title` (PR checks) | the PR title is a Conventional Commit (see "Versioning and releases") |
+| `version` (PR checks) | `package.json` and `package-lock.json` carry the version the title calls for; docs/ci/test titles change nothing that ships |
 | `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
 | `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
 | `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
@@ -131,6 +138,53 @@ When a gate fails:
   `mcr.microsoft.com/playwright` image tag in `e2e.yml` and `update-snapshots.yml`; bump all three together and
   regenerate the baselines.
 
+## Versioning and releases
+The version in `package.json` (shown on the landing page) is set by automation from the PR title, and each release is
+tagged and published on GitHub. Nobody edits the version by hand, and nothing is ever pushed to `main` by automation,
+because every push to `main` is a production deploy.
+
+**PR titles are Conventional Commits:** `type(scope)?!?: description`, for example `fix(audio): stop the meter leaking`.
+The merge commit carries the title, so the title is also what the release notes list. Allowed types: `feat`, `fix`,
+`perf`, `refactor`, `build`, `chore`, `revert`, `style`, `docs`, `ci`, `test`. The `pr-title` check enforces it.
+
+| Title | Bump |
+|---|---|
+| any type with `!` before the colon (`feat!:`, `fix(api)!:`) | major |
+| `feat` | minor |
+| `fix`, `perf`, `refactor`, `build`, `chore`, `revert`, `style` | patch |
+| `docs`, `ci`, `test` | none: the version must equal the base branch's |
+
+It is plain semver, including the prerelease: `0.1.0-beta` plus a patch (or a `feat`) is `0.1.0`, and plus a `!` is
+`1.0.0`. A `docs`, `ci` or `test` PR must not change anything that ships (`app/**`, `public/**`, `vite.config.ts`,
+`react-router.config.ts`, `wrangler.jsonc`, or the `dependencies`/`devDependencies` of `package.json`); the `version`
+check fails and asks for a releasing type instead. Dependabot titles are `build(deps): …` / `build(deps-dev): …` and
+`ci(deps): …` (configured in `.github/dependabot.yml`), so npm bumps release a patch and action bumps release nothing.
+
+**What the version bot does** (`version-bump.yml`, running as a GitHub App so its pushes re-run the checks):
+- On every PR event (opened, edited, synchronize, reopened) for a same-repo PR, it computes the expected version from the
+  base branch's `package.json` and the title. If the head differs, it commits `chore: set version to X.Y.Z` to the PR
+  branch, editing only the version lines of `package.json` and `package-lock.json`. It checks out the base branch for its
+  scripts and never runs anything from the PR branch (it runs with secrets under `pull_request_target`).
+- On every push to `main`, it merges `main` into each open same-repo PR branch and re-derives the version, since the
+  expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
+  `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
+- `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
+  `node scripts/release/cli.ts write-version <version>` yourself; the failing check names the exact version.
+
+**What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the
+release notes from the PR titles merged since the previous tag (Features / Fixes / Performance / Other; docs, ci and test
+are left out), creates the tag and a GitHub Release (a pre-release while the version has a prerelease part), and
+otherwise exits. To replace the generated notes for a release, add `.github/release-notes/v<version>.md` in the PR.
+
+**One-time setup** (repository admin):
+1. Create a GitHub App (Settings → Developer settings → GitHub Apps) with repository permissions Contents: read and
+   write, Pull requests: read and write, Workflows: read and write (so merging `main` into a branch that touches
+   workflow files can be pushed), Metadata: read. No webhook is needed. Install it on this repository only.
+2. Add its App ID as the secret `RELEASE_APP_ID` and a generated private key as `RELEASE_APP_PRIVATE_KEY`, in both
+   Settings → Secrets → Actions and Settings → Secrets → Dependabot (Dependabot-triggered runs read only the latter).
+3. In the `main` ruleset, require the `pr-title` and `version` checks and require branches to be up to date before
+   merging.
+
 ## Testing
 Specs sit next to the file they test (`foo.ts` -> `foo.test.ts`). `npm run test:coverage` enforces 95% for lines,
 statements, functions and branches over `app/**` (`vitest.config.ts`); keep it green, and write specs rather than
@@ -146,19 +200,11 @@ console error or WebGL-context warning) and the helpers in `e2e/visualizers.ts`.
 tests" in `docs/agents/conventions.md`.
 
 ## Known gaps (don't copy, don't build on)
-- **Leftover Tailwind 3 / PostCSS config.** `tailwind.config.js` and `postcss.config.ts` are not used by the Tailwind 4
-  Vite plugin. Configure Tailwind in `app/app.css` (`@theme`), not in those files.
-- **Performance is below target.** Lighthouse performance on `/` is about 0.85 against a 0.9 goal, so the gate is set to
-  0.75 for now (oversized card images, about 81 KiB of unused JS on `/`, hashed assets served with `max-age=0`). Raise
-  `lighthouserc.json` when that improves.
-- **Screen capture is stubbed in E2E.** Tests that switch to screen capture replace `getDisplayMedia` with an oscillator
-  stream (the OS picker can't be automated), and the Cubes source-switch test doesn't assert that the canvas renders
-  after the switch: reading pixels there timed out on CI for reasons not yet understood.
 - **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
-  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, and `npm ci` then fails in CI ("Missing: … from lock
-  file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
-  restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
-  `npm install`.
+  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, so `npm ci` fails on Linux ("Missing: … from lock
+  file"). Run `npm run check:lockfile` after any install on Windows; every workflow runs it before `npm ci`, so CI fails
+  early with the fix printed. To repair, take `main`'s copy (`git checkout origin/main -- package-lock.json`) and redo
+  the install, or install on Linux/WSL.
 - **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
   (measured; see the comment on `workers` in `playwright.config.ts`). Each worker gets its own copy of the fake-microphone
   file (`e2e/fixtures.ts`), which avoids the getUserMedia hang that sharing one file caused on Windows.

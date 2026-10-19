@@ -27,6 +27,22 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   `app/root.tsx`/`app/routes.ts`/`app/routes/*` at 2 spaces and double quotes. Markdown is not run through Prettier
   (hand-wrapped at 120 columns, with tables), so match the surrounding doc.
 
+## Pull request titles
+- Titles are Conventional Commits, `type(scope)?!?: description`, with a lowercase type from `feat`, `fix`, `perf`,
+  `refactor`, `build`, `chore`, `revert`, `style`, `docs`, `ci`, `test`. The scope is optional and free-form
+  (`feat(audio): …`, `build(deps): …`). Write the description in the imperative, lowercase after the colon, with no
+  trailing period; it is printed verbatim in the release notes.
+- Pick the type by what the change does to the shipped site, not by which files it touches: a visible or behavioural
+  addition is `feat`, a bug fix is `fix`, a speed or memory improvement is `perf`, internal cleanup is `refactor`, and
+  dependency or build-tooling changes are `build`. Add `!` before the colon when users or developers must change
+  something to keep working; that is always a major bump.
+- `docs`, `ci` and `test` release nothing, so they may only touch files that don't ship (docs, workflows, specs,
+  scripts). Changing `app/**`, `public/**`, the build config or the dependencies needs a releasing type, otherwise the
+  `version` check fails.
+- Don't edit `version` in `package.json` or `package-lock.json` yourself; the version bot commits `chore: set version to
+  X.Y.Z` to your branch. If you amend or rebase, let the bot run again (or run
+  `node scripts/release/cli.ts write-version <version>`). "Versioning and releases" in AGENTS.md has the full rules.
+
 ## Linting
 - `npm run lint` runs ESLint with type-aware typescript-eslint rules, react-hooks (`exhaustive-deps` is an error) and
   jsx-a11y. It also enforces the named-exports rule and forbids app code importing from `e2e/`.
@@ -106,7 +122,9 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Tailwind utility classes in JSX by default. Repeated class strings become named constants (`buttonStyles.ts`).
 - Use a CSS Module (`X.module.css`, camelCase class names) only for real stylesheet needs. Scope element selectors under
   the root class (`.panel button`) and mind specificity (`.panel .fieldReset`); CSS Modules only rename classes.
-- Theme tokens go in `app/app.css` (`@theme`). `tailwind.config.js` is not used by Tailwind 4.
+- Theme tokens go in `app/app.css` (`@theme`); there is no Tailwind config file.
+- Fonts are self-hosted (Inter from `@fontsource-variable/inter`, declared in `app/app.css` with `font-display: swap`).
+  Don't add stylesheets or fonts from third-party origins: they block rendering on `/`, which Lighthouse gates.
 
 ## Errors and edge cases
 - localStorage: only through `storage.ts`. Reads fall back to defaults and merge stored settings over them.
@@ -149,10 +167,13 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Locate elements by role and accessible name (`getByRole`, `getByLabelText`), not CSS classes. Wait with web-first
   assertions or `expect.poll`, never fixed sleeps. Software WebGL is slow, so the timeouts are generous; don't rely on
   retries, because a test that passes only on retry is flaky and must be fixed.
-- Opt into the `screenCaptureStub` fixture only in tests that need screen capture; everything else uses the real
-  browser APIs.
+- Screen capture needs no stub: `--use-fake-ui-for-media-stream` makes the browser's own `getDisplayMedia` return the
+  fake input device, so use `chooseScreenCapture`. To check that a scene is still rendering (especially right after a
+  source change), use `trackRenderedFrames` + `expectSceneStillDrawing` (a draw-call counter) rather than a pixel
+  read-back, which waits behind queued software-GL frames and can take many seconds.
 - Leaks are checked by counting live WebGL contexts (`trackWebGLContexts`, `liveWebGLContexts`). A scene must release
-  its context on unmount (`useThreeScene` calls `forceContextLoss()`).
+  its context on unmount (`useThreeScene` calls `forceContextLoss()`). The landing page owns none: its title is an
+  image.
 - Accessibility: call `expectNoA11yViolations` (in `e2e/a11y.ts`) on new pages and dialogs. Serious and critical
   violations fail; fix them in the app rather than excluding rules.
 - Visual regression (`e2e/visual.spec.ts`) screenshots UI only, with the canvas hidden or masked, against Linux

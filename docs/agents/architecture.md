@@ -99,9 +99,10 @@ useThreeScene(containerRef, setup, { antialias? });
 - **The visualizer owns:** its camera (settings differ per scene), its content, per-frame `update`, extra `resize` work,
   and `dispose` for anything `disposeScene` can't reach (orbit controls, audio nodes, mesh classes).
 - `setup` runs **once**; the hook reads it through a ref so inline setup functions don't rebuild the scene.
-- `signal` is aborted on teardown; async work in setup (font loading) checks `signal.aborted` before touching the scene.
+- `signal` is aborted on teardown; async work in setup (e.g. loading a texture or font) checks `signal.aborted` before
+  touching the scene.
 - `antialias` is constructor-only, hence an option rather than something set in setup.
-- Containers need a real size: visualizers use `fixed inset-0`, the landing title `h-[300px] w-full`.
+- Containers need a real size: visualizers use `fixed inset-0`.
 
 Helpers in `app/lib/three/`:
 - `disposeScene(scene)`: frees geometries, materials (incl. arrays and their textures), `InstancedMesh` buffers,
@@ -213,8 +214,13 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
 - `react-router build` produces `build/client` (static SPA, `index.html` prerendered) and a `build/server` used only during
   the build. `wrangler.jsonc` serves `build/client` with `not_found_handling: "single-page-application"`, so deep links
   load `index.html`.
-- Static files in `public/` are served from `/` (e.g. `/fonts/x.json`, `/visualization-images/cubes.png`). Never write
-  `/public/...` in a URL.
+- Static files in `public/` are served from `/` (e.g. `/title-banner.avif`, `/visualization-images/cubes-640.avif`).
+  Never write `/public/...` in a URL.
+- `public/_headers` caches `/assets/*` (content-hashed by Vite) for a year as `immutable`; HTML and everything else
+  revalidate, so a deploy shows up at once. The `@smoke` test in `e2e/deployment.spec.ts` checks both.
+- The landing page `/` loads no three.js and creates no WebGL context, which keeps it fast (Lighthouse gates it at 0.9).
+  Its title is drawn ahead of time by `npm run title-banner` (the scene lives in `scripts/title-banner/`) and shipped as
+  1x/2x AVIF/WebP/PNG; the card images come from `npm run images`. three.js loads only on the visualizer routes.
 - Cloudflare Workers Builds is connected to the GitHub repo. A push to `main` builds and deploys production; a PR branch
   builds and deploys a preview (`wrangler preview`, which needs the empty `previews` block in `wrangler.jsonc`) and
   posts its URL on the PR. GitHub Actions never deploys: it runs the checks in `AGENTS.md` ("CI and deploys") and, after
