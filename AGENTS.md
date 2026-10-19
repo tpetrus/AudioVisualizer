@@ -21,6 +21,9 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Lighthouse budget on `/` (reads the existing build) | `npm run lighthouse` |
 | Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
+| Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
+| Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
+| Check the lockfile for entries Windows npm drops (see "Known gaps") | `npm run check:lockfile` |
 | Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...) | `node scripts/release/cli.ts <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
@@ -50,17 +53,18 @@ app/
   features/
     audio/                       AudioEngine (framework-free), storage, React bindings, guard, source dialog
     rhythm/                      tempo / beat / 3-vs-4 meter / song-change tracker: pure DSP modules, worklet, RhythmTracker
-    landing/                     landing page, 3D title, visualization cards
+    landing/                     landing page, title banner (a pre-rendered image), visualization cards
     visualizers/<name>/          one folder per visualizer (page, scene hook, controls, config, pure maths, classes)
     visualizers/meshes/          shared mesh classes + GLSL shader strings
   components/                    shared, feature-agnostic UI (ControlPanel, PerformanceStats, RhythmStats)
   hooks/                         shared hooks (useThreeScene, useLatestRef)
   test/                          shared test fakes and helpers (not shipped)
   lib/three/                     three.js helpers (disposeScene, createOrbitView)
-public/                          static files served from / (fonts/, visualization-images/)
+public/                          static files served from / (title-banner.*, visualization-images/, _headers)
 e2e/                             Playwright specs and fixtures; its own TypeScript program (e2e/tsconfig.json)
   visual.spec.ts-snapshots/      Linux screenshot baselines (regenerate with the "Update visual snapshots" workflow)
-scripts/                         node scripts (rhythm evaluation, smoke-test runner)
+scripts/                         node scripts (rhythm evaluation, smoke-test runner, lockfile check, card images)
+  title-banner/                  landing title scene, font JSON and renderer (`npm run title-banner`)
 .github/                         CI workflows and Dependabot config
 ```
 
@@ -92,9 +96,9 @@ implementations; new code should look like them.
 ## Verifying changes
 - `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test:coverage` and `npm run build` pass.
 - `npm run test:e2e` passes (after `npm run build`). It automates the manual checks below in Chromium with a fake
-  microphone and software WebGL: every visualizer renders one `<canvas>`, controls, camera lock and reset view work,
-  the audio source can be switched, round trips to each visualizer release their WebGL context, deep links redirect or
-  resume correctly, there are no serious axe violations, and the page logs no errors.
+  microphone and software WebGL: every visualizer renders one `<canvas>` and `/` none, controls, camera lock and reset
+  view work, the audio source can be switched, round trips to each visualizer release their WebGL context, deep links
+  redirect or resume correctly, there are no serious axe violations, and the page logs no errors.
 - Still look at it in `npm run dev` when you change how something looks or moves: the tests check that the scene
   renders and doesn't leak, not that it looks right. Choose an audio source on `/`, open each visualizer, change
   controls, and watch the console for errors and "Too many active WebGL contexts" warnings.
@@ -196,19 +200,11 @@ console error or WebGL-context warning) and the helpers in `e2e/visualizers.ts`.
 tests" in `docs/agents/conventions.md`.
 
 ## Known gaps (don't copy, don't build on)
-- **Leftover Tailwind 3 / PostCSS config.** `tailwind.config.js` and `postcss.config.ts` are not used by the Tailwind 4
-  Vite plugin. Configure Tailwind in `app/app.css` (`@theme`), not in those files.
-- **Performance is below target.** Lighthouse performance on `/` is about 0.85 against a 0.9 goal, so the gate is set to
-  0.75 for now (oversized card images, about 81 KiB of unused JS on `/`, hashed assets served with `max-age=0`). Raise
-  `lighthouserc.json` when that improves.
-- **Screen capture is stubbed in E2E.** Tests that switch to screen capture replace `getDisplayMedia` with an oscillator
-  stream (the OS picker can't be automated), and the Cubes source-switch test doesn't assert that the canvas renders
-  after the switch: reading pixels there timed out on CI for reasons not yet understood.
 - **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
-  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, and `npm ci` then fails in CI ("Missing: … from lock
-  file"). After changing dependencies on Windows, check `git diff package-lock.json` for removed `@emnapi` entries and
-  restore them from `main`'s lockfile, or resolve lockfile conflicts by taking `main`'s copy and re-running
-  `npm install`.
+  `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, so `npm ci` fails on Linux ("Missing: … from lock
+  file"). Run `npm run check:lockfile` after any install on Windows; every workflow runs it before `npm ci`, so CI fails
+  early with the fix printed. To repair, take `main`'s copy (`git checkout origin/main -- package-lock.json`) and redo
+  the install, or install on Linux/WSL.
 - **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
   (measured; see the comment on `workers` in `playwright.config.ts`). Each worker gets its own copy of the fake-microphone
   file (`e2e/fixtures.ts`), which avoids the getUserMedia hang that sharing one file caused on Windows.
