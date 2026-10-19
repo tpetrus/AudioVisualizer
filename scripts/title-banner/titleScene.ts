@@ -1,6 +1,10 @@
 import * as THREE from 'three';
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js';
-import type { Font } from 'three/examples/jsm/loaders/FontLoader.js';
+import { TextGeometry } from 'three/addons/geometries/TextGeometry.js';
+import type { Font } from 'three/addons/loaders/FontLoader.js';
+
+// three r141's TextGeometry extruded 50 units by default; r163 renamed the option to depth and changed the default, so it is
+// stated here to keep the lettering the same thickness.
+const TITLE_DEPTH = 50;
 
 export const TITLE = 'AudioVisualizer';
 export const TAGLINE_LINES = [
@@ -22,7 +26,6 @@ export function setupTitleScene(
     size: { width: number; height: number },
     fonts: TitleFonts,
 ): THREE.PerspectiveCamera {
-    renderer.physicallyCorrectLights = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
     const camera = new THREE.PerspectiveCamera(30, size.width / size.height, 1, 1500);
@@ -40,7 +43,7 @@ export function setupTitleScene(
 }
 
 function createTitleMesh(font: Font): THREE.Mesh {
-    const geometry = new TextGeometry(TITLE, { font, size: 10 });
+    const geometry = new TextGeometry(TITLE, { font, size: 10, depth: TITLE_DEPTH });
     const mesh = new THREE.Mesh(geometry, [
         new THREE.MeshPhongMaterial({ color: 0xffffff, flatShading: true }), // front
         new THREE.MeshPhongMaterial({ color: 0xffffff }), // side
@@ -56,7 +59,7 @@ function createTaglineMeshes(font: Font): THREE.Mesh[] {
     const material = new THREE.MeshBasicMaterial({ color: 0xb8b8b8, fog: false, toneMapped: false });
 
     return TAGLINE_LINES.map((line, index) => {
-        const geometry = new TextGeometry(line, { font, size, height: 0.3, curveSegments: 8 });
+        const geometry = new TextGeometry(line, { font, size, depth: 0.3, curveSegments: 8 });
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(centeredX(geometry), -13 - index * lineHeight, 0);
         mesh.name = `${TITLE}Tagline${index}`;

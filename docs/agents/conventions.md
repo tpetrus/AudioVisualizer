@@ -106,7 +106,7 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   change layout.
 - Keep per-frame maths framerate-dependent as ported, for visual parity. If you switch to `delta`-based motion, do it
   deliberately and check how it looks.
-- Imports from `three/examples/jsm/...` (three 0.141). Don't upgrade three as part of another change.
+- Addons import from `three/addons/...` (three r186, pinned exactly). Don't upgrade three as part of another change.
 
 ## Web Audio
 - Never change the engine's graph from a visualizer beyond the analyser's `fftSize`/`smoothingTimeConstant`. For

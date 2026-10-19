@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 
-// Brightness of a resting cube's color relative to the chosen background-cube color.
+// How bright a resting cube looks on screen relative to the chosen background-cube color.
 const RESTING_BRIGHTNESS = 0.4;
+// Colors are linear values that the renderer encodes to sRGB, which lifts dark values by about a power of 1/2.2. To keep
+// the dim look this brightness had when colors were used as-is, the linear multiplier is the same power of it.
+// Precomputed so the per-frame code has no Math.pow.
+const RESTING_SCALE = RESTING_BRIGHTNESS ** 2.2;
 
 const TURN = Math.PI * 2;
 // Extra rows/columns beyond the visible area, so the edges never show while cubes tilt.
@@ -59,7 +63,6 @@ export class CubeGrid {
             clearcoat: 1,
             clearcoatRoughness: 0,
             ior: 1.3,
-            envMapIntensity: 1.4,
             transparent: true,
             opacity: 0.8,
             side: THREE.DoubleSide,
@@ -85,7 +88,7 @@ export class CubeGrid {
 
     // Raises, turns and colors every cube from its column's band level.
     public update(levels: Float32Array, { depth, spin, restingColor, raisedColor, backdropLift }: CubeLook): void {
-        this.dimmedRestingColor.copy(restingColor).multiplyScalar(RESTING_BRIGHTNESS);
+        this.dimmedRestingColor.copy(restingColor).multiplyScalar(RESTING_SCALE);
         const centerColumn = (this.columns - 1) / 2;
         const centerRow = (this.rows - 1) / 2;
         const reach = centerRow + 1;

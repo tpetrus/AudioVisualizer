@@ -126,7 +126,8 @@ describe('CubeGrid', () => {
         grid.update(Float32Array.from([1, 0]), LOOK);
 
         const resting = colorOf(grid, 0, 0);
-        expect(resting.r).toBeCloseTo(0.4, 5);
+        // 0.4 on screen is 0.4 ** 2.2 in linear colour.
+        expect(resting.r).toBeCloseTo(0.4 ** 2.2, 5);
         expect(resting.b).toBeCloseTo(0, 5);
         const raised = colorOf(grid, 1, 1);
         expect(raised.r).toBeCloseTo(0, 5);

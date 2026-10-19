@@ -35,7 +35,7 @@ Before finishing any change: `npm run format:check`, `npm run lint`, `npm run ty
 ## Stack
 - **React 19 + React Router 8 in framework mode, SPA (`ssr: false`).** Routes live in `app/routes.ts`; route modules in
   `app/routes/`. Read `.agents/skills/react-router/` before changing routing.
-- **three.js 0.141** (pinned; imports from `three/examples/jsm/...`). Do not upgrade it as part of other work.
+- **three.js r186** (pinned exactly; addons import from `three/addons/...`). Do not upgrade it as part of other work.
 - **Web Audio API** for capture and analysis. Everything is client-side; there is no server.
 - **Tailwind CSS 4** via `@tailwindcss/vite`, entry `app/app.css`. CSS Modules only where a component needs real CSS.
 - **TypeScript strict**, path alias `~/` → `app/` (from `tsconfig.json` `paths`).

@@ -31,7 +31,6 @@ export function useTrioColorWaveScene(
     const resetViewRef = useRef<() => void>(() => {});
 
     useThreeScene(containerRef, ({ scene, renderer, size }) => {
-        renderer.physicallyCorrectLights = true;
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
         scene.background = new THREE.Color(0x000000);
 
