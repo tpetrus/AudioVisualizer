@@ -1,4 +1,5 @@
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import type { Camera } from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // How far (in world units) camera or its target must move before the view counts as changed.
 const MOVED_THRESHOLD = 0.5;
@@ -17,7 +18,7 @@ interface OrbitViewOptions {
 // Orbit controls that remember starting view (shared by visualizers' lock and reset-view buttons).
 // ** Position camera before calling this: its current position becomes view that reset() returns to. **
 export function createOrbitView(
-    camera: THREE.Camera,
+    camera: Camera,
     domElement: HTMLElement,
     { locked = true, onViewChanged }: OrbitViewOptions = {},
 ): OrbitView {

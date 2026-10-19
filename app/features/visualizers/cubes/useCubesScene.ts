@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
-import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
 import { BassPulse } from './bassPulse';
 import { CubeGrid, gridSizeForView } from './cubeGrid';

@@ -36,7 +36,7 @@ export class FakeRenderer {
     readonly domElement: HTMLCanvasElement = document.createElement('canvas');
 
     // Settings the visualizers assign directly.
-    physicallyCorrectLights = false;
+    outputColorSpace = 'srgb';
     toneMapping = 0;
 
     // Spies for the calls a spec inspects: sizing, pixel ratio, rendering and the two teardown calls.
