@@ -21,7 +21,7 @@ app/features/visualizers/<kebab-name>/
   <pure maths>.ts               e.g. spectrum sampling; no three.js, no React
   <camelName><Thing>.ts         classes owning GPU objects / audio nodes (if any)
 app/routes/<camelName>Page.tsx  route module
-public/visualization-images/<kebab-name>.png   landing thumbnail (4:3)
+public/visualization-images/<kebab-name>.png   landing thumbnail source, plus its generated -640/-1200 .avif/.webp
 ```
 
 ## Steps
@@ -187,11 +187,14 @@ public/visualization-images/<kebab-name>.png   landing thumbnail (4:3)
    ]),
    ```
 
-7. **Landing card**: add an entry to `VISUALIZATIONS` in `app/features/landing/visualizations.ts` and the thumbnail to
-   `public/visualization-images/` (URL `/visualization-images/<kebab-name>.png`, never `/public/...`). Keep the grid in
-   step: the "More coming soon" tile fills the last cell. The end-to-end tests read this list, so the new visualizer is
-   tested automatically (rendering, controls, source switching, WebGL leak check, accessibility, deep links). Don't
-   edit `e2e/` for it. Keep the thumbnail small (resized to the card's size, ideally WebP): Lighthouse checks `/`.
+7. **Landing card**: add the thumbnail as `public/visualization-images/<kebab-name>.png` (any aspect; it is
+   centre-cropped to 4:3, and the crop must be at least 1200 px wide or the script fails), run `npm run images`, and
+   commit the generated `<kebab-name>-640.{avif,webp}` and `<kebab-name>-1200.{avif,webp}`. Add
+   `{ to, title, image: '/visualization-images/<kebab-name>.png' }` to `VISUALIZATIONS` in
+   `app/features/landing/visualizations.ts` (never `/public/...`); `VisualizationCard` derives the `<picture>` sources from that path, so never reference the PNG's size
+   or format in components. Keep the grid in step: the "More coming soon" tile fills the last cell. The end-to-end tests
+   read this list, so the new visualizer is tested automatically (rendering, controls, source switching, WebGL leak
+   check, accessibility, deep links). Don't edit `e2e/` for it.
 
 8. **Specs**: co-locate a `.test.ts(x)` with each file you added: the pure maths and the mesh/sheet classes (node
    environment, tested directly), the scene hook (jsdom, with the `three` mock and `FakeRenderer` from
