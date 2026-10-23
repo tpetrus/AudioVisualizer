@@ -2,6 +2,9 @@
 .env
 /node_modules/
 
+# Ephemeral agent worktree checkouts (not real git submodules)
+.claude/worktrees/
+
 # React Router
 /.react-router/
 /build/
