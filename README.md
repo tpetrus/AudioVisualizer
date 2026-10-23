@@ -5,7 +5,7 @@ computer is playing (screen or tab audio) or an input device such as Stereo Mix,
 [three.js](https://threejs.org/) scene that moves with the music. There is no server and nothing is uploaded; the audio
 never leaves your machine.
 
-It started as an Angular app and was ported to React. It is built to run smoothly on computers with weak or no graphics
+It is built to run smoothly on computers with weak or no graphics
 cards, so the music analysis (including the rhythm tracking described below) is plain signal processing, not machine
 learning.
 
