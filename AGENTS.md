@@ -24,7 +24,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
 | Check the lockfile for entries Windows npm drops (see "Known gaps"); runs the published `ci-tools` CLI from `tpetrus/ci-workflows`, not a local script | `npm run check:lockfile` |
-| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes github:tpetrus/ci-workflows#v1 ci-tools release <command>` (no args prints usage) |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes --package=github:tpetrus/ci-workflows#v1 ci-tools release <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -183,7 +183,7 @@ reusable workflow, which does the work below as a GitHub App so its pushes re-ru
   expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
   `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
 - `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
-  `npx --yes github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>` yourself; the failing check
+  `npx --yes --package=github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>` yourself; the failing check
   names the exact version.
 
 **What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the

@@ -41,7 +41,7 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
   `version` check fails.
 - Don't edit `version` in `package.json` or `package-lock.json` yourself; the version bot commits `chore: set version to
   X.Y.Z` to your branch. If you amend or rebase, let the bot run again (or run
-  `npx --yes github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>`). "Versioning and releases" in
+  `npx --yes --package=github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>`). "Versioning and releases" in
   AGENTS.md has the full rules.
 
 ## Linting
