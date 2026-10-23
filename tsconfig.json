@@ -17,7 +17,6 @@
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    // scripts/release/ is run directly by Node, which needs the .ts extension on relative imports.
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,

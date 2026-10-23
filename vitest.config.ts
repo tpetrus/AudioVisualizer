@@ -9,8 +9,7 @@ export default defineConfig({
         // The rhythm modules are pure maths, so no DOM is needed. Component tests can opt in with
         // `// @vitest-environment jsdom` at the top of the file.
         environment: 'node',
-        // The release scripts are plain Node modules with specs next to them, like the app code.
-        include: ['app/**/*.test.{ts,tsx}', 'scripts/release/**/*.test.ts'],
+        include: ['app/**/*.test.{ts,tsx}'],
         // Registers jest-dom matchers and the per-test cleanup shared by every spec.
         setupFiles: ['app/test/setup.ts'],
         // Keeps class names readable (and stable) for `*.module.css` imports in specs, e.g. ControlPanel.module.css.
@@ -20,11 +19,9 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             // Listing the sources (not just the files tests import) makes untested files show up as 0%.
-            include: ['app/**/*.{ts,tsx}', 'scripts/release/**/*.ts'],
+            include: ['app/**/*.{ts,tsx}'],
             exclude: [
                 '**/*.test.{ts,tsx}',
-                // Process entry point (argv, stdout, exit code); everything it calls is covered through commands.ts.
-                'scripts/release/cli.ts',
                 'app/test/**',
                 // Test helper that synthesises audio; not shipped.
                 'app/features/rhythm/testSignals.ts',

@@ -1,5 +1,6 @@
 name: Security
 
+# Thin caller of the shared tpetrus/ci-workflows repo's security.yml.
 on:
   pull_request:
   push:
@@ -10,50 +11,14 @@ on:
 
 permissions:
   contents: read
+  # Needed by the reusable workflow's dependency-review job to post its summary comment on failure; a reusable
+  # workflow cannot be granted more than its caller grants.
+  pull-requests: write
 
 concurrency:
   group: security-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  audit:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # Needs only node and the lockfile, so it runs before `npm ci` and turns npm's cryptic "Missing: ... from lock
-      # file" into a message that says which entries are gone and how to restore them.
-      - run: node scripts/check-lockfile.ts
-
-      - run: npm ci
-
-      # Production dependencies are what ships to users, so high/critical advisories block.
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      # Dev tooling advisories are reported but do not block: they never reach the deployed bundle and are often
-      # unfixable until an upstream release.
-      - name: Audit all dependencies (informational)
-        run: npm audit --audit-level=high
-        continue-on-error: true
-
-  dependency-review:
-    # The action diffs the PR's dependency changes against the base branch, so it only makes sense on pull requests.
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # Needed to post the summary comment when the check fails.
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/dependency-review-action@v5
-        with:
-          fail-on-severity: high
-          comment-summary-in-pr: on-failure
+  security:
+    uses: tpetrus/ci-workflows/.github/workflows/security.yml@c60f83bc1b43c9764123a6010cbd2c82c77218f8 # v0.1.2

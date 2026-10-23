@@ -1,5 +1,8 @@
 name: CI
 
+# Thin caller of the shared tpetrus/ci-workflows repo's node-ci.yml, which replaces this repo's former ci.yml,
+# size.yml, lighthouse.yml and e2e.yml: one shared build job now feeds quality, size, lighthouse and e2e instead of
+# each workflow building it again on its own, and "result" is the one required status check instead of several.
 on:
   pull_request:
   push:
@@ -13,37 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # Needs only node and the lockfile, so it runs before `npm ci` and turns npm's cryptic "Missing: ... from lock
-      # file" into a message that says which entries are gone and how to restore them.
-      - run: node scripts/check-lockfile.ts
-
-      - run: npm ci
-
-      - run: npm run format:check
-
-      - run: npm run lint
-
-      - run: npm run typecheck
-
-      - run: npm run test:coverage
-
-      # Uploaded even when a threshold fails, so the HTML report can show what is uncovered.
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage
-          path: coverage/
-          retention-days: 14
-
-      # Build only: deployment is done by Cloudflare Workers Builds on push to main, never from CI.
-      - run: npm run build
+  ci:
+    uses: tpetrus/ci-workflows/.github/workflows/node-ci.yml@c60f83bc1b43c9764123a6010cbd2c82c77218f8 # v0.1.2
+    with:
+      build-dir: build/client

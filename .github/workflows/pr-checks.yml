@@ -1,5 +1,7 @@
 name: PR checks
 
+# Thin caller of the shared tpetrus/ci-workflows repo's pr-checks.yml.
+#
 # Two required checks on every pull request (see "Versioning and releases" in AGENTS.md):
 #   pr-title  the title is a Conventional Commit, because the title decides the version bump and the release notes.
 #   version   package.json and package-lock.json carry the version that title calls for, and docs/ci/test titles do not
@@ -17,79 +19,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  pr-title:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # The release scripts import `semver`; nothing from the PR's own lifecycle scripts needs to run.
-      - run: npm ci --ignore-scripts
-
-      # The title is passed through the environment, never interpolated into the script, so it cannot inject commands.
-      - run: node scripts/release/cli.ts check-title "$PR_TITLE"
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-
-  version:
-    runs-on: ubuntu-latest
-    steps:
-      # Full history, because the base and head are compared with `git diff base...head`.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - run: npm ci --ignore-scripts
-
-      - name: Check the version
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          set -euo pipefail
-          git fetch --no-tags origin "$BASE_REF"
-          base="origin/$BASE_REF"
-          scratch="$RUNNER_TEMP/version-check"
-          mkdir -p "$scratch"
-
-          git show "$base:package.json" > "$scratch/base-package.json"
-          git show "$HEAD_SHA:package.json" > "$scratch/head-package.json"
-          git show "$HEAD_SHA:package-lock.json" > "$scratch/head-lock.json"
-
-          base_version=$(jq -r .version "$scratch/base-package.json")
-          expected=$(node scripts/release/cli.ts expected-version --base-version "$base_version" "$PR_TITLE")
-          package_version=$(jq -r .version "$scratch/head-package.json")
-          lock_version=$(jq -r .version "$scratch/head-lock.json")
-          lock_root_version=$(jq -r '.packages[""].version' "$scratch/head-lock.json")
-
-          status=0
-          hint="The version bot normally sets this itself; if it has not run yet, wait for it or run: node scripts/release/cli.ts write-version $expected"
-          check() {
-            if [ "$2" != "$expected" ]; then
-              echo "::error::$1 is $2 but this PR must set $expected (base is $base_version). $hint"
-              status=1
-            fi
-          }
-          check "package.json version" "$package_version"
-          check "package-lock.json version" "$lock_version"
-          check 'package-lock.json packages[""].version' "$lock_root_version"
-
-          # Releasing types may change anything. docs, ci and test release nothing, so they must not change what ships.
-          git diff --name-only "$base...$HEAD_SHA" > "$scratch/changed.txt"
-          node scripts/release/cli.ts check-shipped \
-            --base-package "$scratch/base-package.json" \
-            --head-package "$scratch/head-package.json" \
-            --changed-files "$scratch/changed.txt" \
-            "$PR_TITLE" || status=1
-
-          exit $status
+  pr-checks:
+    uses: tpetrus/ci-workflows/.github/workflows/pr-checks.yml@c60f83bc1b43c9764123a6010cbd2c82c77218f8 # v0.1.2
+    with:
+      # This repo's own shipped-paths policy (formerly scripts/release/shippedPaths.ts): everything whose change
+      # alters what the deployed site does, so a docs/ci/test title (which releases nothing) must not touch it.
+      shipped-prefixes: |
+        app/
+        public/
+      shipped-files: |
+        vite.config.ts
+        react-router.config.ts
+        wrangler.jsonc
