@@ -9,6 +9,8 @@ name: Version bump
 # only ever reads and edits the PR branch as text (git, jq, release-cli); no code from it is ever executed. Fork PRs
 # are skipped, since the bot cannot push to them anyway.
 on:
+  # zizmor: ignore[dangerous-triggers] The reusable version-bump.yml only ever reads and edits the PR branch as data
+  # through git and jq, never executes it, and no secret reaches code from the PR branch (see SECURITY above).
   pull_request_target:
     types: [opened, edited, synchronize, reopened]
   push:
@@ -19,7 +21,7 @@ permissions:
 
 jobs:
   version-bump:
-    uses: tpetrus/ci-workflows/.github/workflows/version-bump.yml@v1
+    uses: tpetrus/ci-workflows/.github/workflows/version-bump.yml@c60f83bc1b43c9764123a6010cbd2c82c77218f8 # v0.1.2
     # Only the two secrets version-bump.yml actually declares, not every secret this repo has: `secrets: inherit`
     # over-grants every secret the caller has (a zizmor finding fixed upstream in ci-workflows' own
     # self-version-bump.yml), so this names them explicitly instead.

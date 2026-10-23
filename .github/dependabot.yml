@@ -5,6 +5,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week after a release before proposing it, so a compromised or yanked release is usually caught first.
+    cooldown:
+      default-days: 7
     open-pull-requests-limit: 5
     # Titles become the PR title, which must be a Conventional Commit: "build(deps): ..." and "build(deps-dev): ...".
     commit-message:
@@ -44,6 +47,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Wait a week after a release before proposing it, so a compromised or yanked release is usually caught first.
+    cooldown:
+      default-days: 7
     # Same reason as above: "ci(deps): ...". Workflow-only changes release nothing.
     commit-message:
       prefix: ci

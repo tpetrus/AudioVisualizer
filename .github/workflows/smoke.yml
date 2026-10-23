@@ -34,7 +34,7 @@ jobs:
       github.event.check_run.name == 'Workers Builds: audio-visualizer' &&
       github.event.check_run.conclusion == 'success' &&
       github.event.check_run.check_suite.head_branch == 'main')
-    uses: tpetrus/ci-workflows/.github/workflows/smoke.yml@v1
+    uses: tpetrus/ci-workflows/.github/workflows/smoke.yml@c60f83bc1b43c9764123a6010cbd2c82c77218f8 # v0.1.2
     with:
       production-url: https://audio-visualizer.mypoke.workers.dev
       workers-build-check: 'Workers Builds: audio-visualizer'
