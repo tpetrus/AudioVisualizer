@@ -1,12 +1,15 @@
 name: Release
 
-# Tags and publishes a GitHub Release whenever main carries a version that has no tag yet (see "Versioning and
-# releases" in AGENTS.md). It creates a tag and a release only; it never pushes a commit, because every push to main is a
-# production deploy. Safe to re-run: when the tag already exists it does nothing.
+# Thin caller of the shared tpetrus/ci-workflows repo's release.yml. Tags and publishes a GitHub Release whenever
+# main carries a version that has no tag yet (see "Versioning and releases" in AGENTS.md). It creates a tag and a
+# release only; it never pushes a commit, because every push to main is a production deploy. Safe to re-run: when the
+# tag already exists it does nothing.
 on:
   push:
     branches: [main]
 
+# The reusable workflow's release job needs contents: write to create the tag and the release; a reusable workflow
+# cannot be granted more than its caller grants, so this must be declared here too.
 permissions:
   contents: write
 
@@ -17,59 +20,4 @@ concurrency:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      # Full history and tags, to find the previous release and list the pull requests merged since.
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Check for an existing release
-        id: check
-        run: |
-          set -euo pipefail
-          version=$(jq -r .version package.json)
-          tag="v$version"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
-            echo "Tag $tag already exists; nothing to release."
-            echo "needed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Tag $tag does not exist yet; releasing $version."
-            echo "needed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - if: steps.check.outputs.needed == 'true'
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - if: steps.check.outputs.needed == 'true'
-        run: npm ci --ignore-scripts
-
-      - name: Create the release
-        if: steps.check.outputs.needed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.check.outputs.version }}
-          TAG: ${{ steps.check.outputs.tag }}
-        run: |
-          set -euo pipefail
-          # The newest tag reachable from this commit marks where the previous release ended. With no tag yet (the first
-          # release) the notes cover the whole history.
-          if previous=$(git describe --tags --abbrev=0 --match 'v*' HEAD 2> /dev/null); then
-            range="$previous..HEAD"
-          else
-            range="HEAD"
-          fi
-          git log --first-parent --format='%H%x1f%s%x1f%b%x1e' "$range" > "$RUNNER_TEMP/log.txt"
-          node scripts/release/cli.ts notes --version "$VERSION" --log-file "$RUNNER_TEMP/log.txt" > "$RUNNER_TEMP/notes.md"
-
-          flags=()
-          # A version with a prerelease part (0.1.0-beta) is marked as a pre-release on GitHub.
-          if [[ "$VERSION" == *-* ]]; then flags+=(--prerelease); fi
-
-          # `gh release create` creates the tag at the given commit, so no git push is involved.
-          gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
+    uses: tpetrus/ci-workflows/.github/workflows/release.yml@v1

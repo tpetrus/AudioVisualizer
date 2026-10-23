@@ -23,8 +23,8 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
-| Check the lockfile for entries Windows npm drops (see "Known gaps") | `npm run check:lockfile` |
-| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...) | `node scripts/release/cli.ts <command>` (no args prints usage) |
+| Check the lockfile for entries Windows npm drops (see "Known gaps"); runs the published `ci-tools` CLI from `tpetrus/ci-workflows`, not a local script | `npm run check:lockfile` |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes github:tpetrus/ci-workflows#v1 ci-tools release <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -43,7 +43,13 @@ Before finishing any change: `npm run format:check`, `npm run lint`, `npm run ty
   Cloudflare Workers Builds deploys every push to `main` to production (https://audio-visualizer.mypoke.workers.dev)
   and every PR branch to a preview URL. GitHub Actions only checks; it never deploys.
 - **Tooling:** Node 24 (`.nvmrc`), Prettier, ESLint 9 flat config (`eslint.config.js`), Vitest, Playwright (Chromium),
-  size-limit, Lighthouse CI. Workflows live in `.github/workflows/`.
+  size-limit, Lighthouse CI. `.github/workflows/` here holds thin caller workflows; see below for where the actual
+  CI/CD logic lives.
+
+This repo's CI/CD is now built on [`tpetrus/ci-workflows@v1`](https://github.com/tpetrus/ci-workflows): the build,
+test, release and version-bump logic lives there as reusable workflows and composite actions. Changes to that shared
+pipeline behavior belong in that repo, not here — this repo's own `.github/workflows/*.yml` files are now just thin
+callers that pass in repo-specific inputs (build directory, shipped-path prefixes, secrets).
 
 ## Where things live
 ```
@@ -63,9 +69,11 @@ app/
 public/                          static files served from / (title-banner.*, visualization-images/, _headers)
 e2e/                             Playwright specs and fixtures; its own TypeScript program (e2e/tsconfig.json)
   visual.spec.ts-snapshots/      Linux screenshot baselines (regenerate with the "Update visual snapshots" workflow)
-scripts/                         node scripts (rhythm evaluation, smoke-test runner, lockfile check, card images)
+scripts/                         node scripts that stay local (rhythm evaluation, smoke-test runner, card images);
+                                  the lockfile check and release helper now live in `tpetrus/ci-workflows`
   title-banner/                  landing title scene, font JSON and renderer (`npm run title-banner`)
-.github/                         CI workflows and Dependabot config
+.github/                         thin caller workflows (the actual CI/CD logic lives in `tpetrus/ci-workflows`) and
+                                  Dependabot config
 ```
 
 ## Rules that matter most
@@ -106,18 +114,22 @@ implementations; new code should look like them.
   Cloudflare preview URL (posted on the PR) is the same check against the real host.
 
 ## CI and deploys
-Every pull request runs these checks, and `main` requires them to pass before merging:
+Every pull request runs these checks, and `main` requires them to pass before merging. All of the actual CI/CD logic
+runs in the shared [`tpetrus/ci-workflows@v1`](https://github.com/tpetrus/ci-workflows) repo; the files under
+`.github/workflows/` here are thin callers that invoke its reusable workflows with this repo's own inputs. The table
+below names the calling workflow file in this repo and the job(s) it runs inside the shared repo's reusable workflow.
+**Caveat:** GitHub sometimes displays a job from a called reusable workflow under a compound name
+(`<caller job> / <inner job>`) rather than the inner job name alone, so the exact string the branch ruleset and PR
+checks list may not match what's written here — treat these names as best-effort from reading the workflow files,
+not as confirmed, until they're observed on a real PR's checks, and correct this table then.
 
-| Check (workflow) | What it gates |
+| Check (calling workflow → job(s) in the shared reusable workflow) | What it gates |
 |---|---|
-| `quality` (CI) | format, lint, typecheck, unit tests with the 95% coverage threshold, build |
-| `size` (Bundle size) | gzip budgets for first-load JS, all JS and CSS (`.size-limit.json`) |
-| `e2e-result` (E2E) | Playwright functional, accessibility (axe) and visual-regression specs, in the Playwright container, sharded automatically by test count (no edits as tests are added); `e2e-result` is the one check to require |
-| `pr-title` (PR checks) | the PR title is a Conventional Commit (see "Versioning and releases") |
-| `version` (PR checks) | `package.json` and `package-lock.json` carry the version the title calls for; docs/ci/test titles change nothing that ships |
-| `lighthouse` (Lighthouse) | performance, accessibility and best-practices scores on `/` (`lighthouserc.json`) |
-| `audit`, `dependency-review` (Security) | known-vulnerable production dependencies; risky dependencies added by a PR |
-| `analyze (…)` (CodeQL) | static security analysis of the TypeScript and the workflows |
+| `ci.yml` → `result` (`tpetrus/ci-workflows`'s `node-ci.yml`) | the one required check: format, lint, typecheck, unit tests with the 95% coverage threshold and the build (`quality`, `build`, `max-file-size`) are never optional; the bundle-size budget (`size`, `.size-limit.json`), the Lighthouse budget (`lighthouse`, `lighthouserc.json`), the sharded Playwright suite (`e2e-plan`/`e2e`/`e2e-result`) and an offline link check (`links`) must each pass or be cleanly skipped. One shared build feeds all of them, replacing this repo's former separate `size.yml`, `lighthouse.yml` and `e2e.yml` |
+| `pr-checks.yml` → `pr-title` (`tpetrus/ci-workflows`'s `pr-checks.yml`) | the PR title is a Conventional Commit (see "Versioning and releases") |
+| `pr-checks.yml` → `version` (`tpetrus/ci-workflows`'s `pr-checks.yml`) | `package.json` and `package-lock.json` carry the version the title calls for; docs/ci/test titles change nothing that ships |
+| `security.yml` → `audit`, `dependency-review` (`tpetrus/ci-workflows`'s `security.yml`) | known-vulnerable production dependencies; risky dependencies added by a PR |
+| `codeql.yml` → `analyze` (matrix per language) (`tpetrus/ci-workflows`'s `codeql.yml`) | static security analysis of the TypeScript and the workflows |
 | Workers Builds (Cloudflare) | the PR builds and deploys to a preview URL |
 
 After a merge, Cloudflare deploys `main` to production and "Smoke (production)" (`smoke.yml`) runs the `@smoke` tests
@@ -134,9 +146,10 @@ When a gate fails:
 - **Dependencies**: Dependabot opens weekly grouped PRs. It never updates `three`/`@types/three` (pinned), and skips
   majors of `typescript`, `eslint`, `@eslint/js` and `@types/node` on purpose (see the comments in
   `.github/dependabot.yml`).
-  Never merge a Dependabot PR with failing checks. `@playwright/test` must stay on the same version as the
-  `mcr.microsoft.com/playwright` image tag in `e2e.yml` and `update-snapshots.yml`; bump all three together and
-  regenerate the baselines.
+  Never merge a Dependabot PR with failing checks. The Playwright container image tag is now derived automatically
+  from the installed `@playwright/test` version inside `tpetrus/ci-workflows`'s `node-ci.yml` and
+  `update-snapshots.yml` reusable workflows, so bumping `@playwright/test` alone is enough; still regenerate the
+  baselines afterward.
 
 ## Versioning and releases
 The version in `package.json` (shown on the landing page) is set by automation from the PR title, and each release is
@@ -160,7 +173,8 @@ It is plain semver, including the prerelease: `0.1.0-beta` plus a patch (or a `f
 check fails and asks for a releasing type instead. Dependabot titles are `build(deps): …` / `build(deps-dev): …` and
 `ci(deps): …` (configured in `.github/dependabot.yml`), so npm bumps release a patch and action bumps release nothing.
 
-**What the version bot does** (`version-bump.yml`, running as a GitHub App so its pushes re-run the checks):
+**What the version bot does** (`version-bump.yml` here is a thin caller of `tpetrus/ci-workflows`'s `version-bump.yml`
+reusable workflow, which does the work below as a GitHub App so its pushes re-run the checks):
 - On every PR event (opened, edited, synchronize, reopened) for a same-repo PR, it computes the expected version from the
   base branch's `package.json` and the title. If the head differs, it commits `chore: set version to X.Y.Z` to the PR
   branch, editing only the version lines of `package.json` and `package-lock.json`. It checks out the base branch for its
@@ -169,7 +183,8 @@ check fails and asks for a releasing type instead. Dependabot titles are `build(
   expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
   `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
 - `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
-  `node scripts/release/cli.ts write-version <version>` yourself; the failing check names the exact version.
+  `npx --yes github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>` yourself; the failing check
+  names the exact version.
 
 **What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the
 release notes from the PR titles merged since the previous tag (Features / Fixes / Performance / Other; docs, ci and test
@@ -202,9 +217,10 @@ tests" in `docs/agents/conventions.md`.
 ## Known gaps (don't copy, don't build on)
 - **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
   `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, so `npm ci` fails on Linux ("Missing: … from lock
-  file"). Run `npm run check:lockfile` after any install on Windows; every workflow runs it before `npm ci`, so CI fails
-  early with the fix printed. To repair, take `main`'s copy (`git checkout origin/main -- package-lock.json`) and redo
-  the install, or install on Linux/WSL.
+  file"). Run `npm run check:lockfile` after any install on Windows; every workflow runs the equivalent check (via
+  `tpetrus/ci-workflows`'s `actions/setup` composite action) before `npm ci`, so CI fails early with the fix printed.
+  To repair, take `main`'s copy (`git checkout origin/main -- package-lock.json`) and redo the install, or install on
+  Linux/WSL.
 - **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
   (measured; see the comment on `workers` in `playwright.config.ts`). Each worker gets its own copy of the fake-microphone
   file (`e2e/fixtures.ts`), which avoids the getUserMedia hang that sharing one file caused on Windows.

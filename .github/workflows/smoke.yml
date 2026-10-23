@@ -1,8 +1,11 @@
 name: Smoke (production)
 
-# Runs the `@smoke` Playwright tests against the live site after each production deploy. This workflow never deploys:
-# Cloudflare Workers Builds deploys on every push to main. It is not a required status check, because it runs after
-# the merge, not before it.
+# Runs the `@smoke` Playwright tests against the live site after each production deploy, via the shared
+# tpetrus/ci-workflows repo's smoke.yml. This workflow never deploys: Cloudflare Workers Builds deploys on every push
+# to main. It is not a required status check, because it runs after the merge, not before it.
+#
+# The reusable workflow no longer decides whether to run; that decision stays here, in the caller, on the one job
+# that invokes it.
 #
 # The `check_run` trigger only fires for workflow files on the default branch. Cloudflare reports its build as the
 # check run "Workers Builds: audio-visualizer", which is "completed / success" once the deploy has gone live, so no
@@ -22,9 +25,6 @@ concurrency:
   group: smoke-${{ github.event.check_run.head_sha || github.ref }}
   cancel-in-progress: false
 
-env:
-  PRODUCTION_URL: https://audio-visualizer.mypoke.workers.dev
-
 jobs:
   smoke:
     # check_run fires for every check on every branch, so only the successful production deploy on main is let through.
@@ -34,72 +34,10 @@ jobs:
       github.event.check_run.name == 'Workers Builds: audio-visualizer' &&
       github.event.check_run.conclusion == 'success' &&
       github.event.check_run.check_suite.head_branch == 'main')
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
+    uses: tpetrus/ci-workflows/.github/workflows/smoke.yml@v1
+    with:
+      production-url: https://audio-visualizer.mypoke.workers.dev
+      workers-build-check: 'Workers Builds: audio-visualizer'
       # A check_run run starts on the default branch's latest commit, which may be newer than the deployed one, so
-      # check out the commit that was deployed. The other triggers use their default ref.
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.check_run.head_sha || '' }}
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      # Needs only node and the lockfile, so it runs before `npm ci` and turns npm's cryptic "Missing: ... from lock
-      # file" into a message that says which entries are gone and how to restore them.
-      - run: node scripts/check-lockfile.ts
-
-      - run: npm ci
-
-      - name: Read the installed Playwright version
-        id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Playwright browsers
-        id: browsers
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      # A cache hit has the browser binary but not the OS libraries it needs, so those are always installed.
-      - if: steps.browsers.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - if: steps.browsers.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
-
-      - name: Smoke test production
-        run: npm run test:smoke
-        env:
-          BASE_URL: ${{ env.PRODUCTION_URL }}
-
-      - name: Summarise the failure
-        if: failure()
-        env:
-          COMMIT: ${{ github.event.check_run.head_sha || github.sha }}
-        run: |
-          {
-            echo "## Production smoke test failed"
-            echo
-            echo "- Site: ${PRODUCTION_URL}"
-            echo "- Commit: \`${COMMIT}\`"
-            echo
-            echo "Roll back the bad deploy by hand (this workflow never does it for you):"
-            echo
-            echo "- Cloudflare dashboard: Workers & Pages > audio-visualizer > Deployments > pick the last good version > Rollback"
-            echo "- CLI: \`npx wrangler rollback\`"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/upload-artifact@v7
-        if: failure()
-        with:
-          name: playwright-report-smoke
-          path: |
-            playwright-report/
-            test-results/
-          if-no-files-found: ignore
-          retention-days: 14
+      # the reusable workflow checks out the commit that was deployed. The other triggers fall back to its default ref.
+      ref: ${{ github.event.check_run.head_sha || '' }}

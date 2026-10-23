@@ -1,5 +1,6 @@
 name: CodeQL
 
+# Thin caller of the shared tpetrus/ci-workflows repo's codeql.yml.
 on:
   pull_request:
   push:
@@ -10,35 +11,15 @@ on:
 
 permissions:
   contents: read
+  # Needed by the reusable workflow's analyze job to upload results to the code scanning dashboard; a reusable
+  # workflow cannot be granted more than its caller grants.
+  security-events: write
+  actions: read
 
 concurrency:
   group: codeql-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  analyze:
-    name: analyze (${{ matrix.language }})
-    runs-on: ubuntu-latest
-    permissions:
-      # Required to upload results to the code scanning dashboard.
-      security-events: write
-      contents: read
-      actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        # "actions" scans the workflow files themselves (script injection, excessive permissions, etc.).
-        language: [javascript-typescript, actions]
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: github/codeql-action/init@v4
-        with:
-          languages: ${{ matrix.language }}
-          # Both languages are interpreted, so no build is needed.
-          build-mode: none
-          queries: security-extended
-
-      - uses: github/codeql-action/analyze@v4
-        with:
-          category: /language:${{ matrix.language }}
+  codeql:
+    uses: tpetrus/ci-workflows/.github/workflows/codeql.yml@v1
