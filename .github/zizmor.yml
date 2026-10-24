@@ -1,0 +1,7 @@
+# Our own ci-workflows releases are referenced by exact version tag (releases are immutable); everything else stays SHA-pinned.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        'tpetrus/*': ref-pin
+        '*': hash-pin

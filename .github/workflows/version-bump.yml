@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   version-bump:
-    uses: tpetrus/ci-workflows/.github/workflows/version-bump.yml@48f7e3b1eaaafbbb6c870b7d67e06add9378bf0b # v0.1.2
+    uses: tpetrus/ci-workflows/.github/workflows/version-bump.yml@v0.1.4
     # Only the two secrets version-bump.yml actually declares, not every secret this repo has: `secrets: inherit`
     # over-grants every secret the caller has (a zizmor finding fixed upstream in ci-workflows' own
     # self-version-bump.yml), so this names them explicitly instead.
