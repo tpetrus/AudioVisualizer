@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   pr-checks:
-    uses: tpetrus/ci-workflows/.github/workflows/pr-checks.yml@48f7e3b1eaaafbbb6c870b7d67e06add9378bf0b # v0.1.3
+    uses: tpetrus/ci-workflows/.github/workflows/pr-checks.yml@v0.1.3
     with:
       # This repo's own shipped-paths policy (formerly scripts/release/shippedPaths.ts): everything whose change
       # alters what the deployed site does, so a docs/ci/test title (which releases nothing) must not touch it.

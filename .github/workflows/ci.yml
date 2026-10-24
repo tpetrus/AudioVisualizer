@@ -17,6 +17,6 @@ concurrency:
 
 jobs:
   ci:
-    uses: tpetrus/ci-workflows/.github/workflows/node-ci.yml@48f7e3b1eaaafbbb6c870b7d67e06add9378bf0b # v0.1.3
+    uses: tpetrus/ci-workflows/.github/workflows/node-ci.yml@v0.1.3
     with:
       build-dir: build/client

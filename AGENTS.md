@@ -24,7 +24,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
 | Check the lockfile for entries Windows npm drops (see "Known gaps"); runs the published `ci-tools` CLI from `tpetrus/ci-workflows`, not a local script | `npm run check:lockfile` |
-| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes --package=github:tpetrus/ci-workflows#v1 ci-tools release <command>` (no args prints usage) |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes --package=github:tpetrus/ci-workflows#v0.1.3 ci-tools release <command>` (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -46,10 +46,18 @@ Before finishing any change: `npm run format:check`, `npm run lint`, `npm run ty
   size-limit, Lighthouse CI. `.github/workflows/` here holds thin caller workflows; see below for where the actual
   CI/CD logic lives.
 
-This repo's CI/CD is now built on [`tpetrus/ci-workflows@v1`](https://github.com/tpetrus/ci-workflows): the build,
+This repo's CI/CD is now built on [`tpetrus/ci-workflows`](https://github.com/tpetrus/ci-workflows): the build,
 test, release and version-bump logic lives there as reusable workflows and composite actions. Changes to that shared
 pipeline behavior belong in that repo, not here — this repo's own `.github/workflows/*.yml` files are now just thin
 callers that pass in repo-specific inputs (build directory, shipped-path prefixes, secrets).
+
+**How ci-workflows is pinned.** Every `uses: tpetrus/ci-workflows/...` reference is an exact version tag
+(`@v0.1.3`), not a SHA and not a moving `@v1`. Releases are immutable from v0.1.4 on (v0.1.3 predates the setting) and
+nobody moves tags. Third-party actions stay SHA-pinned; `.github/zizmor.yml` lets `tpetrus/*` use a ref-pin and keeps
+hash-pinning for everything else. Dependabot's github-actions updater bumps exact-tag refs to newer same-precision tags
+(for example `v0.1.3` to `v0.1.4`). It never edits `package.json` script strings, so the `ci-tools` ref in
+`check:lockfile` and in the `npx` commands in these docs is bumped by hand in the same PR as each ci-workflows `uses:`
+bump.
 
 ## Where things live
 ```
@@ -115,7 +123,7 @@ implementations; new code should look like them.
 
 ## CI and deploys
 Every pull request runs these checks, and `main` requires them to pass before merging. All of the actual CI/CD logic
-runs in the shared [`tpetrus/ci-workflows@v1`](https://github.com/tpetrus/ci-workflows) repo; the files under
+runs in the shared [`tpetrus/ci-workflows`](https://github.com/tpetrus/ci-workflows) repo; the files under
 `.github/workflows/` here are thin callers that invoke its reusable workflows with this repo's own inputs. The table
 below names the calling workflow file in this repo and the job(s) it runs inside the shared repo's reusable workflow.
 **Caveat:** GitHub sometimes displays a job from a called reusable workflow under a compound name
@@ -183,7 +191,7 @@ reusable workflow, which does the work below as a GitHub App so its pushes re-ru
   expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
   `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
 - `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
-  `npx --yes --package=github:tpetrus/ci-workflows#v1 ci-tools release write-version <version>` yourself; the failing check
+  `npx --yes --package=github:tpetrus/ci-workflows#v0.1.3 ci-tools release write-version <version>` yourself; the failing check
   names the exact version.
 
 **What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the
@@ -193,8 +201,9 @@ otherwise exits. To replace the generated notes for a release, add `.github/rele
 
 **One-time setup** (repository admin):
 1. Create a GitHub App (Settings → Developer settings → GitHub Apps) with repository permissions Contents: read and
-   write, Pull requests: read and write, Workflows: read and write (so merging `main` into a branch that touches
-   workflow files can be pushed), Metadata: read. No webhook is needed. Install it on this repository only.
+   write, Issues: read and write (the shared `sync-prs` job requests `permission-issues: write`; without it the job
+   fails with `The permissions requested are not granted to this installation.`), Pull requests: read and write,
+   Workflows: read and write (so merging `main` into a branch that touches workflow files can be pushed), Metadata: read. No webhook is needed. Install it on this repository only.
 2. Add its App ID as the secret `RELEASE_APP_ID` and a generated private key as `RELEASE_APP_PRIVATE_KEY`, in both
    Settings → Secrets → Actions and Settings → Secrets → Dependabot (Dependabot-triggered runs read only the latter).
 3. In the `main` ruleset, require the `pr-title` and `version` checks and require branches to be up to date before
