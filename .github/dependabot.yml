@@ -48,12 +48,18 @@ updates:
     schedule:
       interval: weekly
     # Wait a week after a release before proposing it, so a compromised or yanked release is usually caught first.
+    # Our own tpetrus/ci-workflows releases are exempt: we publish them ourselves, so there is nothing to wait out.
+    # The wildcard covers both the repo name and any workflow-path form Dependabot may report for a reusable workflow.
     cooldown:
       default-days: 7
+      exclude: ['tpetrus/ci-workflows*']
     # Same reason as above: "ci(deps): ...". Workflow-only changes release nothing.
     commit-message:
       prefix: ci
       include: scope
     groups:
+      # Our shared pipeline bumps get their own PR instead of riding along with third-party actions (first match wins).
+      ci-workflows:
+        patterns: ['tpetrus/ci-workflows*']
       actions:
         patterns: ['*']

@@ -23,7 +23,6 @@
     "preview": "npm run build && wrangler dev",
     "deploy": "npm run build && wrangler deploy",
     "lint": "eslint .",
-    "check:lockfile": "npx --yes --package=github:tpetrus/ci-workflows#v0.1.3 ci-tools check-lockfile",
     "size": "size-limit",
     "lighthouse": "lhci autorun",
     "title-banner": "esbuild scripts/title-banner/browser.ts --bundle --platform=browser --format=iife --log-level=warning --outfile=node_modules/.cache/title-banner-browser.js && esbuild scripts/title-banner/render.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/title-banner.mjs && node node_modules/.cache/title-banner.mjs",

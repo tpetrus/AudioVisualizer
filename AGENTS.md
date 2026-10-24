@@ -23,8 +23,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
-| Check the lockfile for entries Windows npm drops (see "Known gaps"); runs the published `ci-tools` CLI from `tpetrus/ci-workflows`, not a local script | `npm run check:lockfile` |
-| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes --package=github:tpetrus/ci-workflows#v0.1.3 ci-tools release <command>` (no args prints usage) |
+| Release helper used by the version/release workflows (`check-title`, `expected-version`, `write-version`, ...); lives in `tpetrus/ci-workflows` now and is mainly for the workflows' own internal use (the `release-cli` composite action) — a human only needs this npx form for the rare manual-recovery case under "Versioning and releases" | `npx --yes --package=github:tpetrus/ci-workflows#vX.Y.Z ci-tools release <command>` (`vX.Y.Z` is the ci-workflows tag `.github/workflows/` currently pins) (no args prints usage) |
 | Serve the build locally like production | `npm run preview` (wrangler dev) |
 | Manual deploy (normally not needed, see "CI and deploys") | `npm run deploy` |
 
@@ -55,9 +54,9 @@ callers that pass in repo-specific inputs (build directory, shipped-path prefixe
 (`@v0.1.3`), not a SHA and not a moving `@v1`. Releases are immutable from v0.1.4 on (v0.1.3 predates the setting) and
 nobody moves tags. Third-party actions stay SHA-pinned; `.github/zizmor.yml` lets `tpetrus/*` use a ref-pin and keeps
 hash-pinning for everything else. Dependabot's github-actions updater bumps exact-tag refs to newer same-precision tags
-(for example `v0.1.3` to `v0.1.4`). It never edits `package.json` script strings, so the `ci-tools` ref in
-`check:lockfile` and in the `npx` commands in these docs is bumped by hand in the same PR as each ci-workflows `uses:`
-bump.
+(for example `v0.1.3` to `v0.1.4`). The `npx` commands in these docs use a `vX.Y.Z` placeholder for the tag the
+workflows currently pin, so nothing here needs a hand edit when a bump lands. `.github/dependabot.yml` exempts
+`tpetrus/ci-workflows*` from the 7-day cooldown (our own releases need no wait) and gives it its own group.
 
 ## Where things live
 ```
@@ -191,7 +190,7 @@ reusable workflow, which does the work below as a GitHub App so its pushes re-ru
   expected version depends on `main`'s current one. A conflict confined to the version lines is resolved by taking
   `main`'s side; any other conflict aborts the merge, leaves one comment on the PR and skips it.
 - `pr-checks.yml` (`pr-title`, `version`) then verifies the result. If the bot is down, run
-  `npx --yes --package=github:tpetrus/ci-workflows#v0.1.3 ci-tools release write-version <version>` yourself; the failing check
+  `npx --yes --package=github:tpetrus/ci-workflows#vX.Y.Z ci-tools release write-version <version>` yourself (`vX.Y.Z` is the ci-workflows tag `.github/workflows/` currently pins); the failing check
   names the exact version.
 
 **What `release.yml` does:** on every push to `main`, if the tag `v<package.json version>` does not exist, it builds the
@@ -226,8 +225,10 @@ tests" in `docs/agents/conventions.md`.
 ## Known gaps (don't copy, don't build on)
 - **`npm install` on Windows can break the lockfile for Linux.** It drops the bundled
   `@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/*` entries, so `npm ci` fails on Linux ("Missing: … from lock
-  file"). Run `npm run check:lockfile` after any install on Windows; every workflow runs the equivalent check (via
-  `tpetrus/ci-workflows`'s `actions/setup` composite action) before `npm ci`, so CI fails early with the fix printed.
+  file"). Every workflow runs the lockfile check (via `tpetrus/ci-workflows`'s `actions/setup` composite action) before
+  `npm ci`, so CI fails early with the fix printed. To check locally after an install on Windows, run
+  `npx --yes --package=github:tpetrus/ci-workflows#vX.Y.Z ci-tools check-lockfile` (`vX.Y.Z` is the ci-workflows tag
+  `.github/workflows/` currently pins).
   To repair, take `main`'s copy (`git checkout origin/main -- package-lock.json`) and redo the install, or install on
   Linux/WSL.
 - **E2E runs one worker per job.** Software WebGL is CPU-bound, so on a 4-vCPU runner more workers made tests time out
