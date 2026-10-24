@@ -21,4 +21,4 @@ concurrency:
 
 jobs:
   security:
-    uses: tpetrus/ci-workflows/.github/workflows/security.yml@48f7e3b1eaaafbbb6c870b7d67e06add9378bf0b # v0.1.2
+    uses: tpetrus/ci-workflows/.github/workflows/security.yml@48f7e3b1eaaafbbb6c870b7d67e06add9378bf0b # v0.1.3
