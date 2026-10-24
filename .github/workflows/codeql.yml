@@ -22,4 +22,4 @@ concurrency:
 
 jobs:
   codeql:
-    uses: tpetrus/ci-workflows/.github/workflows/codeql.yml@v0.1.4
+    uses: tpetrus/ci-workflows/.github/workflows/codeql.yml@v1
