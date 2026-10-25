@@ -19,6 +19,6 @@ concurrency:
 
 jobs:
   update-snapshots:
-    uses: tpetrus/ci-workflows/.github/workflows/update-snapshots.yml@v0.1.4
+    uses: tpetrus/ci-workflows/.github/workflows/update-snapshots.yml@v1
     with:
       build-dir: build/client
