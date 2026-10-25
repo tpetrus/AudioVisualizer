@@ -51,7 +51,7 @@ pipeline behavior belong in that repo, not here — this repo's own `.github/wor
 callers that pass in repo-specific inputs (build directory, shipped-path prefixes, secrets).
 
 **How ci-workflows is pinned.** Every `uses: tpetrus/ci-workflows/...` reference is an exact version tag
-(`@v0.1.4`), not a SHA and not a moving `@v1`. Releases are immutable from v0.1.4 on (v0.1.3 predates the setting) and
+(`@v0.2.0`), not a SHA and not a moving `@v1`. Releases are immutable from v0.1.4 on (v0.1.3 predates the setting) and
 nobody moves tags. Third-party actions stay SHA-pinned; `.github/zizmor.yml` lets `tpetrus/*` use a ref-pin and keeps
 hash-pinning for everything else. Dependabot's github-actions updater bumps exact-tag refs to newer same-precision tags
 (for example `v0.1.3` to `v0.1.4`). The `npx` commands in these docs use a `vX.Y.Z` placeholder for the tag the
