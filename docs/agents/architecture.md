@@ -62,13 +62,17 @@ Rules:
 
 ### Guard: `RequireAudio.tsx`
 Wraps visualizer routes via the layout route `app/routes/requireAudioLayout.tsx`. It starts as `'ok'` if already
-capturing; otherwise it calls `engine.resumeSavedSource()` once on mount (a saved input device reopens silently if mic
-permission is already granted) and either renders the children or `<Navigate to="/" replace />`. It checks **on mount
-only**: it must not subscribe to capture state, or a source switch would redirect. It uses a `cancelled` flag in the
-effect cleanup.
+capturing; otherwise it renders nothing and calls `engine.resumeSavedSource()` once on mount (a saved input device
+reopens silently if mic permission is already granted). If that resumes, it renders the children. If not, it opens the
+**required** `AudioSourceDialog` (no ×/Escape/backdrop until capturing) with a "Back to home" button that navigates to
+`/`. While the guard is `'denied'`, a small watcher observes capture state; the first time a source is capturing it
+latches the guard to `'ok'` and unmounts itself. After that the guard **never subscribes to capture state**, so a source
+switch (stop, then start the new source) can't unmount the visualizer or show the required dialog again. The dialog
+stays open over the visualizer until the user closes it. It uses a `cancelled` flag in the effect cleanup.
 
 ### Source dialog: `components/`
-`AudioSourceDialog` (modal shell: backdrop, Escape, can't close until capturing) → `SourceChooser` (screen/device,
+`AudioSourceDialog` (modal shell: backdrop, Escape; can't close until capturing unless `dismissible`, as on the landing
+page, where it opens from the "Connect audio" / "Audio settings" button and is never opened automatically) → `SourceChooser` (screen/device,
 owns busy/error/device state, calls `onStarted()` after success) or `ActiveSourcePanel` (meter, normalize switch,
 `NormalizeSettings` sliders, `SilenceWarning`). Shared Tailwind button classes are in `buttonStyles.ts`.
 

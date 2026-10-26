@@ -1,6 +1,7 @@
 import {
     chooseInputDevice,
     chooseScreenCapture,
+    connectAudio,
     expect,
     expectSceneStillDrawing,
     expectSingleCanvas,
@@ -71,6 +72,7 @@ test('landing page: screen capture delivers live, non-silent audio from the brow
     // Observes the stream the browser's own getDisplayMedia returns; nothing is replaced (see chooseScreenCapture).
     await observeScreenCapture(page);
     await page.goto('/');
+    await connectAudio(page);
     await chooseScreenCapture(page);
 
     await expect

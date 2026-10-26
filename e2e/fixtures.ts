@@ -110,8 +110,18 @@ export function liveWebGLContexts(page: Page): Promise<number> {
 
 const audioDialog = (page: Page) => page.getByRole('dialog', { name: 'Audio source' });
 
-// Completes the first-run audio dialog with the fake input device. Call it on the landing page with no saved source.
+// Opens the optional audio dialog from the landing page. The landing page never opens it by itself, so every flow that
+// needs a source starts here. Only valid while no source is capturing (otherwise the button reads "Audio settings").
+export async function connectAudio(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'Connect audio' }).click();
+    await expect(audioDialog(page)).toBeVisible();
+}
+
+// Connects the fake input device from the landing page with no saved source: opens the dialog, picks the device and
+// dismisses the live-source summary. Kept as one landing-page helper so specs stay short; a spec that starts on a
+// visualizer URL drives the required dialog itself.
 export async function chooseInputDevice(page: Page): Promise<void> {
+    await connectAudio(page);
     const dialog = audioDialog(page);
     await dialog.getByRole('button', { name: 'Choose device' }).click();
     await expect(dialog.getByLabel('Audio input device')).toBeVisible();
@@ -123,7 +133,7 @@ export async function chooseInputDevice(page: Page): Promise<void> {
 }
 
 // Same, with screen capture, but it leaves the dialog open on the live-source summary so callers can inspect it.
-// Works from the first-run dialog or after "Choose a different source". Nothing is replaced: the app calls the real
+// Works from the open dialog (see connectAudio) or after "Choose a different source". Nothing is replaced: the app calls the real
 // `getDisplayMedia`, which `--use-fake-ui-for-media-stream` (playwright.config.ts) answers with no picker and a stream
 // of the fake input device, so the audio is the same click track as the microphone's.
 // Tab or desktop capture (`--auto-select-tab-capture-source-by-title`, `--auto-select-desktop-capture-source`) also

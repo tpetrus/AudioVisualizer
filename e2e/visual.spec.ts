@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
-import { chooseInputDevice, expect, test } from './fixtures';
+import { chooseInputDevice, connectAudio, expect, test } from './fixtures';
 import { VISUALIZERS_UNDER_TEST, openSettings, startVisualizer } from './visualizers';
 
 // Baselines are Linux renders from the Playwright container image (see .github/workflows/update-snapshots.yml). Fonts,
@@ -39,7 +39,7 @@ test('landing page', async ({ page }) => {
 
 test('audio source dialog', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByRole('dialog', { name: 'Audio source' })).toBeVisible();
+    await connectAudio(page);
     await imagesLoaded(page);
     await expect(page).toHaveScreenshot('audio-source-dialog.png', { stylePath: HIDE_CANVAS });
 });

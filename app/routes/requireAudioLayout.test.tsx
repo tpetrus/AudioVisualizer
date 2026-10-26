@@ -28,13 +28,30 @@ describe("RequireAudioLayout route", () => {
     expect(screen.getByText("cubes page")).toBeInTheDocument();
   });
 
-  it("redirects to the landing page when no source can be resumed", async () => {
+  it("asks for a source in a required dialog when none can be resumed, with a way back home", async () => {
     const engine = new FakeAudioEngine();
     engine.resumeSavedSource.mockResolvedValue(false);
-    renderLayout(engine);
+    const { user } = renderLayout(engine);
     await act(async () => {});
 
-    expect(screen.getByText("landing page")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Audio source" })).toBeInTheDocument();
     expect(screen.queryByText("cubes page")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Back to home" }));
+    expect(screen.getByText("landing page")).toBeInTheDocument();
+  });
+
+  it("renders the child route once a source starts from the dialog", async () => {
+    const engine = new FakeAudioEngine();
+    engine.resumeSavedSource.mockResolvedValue(false);
+    engine.startScreenCapture.mockImplementation(async () => {
+      engine.setAnalyser(asWebAudio<AnalyserNode>({}));
+    });
+    const { user } = renderLayout(engine);
+    await act(async () => {});
+
+    await user.click(screen.getByRole("button", { name: "Share audio" }));
+
+    expect(screen.getByText("cubes page")).toBeInTheDocument();
   });
 });

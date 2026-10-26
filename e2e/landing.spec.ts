@@ -1,6 +1,6 @@
 import { expect, liveWebGLContexts, test, trackWebGLContexts } from './fixtures';
 
-test('landing page renders the title, the cards and the audio source dialog', { tag: '@smoke' }, async ({ page }) => {
+test('landing page renders the title, the cards and a way to connect audio', { tag: '@smoke' }, async ({ page }) => {
     await page.goto('/');
 
     await expect(page).toHaveTitle('Audio Visualizer');
@@ -8,12 +8,18 @@ test('landing page renders the title, the cards and the audio source dialog', { 
     await expect(page.getByRole('img', { name: 'Cubes' })).toBeVisible();
     await expect(page.getByRole('img', { name: 'Trio color wave' })).toBeVisible();
 
-    // Without a source the cards are disabled and the dialog asks for one.
-    await expect(page.getByRole('link', { name: 'Cubes' })).toHaveCount(0);
+    // Without a source the cards are still links and nothing is asked up front; the user connects audio on demand.
+    await expect(page.getByRole('link', { name: 'Cubes' })).toHaveAttribute('href', '/cubes');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Connect audio' }).click();
     const dialog = page.getByRole('dialog', { name: 'Audio source' });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Share audio' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Choose device' })).toBeVisible();
+
+    // On the landing page the dialog is optional.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
 
     // The title is a pre-rendered image (scripts/title-banner), so it has actually loaded and the page has no canvas.
     await expect
@@ -27,7 +33,7 @@ test('landing page renders the title, the cards and the audio source dialog', { 
 test('landing page creates no WebGL context', { tag: '@smoke' }, async ({ page }) => {
     await trackWebGLContexts(page);
     await page.goto('/');
-    await expect(page.getByRole('dialog', { name: 'Audio source' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Connect audio' })).toBeVisible();
 
     expect(await liveWebGLContexts(page)).toBe(0);
 });

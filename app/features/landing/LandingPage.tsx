@@ -13,50 +13,30 @@ export function LandingPage() {
     const capturing = useCapturing();
     const [dialogOpen, setDialogOpen] = useState(false);
 
-    // A remembered input device reopens silently; otherwise the audio dialog must be completed first.
+    // A remembered input device reopens silently so the status below is accurate after a refresh. Nothing is shown
+    // on failure: the user can connect a source from here or when they open a visualization.
     useEffect(() => {
-        let cancelled = false;
-        engine
-            .resumeSavedSource()
-            .then((resumed) => {
-                if (!cancelled && !resumed) {
-                    setDialogOpen(true);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) {
-                    setDialogOpen(true);
-                }
-            });
-        return () => {
-            cancelled = true;
-        };
+        engine.resumeSavedSource().catch(() => {});
     }, [engine]);
 
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
-            {dialogOpen && <AudioSourceDialog onClose={() => setDialogOpen(false)} />}
+            {dialogOpen && <AudioSourceDialog dismissible onClose={() => setDialogOpen(false)} />}
             <span data-testid="app-version" className="text-xs text-gray-400 pl-3">
                 v{version}
             </span>
             <TitleBanner priority />
 
-            {capturing && (
-                <div className="py-1 text-center text-sm text-white">
-                    Audio source active ·{' '}
-                    <button
-                        type="button"
-                        className="text-gray-400 hover:text-white"
-                        onClick={() => setDialogOpen(true)}
-                    >
-                        Audio settings
-                    </button>
-                </div>
-            )}
+            <div className="py-1 text-center text-sm text-white">
+                {capturing && 'Audio source active · '}
+                <button type="button" className="text-gray-400 hover:text-white" onClick={() => setDialogOpen(true)}>
+                    {capturing ? 'Audio settings' : 'Connect audio'}
+                </button>
+            </div>
 
             <div className="grid grid-cols-3">
                 {VISUALIZATIONS.map((visualization) => (
-                    <VisualizationCard key={visualization.to} {...visualization} disabled={!capturing} />
+                    <VisualizationCard key={visualization.to} {...visualization} />
                 ))}
                 <ComingSoonCard />
             </div>

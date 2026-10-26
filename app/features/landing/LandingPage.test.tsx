@@ -46,27 +46,47 @@ describe('LandingPage', () => {
     });
 
     describe('when no source could be resumed', () => {
-        it('opens the audio dialog and locks the visualizations', async () => {
+        it('does not open the audio dialog, keeps the cards as links and offers to connect audio', async () => {
             const engine = new FakeAudioEngine();
             renderWithProviders(<LandingPage />, { engine });
             await act(async () => {});
 
-            expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
-            expect(screen.queryByRole('link')).not.toBeInTheDocument();
-            expect(screen.getAllByTitle('Choose an audio source first')).toHaveLength(2);
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(screen.getByRole('link', { name: 'Cubes' })).toHaveAttribute('href', '/cubes');
+            expect(screen.getByRole('link', { name: 'Trio color wave' })).toHaveAttribute('href', '/trio-color-wave');
+            expect(screen.getByRole('button', { name: 'Connect audio' })).toBeInTheDocument();
             expect(screen.queryByText(/Audio source active/)).not.toBeInTheDocument();
         });
 
-        it('opens the audio dialog when resuming fails', async () => {
+        it('stays quiet when resuming fails', async () => {
             const engine = new FakeAudioEngine();
             engine.resumeSavedSource.mockRejectedValue(new Error('denied'));
             renderWithProviders(<LandingPage />, { engine });
             await act(async () => {});
 
-            expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(screen.getByRole('button', { name: 'Connect audio' })).toBeInTheDocument();
         });
 
-        it('unlocks the visualizations once the user starts a source in the dialog', async () => {
+        it('opens a dialog that can be dismissed without choosing a source', async () => {
+            const engine = new FakeAudioEngine();
+            const { user } = renderWithProviders(<LandingPage />, { engine });
+            await act(async () => {});
+
+            await user.click(screen.getByRole('button', { name: 'Connect audio' }));
+            expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Back to home' })).not.toBeInTheDocument();
+
+            await user.click(screen.getByRole('button', { name: 'Close' }));
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+            expect(engine.startScreenCapture).not.toHaveBeenCalled();
+
+            await user.click(screen.getByRole('button', { name: 'Connect audio' }));
+            await user.keyboard('{Escape}');
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+
+        it('shows the active source once the user starts one in the dialog', async () => {
             const engine = new FakeAudioEngine();
             engine.startScreenCapture.mockImplementation(async () => {
                 engine.setAnalyser(asWebAudio<AnalyserNode>({}));
@@ -74,11 +94,13 @@ describe('LandingPage', () => {
             const { user } = renderWithProviders(<LandingPage />, { engine });
             await act(async () => {});
 
+            await user.click(screen.getByRole('button', { name: 'Connect audio' }));
             await user.click(screen.getByRole('button', { name: 'Share audio' }));
             await user.click(screen.getByRole('button', { name: 'Done' }));
 
             expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-            expect(screen.getByRole('link', { name: 'Cubes' })).toBeInTheDocument();
+            expect(screen.getByText(/Audio source active/)).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Connect audio' })).not.toBeInTheDocument();
         });
     });
 
@@ -92,32 +114,6 @@ describe('LandingPage', () => {
         expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
 
         await user.click(screen.getByRole('button', { name: 'Close' }));
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    });
-
-    it('does not open the dialog for a result that arrives after it unmounted', async () => {
-        const resolved = new FakeAudioEngine();
-        let resolveResume!: (value: boolean) => void;
-        resolved.resumeSavedSource.mockReturnValue(
-            new Promise<boolean>((resolve) => {
-                resolveResume = resolve;
-            }),
-        );
-        const first = renderWithProviders(<LandingPage />, { engine: resolved });
-        first.unmount();
-        await act(async () => resolveResume(false));
-
-        const rejected = new FakeAudioEngine();
-        let rejectResume!: (error: unknown) => void;
-        rejected.resumeSavedSource.mockReturnValue(
-            new Promise<boolean>((_, reject) => {
-                rejectResume = reject;
-            }),
-        );
-        const second = renderWithProviders(<LandingPage />, { engine: rejected });
-        second.unmount();
-        await act(async () => rejectResume(new Error('late')));
-
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 });
