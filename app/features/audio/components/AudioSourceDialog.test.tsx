@@ -54,6 +54,63 @@ describe('AudioSourceDialog', () => {
         });
     });
 
+    describe('with no source capturing and dismissible', () => {
+        it('still starts on the source chooser, but can be closed', async () => {
+            const onClose = vi.fn();
+            const { user } = renderWithProviders(<AudioSourceDialog dismissible onClose={onClose} />);
+            expect(screen.getByRole('button', { name: 'Share audio' })).toBeInTheDocument();
+            expect(screen.queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
+
+            await user.click(screen.getByRole('button', { name: 'Close' }));
+            await user.keyboard('{Escape}');
+            await user.click(screen.getByRole('dialog').parentElement as HTMLElement);
+
+            expect(onClose).toHaveBeenCalledTimes(3);
+        });
+
+        it('never offers to go back home, even when asked to', () => {
+            renderWithProviders(<AudioSourceDialog dismissible onClose={vi.fn()} onBackHome={vi.fn()} />);
+
+            expect(screen.queryByRole('button', { name: 'Back to home' })).not.toBeInTheDocument();
+        });
+    });
+
+    describe('back to home', () => {
+        it('is offered by a required dialog with no source, and calls back', async () => {
+            const onBackHome = vi.fn();
+            const { user } = renderWithProviders(<AudioSourceDialog onClose={vi.fn()} onBackHome={onBackHome} />);
+
+            await user.click(screen.getByRole('button', { name: 'Back to home' }));
+
+            expect(onBackHome).toHaveBeenCalledTimes(1);
+        });
+
+        it('is not rendered without a handler', () => {
+            renderWithProviders(<AudioSourceDialog onClose={vi.fn()} />);
+
+            expect(screen.queryByRole('button', { name: 'Back to home' })).not.toBeInTheDocument();
+        });
+
+        it('is hidden while a source is capturing', () => {
+            renderWithProviders(<AudioSourceDialog onClose={vi.fn()} onBackHome={vi.fn()} />, {
+                engine: capturingEngine(),
+            });
+
+            expect(screen.queryByRole('button', { name: 'Back to home' })).not.toBeInTheDocument();
+        });
+
+        it('disappears once a source starts capturing', async () => {
+            const { user, engine } = renderWithProviders(<AudioSourceDialog onClose={vi.fn()} onBackHome={vi.fn()} />);
+            engine.startScreenCapture.mockImplementation(async () => {
+                engine.setAnalyser(asWebAudio<AnalyserNode>({}));
+            });
+
+            await user.click(screen.getByRole('button', { name: 'Share audio' }));
+
+            expect(screen.queryByRole('button', { name: 'Back to home' })).not.toBeInTheDocument();
+        });
+    });
+
     describe('while a source is capturing', () => {
         it('shows the active source panel and a close button', () => {
             renderWithProviders(<AudioSourceDialog onClose={vi.fn()} />, { engine: capturingEngine() });

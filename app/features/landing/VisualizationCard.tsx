@@ -6,8 +6,6 @@ interface VisualizationCardProps {
     title: string;
     // The source PNG; the AVIF/WebP variants are derived from its path (see cardImage.ts).
     image: string;
-    // True until an audio source is capturing; visualizations need audio to show anything.
-    disabled: boolean;
     // Fetch the image ahead of the others. Only for the image that is the largest contentful paint (today the title).
     priority?: boolean;
 }
@@ -16,7 +14,7 @@ interface VisualizationCardProps {
 // first row at common sizes, so none is lazy-loaded.
 const SIZES = '33vw';
 
-export function VisualizationCard({ to, title, image, disabled, priority = false }: VisualizationCardProps) {
+export function VisualizationCard({ to, title, image, priority = false }: VisualizationCardProps) {
     const thumbnail = (
         <picture>
             <source type="image/avif" srcSet={cardImageSrcSet(image, 'avif')} sizes={SIZES} />
@@ -33,14 +31,6 @@ export function VisualizationCard({ to, title, image, disabled, priority = false
             />
         </picture>
     );
-
-    if (disabled) {
-        return (
-            <div aria-disabled="true" title="Choose an audio source first" className="cursor-not-allowed opacity-60">
-                {thumbnail}
-            </div>
-        );
-    }
 
     return (
         <Link

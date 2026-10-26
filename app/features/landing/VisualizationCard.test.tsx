@@ -5,26 +5,16 @@ import { renderWithProviders } from '~/test/renderWithProviders';
 import { VisualizationCard } from './VisualizationCard';
 
 describe('VisualizationCard', () => {
-    it('links to the visualizer when audio is available', () => {
-        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} />);
+    it('links to the visualizer', () => {
+        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" />);
 
         const link = screen.getByRole('link', { name: 'Cubes' });
         expect(link).toHaveAttribute('href', '/cubes');
         expect(screen.getByRole('img', { name: 'Cubes' })).toHaveAttribute('src', '/cubes.png');
     });
 
-    it('is not a link until an audio source is capturing, and explains why', () => {
-        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled />);
-
-        expect(screen.queryByRole('link')).not.toBeInTheDocument();
-        expect(screen.getByRole('img', { name: 'Cubes' })).toBeInTheDocument();
-        expect(screen.getByTitle('Choose an audio source first')).toHaveAttribute('aria-disabled', 'true');
-    });
-
     it('offers AVIF then WebP sources at two widths, with the PNG as the fallback', () => {
-        const { container } = renderWithProviders(
-            <VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} />,
-        );
+        const { container } = renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" />);
 
         const sources = [...container.querySelectorAll('picture > source')];
         expect(sources.map((source) => source.getAttribute('type'))).toEqual(['image/avif', 'image/webp']);
@@ -37,7 +27,7 @@ describe('VisualizationCard', () => {
     });
 
     it('gives the image its intrinsic size and decodes it off the main thread', () => {
-        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} />);
+        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" />);
 
         const img = screen.getByRole('img', { name: 'Cubes' });
         expect(img).toHaveAttribute('width', '1200');
@@ -46,9 +36,7 @@ describe('VisualizationCard', () => {
     });
 
     it('fetches a priority image eagerly and at high priority', () => {
-        renderWithProviders(
-            <VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} priority />,
-        );
+        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" priority />);
 
         const img = screen.getByRole('img', { name: 'Cubes' });
         expect(img).toHaveAttribute('fetchpriority', 'high');
@@ -56,7 +44,7 @@ describe('VisualizationCard', () => {
     });
 
     it('leaves the default loading behaviour for a non-priority image', () => {
-        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" disabled={false} />);
+        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" />);
 
         const img = screen.getByRole('img', { name: 'Cubes' });
         expect(img).not.toHaveAttribute('fetchpriority');

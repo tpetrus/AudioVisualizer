@@ -2,14 +2,20 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useCapturing } from '../useAudioState';
 import { SourceChooser } from './SourceChooser';
 import { ActiveSourcePanel } from './ActiveSourcePanel';
+import { outlineButton } from './buttonStyles';
 
 interface AudioSourceDialogProps {
     onClose: () => void;
+    // Optional dialogs can be closed even with no source. Required ones (the default) can't be until one is capturing.
+    dismissible?: boolean;
+    // Offers a way out of a required dialog that has no source yet. Never shown while capturing or when dismissible.
+    onBackHome?: () => void;
 }
 
-// Modal for choosing the audio source. It can't be dismissed until a source is capturing.
-export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
-    const canClose = useCapturing();
+// Modal for choosing the audio source. Whether it shows the chooser or the active source depends on capturing alone.
+export function AudioSourceDialog({ onClose, dismissible = false, onBackHome }: AudioSourceDialogProps) {
+    const capturing = useCapturing();
+    const canClose = dismissible || capturing;
     const [showChooser, setShowChooser] = useState(false);
     const titleId = useId();
     const dialogRef = useRef<HTMLDivElement>(null);
@@ -35,7 +41,8 @@ export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
         dialogRef.current?.focus();
     }, []);
 
-    const choosing = !canClose || showChooser;
+    const choosing = !capturing || showChooser;
+    const showBackHome = onBackHome !== undefined && !dismissible && !capturing;
 
     return (
         // The backdrop click is a mouse convenience only; keyboard users close the dialog with Escape (handled above).
@@ -74,12 +81,20 @@ export function AudioSourceDialog({ onClose }: AudioSourceDialogProps) {
 
                 {choosing ? (
                     <SourceChooser
-                        showIntro={!canClose}
+                        showIntro={!capturing}
                         onStarted={() => setShowChooser(false)}
-                        onBack={canClose ? () => setShowChooser(false) : undefined}
+                        onBack={capturing ? () => setShowChooser(false) : undefined}
                     />
                 ) : (
                     <ActiveSourcePanel onChooseSource={() => setShowChooser(true)} onDone={close} />
+                )}
+
+                {showBackHome && (
+                    <div className="mt-3 text-right">
+                        <button type="button" className={outlineButton} onClick={onBackHome}>
+                            Back to home
+                        </button>
+                    </div>
                 )}
             </div>
         </div>
