@@ -20,4 +20,4 @@ concurrency:
 
 jobs:
   release:
-    uses: tpetrus/ci-workflows/.github/workflows/release.yml@v0.2.0
+    uses: tpetrus/ci-workflows/.github/workflows/release.yml@v0.3.1
