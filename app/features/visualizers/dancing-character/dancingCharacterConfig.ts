@@ -187,11 +187,20 @@ export const CLUB_SPILL_FLASH_INTENSITY = 14;
 export const CLUB_SPILL_COLORS = ['#ff3da0', '#31d7ff'] as const;
 
 // Bass gate (dancingCharacterBassGate.ts): the bass is only shown once kicks keep landing on the locked beat.
-// A rise of the raw bass through this level counts as one kick; a lower level would count noise, a higher one would
-// miss soft kicks.
-export const BASS_GATE_ONSET_LEVEL = 0.35;
-// The raw bass must fall below this before the next kick can count, so one long boom is one kick, not several.
-export const BASS_GATE_REARM_LEVEL = 0.15;
+// Kicks are found relative to the raw bass's own recent dip, not at fixed levels: the bass pulse compares the bass with
+// its last ~1.5 s, so after silence a kick reaches near 1, but a few seconds into a song the same kick is only a small
+// rise on top of a raised floor, and fixed levels then miss every kick (measured: the gate opened at a song's start and
+// closed 10 to 15 s later). A kick is the raw bass rising this far above its lowest point since the last kick...
+export const BASS_GATE_ONSET_RISE = 0.08;
+// ...while at least this high, so noise near silence is not a kick.
+export const BASS_GATE_MIN_LEVEL = 0.05;
+// After a kick, the raw bass must fall this far below its peak before the next kick can count, so one long boom is one
+// kick, not several.
+export const BASS_GATE_REARM_FALL = 0.04;
+// A shown kick's strength is its rise over this, but never below the minimum, so every accepted kick reads clearly
+// however loud the song has been recently.
+export const BASS_GATE_FULL_RISE = 0.3;
+export const BASS_GATE_MIN_STRENGTH = 0.5;
 // How close to a beat (in beats, either side) a kick must land to count as on the beat.
 export const BASS_GATE_BEAT_WINDOW = 0.15;
 // The most evidence that can pile up, so a long steady stretch does not take many off-beat bumps to unlearn.
@@ -208,7 +217,7 @@ export const BASS_GATE_CLOSE_SCORE = 1;
 // While open, kicks closer together than this are ignored. It is above a third of a second so the bass can never start
 // more than three reactions in any one second, however fast the input is hit.
 export const BASS_GATE_MIN_INTERVAL = 0.35;
-// How fast the shown bass falls when the raw bass is not being followed, so a stray bump fades instead of snapping.
-export const BASS_GATE_RELEASE_SECONDS = 0.12;
+// How fast a shown kick fades once the raw bass falls from its peak, long enough to read as a bump.
+export const BASS_GATE_RELEASE_SECONDS = 0.18;
 // How long the gate takes to fade the bass in and out, so opening and closing never pop.
 export const BASS_GATE_EASE_SECONDS = 0.5;

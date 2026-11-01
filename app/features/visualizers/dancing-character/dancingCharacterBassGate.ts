@@ -5,9 +5,12 @@ import {
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_GRACE_BEATS,
     BASS_GATE_MIN_INTERVAL,
-    BASS_GATE_ONSET_LEVEL,
+    BASS_GATE_FULL_RISE,
+    BASS_GATE_MIN_LEVEL,
+    BASS_GATE_MIN_STRENGTH,
+    BASS_GATE_ONSET_RISE,
     BASS_GATE_OPEN_SCORE,
-    BASS_GATE_REARM_LEVEL,
+    BASS_GATE_REARM_FALL,
     BASS_GATE_RELEASE_SECONDS,
     BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
@@ -21,9 +24,13 @@ export interface BassGateState {
     open: boolean;
     // 0..1, eases toward 1 while open and toward 0 while closed.
     weight: number;
-    // True once the raw bass has fallen below the re-arm level, so the next rise counts as a kick.
+    // True once the raw bass has fallen from its last peak, so the next rise counts as a kick.
     armed: boolean;
-    // True from an accepted kick until the raw bass falls below the re-arm level.
+    // Lowest raw bass since re-arming (a kick is a rise above it) and highest since the last kick (re-arming is a fall
+    // below it).
+    trough: number;
+    peak: number;
+    // True from an accepted kick until re-arming: the shown level grows with the kick's rise while it lasts.
     following: boolean;
     // Beats since a kick last landed on the beat; the score only decays after BASS_GATE_GRACE_BEATS of them.
     beatsSinceOnBeat: number;
@@ -42,6 +49,8 @@ export function createBassGateState(): BassGateState {
         open: false,
         weight: 0,
         armed: true,
+        trough: 0,
+        peak: 0,
         following: false,
         beatsSinceOnBeat: 0,
         sinceAccepted: BASS_GATE_MIN_INTERVAL,
@@ -85,14 +94,22 @@ export function stepBassGate(
             state.score = Math.max(0, state.score - BASS_GATE_SCORE_DECAY);
     }
 
-    // A kick is the raw bass rising through the onset level while armed.
+    // A kick is a rise above the lowest point since re-arming; re-arming is a fall below the peak since the kick.
     let onset = false;
-    if (raw < BASS_GATE_REARM_LEVEL) {
-        state.armed = true;
-        state.following = false;
-    } else if (state.armed && raw >= BASS_GATE_ONSET_LEVEL) {
-        state.armed = false;
-        onset = true;
+    if (state.armed) {
+        state.trough = Math.min(state.trough, raw);
+        if (raw - state.trough >= BASS_GATE_ONSET_RISE && raw >= BASS_GATE_MIN_LEVEL) {
+            state.armed = false;
+            state.peak = raw;
+            onset = true;
+        }
+    } else {
+        state.peak = Math.max(state.peak, raw);
+        if (raw <= state.peak - BASS_GATE_REARM_FALL) {
+            state.armed = true;
+            state.following = false;
+            state.trough = raw;
+        }
     }
 
     const phase = rhythm.beatPhase;
@@ -115,8 +132,17 @@ export function stepBassGate(
         state.sinceAccepted = 0;
     }
 
-    if (state.following) state.level = raw;
-    else state.level *= Math.exp(-step / BASS_GATE_RELEASE_SECONDS);
+    // A followed kick shows its rise above the dip before it, scaled to full strength, so kicks read the same at the
+    // start of a song and minutes into it. Otherwise the shown level only fades.
+    if (state.following) {
+        const strength = Math.min(
+            1,
+            Math.max(BASS_GATE_MIN_STRENGTH, (state.peak - state.trough) / BASS_GATE_FULL_RISE),
+        );
+        state.level = Math.max(state.level, strength);
+    } else {
+        state.level *= Math.exp(-step / BASS_GATE_RELEASE_SECONDS);
+    }
 
     const maxMove = step / BASS_GATE_EASE_SECONDS;
     const weightTarget = state.open ? 1 : 0;

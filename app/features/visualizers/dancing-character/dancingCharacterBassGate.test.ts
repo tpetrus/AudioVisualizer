@@ -35,7 +35,7 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(true);
         // The early beats show nothing; later kicks come through at full strength once the gate has eased in.
         expect(outputs.slice(0, FRAMES_PER_BEAT * 2).every((value) => value === 0)).toBe(true);
-        expect(Math.max(...outputs.slice(-FRAMES_PER_BEAT * 2))).toBeCloseTo(0.8);
+        expect(Math.max(...outputs.slice(-FRAMES_PER_BEAT * 2))).toBeCloseTo(1);
     });
 
     // Measured with the e2e beat fixture: the bass pulse often stands out only once a bar, because a steady kick on
@@ -46,7 +46,22 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(true);
         const more = drive(FRAMES_PER_BEAT * 4 * 8, kickPerBar, { state, start: FRAMES_PER_BEAT * 4 * 4 });
         expect(more.state.open).toBe(true);
-        expect(Math.max(...outputs, ...more.outputs)).toBeCloseTo(0.8);
+        expect(Math.max(...outputs, ...more.outputs)).toBeCloseTo(1);
+    });
+
+    // The user's report: bumps showed at a song's start and stopped 10 to 15 s in. The bass pulse compares the bass
+    // with its last ~1.5 s, so mid-song a kick is only a small rise on a raised floor: here it swings between 0.2 and
+    // 0.32 every beat, never below the old fixed re-arm level (0.15) nor above the old onset level (0.35).
+    it('keeps showing full bumps mid-song, when each kick is only a small rise on a raised floor', () => {
+        const midSong = (frame: number) => (frame % FRAMES_PER_BEAT < 6 ? 0.32 : 0.2);
+        const beats = 60;
+        const { state, outputs } = drive(FRAMES_PER_BEAT * beats, midSong);
+        expect(state.open).toBe(true);
+        // Every beat in the last 40 (20 s at 120 BPM) shows a clear bump.
+        for (let beat = beats - 40; beat < beats; beat++) {
+            const slice = outputs.slice(beat * FRAMES_PER_BEAT, (beat + 1) * FRAMES_PER_BEAT);
+            expect(Math.max(...slice)).toBeGreaterThanOrEqual(0.5);
+        }
     });
 
     it('keeps the gate open through the grace period of silence, then closes it', () => {

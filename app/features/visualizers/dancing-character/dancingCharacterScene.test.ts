@@ -616,7 +616,9 @@ describe('bass', () => {
         expect(model.position.toArray()).toEqual(still.position.toArray());
         expect(ring.visible).toBe(true);
         expect(ring.material.opacity).toBeGreaterThan(0.5);
-        expect(ring.scale.x).toBeGreaterThan(1.5);
+        // It swells with the bass but stays near the feet.
+        expect(ring.scale.x).toBeGreaterThan(1.3);
+        expect(ring.scale.x).toBeLessThanOrEqual(1.6);
         expect(distanceOf(camera) / rest).toBeCloseTo(1 - 0.6 * DOLLY_MAX_FRACTION, 3);
     });
 
@@ -667,6 +669,9 @@ describe('bass', () => {
 });
 
 describe('colors', () => {
+    // The ring is the accent mixed toward white, so it stands out on the accent-colored floor.
+    const whitened = (accent: string) => new THREE.Color(accent).lerp(new THREE.Color('#ffffff'), 0.6).getHexString();
+
     it('applies the accent color to the ring and rim light and both colors to the club, and re-applies on change', () => {
         const setColors = vi.spyOn(ClubSet.prototype, 'setColors');
         const { scene, dancing } = setup({ accentColor: '#00ff00', floorColor: '#0000ff' });
@@ -676,7 +681,7 @@ describe('colors', () => {
         >;
         // The club adds its own point lights first; the rim light is the last one.
         const rim = scene.children.filter((c) => (c as THREE.PointLight).isPointLight).at(-1) as THREE.PointLight;
-        expect(ring.material.color.getHexString()).toBe(new THREE.Color('#00ff00').getHexString());
+        expect(ring.material.color.getHexString()).toBe(whitened('#00ff00'));
         expect(rim.color.getHexString()).toBe(new THREE.Color('#00ff00').getHexString());
         expect(setColors).toHaveBeenLastCalledWith('#0000ff', '#00ff00');
         const calls = setColors.mock.calls.length;
@@ -687,13 +692,13 @@ describe('colors', () => {
 
         dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#ffffff' }) }));
         expect(setColors).toHaveBeenLastCalledWith('#ffffff', '#ff0000');
-        expect(ring.material.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
+        expect(ring.material.color.getHexString()).toBe(whitened('#ff0000'));
         expect(rim.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
 
         // Only the floor changes: the club hears about it, the ring keeps its color.
         dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#123456' }) }));
         expect(setColors).toHaveBeenLastCalledWith('#123456', '#ff0000');
-        expect(ring.material.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
+        expect(ring.material.color.getHexString()).toBe(whitened('#ff0000'));
     });
 });
 
