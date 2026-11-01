@@ -1,6 +1,5 @@
 import type { RhythmState } from '~/features/rhythm/types';
 import {
-    BASS_GATE_BEAT_WINDOW,
     BASS_GATE_CLOSE_SCORE,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_GRACE_BEATS,
@@ -9,6 +8,8 @@ import {
     BASS_GATE_MIN_LEVEL,
     BASS_GATE_MIN_STRENGTH,
     BASS_GATE_ONSET_RISE,
+    BASS_GATE_PHASE_ADAPT,
+    BASS_GATE_PHASE_WINDOW,
     BASS_GATE_OPEN_SCORE,
     BASS_GATE_REARM_FALL,
     BASS_GATE_RELEASE_SECONDS,
@@ -32,6 +33,9 @@ export interface BassGateState {
     peak: number;
     // True from an accepted kick until re-arming: the shown level grows with the kick's rise while it lasts.
     following: boolean;
+    // Where in the beat (0..1) the kicks land, learned from them; meaningless until phaseKnown.
+    kickPhase: number;
+    phaseKnown: boolean;
     // Beats since a kick last landed on the beat; the score only decays after BASS_GATE_GRACE_BEATS of them.
     beatsSinceOnBeat: number;
     // Seconds since the last accepted kick (capped, only compared against the minimum interval).
@@ -52,6 +56,8 @@ export function createBassGateState(): BassGateState {
         trough: 0,
         peak: 0,
         following: false,
+        kickPhase: 0,
+        phaseKnown: false,
         beatsSinceOnBeat: 0,
         sinceAccepted: BASS_GATE_MIN_INTERVAL,
         level: 0,
@@ -79,6 +85,7 @@ export function stepBassGate(
         state.open = false;
         state.score = 0;
         state.beatsSinceOnBeat = 0;
+        state.phaseKnown = false;
         state.following = false;
     }
     // The first call only records the counters, so a track already playing does not count as a new beat.
@@ -112,13 +119,25 @@ export function stepBassGate(
         }
     }
 
+    // A kick is in rhythm when it lands where the previous kicks landed in the beat. The first kick, or one that comes
+    // once the evidence has run out, only sets that place afresh and earns nothing, so a stray first bump cannot lock
+    // out the real bassline, and bumps at random places (about one in five lands in the window by chance) cannot string
+    // together the run of in-rhythm kicks the gate needs to open.
     const phase = rhythm.beatPhase;
-    const onBeat =
-        tempoLocked && phase !== undefined && (phase <= BASS_GATE_BEAT_WINDOW || phase >= 1 - BASS_GATE_BEAT_WINDOW);
-
-    if (onset && tempoLocked) {
-        state.score = onBeat ? Math.min(BASS_GATE_SCORE_MAX, state.score + 1) : Math.max(0, state.score - 1);
-        if (onBeat) state.beatsSinceOnBeat = 0;
+    let onBeat = false;
+    if (onset && tempoLocked && phase !== undefined) {
+        const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
+        if (state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
+            onBeat = true;
+            state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
+            state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
+            state.beatsSinceOnBeat = 0;
+        } else if (!state.phaseKnown || state.score <= 0) {
+            state.kickPhase = phase;
+            state.phaseKnown = true;
+        } else {
+            state.score = Math.max(0, state.score - 1);
+        }
     }
     // Two thresholds, so a score hovering around one value does not flicker the gate.
     if (state.open) {
@@ -151,4 +170,15 @@ export function stepBassGate(
     // Tiny leftovers are snapped to 0 so a closed gate is exactly 0 and the ring and lights can switch off.
     const shown = state.level * state.weight;
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
+}
+
+// Difference of two phases as the shortest way around the beat, in (-0.5, 0.5].
+function wrapSigned(delta: number): number {
+    const wrapped = delta - Math.round(delta);
+    return wrapped <= -0.5 ? wrapped + 1 : wrapped;
+}
+
+// A phase moved back into [0, 1).
+function wrapUnit(phase: number): number {
+    return phase - Math.floor(phase);
 }

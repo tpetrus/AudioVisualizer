@@ -42,9 +42,9 @@ describe('stepBassGate', () => {
     // every beat flattens its fast-versus-slow comparison. A kick on every downbeat is still a consistent beat.
     it('opens on one kick per bar and stays open while the kicks keep coming', () => {
         const kickPerBar = (frame: number) => (frame % (FRAMES_PER_BEAT * 4) < 4 ? 0.8 : 0);
-        const { state, outputs } = drive(FRAMES_PER_BEAT * 4 * 4, kickPerBar);
+        const { state, outputs } = drive(FRAMES_PER_BEAT * 4 * 6, kickPerBar);
         expect(state.open).toBe(true);
-        const more = drive(FRAMES_PER_BEAT * 4 * 8, kickPerBar, { state, start: FRAMES_PER_BEAT * 4 * 4 });
+        const more = drive(FRAMES_PER_BEAT * 4 * 8, kickPerBar, { state, start: FRAMES_PER_BEAT * 4 * 6 });
         expect(more.state.open).toBe(true);
         expect(Math.max(...outputs, ...more.outputs)).toBeCloseTo(1);
     });
@@ -74,10 +74,17 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(false);
     });
 
-    it('never shows random bumps that fall between the beats', () => {
-        const { outputs, state } = drive(FRAMES_PER_BEAT * 20, (frame, phase) =>
-            phase > 0.4 && phase < 0.6 && frame % 3 === 0 ? 0.9 : 0,
-        );
+    // Bass bumps at a different place in every beat have no rhythm, so they never open the gate. (A bassline that lands
+    // at the same off-beat place every beat does keep the tempo, and is shown.)
+    it.each([1, 7, 42, 99, 2024])('never shows bumps that land at random places in the beat (seed %i)', (start) => {
+        let seed = start;
+        const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+        const bumpFrame = Array.from({ length: 40 }, () => Math.floor(random() * FRAMES_PER_BEAT));
+        const { outputs, state } = drive(FRAMES_PER_BEAT * 40, (frame) => {
+            const beat = Math.floor(frame / FRAMES_PER_BEAT);
+            const at = frame % FRAMES_PER_BEAT;
+            return at >= bumpFrame[beat] && at < bumpFrame[beat] + 4 ? 0.9 : 0;
+        });
         expect(Math.max(...outputs)).toBe(0);
         expect(state.open).toBe(false);
     });
@@ -116,13 +123,18 @@ describe('stepBassGate', () => {
         expect(state.score).toBe(0);
     });
 
-    it('closes after the kicks stop landing on the beat', () => {
+    it('closes when the kicks move to a different place in the beat, then learns the new place', () => {
         const { state } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
-        drive(FRAMES_PER_BEAT * 12, (frame, phase) => (phase > 0.45 && phase < 0.55 && frame % 2 === 0 ? 0.9 : 0), {
-            state,
-            start: FRAMES_PER_BEAT * 8,
-        });
-        expect(state.open).toBe(false);
+        // The same kick, now half a beat later.
+        const offBeat = (frame: number) => ((frame + FRAMES_PER_BEAT / 2) % FRAMES_PER_BEAT < 4 ? 0.8 : 0);
+        let closed = false;
+        for (let beat = 8; beat < 20; beat++) {
+            drive(FRAMES_PER_BEAT, offBeat, { state, start: beat * FRAMES_PER_BEAT });
+            if (!state.open) closed = true;
+        }
+        expect(closed).toBe(true);
+        expect(state.open).toBe(true);
+        expect(state.kickPhase).toBeCloseTo(0.5, 1);
     });
 
     it('starts at most three reactions in any closed second even for 6 Hz kicks', () => {

@@ -201,8 +201,13 @@ export const BASS_GATE_REARM_FALL = 0.04;
 // however loud the song has been recently.
 export const BASS_GATE_FULL_RISE = 0.3;
 export const BASS_GATE_MIN_STRENGTH = 0.5;
-// How close to a beat (in beats, either side) a kick must land to count as on the beat.
-export const BASS_GATE_BEAT_WINDOW = 0.15;
+// Kicks count as in rhythm when they land at the same place in the beat as the kicks before them, within this window
+// (in beats, either side). The place is learned rather than fixed at the beat: measured on a real 135 BPM track, the
+// bass pulse reports each kick 0.11 to 0.21 beats after the tracker's beat (its filters and envelope lag the audio),
+// and a fixed window around the beat threw out half of a perfectly steady bassline.
+export const BASS_GATE_PHASE_WINDOW = 0.1;
+// How far each in-rhythm kick pulls the learned place toward itself, so it follows slow drift without jumping.
+export const BASS_GATE_PHASE_ADAPT = 0.2;
 // The most evidence that can pile up, so a long steady stretch does not take many off-beat bumps to unlearn.
 export const BASS_GATE_SCORE_MAX = 6;
 // Evidence lost per beat once no kick has landed on the beat for BASS_GATE_GRACE_BEATS beats, so a few lucky kicks
@@ -212,7 +217,7 @@ export const BASS_GATE_SCORE_MAX = 6;
 export const BASS_GATE_GRACE_BEATS = 8;
 export const BASS_GATE_SCORE_DECAY = 1;
 // The gate opens at this score and closes at the lower one below, so a score hovering near one value does not flicker.
-export const BASS_GATE_OPEN_SCORE = 3;
+export const BASS_GATE_OPEN_SCORE = 4;
 export const BASS_GATE_CLOSE_SCORE = 1;
 // While open, kicks closer together than this are ignored. It is above a third of a second so the bass can never start
 // more than three reactions in any one second, however fast the input is hit.

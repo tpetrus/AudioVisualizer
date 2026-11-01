@@ -38,11 +38,12 @@ export interface DancingCharacterFrame {
 // The bass ring sits this far above the feet so it never z-fights with the soles or with the LED floor (which sits
 // at CLUB_FLOOR_LIFT).
 const RING_LIFT = 0.02;
-// The bass ring is a wide band hugging the dancer's feet that swells a little with the bass. It stays close to her so
-// it reads as hers rather than as one more ripple of the LED floor, which pulses in the same accent color.
-const RING_INNER_RADIUS = 0.45;
-const RING_OUTER_RADIUS = 0.75;
-const RING_GROWTH = 0.6;
+// The bass ring is a band around the dancer's feet that swells clearly on each kick, to about two and a half times its
+// size. It starts close to her so it reads as hers rather than as one more ripple of the LED floor, which pulses in
+// the same accent color.
+const RING_INNER_RADIUS = 0.5;
+const RING_OUTER_RADIUS = 0.72;
+const RING_GROWTH = 1.5;
 const RING_MAX_OPACITY = 1;
 // The ring's color is the accent mixed this far toward white, so it glows brighter than the accent-colored tiles.
 const RING_WHITEN = 0.6;

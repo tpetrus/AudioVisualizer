@@ -617,8 +617,8 @@ describe('bass', () => {
         expect(ring.visible).toBe(true);
         expect(ring.material.opacity).toBeGreaterThan(0.5);
         // It swells with the bass but stays near the feet.
-        expect(ring.scale.x).toBeGreaterThan(1.3);
-        expect(ring.scale.x).toBeLessThanOrEqual(1.6);
+        expect(ring.scale.x).toBeGreaterThan(2);
+        expect(ring.scale.x).toBeLessThanOrEqual(2.5);
         expect(distanceOf(camera) / rest).toBeCloseTo(1 - 0.6 * DOLLY_MAX_FRACTION, 3);
     });
 
