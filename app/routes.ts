@@ -6,5 +6,6 @@ export default [
   layout("routes/requireAudioLayout.tsx", [
     route("/cubes", "routes/cubesPage.tsx"),
     route("/trio-color-wave", "routes/trioColorWavePage.tsx"),
+    route("/dancing-character", "routes/dancingCharacterPage.tsx"),
   ]),
 ] satisfies RouteConfig;
