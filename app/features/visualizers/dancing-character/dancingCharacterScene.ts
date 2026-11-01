@@ -234,7 +234,9 @@ export class DancingCharacterScene {
         for (let i = 0; i < samples; i++) {
             this.mixer?.setTime((this.clipDuration * i) / samples);
             model.updateMatrixWorld(true);
-            pose.setFromObject(model);
+            // Precise: a skinned mesh caches its bounding box, so the default mode would measure the first pose 16
+            // times. The precise mode skins every vertex, which for this 1,100-vertex robot costs little, once per load.
+            pose.setFromObject(model, true);
             if (i === 0) box.copy(pose);
             else box.union(pose);
         }

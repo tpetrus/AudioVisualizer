@@ -63,9 +63,9 @@ export const ORBIT_MAX_CHANGE_PER_SECOND = 0.1;
 export const FRAMING_MARGIN = 1.15;
 // Camera height above the dancer's center as an angle in radians: slightly from above, so the floor ring is visible.
 export const CAMERA_ELEVATION = 0.12;
-// The robot is about this big (width, height, depth in scene units) at scale 1; used to place the camera before the
-// model has loaded.
-export const NOMINAL_CHARACTER_SIZE = { width: 1.5, height: 4.5, depth: 1.2 } as const;
+// The space the robot's dance takes up (width, height, depth in scene units) at scale 1, measured from the clip's
+// skinned poses (the arms swing far wider than the body); used to place the camera before the model has loaded.
+export const NOMINAL_CHARACTER_SIZE = { width: 6, height: 4.6, depth: 3.3 } as const;
 
 // ---- Bass reaction ----
 

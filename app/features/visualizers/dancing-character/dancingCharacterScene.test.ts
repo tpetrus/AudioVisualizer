@@ -75,7 +75,8 @@ function wrapSigned(delta: number): number {
 
 function modelBox(model: THREE.Group): THREE.Box3 {
     model.updateMatrixWorld(true);
-    return new THREE.Box3().setFromObject(model);
+    // Precise, because a skinned mesh caches its bounding box and the default mode would miss the animated pose.
+    return new THREE.Box3().setFromObject(model, true);
 }
 
 function expectBoxInView(box: THREE.Box3, camera: THREE.PerspectiveCamera): void {
