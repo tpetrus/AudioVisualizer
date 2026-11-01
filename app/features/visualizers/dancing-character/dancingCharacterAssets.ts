@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { disposeScene } from '~/lib/three/disposeScene';
-import modelUrl from './assets/RobotExpressive.glb?url';
+import modelUrl from './assets/MakeHumanDancer.glb?url';
 import skyboxUrl from './assets/kloofendal_48d_partly_cloudy_puresky_2k.jpg?url';
 
 export interface DancingCharacterAssets {
     model: THREE.Group;
-    clips: THREE.AnimationClip[];
     // null when the sky picture could not be loaded; the scene then uses a flat background color.
     skybox: THREE.Texture | null;
 }
@@ -30,7 +29,7 @@ function createAbortError(): DOMException {
     return new DOMException('Loading was canceled', 'AbortError');
 }
 
-// Loads the robot and the sky in parallel. The sky is decoration, so its failure only yields `skybox: null`; the model
+// Loads the dancer and the sky in parallel. The sky is decoration, so its failure only yields `skybox: null`; the model
 // is required, so its failure rejects. On abort or failure everything that did load is disposed here, because the
 // caller never receives it and would otherwise leak the GPU-bound objects.
 export async function loadDancingCharacterAssets(
@@ -73,5 +72,5 @@ export async function loadDancingCharacterAssets(
         throw createAbortError();
     }
 
-    return { model: gltf.scene, clips: gltf.animations, skybox };
+    return { model: gltf.scene, skybox };
 }

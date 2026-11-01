@@ -1,23 +1,49 @@
 // Every tuning constant of the dancing character lives here, so the pure modules stay free of magic numbers.
 
-// ---- The vendored Dance clip (assets/RobotExpressive.glb) ----
-// Measured with dancingCharacterClip.test.ts, which parses the GLB and fails if any of these drift from the asset:
-// the 'Dance' clip has 81 linear keys at 24 fps, its last key time is 10/3 s, its loop seam is continuous, and the
-// strongest accent is the knee dip (LowerLeg.L/R rotation) that sits on the seam. There is no hip translation.
+// ---- The procedural dance (dancingCharacterDanceClip.ts) ----
 
-// Name of the animation to loop.
-export const DANCE_CLIP_NAME = 'Dance';
-// Length of one loop in seconds. The file stores it as a 32-bit float (3.33333325...), which is within 1e-4 of this.
-export const DANCE_CLIP_DURATION = 10 / 3;
-// The loop is read as 8 beats: the arm pumps fall roughly on a 1/8 grid, and eight beats make the native tempo 144 BPM,
-// inside the range that popular music uses, so the clip is rarely sped up or slowed down by much.
-export const NATIVE_BEATS_PER_LOOP = 8;
-// Tempo at which the clip plays at timeScale 1.
-export const NATIVE_BPM = (NATIVE_BEATS_PER_LOOP * 60) / DANCE_CLIP_DURATION;
-// Where in the loop (0..1 of one beat) the beat lands: 0 puts the seam knee dip, the strongest accent, on the beat.
+// The dance is built in code for the MakeHuman rig (assets/MakeHumanDancer.glb), which ships without animation. It is
+// a loop of four identical bounces, one per beat, with accents (arm sway, head nod) that only play while the bar is
+// known, so the loop length is a whole bar of 4/4.
+export const DANCE_CLIP_BEATS = 4;
+// Tempo at which the clip plays at timeScale 1. 120 BPM sits in the middle of the range that popular music uses, so the
+// clip is rarely sped up or slowed down by much.
+export const NATIVE_BPM = 120;
+// Length of one loop in seconds (2 s).
+export const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
+// The number of beats the clip contains, under the name the timing spec uses.
+export const NATIVE_BEATS_PER_LOOP = DANCE_CLIP_BEATS;
+// Where in the loop (0..1 of one beat) the beat lands: 0 puts the knee dip, the lowest point of the bounce, on the beat.
 export const STEP_PHASE_OFFSET = 0;
-// Materials the body color tints. The third material, 'Black', is the eyes and joints and keeps its color.
-export const BODY_MATERIAL_NAMES = ['Main', 'Grey'] as const;
+// Materials the body color tints: the model's single skin material.
+export const BODY_MATERIAL_NAMES = ['Skin'] as const;
+// Bones the dance drives, by the names three.js gives them (GLTFLoader strips the dots, so 'upperarm01.L' loads as
+// 'upperarm01L'). The clip is not built when any is missing, and the figure then keeps its rest pose.
+export const DANCE_REQUIRED_BONES = [
+    'root',
+    'spine05',
+    'spine04',
+    'spine03',
+    'spine02',
+    'spine01',
+    'clavicleL',
+    'clavicleR',
+    'upperarm01L',
+    'upperarm01R',
+    'lowerarm01L',
+    'lowerarm01R',
+    'upperleg01L',
+    'upperleg01R',
+    'lowerleg01L',
+    'lowerleg01R',
+    'footL',
+    'footR',
+    'neck02',
+    'head',
+] as const;
+// Seconds for the accent layer to fade in or out (exponential time constant), so the arms and head ease into the
+// bar-locked moves instead of snapping.
+export const ACCENT_EASE_SECONDS = 0.3;
 
 // ---- Dance timing (dancingCharacterSync.ts) ----
 
@@ -69,9 +95,10 @@ export const ORBIT_MAX_CHANGE_PER_SECOND = 0.1;
 export const FRAMING_MARGIN = 1.15;
 // Camera height above the dancer's center as an angle in radians: slightly from above, so the floor ring is visible.
 export const CAMERA_ELEVATION = 0.12;
-// The space the robot's dance takes up (width, height, depth in scene units) at scale 1, measured from the clip's
-// skinned poses (the arms swing far wider than the body); used to place the camera before the model has loaded.
-export const NOMINAL_CHARACTER_SIZE = { width: 6, height: 4.6, depth: 3.3 } as const;
+// The space the dancer takes up (width, height, depth in meters) at scale 1, measured from the dance's skinned poses
+// with both layers at full weight (dancingCharacterScene.test.ts pins it to the real model); used to place the camera
+// before the model has loaded.
+export const NOMINAL_CHARACTER_SIZE = { width: 0.95, height: 1.7, depth: 0.6 } as const;
 
 // ---- Bass reaction ----
 

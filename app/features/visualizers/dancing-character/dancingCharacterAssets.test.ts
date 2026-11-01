@@ -45,7 +45,7 @@ function makeModel() {
     const material = new THREE.MeshBasicMaterial();
     const scene = new THREE.Group();
     scene.add(new THREE.Mesh(geometry, material));
-    return { scene, animations: [new THREE.AnimationClip('Dance', 1, [])], geometry, material };
+    return { scene, geometry, material };
 }
 
 // Lets the microtask queue drain so chained promise callbacks run.
@@ -56,7 +56,7 @@ beforeEach(() => {
 });
 
 describe('loadDancingCharacterAssets', () => {
-    it('returns the model, clips and a configured skybox', async () => {
+    it('returns the model and a configured skybox', async () => {
         const gltf = makeModel();
         const texture = new THREE.Texture();
         mocks.gltfLoadAsync.mockResolvedValue(gltf);
@@ -65,7 +65,6 @@ describe('loadDancingCharacterAssets', () => {
         const assets = await loadDancingCharacterAssets(new AbortController().signal, URLS);
 
         expect(assets.model).toBe(gltf.scene);
-        expect(assets.clips).toBe(gltf.animations);
         expect(assets.skybox).toBe(texture);
         expect(texture.mapping).toBe(THREE.EquirectangularReflectionMapping);
         expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
@@ -79,7 +78,7 @@ describe('loadDancingCharacterAssets', () => {
 
         await loadDancingCharacterAssets(new AbortController().signal);
 
-        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith(expect.stringContaining('RobotExpressive'));
+        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith(expect.stringContaining('MakeHumanDancer'));
         expect(mocks.textureLoadAsync).toHaveBeenCalledWith(expect.stringContaining('kloofendal'));
     });
 
@@ -250,7 +249,7 @@ describe('disposeDancingCharacterAssets', () => {
         const materialDispose = vi.spyOn(gltf.material, 'dispose');
         const textureDispose = vi.spyOn(texture, 'dispose');
 
-        disposeDancingCharacterAssets({ model: gltf.scene, clips: gltf.animations, skybox: texture });
+        disposeDancingCharacterAssets({ model: gltf.scene, skybox: texture });
 
         expect(geometryDispose).toHaveBeenCalledTimes(1);
         expect(materialDispose).toHaveBeenCalledTimes(1);
@@ -261,7 +260,7 @@ describe('disposeDancingCharacterAssets', () => {
         const gltf = makeModel();
         const geometryDispose = vi.spyOn(gltf.geometry, 'dispose');
 
-        expect(() => disposeDancingCharacterAssets({ model: gltf.scene, clips: [], skybox: null })).not.toThrow();
+        expect(() => disposeDancingCharacterAssets({ model: gltf.scene, skybox: null })).not.toThrow();
         expect(geometryDispose).toHaveBeenCalledTimes(1);
     });
 });

@@ -1,18 +1,8 @@
 # Dancing character assets
 
-Both files are CC0 1.0 (public domain dedication): no attribution is required, but it is recorded here so the source
+Every file here is CC0 1.0 (public domain dedication): no attribution is required, but it is recorded here so the source
 of each file can be checked. They are imported with `?url`, so the build emits them hashed under `/assets/` with
 immutable caching.
-
-## RobotExpressive.glb
-
-- Source: https://github.com/mrdoob/three.js/blob/r186/examples/models/gltf/RobotExpressive/RobotExpressive.glb
-  (three.js r186, the same version the app pins)
-- Author: Tomás Laulhé (https://www.patreon.com/quaternius); modified by Don McCurdy (three facial expression morph
-  targets, converted with FBX2GLTF, duplicate materials removed, metalness reduced)
-- License: CC0 1.0, as stated in the README.md next to the model in the three.js repository
-- Size: 463,988 bytes, unchanged from the source
-- sha256: `047f5e5fb3bb6d378bd1df16ca6137f2a596c99b3a1b5690b4020c05aaf6f319`
 
 ## kloofendal_48d_partly_cloudy_puresky_2k.jpg
 

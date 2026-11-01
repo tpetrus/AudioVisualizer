@@ -85,7 +85,7 @@ interface Deferred {
 const loads: Deferred[] = [];
 
 function makeAssets(skybox: Texture | null = { dispose: vi.fn() } as unknown as Texture): DancingCharacterAssets {
-    return { model: { name: 'model' } as unknown as Group, clips: [], skybox };
+    return { model: { name: 'model' } as unknown as Group, skybox };
 }
 
 interface Props {
@@ -156,7 +156,7 @@ describe('useDancingCharacterScene', () => {
             await flush();
 
             expect(character().setSkybox).toHaveBeenCalledWith(assets.skybox);
-            expect(character().setCharacter).toHaveBeenCalledWith(assets.model, assets.clips);
+            expect(character().setCharacter).toHaveBeenCalledWith(assets.model);
             expect(statuses).toEqual(['loading', 'ready']);
         });
 

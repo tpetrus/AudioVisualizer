@@ -30,7 +30,7 @@ interface DancingCharacterSceneOptions {
     onStatus: (status: DancingCharacterLoadStatus) => void;
 }
 
-// A robot that dances to the music, rendered into `containerRef`.
+// A figure that dances to the music, rendered into `containerRef`.
 export function useDancingCharacterScene(
     containerRef: RefObject<HTMLElement | null>,
     { analyser, rhythm, valuesRef, cameraLocked, onViewChanged, onStatus }: DancingCharacterSceneOptions,
@@ -66,7 +66,7 @@ export function useDancingCharacterScene(
                     return;
                 }
                 character.setSkybox(assets.skybox);
-                character.setCharacter(assets.model, assets.clips);
+                character.setCharacter(assets.model);
                 onStatusRef.current(assets.skybox ? 'ready' : 'skyboxFailed');
             })
             .catch((error: unknown) => {

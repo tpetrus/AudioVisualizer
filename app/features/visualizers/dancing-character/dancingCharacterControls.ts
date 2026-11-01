@@ -38,8 +38,8 @@ export const dancingCharacterControls = [
         step: 0.05,
         default: 1,
     },
-    // White multiplies the model's own colors by one, so the default keeps the robot's shipped look.
-    { section: 'Colors', key: 'bodyColor', label: 'Robot body', type: 'color', default: '#ffffff' },
+    // White multiplies the model's own colors by one, so the default keeps the skin color the model ships with.
+    { section: 'Colors', key: 'bodyColor', label: 'Skin tint', type: 'color', default: '#ffffff' },
     { section: 'Colors', key: 'accentColor', label: 'Accent', type: 'color', default: '#ff7ab6' },
     { section: 'Colors', key: 'floorColor', label: 'Floor', type: 'color', default: '#2b3a55' },
 ] as const satisfies readonly ControlDefinition[];

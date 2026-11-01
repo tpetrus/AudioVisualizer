@@ -43,7 +43,7 @@ describe('DancingCharacterPage', () => {
 
         expect(screen.getByLabelText('Zoom')).toBeInTheDocument();
         expect(screen.getByLabelText('Orbit around the dancer')).toBeInTheDocument();
-        expect(screen.getByLabelText('Robot body')).toBeInTheDocument();
+        expect(screen.getByLabelText('Skin tint')).toBeInTheDocument();
     });
 
     it('shows no status note until the model fails to load', () => {

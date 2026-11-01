@@ -2,18 +2,21 @@ import * as THREE from 'three';
 import type { RhythmState } from '~/features/rhythm/types';
 import { disposeScene } from '~/lib/three/disposeScene';
 import {
+    ACCENT_EASE_SECONDS,
     BASS_LIFT,
     BASS_SQUASH,
     BODY_MATERIAL_NAMES,
+    CALM_DANCE_WEIGHT,
     CAMERA_ELEVATION,
-    DANCE_CLIP_NAME,
+    DANCE_CLIP_BEATS,
+    DANCE_CLIP_DURATION,
     FADE_IN_SECONDS,
     FALLBACK_BACKGROUND,
     MAX_FRAME_DT,
     MAX_ZOOM_KICK,
-    NATIVE_BEATS_PER_LOOP,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
+import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
@@ -47,8 +50,8 @@ const RIM_BASE_INTENSITY = 12;
 const RIM_FLASH_INTENSITY = 40;
 // The bass bump setting goes up to 2, so the pulse is bounded at that.
 const MAX_BASS_BUMP = 2;
-// Poses sampled across the clip to find the box the camera must fit.
-const MEASURE_SAMPLES = 16;
+// Poses sampled across the clip to find the box the camera must fit: eight per beat, which reaches every peak.
+const MEASURE_SAMPLES = 32;
 // Smallest scale during the fade-in; zero would make the model matrix singular.
 const MIN_FADE_SCALE = 0.001;
 
@@ -88,8 +91,9 @@ export class DancingCharacterScene {
     // Character state.
     private model: THREE.Group | null = null;
     private mixer: THREE.AnimationMixer | null = null;
-    private action: THREE.AnimationAction | null = null;
-    private clipDuration = 1;
+    private baseAction: THREE.AnimationAction | null = null;
+    private accentAction: THREE.AnimationAction | null = null;
+    private accentWeight = 0;
     private baseScale = 1;
     private baseX = 0;
     private baseY = 0;
@@ -139,7 +143,7 @@ export class DancingCharacterScene {
         this.ring.visible = false;
         scene.add(this.floor, this.ring);
 
-        // Until a model loads, frame a box the size of the robot so the camera starts in a sensible place.
+        // Until a model loads, frame a box the size of the dancer so the camera starts in a sensible place.
         const { width, height, depth } = NOMINAL_CHARACTER_SIZE;
         this.framingBox.min.set(-width / 2, -height / 2, -depth / 2);
         this.framingBox.max.set(width / 2, height / 2, depth / 2);
@@ -157,7 +161,7 @@ export class DancingCharacterScene {
         this.scene.background = texture ?? this.fallbackBackground;
     }
 
-    setCharacter(model: THREE.Group, clips: THREE.AnimationClip[]): void {
+    setCharacter(model: THREE.Group): void {
         this.disposeCharacter();
 
         // The loader's materials may be shared with the caller, so tint copies, never the originals.
@@ -183,14 +187,20 @@ export class DancingCharacterScene {
         this.model = model;
         this.scene.add(model);
 
-        const clip = clips.find((candidate) => candidate.name === DANCE_CLIP_NAME) ?? clips[0];
-        if (clip) {
+        // The model has no animation of its own: the dance is built for its bones. A rig without them keeps the rest
+        // pose (no mixer), which still renders, only without a dance.
+        const clips = buildDanceClip(this.collectBones(model));
+        if (clips) {
             this.mixer = new THREE.AnimationMixer(model);
-            this.action = this.mixer.clipAction(clip);
-            this.action.setLoop(THREE.LoopRepeat, Infinity);
-            this.action.play();
-            this.clipDuration = clip.duration;
+            this.baseAction = this.mixer.clipAction(clips.base);
+            this.accentAction = this.mixer.clipAction(clips.accents);
+            // Both layers start together and are advanced by the same update, so they stay in phase.
+            for (const action of [this.baseAction, this.accentAction]) {
+                action.setLoop(THREE.LoopRepeat, Infinity);
+                action.play();
+            }
         }
+        this.accentWeight = 0;
 
         // Measure at the model's own scale across the whole dance (the arms swing outside the bind pose), then move
         // the framing center to the world origin, which is where the orbit controls look.
@@ -212,20 +222,39 @@ export class DancingCharacterScene {
         this.refreshDistance();
     }
 
-    // Unions the model's box over evenly spaced moments of the clip into `framingBox`, then rewinds to the start. Runs
-    // once per load, so the temporary box is fine.
+    // The bones of every skinned mesh in the model, in skeleton order. Runs once per load.
+    private collectBones(model: THREE.Group): THREE.Bone[] {
+        const bones: THREE.Bone[] = [];
+        model.traverse((object) => {
+            if ((object as THREE.SkinnedMesh).isSkinnedMesh)
+                bones.push(...(object as THREE.SkinnedMesh).skeleton.bones);
+        });
+        return bones;
+    }
+
+    // Unions the model's box over evenly spaced moments of the clip into `framingBox`, then rewinds to the start. Both
+    // layers are at full weight while measuring, so the box holds the widest the dance ever gets; their weights are
+    // put back afterwards. Runs once per load, so the temporary box is fine.
     private measureDance(model: THREE.Group): THREE.Box3 {
         const box = this.framingBox;
         const samples = this.mixer ? MEASURE_SAMPLES : 1;
         const pose = new THREE.Box3();
+        if (this.baseAction && this.accentAction) {
+            this.baseAction.weight = 1;
+            this.accentAction.weight = 1;
+        }
         for (let i = 0; i < samples; i++) {
-            this.mixer?.setTime((this.clipDuration * i) / samples);
+            this.mixer?.setTime((DANCE_CLIP_DURATION * i) / samples);
             model.updateMatrixWorld(true);
             // Precise: a skinned mesh caches its bounding box, so the default mode would measure the first pose 16
-            // times. The precise mode skins every vertex, which for this 1,100-vertex robot costs little, once per load.
+            // times. The precise mode skins every vertex, which for this 13,000-vertex figure costs little, once per load.
             pose.setFromObject(model, true);
             if (i === 0) box.copy(pose);
             else box.union(pose);
+        }
+        if (this.baseAction && this.accentAction) {
+            this.baseAction.weight = CALM_DANCE_WEIGHT;
+            this.accentAction.weight = 0;
         }
         // Rewinding also applies the first pose, so the model is not left in its bind pose until the next frame.
         this.mixer?.setTime(0);
@@ -241,18 +270,24 @@ export class DancingCharacterScene {
         // 1. Dance.
         const timing = this.timing;
         timing.normalizedBpm = undefined;
-        if (this.mixer && this.action) {
+        if (this.mixer && this.baseAction && this.accentAction) {
             computeDanceTiming(
                 rhythm,
-                NATIVE_BEATS_PER_LOOP,
-                this.action.time / this.clipDuration,
+                DANCE_CLIP_BEATS,
+                this.baseAction.time / DANCE_CLIP_DURATION,
                 settings,
                 this.timingState,
                 dt,
                 timing,
             );
-            // One update carries both the normal advance and the beat-phase nudge; the action's own timeScale stays 1.
-            this.mixer.update(dt * timing.timeScale + timing.phaseNudge * this.clipDuration);
+            // Weights below 1 blend toward the rest pose, so the calm state is a gentler bounce at the native rate. The
+            // accents are only wanted while the bar is known, and ease in and out so they never pop.
+            this.baseAction.weight = timing.danceWeight;
+            const accentTarget = timing.barLocked ? timing.danceWeight : 0;
+            this.accentWeight += (accentTarget - this.accentWeight) * (1 - Math.exp(-dt / ACCENT_EASE_SECONDS));
+            this.accentAction.weight = this.accentWeight;
+            // One update carries both the normal advance and the beat-phase nudge; the actions' own timeScale stays 1.
+            this.mixer.update(dt * timing.timeScale + timing.phaseNudge * DANCE_CLIP_DURATION);
         }
 
         // 2. Bass.
@@ -323,7 +358,8 @@ export class DancingCharacterScene {
         disposeScene(model as unknown as THREE.Scene);
         this.model = null;
         this.mixer = null;
-        this.action = null;
+        this.baseAction = null;
+        this.accentAction = null;
         this.tinted = [];
     }
 
