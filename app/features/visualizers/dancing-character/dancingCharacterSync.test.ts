@@ -8,6 +8,8 @@ import {
     MIN_TIME_SCALE,
     NATIVE_BEATS_PER_LOOP,
     NATIVE_BPM,
+    NORMALIZED_BPM_MIN,
+    STEP_MULTIPLES,
 } from './dancingCharacterConfig';
 import {
     computeDanceTiming,
@@ -322,5 +324,15 @@ describe('computeDanceTiming', () => {
             computeDanceTiming(makeInput({ songChangeCount: 7 }), state, out);
             expect(out.normalizedBpm).toBe(120);
         });
+    });
+});
+
+describe('timing invariants', () => {
+    // The scene advances the mixer by dt * timeScale + phaseNudge * duration, so this keeps that step positive while
+    // the tempo is locked (the nudge is 0 while unlocked).
+    it('keeps the locked clip advancing forward even with the largest phase correction', () => {
+        const slowestLockedTimeScale = (NORMALIZED_BPM_MIN / NATIVE_BPM) * Math.min(...STEP_MULTIPLES);
+        const largestBackwardNudge = MAX_PHASE_NUDGE_PER_SECOND * DANCE_CLIP_DURATION;
+        expect(slowestLockedTimeScale).toBeGreaterThan(largestBackwardNudge);
     });
 });
