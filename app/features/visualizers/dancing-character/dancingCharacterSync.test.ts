@@ -216,29 +216,56 @@ describe('computeDanceTiming', () => {
             const barsPerLoop = CLIP_BEATS / (4 * multiple);
             const beats = time * (bpm / 60);
             const barPhase = beats / 4 - Math.floor(beats / 4);
-            expect(Math.abs(wrapSigned(barPhase - clipPhase * barsPerLoop))).toBeLessThan(0.02);
+            // A loop of a bar or more is compared in bars; a shorter one against its place within the bar.
+            const error =
+                barsPerLoop >= 1
+                    ? wrapSigned(barPhase - clipPhase * barsPerLoop)
+                    : wrapSigned(barPhase / barsPerLoop - clipPhase);
+            expect(Math.abs(error)).toBeLessThan(0.02);
             // The correction is bounded per frame, so the catch-up is a speed change rather than a jump.
             expect(maxNudgeRatio).toBeLessThanOrEqual(1 + 1e-9);
         });
 
         it('compares the bar position and converts the error to loop fractions', () => {
             const out = createDanceTimingResult();
-            // 8 beats at multiple 1 is 2 bars per loop; the clip is at bar position 0.5 * 2 = 1.0 -> 0, the music at
-            // 0.01, so the clip is 0.01 bars behind.
+            const barsPerLoop = CLIP_BEATS / 4;
+            // The clip is at the start of a bar, the music 0.01 bars further on, so the clip is 0.01 bars behind.
             const rhythm = makeRhythm({ barPhase: 0.01 });
-            step(rhythm, createDanceTimingState(), out, { clipPhase: 0.5, dt: 0.1 });
+            step(rhythm, createDanceTimingState(), out, { clipPhase: 0, dt: 0.1 });
             expect(out.barLocked).toBe(true);
-            expect(out.phaseNudge).toBeCloseTo((0.01 * 3 * 0.1) / 2, 9);
-            // Across the wrap the short way: clip at 0.99 of a bar, music at 0.02 (0.03 ahead).
-            step(makeRhythm({ barPhase: 0.02 }), createDanceTimingState(), out, { clipPhase: 0.495, dt: 0.1 });
-            expect(out.phaseNudge).toBeCloseTo((0.03 * 3 * 0.1) / 2, 9);
+            expect(out.phaseNudge).toBeCloseTo((0.01 * 3 * 0.1) / barsPerLoop, 9);
+            // Across the wrap the short way: clip at 0.995 of a bar, music at 0.005 (0.01 ahead).
+            step(makeRhythm({ barPhase: 0.005 }), createDanceTimingState(), out, {
+                clipPhase: 0.995 / barsPerLoop,
+                dt: 0.1,
+            });
+            expect(out.phaseNudge).toBeCloseTo((0.01 * 3 * 0.1) / barsPerLoop, 9);
+        });
+
+        it('aligns a loop shorter than a bar to its place within the bar', () => {
+            const out = createDanceTimingResult();
+            // At double time a loop of CLIP_BEATS / 2 beats repeats 8 / CLIP_BEATS times per bar; at bar position
+            // 0.6 it should be at frac(0.6 * 8 / CLIP_BEATS), and the clip is 0.01 loops behind that.
+            const loopsPerBar = 8 / CLIP_BEATS;
+            const target = (0.6 * loopsPerBar) % 1;
+            step(makeRhythm({ barPhase: 0.6 }), createDanceTimingState(), out, {
+                clipPhase: target - 0.01,
+                danceSpeed: 2,
+                dt: 0.1,
+            });
+            expect(out.barLocked).toBe(true);
+            expect(out.phaseNudge).toBeCloseTo(0.01 * 3 * 0.1, 9);
         });
 
         it('caps the nudge at the per-second limit in both directions', () => {
             const out = createDanceTimingResult();
             step(makeRhythm({ barPhase: 0.5 }), createDanceTimingState(), out, { dt: 0.1 });
             expect(out.phaseNudge).toBeCloseTo(MAX_PHASE_NUDGE_PER_SECOND * 0.1, 12);
-            step(makeRhythm({ barPhase: 0.4 }), createDanceTimingState(), out, { clipPhase: 0.35, dt: 0.1 });
+            // The clip is 0.35 bars ahead of the music.
+            step(makeRhythm({ barPhase: 0.4 }), createDanceTimingState(), out, {
+                clipPhase: 0.75 / (CLIP_BEATS / 4),
+                dt: 0.1,
+            });
             expect(out.phaseNudge).toBeCloseTo(-MAX_PHASE_NUDGE_PER_SECOND * 0.1, 12);
         });
 
@@ -294,9 +321,10 @@ describe('computeDanceTiming', () => {
 
         it('wraps the beat error across 0 and 1 the short way', () => {
             const out = createDanceTimingResult();
-            const rhythm = makeRhythm({ beatsPerBar: 3, beatPhase: 0.05 });
-            step(rhythm, createDanceTimingState(), out, { clipPhase: 0.95 / CLIP_BEATS, dt: 0.1 });
-            expect(out.phaseNudge).toBeCloseTo((0.1 * 3 * 0.1) / CLIP_BEATS, 9);
+            // The clip is at 0.98 of its beat slot and the music at 0.02 of the next beat: 0.04 beats behind.
+            const rhythm = makeRhythm({ beatsPerBar: 3, beatPhase: 0.02 });
+            step(rhythm, createDanceTimingState(), out, { clipPhase: 0.98 / CLIP_BEATS, dt: 0.1 });
+            expect(out.phaseNudge).toBeCloseTo((0.04 * 3 * 0.1) / CLIP_BEATS, 9);
         });
     });
 

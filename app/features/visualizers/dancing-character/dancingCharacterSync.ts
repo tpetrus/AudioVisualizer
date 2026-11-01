@@ -171,9 +171,19 @@ export function computeDanceTiming(
             // Where the clip is within its bar against where the music is within its bar. The error is in bars, so
             // the correction divides by the bars in one loop to get loop fractions.
             const barsPerLoop = clipBeats / (4 * multiple);
-            const position = clipPhase * barsPerLoop;
-            const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
-            nudge = correction(error, barsPerLoop, step);
+            if (barsPerLoop >= 1) {
+                const position = clipPhase * barsPerLoop;
+                const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
+                nudge = correction(error, barsPerLoop, step);
+            } else {
+                // A loop shorter than a bar (double time) covers only part of the bar, so the clip position cannot be
+                // compared in bars; instead the loop is aligned to where it should be within the music's bar, and that
+                // error is already in loop fractions.
+                const loopsPerBar = 1 / barsPerLoop;
+                const target = rhythm.barPhase * loopsPerBar;
+                const error = wrapSigned(target - Math.floor(target) - clipPhase);
+                nudge = correction(error, 1, step);
+            }
         } else {
             // Only the beat slot is compared, not which beat of the loop it is: the tracker's beat count can jitter,
             // and targeting the count would make the dancer jump by half a loop.
