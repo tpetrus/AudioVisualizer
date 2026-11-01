@@ -28,10 +28,11 @@ export const dancingCharacterControls = [
     },
     // 1 frames the whole body; higher values move the camera closer.
     { section: 'Camera', key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.05, default: 1 },
+    // How strongly the bass lights the ring at the dancer's feet and the rim light; the dancer never changes size.
     {
         section: 'Bass',
         key: 'bassStrength',
-        label: 'Bass bump',
+        label: 'Bass glow',
         type: 'range',
         min: 0,
         max: 2,

@@ -3,8 +3,6 @@ import type { RhythmState } from '~/features/rhythm/types';
 import { disposeScene } from '~/lib/three/disposeScene';
 import {
     ACCENT_EASE_SECONDS,
-    BASS_LIFT,
-    BASS_SQUASH,
     BODY_MATERIAL_NAMES,
     CALM_DANCE_WEIGHT,
     CAMERA_ELEVATION,
@@ -218,7 +216,7 @@ export class DancingCharacterScene {
 
         this.timingState.locked = false;
         this.fadeElapsed = 0;
-        this.applyModelTransform(0, 0);
+        this.applyModelTransform(0);
         this.refreshDistance();
     }
 
@@ -304,7 +302,7 @@ export class DancingCharacterScene {
         this.rimLight.intensity = RIM_BASE_INTENSITY + bump * RIM_FLASH_INTENSITY;
         if (this.model) {
             this.fadeElapsed += dt;
-            this.applyModelTransform(bump, Math.min(1, this.fadeElapsed / FADE_IN_SECONDS));
+            this.applyModelTransform(Math.min(1, this.fadeElapsed / FADE_IN_SECONDS));
         }
 
         // 3. Camera. Unlocked means the orbit controls own the camera, so nothing is written and nothing advances.
@@ -369,14 +367,14 @@ export class DancingCharacterScene {
         this.ring.position.y = feetY + RING_LIFT;
     }
 
-    // Squash and bounce, with the fade-in (a smoothstep from nearly nothing to full size) on top.
-    private applyModelTransform(bump: number, fade: number): void {
+    // Only the fade-in (a smoothstep from nearly nothing to full size) changes the model's size. The bass never scales
+    // or lifts the dancer: she stays the same size with her feet on the floor, and the bass shows in the camera bump,
+    // the ring and the lights instead.
+    private applyModelTransform(fade: number): void {
         const model = this.model;
         if (!model) return;
-        const scale = this.baseScale * Math.max(MIN_FADE_SCALE, fade * fade * (3 - 2 * fade));
-        const wide = 1 + (bump * BASS_SQUASH) / 2;
-        model.scale.set(scale * wide, scale * (1 - bump * BASS_SQUASH), scale * wide);
-        model.position.set(this.baseX, this.baseY + bump * BASS_LIFT, this.baseZ);
+        model.scale.setScalar(this.baseScale * Math.max(MIN_FADE_SCALE, fade * fade * (3 - 2 * fade)));
+        model.position.set(this.baseX, this.baseY, this.baseZ);
     }
 
     // The fitted distance only changes with the zoom or the aspect ratio, so it is cached between frames.

@@ -7,7 +7,6 @@ import type { RhythmState } from '~/features/rhythm/types';
 import { dancingCharacterControls, type DancingCharacterSettings } from './dancingCharacterControls';
 import {
     ACCENT_EASE_SECONDS,
-    BASS_SQUASH,
     CALM_DANCE_WEIGHT,
     CAMERA_ELEVATION,
     DANCE_CLIP_BEATS,
@@ -590,10 +589,11 @@ describe('bass', () => {
         expect(ring.visible).toBe(false);
     });
 
-    it('squashes the model, shows the ring and pulls the camera in at bass 1', () => {
+    it('keeps the model its size and on the floor, shows the ring and pulls the camera in at bass 1', () => {
         const { model, ring, camera, rest } = settled(1, { autoOrbit: false });
-        expect(model.scale.y).toBeCloseTo(1 - BASS_SQUASH);
-        expect(model.scale.x).toBeCloseTo(1 + BASS_SQUASH / 2);
+        const { model: still } = settled(0, { autoOrbit: false });
+        expect(model.scale.toArray()).toEqual([1, 1, 1]);
+        expect(model.position.toArray()).toEqual(still.position.toArray());
         expect(ring.visible).toBe(true);
         expect(ring.material.opacity).toBeGreaterThan(0.5);
         expect(ring.scale.x).toBeGreaterThan(1.5);
@@ -614,10 +614,10 @@ describe('bass', () => {
         expect(camera.position.toArray()).toEqual([1, 2, 3]);
     });
 
-    it('does not move the camera when the camera bump is 0 but still bumps the body', () => {
-        const { model, camera, rest } = settled(1, { bassCameraStrength: 0, autoOrbit: false });
+    it('does not move the camera when the camera bump is 0 but still shows the ring', () => {
+        const { ring, camera, rest } = settled(1, { bassCameraStrength: 0, autoOrbit: false });
         expect(distanceOf(camera)).toBeCloseTo(rest);
-        expect(model.scale.y).toBeCloseTo(1 - BASS_SQUASH);
+        expect(ring.visible).toBe(true);
     });
 
     it('has no effect when the bass strength is 0', () => {

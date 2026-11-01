@@ -107,9 +107,6 @@ export const NOMINAL_CHARACTER_SIZE = { width: 1.14, height: 1.68, depth: 0.34 }
 export const DOLLY_MAX_FRACTION = 0.25;
 // The dolly never exceeds this fraction of the fitted distance, whatever the settings, so the dancer stays in frame.
 export const DOLLY_CLAMP_FRACTION = 0.25;
-// Largest squash of the character's height at full bass (the width grows by half of it) and its lift, in scene units.
-export const BASS_SQUASH = 0.08;
-export const BASS_LIFT = 0.12;
 // Seconds for the character to fade in once it has loaded.
 export const FADE_IN_SECONDS = 0.5;
 
