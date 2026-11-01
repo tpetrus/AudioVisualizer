@@ -1,11 +1,18 @@
-import { TEMPO_LOCK_CONFIDENCE, TEMPO_LOSE_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
 import {
-    DEFAULT_CALM_RATE,
+    METER_ENTER_CONFIDENCE,
+    METER_EXIT_CONFIDENCE,
+    TEMPO_LOCK_CONFIDENCE,
+    TEMPO_LOSE_CONFIDENCE,
+} from '~/features/rhythm/rhythmConfig';
+import type { RhythmState } from '~/features/rhythm/types';
+import {
+    CALM_DANCE_WEIGHT,
+    CALM_TIME_SCALE,
+    DANCE_WEIGHT_RATE,
     MAX_FRAME_DT,
     MAX_PHASE_NUDGE_PER_SECOND,
     MAX_TIME_SCALE_CHANGE_PER_SECOND,
     MIN_TIME_SCALE,
-    NATIVE_BEATS_PER_LOOP,
     NATIVE_BPM,
     NORMALIZED_BPM_MIN,
     PHASE_CORRECTION_GAIN,
@@ -14,38 +21,34 @@ import {
     TIME_SCALE_SLEW_RATE,
 } from './dancingCharacterConfig';
 
-export interface DanceTimingInput {
-    // RhythmState.bpm: 0 means unknown (not undefined).
-    bpm: number;
-    // 0..1
-    tempoConfidence: number;
-    // 0..1 position in the current beat, undefined until a beat is found.
-    beatPhase: number | undefined;
-    // RhythmState.songChangeCount; a change releases the lock.
-    songChangeCount: number;
-    // 0..1 position in the Dance loop (action.time / duration).
-    clipPhase: number;
+export interface DanceTimingSettings {
     // settings.danceSpeed (0.5..2).
     danceSpeed: number;
-    // Seconds since the last frame (>= 0; anything above MAX_FRAME_DT is treated as MAX_FRAME_DT).
-    dt: number;
 }
 
-export interface DanceTimingOutput {
+export interface DanceTimingResult {
     // Multiplier for the time the clip advances by.
     timeScale: number;
-    // Amount to add to the clip position, in loop fractions (clipPhase units).
+    // Amount to add to the clip position this frame, in loop fractions (clipPhase units).
     phaseNudge: number;
-    // The tempo the dance follows while locked, undefined while the tempo is unknown.
+    // CALM_DANCE_WEIGHT..1: eases to CALM_DANCE_WEIGHT while the tempo is unlocked and to 1 while it is locked.
+    danceWeight: number;
+    // The tempo the dance follows while locked, undefined otherwise (the orbit reads it).
     normalizedBpm: number | undefined;
+    // True only while the tempo is locked, the meter is a confident 4 and a bar position is known.
+    barLocked: boolean;
 }
 
 // Plain numbers and booleans only, so it can be kept across frames without allocation.
 export interface DanceTimingState {
+    // Tempo lock.
     locked: boolean;
+    // Meter lock: the dance follows the bar, not only the beat.
+    meterLocked: boolean;
     // 0 until a tempo has been normalized (also after a song change).
     lastNormalizedBpm: number;
     timeScale: number;
+    danceWeight: number;
     songChangeCount: number;
     initialized: boolean;
 }
@@ -53,10 +56,22 @@ export interface DanceTimingState {
 export function createDanceTimingState(): DanceTimingState {
     return {
         locked: false,
+        meterLocked: false,
         lastNormalizedBpm: 0,
-        timeScale: DEFAULT_CALM_RATE,
+        timeScale: CALM_TIME_SCALE,
+        danceWeight: CALM_DANCE_WEIGHT,
         songChangeCount: 0,
         initialized: false,
+    };
+}
+
+export function createDanceTimingResult(): DanceTimingResult {
+    return {
+        timeScale: CALM_TIME_SCALE,
+        phaseNudge: 0,
+        danceWeight: CALM_DANCE_WEIGHT,
+        normalizedBpm: undefined,
+        barLocked: false,
     };
 }
 
@@ -96,55 +111,92 @@ function slew(current: number, target: number, dt: number): number {
     return current + Math.min(limit, Math.max(-limit, step));
 }
 
-// Chooses how fast the clip runs and how much to nudge its position so its beat slot meets the music's beat. Writes
-// into and returns `out`, and allocates nothing.
-export function computeDanceTiming(
-    input: DanceTimingInput,
-    state: DanceTimingState,
-    out: DanceTimingOutput,
-): DanceTimingOutput {
-    const dt = Math.min(Math.max(input.dt, 0), MAX_FRAME_DT);
+// Closes a phase error at the correction gain, never faster than the per-second cap, so catching up is a visible
+// speed change rather than a teleport. `unitsPerLoop` is how many error units (beats or bars) one loop holds, which
+// converts the error into loop fractions.
+function correction(error: number, unitsPerLoop: number, dt: number): number {
+    const limit = MAX_PHASE_NUDGE_PER_SECOND * dt;
+    return Math.min(limit, Math.max(-limit, (error * PHASE_CORRECTION_GAIN * dt) / unitsPerLoop));
+}
 
-    // A new song invalidates the old lock and octave choice; the speed itself carries on and slews from where it is.
-    if (state.initialized && input.songChangeCount !== state.songChangeCount) {
+// Chooses how fast the clip runs, how much to nudge its position so it meets the music's bar (or beat), and how
+// strongly the dance shows. Writes into and returns `out`, and allocates nothing.
+export function computeDanceTiming(
+    rhythm: Readonly<RhythmState>,
+    clipBeats: number,
+    clipPhase: number,
+    settings: DanceTimingSettings,
+    state: DanceTimingState,
+    dt: number,
+    out: DanceTimingResult,
+): DanceTimingResult {
+    const step = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
+
+    // A new song invalidates the old locks and octave choice; the speed itself carries on and slews from where it is.
+    if (state.initialized && rhythm.songChangeCount !== state.songChangeCount) {
         state.locked = false;
+        state.meterLocked = false;
         state.lastNormalizedBpm = 0;
     }
-    state.songChangeCount = input.songChangeCount;
+    state.songChangeCount = rhythm.songChangeCount;
     state.initialized = true;
 
     // Two thresholds, so a confidence hovering around one value does not flicker the dance between modes.
-    const usable = input.bpm > 0 && input.beatPhase !== undefined;
+    const usable = rhythm.bpm > 0 && rhythm.beatPhase !== undefined;
     if (state.locked) {
-        if (!usable || input.tempoConfidence < TEMPO_LOSE_CONFIDENCE) state.locked = false;
-    } else if (usable && input.tempoConfidence >= TEMPO_LOCK_CONFIDENCE) {
+        if (!usable || rhythm.tempoConfidence < TEMPO_LOSE_CONFIDENCE) state.locked = false;
+    } else if (usable && rhythm.tempoConfidence >= TEMPO_LOCK_CONFIDENCE) {
         state.locked = true;
+    }
+
+    // The meter lock has its own two thresholds and only exists on top of the tempo lock with a known bar of four.
+    if (!state.locked || rhythm.beatsPerBar !== 4 || rhythm.barPhase === undefined) {
+        state.meterLocked = false;
+    } else if (state.meterLocked) {
+        if (rhythm.meterConfidence < METER_EXIT_CONFIDENCE) state.meterLocked = false;
+    } else if (rhythm.meterConfidence >= METER_ENTER_CONFIDENCE) {
+        state.meterLocked = true;
     }
 
     let target: number;
     let nudge = 0;
     // (A locked state always has a beat phase; the check is ordered so the types narrow.)
-    if (input.beatPhase !== undefined && state.locked) {
-        const normalized = normalizeOctave(input.bpm, state.lastNormalizedBpm);
+    if (rhythm.beatPhase !== undefined && state.locked) {
+        const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm);
         state.lastNormalizedBpm = normalized;
-        const multiple = snapStepMultiple(input.danceSpeed);
+        const multiple = snapStepMultiple(settings.danceSpeed);
         target = (normalized / NATIVE_BPM) * multiple;
 
-        // Only the beat slot is compared, not which beat of the loop it is: the tracker's beat count can jitter, and
-        // targeting the count would make the dancer jump by half a loop.
-        const beatsPerLoop = NATIVE_BEATS_PER_LOOP / multiple;
-        const slot = input.clipPhase * beatsPerLoop - STEP_PHASE_OFFSET;
-        const error = wrapSigned(input.beatPhase - (slot - Math.floor(slot)));
-        const limit = MAX_PHASE_NUDGE_PER_SECOND * dt;
-        nudge = Math.min(limit, Math.max(-limit, (error * PHASE_CORRECTION_GAIN * dt) / beatsPerLoop));
+        if (state.meterLocked && rhythm.barPhase !== undefined) {
+            // Where the clip is within its bar against where the music is within its bar. The error is in bars, so
+            // the correction divides by the bars in one loop to get loop fractions.
+            const barsPerLoop = clipBeats / (4 * multiple);
+            const position = clipPhase * barsPerLoop;
+            const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
+            nudge = correction(error, barsPerLoop, step);
+        } else {
+            // Only the beat slot is compared, not which beat of the loop it is: the tracker's beat count can jitter,
+            // and targeting the count would make the dancer jump by half a loop.
+            const beatsPerLoop = clipBeats / multiple;
+            const slot = clipPhase * beatsPerLoop - STEP_PHASE_OFFSET;
+            const error = wrapSigned(rhythm.beatPhase - (slot - Math.floor(slot)));
+            nudge = correction(error, beatsPerLoop, step);
+        }
         out.normalizedBpm = normalized;
     } else {
-        target = DEFAULT_CALM_RATE * input.danceSpeed;
+        target = CALM_TIME_SCALE * settings.danceSpeed;
         out.normalizedBpm = undefined;
     }
 
-    state.timeScale = Math.max(MIN_TIME_SCALE, slew(state.timeScale, Math.max(MIN_TIME_SCALE, target), dt));
+    state.timeScale = Math.max(MIN_TIME_SCALE, slew(state.timeScale, Math.max(MIN_TIME_SCALE, target), step));
+
+    // An exponential approach, so the weight never jumps and never leaves [CALM_DANCE_WEIGHT, 1].
+    const weightTarget = state.locked ? 1 : CALM_DANCE_WEIGHT;
+    state.danceWeight += (weightTarget - state.danceWeight) * (1 - Math.exp(-DANCE_WEIGHT_RATE * step));
+
     out.timeScale = state.timeScale;
     out.phaseNudge = nudge;
+    out.danceWeight = state.danceWeight;
+    out.barLocked = state.meterLocked;
     return out;
 }

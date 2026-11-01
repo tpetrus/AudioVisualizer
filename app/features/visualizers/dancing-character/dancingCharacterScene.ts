@@ -11,24 +11,20 @@ import {
     FALLBACK_BACKGROUND,
     MAX_FRAME_DT,
     MAX_ZOOM_KICK,
+    NATIVE_BEATS_PER_LOOP,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
-import {
-    computeDanceTiming,
-    createDanceTimingState,
-    type DanceTimingInput,
-    type DanceTimingOutput,
-} from './dancingCharacterSync';
+import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
 export interface DancingCharacterFrame {
     // Seconds since the last frame.
     dt: number;
     // Read only; the caller has already called tracker.updatePhase().
     rhythm: RhythmState;
-    // 0..1 from DancingCharacterBassPulse (0 when there is no source).
+    // 0..1 from BassPulse (0 when there is no source).
     bass: number;
     settings: DancingCharacterSettings;
     cameraLocked: boolean;
@@ -103,16 +99,7 @@ export class DancingCharacterScene {
 
     // Per-frame scratch, preallocated so update() allocates nothing.
     private readonly timingState = createDanceTimingState();
-    private readonly timingInput: DanceTimingInput = {
-        bpm: 0,
-        tempoConfidence: 0,
-        beatPhase: undefined,
-        songChangeCount: 0,
-        clipPhase: 0,
-        danceSpeed: 1,
-        dt: 0,
-    };
-    private readonly timingOutput: DanceTimingOutput = { timeScale: 1, phaseNudge: 0, normalizedBpm: undefined };
+    private readonly timing = createDanceTimingResult();
     private readonly bodyTint = new THREE.Color();
     private lastBodyColor = '';
     private lastAccentColor = '';
@@ -252,18 +239,18 @@ export class DancingCharacterScene {
         this.zoom = settings.zoom;
 
         // 1. Dance.
-        const timing = this.timingOutput;
+        const timing = this.timing;
         timing.normalizedBpm = undefined;
         if (this.mixer && this.action) {
-            const input = this.timingInput;
-            input.bpm = rhythm.bpm;
-            input.tempoConfidence = rhythm.tempoConfidence;
-            input.beatPhase = rhythm.beatPhase;
-            input.songChangeCount = rhythm.songChangeCount;
-            input.clipPhase = this.action.time / this.clipDuration;
-            input.danceSpeed = settings.danceSpeed;
-            input.dt = dt;
-            computeDanceTiming(input, this.timingState, timing);
+            computeDanceTiming(
+                rhythm,
+                NATIVE_BEATS_PER_LOOP,
+                this.action.time / this.clipDuration,
+                settings,
+                this.timingState,
+                dt,
+                timing,
+            );
             // One update carries both the normal advance and the beat-phase nudge; the action's own timeScale stays 1.
             this.mixer.update(dt * timing.timeScale + timing.phaseNudge * this.clipDuration);
         }

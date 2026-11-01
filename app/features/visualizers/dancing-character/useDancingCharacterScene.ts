@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
-import { DancingCharacterBassPulse } from './dancingCharacterBassPulse';
+import { BassPulse } from '~/features/visualizers/cubes/bassPulse';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 import { MAX_FRAME_DT } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
@@ -75,7 +75,7 @@ export function useDancingCharacterScene(
             });
 
         let boundAnalyser: AnalyserNode | undefined;
-        let bass: DancingCharacterBassPulse | undefined;
+        let bass: BassPulse | undefined;
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
             dt: 0,
@@ -95,7 +95,7 @@ export function useDancingCharacterScene(
                 const source = analyserRef.current;
                 if (source !== boundAnalyser) {
                     bass?.dispose();
-                    bass = source ? new DancingCharacterBassPulse(source) : undefined;
+                    bass = source ? new BassPulse(source) : undefined;
                     boundAnalyser = source;
                 }
 

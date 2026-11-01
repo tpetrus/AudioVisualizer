@@ -16,8 +16,6 @@ export const NATIVE_BEATS_PER_LOOP = 8;
 export const NATIVE_BPM = (NATIVE_BEATS_PER_LOOP * 60) / DANCE_CLIP_DURATION;
 // Where in the loop (0..1 of one beat) the beat lands: 0 puts the seam knee dip, the strongest accent, on the beat.
 export const STEP_PHASE_OFFSET = 0;
-// Clip speed while the tempo is unknown: a relaxed sway instead of a frozen pose.
-export const DEFAULT_CALM_RATE = 0.8;
 // Materials the body color tints. The third material, 'Black', is the eyes and joints and keeps its color.
 export const BODY_MATERIAL_NAMES = ['Main', 'Grey'] as const;
 
@@ -42,6 +40,14 @@ export const PHASE_CORRECTION_GAIN = 3;
 // The phase correction per second is limited to this much of a loop, so catching up is a visible speed change
 // (at most about 20 % at 144 BPM) rather than a teleport.
 export const MAX_PHASE_NUDGE_PER_SECOND = 0.06;
+
+// Clip speed while the tempo is unknown, before the danceSpeed setting: the clip's own native rate.
+export const CALM_TIME_SCALE = 1;
+// How much of the dance shows while the tempo is unknown (1 is the full dance while locked): a relaxed sway.
+export const CALM_DANCE_WEIGHT = 0.35;
+// How fast the dance weight approaches its target, in 1/seconds (exponential). A time constant of 0.2 s, so about
+// 0.6 s to settle.
+export const DANCE_WEIGHT_RATE = 5;
 
 // ---- Camera orbit (dancingCharacterOrbit.ts) ----
 
@@ -78,23 +84,3 @@ export const BASS_LIFT = 0.12;
 export const FADE_IN_SECONDS = 0.5;
 // Background color when the sky image is missing or fails to load.
 export const FALLBACK_BACKGROUND = '#0b1020';
-
-// ---- Bass pulse (dancingCharacterBassPulse.ts) ----
-
-// The bass is isolated by its own steep low-pass filter so mids and drums do not leak in.
-export const BASS_CUTOFF_HZ = 120;
-// ~43 ms at 48 kHz: long enough to hold a full cycle of the lowest bass notes.
-export const BASS_FFT_SIZE = 2048;
-// Per-frame follower coefficients: the fast follower attacks quickly, the slow one has ~1.5 s of memory, so a hit
-// stands out against what came before.
-export const BASS_FAST_ATTACK = 0.5;
-export const BASS_FAST_RELEASE = 0.2;
-export const BASS_SLOW_RATE = 0.01;
-// Below this slow level (RMS, 0..1) the source counts as silent and nothing pulses.
-export const BASS_SILENCE_FLOOR = 0.005;
-// Ratio of fast to slow level that is ignored, and the gain above it that maps to a full pulse.
-export const BASS_RATIO_DEADBAND = 1.15;
-export const BASS_RATIO_GAIN = 1.5;
-// How quickly the output pulse rises and falls per frame: up over a couple of frames, down over ~0.3 s.
-export const BASS_PULSE_RISE = 0.45;
-export const BASS_PULSE_FALL = 0.12;
