@@ -405,6 +405,7 @@ export class DancingCharacterScene {
             this.accent.set(settings.accentColor);
         }
         this.club.setAccentColor(this.accent);
+        this.club.setRainbow(settings.accentRainbow, this.accentHue);
         this.rimLight.color.copy(this.accent);
         if (settings.bodyColor !== this.lastBodyColor) {
             this.lastBodyColor = settings.bodyColor;

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import {
+    patternAt,
     ClubSet,
     createFlashLimiter,
     rippleAt,
@@ -18,6 +19,9 @@ import {
     CLUB_FLASH_BASS_THRESHOLD,
     CLUB_MAX_FLASHES_PER_SECOND,
     CLUB_REDUCED_MOTION_FLASH_STRENGTH,
+    CLUB_FLOOR_HALF,
+    CLUB_PATTERN_BEATS,
+    CLUB_PATTERN_FADE_SECONDS,
     CLUB_TILE_GRID,
 } from './dancingCharacterConfig';
 
@@ -55,7 +59,7 @@ function setup() {
     const scene = new THREE.Scene();
     const club = new ClubSet(scene);
     const floor = scene.children.find((child) => (child as THREE.InstancedMesh).isInstancedMesh) as THREE.InstancedMesh<
-        THREE.PlaneGeometry,
+        THREE.BufferGeometry,
         THREE.MeshBasicMaterial
     >;
     const cones = scene.children.filter(
@@ -80,7 +84,8 @@ function floorBrightness(floor: THREE.InstancedMesh): number {
     return sum;
 }
 
-// The normalized radius of the tile with the highest value of the accent's channel, i.e. the ripple ring's position.
+// The square distance from the center (the larger of |x| and |z|) of the tile with the highest value of a channel, i.e.
+// the ripple's position.
 function brightestRadius(floor: THREE.InstancedMesh, accent: 'r' | 'g' | 'b'): number {
     let best = -1;
     let bestValue = -Infinity;
@@ -95,7 +100,7 @@ function brightestRadius(floor: THREE.InstancedMesh, accent: 'r' | 'g' | 'b'): n
     const matrix = new THREE.Matrix4();
     floor.getMatrixAt(best, matrix);
     const position = new THREE.Vector3().setFromMatrixPosition(matrix);
-    return Math.hypot(position.x, position.z);
+    return Math.max(Math.abs(position.x), Math.abs(position.z));
 }
 
 // Settles the club (flash and idle) at the given inputs over a second.
@@ -125,10 +130,9 @@ describe('ClubSet construction', () => {
         const { scene, club, floor, cones } = setup();
         expect(scene.children.filter((child) => (child as THREE.InstancedMesh).isInstancedMesh)).toHaveLength(1);
         expect(club.tileCount).toBe(floor.count);
-        expect(floor.count).toBeGreaterThan(100);
-        expect(floor.count).toBeLessThanOrEqual(CLUB_TILE_GRID * CLUB_TILE_GRID);
+        expect(floor.count).toBe(CLUB_TILE_GRID * CLUB_TILE_GRID);
         expect(floor.instanceColor).not.toBeNull();
-        expect(floor.geometry.type).toBe('PlaneGeometry');
+        expect(floor.material.vertexColors).toBe(true);
         expect(cones).toHaveLength(4);
         for (const cone of cones) {
             expect(cone.material.blending).toBe(THREE.AdditiveBlending);
@@ -138,29 +142,47 @@ describe('ClubSet construction', () => {
         }
         expect(scene.children.filter((child) => (child as THREE.PointLight).isPointLight)).toHaveLength(2);
         expect(scene.children.filter((child) => (child as THREE.Light).isLight)).toHaveLength(2);
+        // The tiles, the dark plane under their seams and the frame's four bars, plus the cones.
+        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(10);
     });
 
-    it('clips the tiles to a circle and fades the outer ones to the background color', () => {
-        const { floor } = setup();
+    it('lays the tiles out as a full square inside a raised frame', () => {
+        const { floor, scene } = setup();
         const matrix = new THREE.Matrix4();
         const position = new THREE.Vector3();
         let outermost = 0;
-        let outermostIndex = 0;
         for (let i = 0; i < floor.count; i++) {
             floor.getMatrixAt(i, matrix);
             position.setFromMatrixPosition(matrix);
-            const radius = Math.hypot(position.x, position.z);
-            if (radius > outermost) {
-                outermost = radius;
-                outermostIndex = i;
-            }
+            outermost = Math.max(outermost, Math.abs(position.x), Math.abs(position.z));
         }
-        // Corners of the 16 x 16 grid would be at about 5.3; nothing past the floor radius is built.
-        expect(outermost).toBeLessThanOrEqual((CLUB_TILE_GRID * 0.5) / 2);
-        const background = new THREE.Color(CLUB_BACKGROUND);
-        const edge = tileColor(floor, outermostIndex);
-        // The very last ring is almost fully faded: within a few percent of the background brightness.
-        expect(edge.r + edge.g + edge.b).toBeLessThan((background.r + background.g + background.b) * 4 + 0.05);
+        expect(outermost).toBeLessThan(CLUB_FLOOR_HALF);
+        expect(outermost).toBeGreaterThan(CLUB_FLOOR_HALF * 0.8);
+        // The frame's bars surround the tiles on all four sides and stand on the floor.
+        const bars = scene.children.filter((child) => (child as THREE.Mesh).geometry?.type === 'BoxGeometry');
+        expect(bars).toHaveLength(4);
+        const frame = new THREE.Box3();
+        for (const bar of bars) frame.union(new THREE.Box3().setFromObject(bar));
+        expect(frame.max.x).toBeGreaterThan(CLUB_FLOOR_HALF);
+        expect(frame.min.x).toBeLessThan(-CLUB_FLOOR_HALF);
+        expect(frame.max.z).toBeGreaterThan(CLUB_FLOOR_HALF);
+        expect(frame.min.z).toBeLessThan(-CLUB_FLOOR_HALF);
+        expect(frame.min.y).toBeCloseTo(0);
+        expect(frame.max.y).toBeGreaterThan(0);
+    });
+
+    it('shades each tile as four facets that are brightest where they meet in the middle', () => {
+        const { floor } = setup();
+        const positions = floor.geometry.getAttribute('position');
+        const colors = floor.geometry.getAttribute('color');
+        expect(positions.count).toBe(12);
+        for (let i = 0; i < positions.count; i++) {
+            const atCenter = Math.hypot(positions.getX(i), positions.getZ(i)) < 1e-6;
+            if (atCenter) expect(colors.getX(i)).toBe(1);
+            else expect(colors.getX(i)).toBeLessThan(1);
+            // Every vertex lies flat on the floor.
+            expect(positions.getY(i)).toBeCloseTo(0);
+        }
     });
 
     it('puts the floor and the lights relative to the floor height', () => {
@@ -242,8 +264,9 @@ describe('ClubSet construction', () => {
 describe('floor response', () => {
     it('moves the ripple outward as the beat phase advances', () => {
         const { club, floor } = setup();
-        // A pure accent color on a black floor, so the brightest tile of that channel is the ripple.
-        club.setColors('#000000', '#ff0000');
+        // Black patterns, so the brightest tile is the ripple lightening its tiles toward white.
+        club.setRainbow(false, 0);
+        club.setColors('#000000', '#000000');
         const radii = [0.2, 0.35, 0.5].map((phase) => {
             club.update(phase, 0, 1, FRAME);
             return brightestRadius(floor, 'r');
@@ -267,7 +290,7 @@ describe('floor response', () => {
         settle(club, 0.5, 0, 1);
         const quiet = floorBrightness(floor);
         club.update(0.5, 1, 1, FRAME);
-        expect(floorBrightness(floor)).toBeGreaterThan(quiet * 1.3);
+        expect(floorBrightness(floor)).toBeGreaterThan(quiet * 1.1);
     });
 
     it('stays dim and calm with no beat phase, and dimmer with a low dance weight', () => {
@@ -300,6 +323,65 @@ describe('floor response', () => {
         a.club.update(1.25, 0, 1, FRAME);
         b.club.update(0.25, 0, 1, FRAME);
         expect(floorBrightness(a.floor)).toBeCloseTo(floorBrightness(b.floor));
+    });
+});
+
+describe('floor patterns', () => {
+    it('places each tile on the color wheel by pattern', () => {
+        // Diagonal bands and columns grow across the floor, the rings grow from the middle and the checkerboard
+        // alternates by half the wheel.
+        expect(patternAt(0, 1, 1, 0, 0, 0)).toBeGreaterThan(patternAt(0, 0, 0, 0, 0, 0));
+        expect(patternAt(1, 0, 0, 1, 0, 0)).toBeGreaterThan(patternAt(1, 0, 0, 0, 0, 0));
+        expect(patternAt(2, 1, 0, 0, 0, 0)).toBeGreaterThan(patternAt(2, 0, 0, 0, 0, 0));
+        expect(patternAt(3, 0, 0, 0, 1, 0) - patternAt(3, 0, 0, 0, 0, 0)).toBe(0.5);
+        // The drift moves every pattern; the rings move outward (their value falls over time at a fixed place).
+        expect(patternAt(0, 0.5, 0.5, 0, 0, 0.1)).toBeGreaterThan(patternAt(0, 0.5, 0.5, 0, 0, 0));
+        expect(patternAt(1, 0, 0, 0.5, 0, 0.1)).toBeLessThan(patternAt(1, 0, 0, 0.5, 0, 0));
+    });
+
+    it('moves to the next pattern after a run of beats, with a slow cross-fade', () => {
+        const { club, floor } = setup();
+        expect(club.currentPattern).toBe(0);
+        const before = tileColor(floor, 0).getHexString();
+        for (let beat = 0; beat < CLUB_PATTERN_BEATS; beat++) {
+            for (let f = 0; f < 30; f++) club.update(f / 30, 0, 1, FRAME);
+        }
+        club.update(0, 0, 1, FRAME);
+        expect(club.currentPattern).toBe(1);
+        // Half way through the fade the floor is between the two patterns, not on either.
+        settle(club, 0.5, 0, 1, CLUB_PATTERN_FADE_SECONDS / 2);
+        expect(tileColor(floor, 0).getHexString()).not.toBe(before);
+        settle(club, 0.5, 0, 1, CLUB_PATTERN_FADE_SECONDS);
+        expect(club.currentPattern).toBe(1);
+    });
+
+    it('also changes pattern on time alone while no beat is known', () => {
+        const { club } = setup();
+        settle(club, undefined, 0, 0.5, 9);
+        expect(club.currentPattern).toBe(1);
+    });
+
+    it('shifts the rainbow with the hue offset and lights the dancer with the floor colors', () => {
+        const { club, floor, scene } = setup();
+        club.setRainbow(true, 0);
+        club.update(undefined, 0, 1, 0);
+        const first = tileColor(floor, 0).getHexString();
+        club.setRainbow(true, 0.5);
+        club.update(undefined, 0, 1, 0);
+        expect(tileColor(floor, 0).getHexString()).not.toBe(first);
+        const spill = scene.children.filter((child) => (child as THREE.PointLight).isPointLight) as THREE.PointLight[];
+        expect(spill[0].color.getHexString()).not.toBe(spill[1].color.getHexString());
+    });
+
+    it('blends between the floor and accent colors when the rainbow is off', () => {
+        const { club, floor, scene } = setup();
+        club.setRainbow(false, 0);
+        club.setColors('#0000ff', '#ff0000');
+        club.update(undefined, 0, 1, 0);
+        for (let i = 0; i < floor.count; i++) expect(tileColor(floor, i).g).toBeCloseTo(0);
+        const spill = scene.children.filter((child) => (child as THREE.PointLight).isPointLight) as THREE.PointLight[];
+        expect(spill[0].color.getHexString()).toBe('ff0000');
+        expect(spill[1].color.getHexString()).toBe('0000ff');
     });
 });
 

@@ -119,34 +119,51 @@ export const CLUB_BACKGROUND = '#07080f';
 // Linear fog: clear until the dancer's distance plus some margin, then a light haze toward the background color.
 export const CLUB_FOG_NEAR = 6;
 export const CLUB_FOG_FAR = 24;
-// The LED floor is a square grid of tiles clipped to a circle. The pitch is the distance between tile centers and the
-// fill is the share of it the lit square takes, so the gaps between tiles read as the dark frame of an LED panel.
-export const CLUB_TILE_GRID = 16;
-export const CLUB_TILE_PITCH = 0.5;
-export const CLUB_TILE_FILL = 0.9;
-// Tiles beyond this radius are not built; the ones inside fade out over the last stretch of it (see
-// CLUB_FLOOR_FADE_START), so the edge is never seen at any orbit angle.
-export const CLUB_FLOOR_RADIUS = (CLUB_TILE_GRID * CLUB_TILE_PITCH) / 2;
-// Where the fade starts, as a fraction of the floor radius.
-export const CLUB_FLOOR_FADE_START = 0.45;
+// The LED floor: a square grid of tiles in a raised light frame, like a rented event dance floor. The pitch is the
+// distance between tile centers and the fill is the share of it the lit tile takes, so the gaps read as thin dark seams.
+export const CLUB_TILE_GRID = 10;
+export const CLUB_TILE_PITCH = 0.6;
+export const CLUB_TILE_FILL = 0.95;
+// Half the floor's width, from its center to the inner edge of the frame.
+export const CLUB_FLOOR_HALF = (CLUB_TILE_GRID * CLUB_TILE_PITCH) / 2;
 // The floor sits this far above the feet so it never z-fights with the soles.
 export const CLUB_FLOOR_LIFT = 0.01;
-// Tile brightness at rest (a share of the floor color), the alternation between neighbors, the slow idle shimmer and the
-// beat pulse (smooth, a cosine of the beat phase, so it never jumps).
-export const CLUB_TILE_IDLE = 0.3;
-export const CLUB_TILE_CHECKER = 0.25;
-export const CLUB_TILE_SHIMMER = 0.06;
-export const CLUB_TILE_SHIMMER_RATE = 0.6;
-export const CLUB_TILE_BEAT_PULSE = 0.14;
-// The beat ripple: a ring that leaves the center on each beat and travels outward. Distances are fractions of the floor
-// radius; the front goes a little past the edge so the ring fully leaves. The gain is how strongly the ring lights the
-// tiles in the accent color.
+// The frame around the tiles: its width, how far it stands above the floor, and its color (a light surface that picks
+// up the colored lights, as the white edging of a real LED floor does).
+export const CLUB_FRAME_WIDTH = 0.35;
+export const CLUB_FRAME_HEIGHT = 0.05;
+export const CLUB_FRAME_COLOR = '#d8dbe6';
+// The seams between tiles.
+export const CLUB_SEAM_COLOR = '#05060a';
+// Each tile is four facets meeting at its center, like the diffuser of an LED panel. The center is at full brightness;
+// the outer edges of the front and back facets and of the side facets are dimmed by these factors, which gives the
+// pyramid look.
+export const CLUB_TILE_FACET_FRONT = 0.78;
+export const CLUB_TILE_FACET_SIDE = 0.6;
+// Tile colors: saturation and lightness of the rainbow, and the tile brightness while the dancer is calm and at full
+// dance (it rises with the dance weight, slowly, as the weight does).
+export const CLUB_TILE_SATURATION = 0.95;
+export const CLUB_TILE_LIGHTNESS = 0.55;
+export const CLUB_TILE_CALM_LEVEL = 0.45;
+export const CLUB_TILE_DANCE_LEVEL = 0.9;
+// The floor shows one of several patterns (diagonal bands, square rings, columns, a two-tone checkerboard). Each pattern
+// spreads this much of the color wheel across the floor and drifts by this many cycles per second.
+export const CLUB_PATTERN_HUE_SPREAD = 0.7;
+export const CLUB_PATTERN_DRIFT = 0.08;
+export const CLUB_PATTERN_COUNT = 4;
+// The pattern changes every this many beats (or seconds while no beat is known), cross-fading over the fade time, so a
+// change is a slow blend rather than a jump.
+export const CLUB_PATTERN_BEATS = 16;
+export const CLUB_PATTERN_SECONDS = 8;
+export const CLUB_PATTERN_FADE_SECONDS = 1.5;
+// The beat ripple: a square ring that leaves the center on each beat and travels outward. Distances are fractions of the
+// floor's half width; the front goes a little past the edge so the ring fully leaves. The gain is how far the ring
+// lightens the tiles toward white.
 export const CLUB_RIPPLE_TRAVEL = 1.1;
 export const CLUB_RIPPLE_WIDTH = 0.14;
-export const CLUB_RIPPLE_GAIN = 1.3;
-// The bass lift on the floor, as a share of the floor color and of the accent color, at a full flash.
-export const CLUB_FLOOR_FLASH_FLOOR = 1.4;
-export const CLUB_FLOOR_FLASH_ACCENT = 0.3;
+export const CLUB_RIPPLE_GAIN = 0.45;
+// The bass lift on the floor at a full flash, as how far every tile lightens toward white.
+export const CLUB_FLOOR_FLASH_LIFT = 0.25;
 
 // Photosensitivity limit: a large-area brightness jump (a spotlight flash or the floor's bass lift) may start at most
 // this many times per second, whatever the tempo or the bass does.

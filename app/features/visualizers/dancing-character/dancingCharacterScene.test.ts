@@ -166,8 +166,8 @@ describe('constructor', () => {
         expect(scene.fog).toBeInstanceOf(THREE.Fog);
         // Hemisphere, key and rim, plus the club's two color-spill lights.
         expect(scene.children.filter((child) => (child as THREE.Light).isLight)).toHaveLength(5);
-        // The LED floor (one instanced mesh) and four spotlight cones.
-        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(5);
+        // The LED floor (one instanced mesh), the plane under its seams, its frame's four bars and four spotlight cones.
+        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(10);
         expect(scene.children.filter((child) => (child as THREE.InstancedMesh).isInstancedMesh)).toHaveLength(1);
         expect(dancing.lookTarget.toArray()).toEqual([0, 0, 0]);
 
