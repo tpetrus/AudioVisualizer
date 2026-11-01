@@ -14,10 +14,12 @@ import {
     DANCE_CLIP_DURATION,
     DANCE_REQUIRED_BONES,
     FADE_IN_SECONDS,
-    FALLBACK_BACKGROUND,
+    CLUB_BACKGROUND,
+    CLUB_REDUCED_MOTION_FLASH_STRENGTH,
     DOLLY_MAX_FRACTION,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
+import { ClubSet } from './dancingCharacterClub';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
 
 const DEFAULTS = Object.fromEntries(
@@ -159,13 +161,15 @@ afterEach(() => {
 });
 
 describe('constructor', () => {
-    it('sets a flat background, adds lights, floor and ring and frames the nominal box', () => {
+    it('builds the dark club, adds lights and the ring and frames the nominal box', () => {
         const { scene, camera, dancing } = setup();
-        expect((scene.background as THREE.Color).getHexString()).toBe(
-            new THREE.Color(FALLBACK_BACKGROUND).getHexString(),
-        );
-        expect(scene.children.filter((child) => (child as THREE.Light).isLight)).toHaveLength(3);
-        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(2);
+        expect((scene.background as THREE.Color).getHexString()).toBe(new THREE.Color(CLUB_BACKGROUND).getHexString());
+        expect(scene.fog).toBeInstanceOf(THREE.Fog);
+        // Hemisphere, key and rim, plus the club's two color-spill lights.
+        expect(scene.children.filter((child) => (child as THREE.Light).isLight)).toHaveLength(5);
+        // The LED floor (one instanced mesh), four spotlight cones and the bass ring.
+        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(6);
+        expect(scene.children.filter((child) => (child as THREE.InstancedMesh).isInstancedMesh)).toHaveLength(1);
         expect(dancing.lookTarget.toArray()).toEqual([0, 0, 0]);
 
         // Written at azimuth 0, slightly above the look target, and looking at the origin.
@@ -216,19 +220,20 @@ describe('setCharacter', () => {
         }
     });
 
-    it('moves the floor and ring to the feet', () => {
+    it('moves the LED floor and the ring to the feet', () => {
         const { scene, dancing } = setup();
         const { model } = makeModel();
+        const floor = scene.children.find((child) => (child as THREE.InstancedMesh).isInstancedMesh)!;
+        const ring = scene.children.find(
+            (child) => (child as THREE.Mesh).geometry?.type === 'RingGeometry',
+        ) as THREE.Mesh;
+        const before = floor.position.y;
         dancing.setCharacter(model);
-        const meshes = scene.children.filter((child) => child !== model && (child as THREE.Mesh).isMesh);
-        const feet = modelBox(model).min.y;
-        // The model is still fading in (tiny), so use its planned size: the nominal box height is replaced by the real one.
-        expect(meshes).toHaveLength(2);
-        for (const mesh of meshes) {
-            expect(mesh.position.y).toBeGreaterThan(-3);
-            expect(mesh.position.y).toBeLessThan(0);
-        }
-        expect(feet).toBeDefined();
+        // The makeModel rig is 3 m tall, taller than the nominal dancer, so the feet move down.
+        expect(floor.position.y).toBeLessThan(before);
+        expect(floor.position.y).toBeGreaterThan(-3);
+        expect(floor.position.y).toBeLessThan(0);
+        expect(ring.position.y).toBeCloseTo(floor.position.y + 0.01);
     });
 
     it('clones the materials, so the input model keeps its colors, and tints Skin only', () => {
@@ -326,27 +331,6 @@ describe('setCharacter', () => {
         expect(disposeMaterial).toHaveBeenCalled();
         expect(scene.children).not.toContain(first.model);
         expect(scene.children).toContain(second.model);
-    });
-});
-
-describe('setSkybox', () => {
-    it('uses the texture as the background, disposes the previous one and returns to flat color on null', () => {
-        const { scene, dancing } = setup();
-        const first = new THREE.Texture();
-        const second = new THREE.Texture();
-        const disposeFirst = vi.spyOn(first, 'dispose');
-        const disposeSecond = vi.spyOn(second, 'dispose');
-
-        dancing.setSkybox(first);
-        expect(scene.background).toBe(first);
-        dancing.setSkybox(second);
-        expect(disposeFirst).toHaveBeenCalledTimes(1);
-        expect(scene.background).toBe(second);
-        dancing.setSkybox(null);
-        expect(disposeSecond).toHaveBeenCalledTimes(1);
-        expect((scene.background as THREE.Color).getHexString()).toBe(
-            new THREE.Color(FALLBACK_BACKGROUND).getHexString(),
-        );
     });
 });
 
@@ -645,34 +629,80 @@ describe('bass', () => {
 });
 
 describe('colors', () => {
-    it('applies the accent and floor colors to the ring, rim light and floor, and re-applies on change', () => {
+    it('applies the accent color to the ring and rim light and both colors to the club, and re-applies on change', () => {
+        const setColors = vi.spyOn(ClubSet.prototype, 'setColors');
         const { scene, dancing } = setup({ accentColor: '#00ff00', floorColor: '#0000ff' });
-        const floor = scene.children.find((c) => (c as THREE.Mesh).geometry?.type === 'CircleGeometry') as THREE.Mesh<
-            THREE.CircleGeometry,
-            THREE.MeshStandardMaterial
-        >;
         const ring = scene.children.find((c) => (c as THREE.Mesh).geometry?.type === 'RingGeometry') as THREE.Mesh<
             THREE.RingGeometry,
             THREE.MeshBasicMaterial
         >;
-        const rim = scene.children.find((c) => (c as THREE.PointLight).isPointLight) as THREE.PointLight;
-        expect(floor.material.color.getHexString()).toBe(new THREE.Color('#0000ff').getHexString());
+        // The club adds its own point lights first; the rim light is the last one.
+        const rim = scene.children.filter((c) => (c as THREE.PointLight).isPointLight).at(-1) as THREE.PointLight;
         expect(ring.material.color.getHexString()).toBe(new THREE.Color('#00ff00').getHexString());
         expect(rim.color.getHexString()).toBe(new THREE.Color('#00ff00').getHexString());
+        expect(setColors).toHaveBeenLastCalledWith('#0000ff', '#00ff00');
+        const calls = setColors.mock.calls.length;
+
+        // Unchanged settings do no color work.
+        dancing.update(makeFrame({ settings: settings({ accentColor: '#00ff00', floorColor: '#0000ff' }) }));
+        expect(setColors).toHaveBeenCalledTimes(calls);
 
         dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#ffffff' }) }));
-        expect(floor.material.color.getHexString()).toBe('ffffff');
+        expect(setColors).toHaveBeenLastCalledWith('#ffffff', '#ff0000');
         expect(ring.material.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
         expect(rim.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
+
+        // Only the floor changes: the club hears about it, the ring keeps its color.
+        dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#123456' }) }));
+        expect(setColors).toHaveBeenLastCalledWith('#123456', '#ff0000');
+        expect(ring.material.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
+    });
+});
+
+describe('club', () => {
+    it('feeds the club the beat phase, bass and dance weight each frame', () => {
+        const update = vi.spyOn(ClubSet.prototype, 'update');
+        const { dancing } = setup();
+        const { model } = makeModel();
+        dancing.setCharacter(model);
+        update.mockClear();
+
+        dancing.update(makeFrame({ rhythm: lockedRhythm(0.3), bass: 0.8 }));
+
+        expect(update).toHaveBeenCalledTimes(1);
+        const [beatPhase, bass, weight, dt] = update.mock.calls[0];
+        expect(beatPhase).toBeCloseTo((0.3 * 4) % 1);
+        expect(bass).toBe(0.8);
+        expect(weight).toBeGreaterThan(CALM_DANCE_WEIGHT);
+        expect(dt).toBeCloseTo(1 / 60);
+    });
+
+    it('passes the calm weight and no beat phase when nothing is known or there is no rig', () => {
+        const update = vi.spyOn(ClubSet.prototype, 'update');
+        const { dancing } = setup();
+        // A model whose rig lacks the dance bones keeps its rest pose and has no mixer.
+        dancing.setCharacter(makeModel(['root']).model);
+        update.mockClear();
+
+        dancing.update(makeFrame({ bass: 0.2 }));
+
+        expect(update).toHaveBeenCalledWith(undefined, 0.2, CALM_DANCE_WEIGHT, expect.any(Number));
+    });
+
+    it('lowers the flash strength only under reduced motion', () => {
+        const setFlashStrength = vi.spyOn(ClubSet.prototype, 'setFlashStrength');
+        setup();
+        expect(setFlashStrength).not.toHaveBeenCalled();
+
+        new DancingCharacterScene(new THREE.Scene(), makeCamera(), settings(), { reducedMotion: true });
+        expect(setFlashStrength).toHaveBeenCalledWith(CLUB_REDUCED_MOTION_FLASH_STRENGTH);
     });
 });
 
 describe('dispose', () => {
-    it('frees geometries, materials, textures, skeletons and the mixer cache and removes everything it added', () => {
+    it('frees geometries, materials, skeletons and the mixer cache and removes everything it added', () => {
         const { scene, dancing } = setup();
-        const texture = new THREE.Texture();
-        const disposeTexture = vi.spyOn(texture, 'dispose');
-        dancing.setSkybox(texture);
+        const clubDispose = vi.spyOn(ClubSet.prototype, 'dispose');
 
         const { model } = makeModel();
         const skinnedGeometry = new THREE.BoxGeometry();
@@ -702,13 +732,11 @@ describe('dispose', () => {
         });
         const uncache = vi.spyOn(THREE.AnimationMixer.prototype, 'uncacheRoot');
         const stop = vi.spyOn(THREE.AnimationMixer.prototype, 'stopAllAction');
-        const floorGeometry = (
-            scene.children.find((c) => (c as THREE.Mesh).geometry?.type === 'CircleGeometry') as THREE.Mesh
-        ).geometry;
-        const disposeFloor = vi.spyOn(floorGeometry, 'dispose');
+        const floor = scene.children.find((c) => (c as THREE.InstancedMesh).isInstancedMesh) as THREE.InstancedMesh;
+        const disposeFloor = vi.spyOn(floor.geometry, 'dispose');
 
         dancing.dispose();
-        expect(disposeTexture).toHaveBeenCalled();
+        expect(clubDispose).toHaveBeenCalled();
         expect(disposeSkeleton).toHaveBeenCalled();
         expect(uncache).toHaveBeenCalledWith(model);
         expect(stop).toHaveBeenCalled();
@@ -717,6 +745,7 @@ describe('dispose', () => {
         for (const spy of materialSpies) expect(spy).toHaveBeenCalled();
         expect(scene.children).toHaveLength(0);
         expect(scene.background).toBeNull();
+        expect(scene.fog).toBeNull();
     });
 
     it('is safe before a character is set and safe to call twice', () => {

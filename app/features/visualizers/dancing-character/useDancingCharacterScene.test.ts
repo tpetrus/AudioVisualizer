@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
-import type { Group, PerspectiveCamera, Texture } from 'three';
+import type { Group, PerspectiveCamera } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
@@ -38,7 +38,6 @@ vi.mock('./dancingCharacterScene', () => ({
         readonly update = vi.fn((frame: DancingCharacterFrame) => {
             this.frames.push({ ...frame });
         });
-        readonly setSkybox = vi.fn();
         readonly setCharacter = vi.fn();
         readonly resize = vi.fn();
         readonly resetOrbit = vi.fn();
@@ -47,6 +46,7 @@ vi.mock('./dancingCharacterScene', () => ({
             readonly scene: unknown,
             readonly camera: unknown,
             readonly settings: unknown,
+            readonly options: unknown,
         ) {
             scenes.push(this as unknown as Record<string, unknown>);
         }
@@ -67,7 +67,7 @@ vi.mock('~/features/visualizers/cubes/bassPulse', () => ({
 interface FakeCharacterScene {
     frames: DancingCharacterFrame[];
     update: ReturnType<typeof vi.fn>;
-    setSkybox: ReturnType<typeof vi.fn>;
+    options: { reducedMotion?: boolean };
     setCharacter: ReturnType<typeof vi.fn>;
     resize: ReturnType<typeof vi.fn>;
     resetOrbit: ReturnType<typeof vi.fn>;
@@ -84,13 +84,14 @@ interface Deferred {
 }
 const loads: Deferred[] = [];
 
-function makeAssets(skybox: Texture | null = { dispose: vi.fn() } as unknown as Texture): DancingCharacterAssets {
-    return { model: { name: 'model' } as unknown as Group, skybox };
+function makeAssets(): DancingCharacterAssets {
+    return { model: { name: 'model' } as unknown as Group };
 }
 
 interface Props {
     analyser: AnalyserNode | undefined;
     cameraLocked: boolean;
+    reducedMotion?: boolean;
 }
 
 function mountScene(initial: Partial<Props> = {}) {
@@ -106,16 +107,17 @@ function mountScene(initial: Partial<Props> = {}) {
     const onStatus = vi.fn((status: DancingCharacterLoadStatus) => statuses.push(status));
 
     const hook = renderHook(
-        ({ analyser, cameraLocked }: Props) =>
+        ({ analyser, cameraLocked, reducedMotion }: Props) =>
             useDancingCharacterScene(containerRef, {
                 analyser,
                 rhythm: asTracker(tracker),
                 valuesRef,
                 cameraLocked,
+                reducedMotion: reducedMotion ?? false,
                 onViewChanged,
                 onStatus,
             }),
-        { initialProps: { analyser: undefined, cameraLocked: true, ...initial } as Props },
+        { initialProps: { analyser: undefined, cameraLocked: true, reducedMotion: false, ...initial } as Props },
     );
 
     const renderer = FakeRenderer.last;
@@ -148,27 +150,23 @@ describe('useDancingCharacterScene', () => {
             expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(1);
         });
 
-        it('hands the assets to the scene and reports ready when the skybox loaded', async () => {
+        it('hands the model to the scene and reports ready', async () => {
             const { statuses } = mountScene();
             const assets = makeAssets();
 
             loads[0].resolve(assets);
             await flush();
 
-            expect(character().setSkybox).toHaveBeenCalledWith(assets.skybox);
             expect(character().setCharacter).toHaveBeenCalledWith(assets.model);
             expect(statuses).toEqual(['loading', 'ready']);
         });
 
-        it('reports skyboxFailed when the sky picture is missing but the model loaded', async () => {
-            const { statuses } = mountScene();
+        it('tells the scene whether the visitor prefers reduced motion', () => {
+            mountScene();
+            expect(character().options).toEqual({ reducedMotion: false });
 
-            loads[0].resolve(makeAssets(null));
-            await flush();
-
-            expect(character().setSkybox).toHaveBeenCalledWith(null);
-            expect(character().setCharacter).toHaveBeenCalledTimes(1);
-            expect(statuses).toEqual(['loading', 'skyboxFailed']);
+            mountScene({ reducedMotion: true });
+            expect(character().options).toEqual({ reducedMotion: true });
         });
 
         it('reports modelFailed when the model cannot be loaded', async () => {
@@ -358,6 +356,7 @@ describe('useDancingCharacterScene', () => {
                         rhythm: asTracker(new FakeRhythmTracker()),
                         valuesRef: { current: defaultValues(dancingCharacterControls) },
                         cameraLocked: true,
+                        reducedMotion: false,
                         onViewChanged: vi.fn(),
                         onStatus: vi.fn(),
                     },

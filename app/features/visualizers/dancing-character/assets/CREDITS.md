@@ -1,21 +1,7 @@
 # Dancing character assets
 
-Every file here is CC0 1.0 (public domain dedication): no attribution is required, but it is recorded here so the source
-of each file can be checked. They are imported with `?url`, so the build emits them hashed under `/assets/` with
-immutable caching.
-
-## kloofendal_48d_partly_cloudy_puresky_2k.jpg
-
-- Source: Poly Haven, "Kloofendal 48d Partly Cloudy (Pure Sky)",
-  https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky
-- Authors: Greg Zaal (original), Jarod Guest (sky edits)
-- License: CC0 1.0 (https://polyhaven.com/license)
-- Derived from the tonemapped equirectangular JPG
-  (https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/kloofendal_48d_partly_cloudy_puresky.jpg,
-  8192 x 4096, md5 `3f2b19fa9c14943b34e5d4f480ba13ba`), downscaled to 2048 x 1024 with sharp (mozjpeg, quality 82)
-  so it stays light on laptops
-- Size: 94,695 bytes
-- sha256: `d5d822457dae38e4b4a495e592fdcfd954ce8c49ac3dcb57506443b081ddf2a6`
+The file here is CC0 1.0 (public domain dedication): no attribution is required, but its source is recorded here so it
+can be checked. It is imported with `?url`, so the build emits it hashed under `/assets/` with immutable caching.
 
 ## MakeHumanDancer.glb
 

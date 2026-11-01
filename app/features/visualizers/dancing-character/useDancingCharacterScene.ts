@@ -14,9 +14,8 @@ const CAMERA_FOV = 40;
 const CAMERA_NEAR = 0.1;
 const CAMERA_FAR = 200;
 
-// 'loading' until the assets arrive; then 'ready', 'skyboxFailed' (the dancer shows on a flat background) or
-// 'modelFailed' (nothing to show).
-export type DancingCharacterLoadStatus = 'loading' | 'ready' | 'skyboxFailed' | 'modelFailed';
+// 'loading' until the model arrives; then 'ready' or 'modelFailed' (nothing to show).
+export type DancingCharacterLoadStatus = 'loading' | 'ready' | 'modelFailed';
 
 interface DancingCharacterSceneOptions {
     analyser: AnalyserNode | undefined;
@@ -26,6 +25,8 @@ interface DancingCharacterSceneOptions {
     // Locked means the picture can't be dragged, rotated or zoomed.
     cameraLocked: boolean;
     onViewChanged: (changed: boolean) => void;
+    // True when the visitor asked for reduced motion; the club's flashes are then softer.
+    reducedMotion: boolean;
     // Called from the load callbacks, never from the render loop.
     onStatus: (status: DancingCharacterLoadStatus) => void;
 }
@@ -33,11 +34,12 @@ interface DancingCharacterSceneOptions {
 // A figure that dances to the music, rendered into `containerRef`.
 export function useDancingCharacterScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, rhythm, valuesRef, cameraLocked, onViewChanged, onStatus }: DancingCharacterSceneOptions,
+    { analyser, rhythm, valuesRef, cameraLocked, reducedMotion, onViewChanged, onStatus }: DancingCharacterSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
     const cameraLockedRef = useLatestRef(cameraLocked);
+    const reducedMotionRef = useLatestRef(reducedMotion);
     const onViewChangedRef = useLatestRef(onViewChanged);
     const onStatusRef = useLatestRef(onStatus);
     const resetViewRef = useRef<() => void>(() => {});
@@ -47,7 +49,9 @@ export function useDancingCharacterScene(
 
         // Built before the orbit view: the scene writes the starting camera pose, and that pose is what Reset view
         // returns to.
-        const character = new DancingCharacterScene(scene, camera, valuesRef.current);
+        const character = new DancingCharacterScene(scene, camera, valuesRef.current, {
+            reducedMotion: reducedMotionRef.current,
+        });
         const orbit = createOrbitView(camera, renderer.domElement, {
             locked: cameraLockedRef.current,
             onViewChanged: (changed) => onViewChangedRef.current(changed),
@@ -65,9 +69,8 @@ export function useDancingCharacterScene(
                     disposeDancingCharacterAssets(assets);
                     return;
                 }
-                character.setSkybox(assets.skybox);
                 character.setCharacter(assets.model);
-                onStatusRef.current(assets.skybox ? 'ready' : 'skyboxFailed');
+                onStatusRef.current('ready');
             })
             .catch((error: unknown) => {
                 if (signal.aborted || isAbortError(error)) return;

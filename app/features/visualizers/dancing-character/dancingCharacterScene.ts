@@ -8,13 +8,14 @@ import {
     BODY_MATERIAL_NAMES,
     CALM_DANCE_WEIGHT,
     CAMERA_ELEVATION,
+    CLUB_REDUCED_MOTION_FLASH_STRENGTH,
     DANCE_CLIP_BEATS,
     DANCE_CLIP_DURATION,
     FADE_IN_SECONDS,
-    FALLBACK_BACKGROUND,
     MAX_FRAME_DT,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
+import { ClubSet } from './dancingCharacterClub';
 import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
@@ -35,16 +36,16 @@ export interface DancingCharacterFrame {
 
 // Look-and-feel numbers that only this scene uses; the shared tuning constants are in dancingCharacterConfig.ts.
 
-// Floor disc radius: wide enough to fill the lower part of the view at any orbit angle without showing its edge.
-const FLOOR_RADIUS = 6;
-// The floor and ring sit this far above the feet so they never z-fight with the soles or with each other.
-const FLOOR_LIFT = 0.01;
+// The bass ring sits this far above the feet so it never z-fights with the soles or with the LED floor (which sits
+// at CLUB_FLOOR_LIFT).
 const RING_LIFT = 0.02;
 // The bass ring starts just outside the dancer's feet and grows outward with the bass.
 const RING_INNER_RADIUS = 1;
 const RING_OUTER_RADIUS = 1.15;
 const RING_GROWTH = 1.5;
 const RING_MAX_OPACITY = 0.8;
+// The hemisphere light is only a faint fill: the club is dark.
+const HEMISPHERE_INTENSITY = 0.35;
 // Rim light: a dim base so the accent color always tints the edges, plus a flash on the bass (point light units).
 const RIM_BASE_INTENSITY = 12;
 const RIM_FLASH_INTENSITY = 40;
@@ -65,18 +66,20 @@ function isStandardMaterial(material: THREE.Material): material is THREE.MeshSta
     return (material as THREE.MeshStandardMaterial).isMeshStandardMaterial === true;
 }
 
+export interface DancingCharacterSceneOptions {
+    // True when the visitor asked the system for reduced motion: the club's flashes then show at a lower strength.
+    reducedMotion?: boolean;
+}
+
 export class DancingCharacterScene {
     readonly lookTarget = new THREE.Vector3(0, 0, 0);
 
     private readonly scene: THREE.Scene;
     private readonly camera: THREE.PerspectiveCamera;
-    private readonly fallbackBackground = new THREE.Color(FALLBACK_BACKGROUND);
+    private readonly club: ClubSet;
     private readonly lights: THREE.Object3D[] = [];
     private readonly rimLight: THREE.PointLight;
-    private readonly floor: THREE.Mesh<THREE.CircleGeometry, THREE.MeshStandardMaterial>;
     private readonly ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-
-    private skybox: THREE.Texture | null = null;
 
     // Camera state.
     private readonly framingBox = new THREE.Box3();
@@ -110,14 +113,22 @@ export class DancingCharacterScene {
     private lastFloorColor = '';
     private disposed = false;
 
-    constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera, settings: DancingCharacterSettings) {
+    constructor(
+        scene: THREE.Scene,
+        camera: THREE.PerspectiveCamera,
+        settings: DancingCharacterSettings,
+        options: DancingCharacterSceneOptions = {},
+    ) {
         this.scene = scene;
         this.camera = camera;
         this.zoom = settings.zoom;
 
-        scene.background = this.fallbackBackground;
+        // The club owns the background and the haze; the lights below keep the dancer clearly lit in the dark room.
+        this.club = new ClubSet(scene);
+        if (options.reducedMotion) this.club.setFlashStrength(CLUB_REDUCED_MOTION_FLASH_STRENGTH);
 
-        const hemisphere = new THREE.HemisphereLight(0xffffff, 0x445566, 1.2);
+        // Dim, so the room reads as dark; the key light does the work on the dancer.
+        const hemisphere = new THREE.HemisphereLight(0xffffff, 0x223344, HEMISPHERE_INTENSITY);
         const key = new THREE.DirectionalLight(0xffffff, 2);
         key.position.set(3, 6, 4);
         // Behind and to the side of the default view, so the accent color outlines the dancer.
@@ -126,10 +137,6 @@ export class DancingCharacterScene {
         this.lights.push(hemisphere, key, this.rimLight);
         scene.add(hemisphere, key, this.rimLight);
 
-        this.floor = new THREE.Mesh(
-            new THREE.CircleGeometry(FLOOR_RADIUS, 48).rotateX(-Math.PI / 2),
-            new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0 }),
-        );
         this.ring = new THREE.Mesh(
             new THREE.RingGeometry(RING_INNER_RADIUS, RING_OUTER_RADIUS, 64).rotateX(-Math.PI / 2),
             new THREE.MeshBasicMaterial({
@@ -141,7 +148,7 @@ export class DancingCharacterScene {
             }),
         );
         this.ring.visible = false;
-        scene.add(this.floor, this.ring);
+        scene.add(this.ring);
 
         // Until a model loads, frame a box the size of the dancer so the camera starts in a sensible place.
         const { width, height, depth } = NOMINAL_CHARACTER_SIZE;
@@ -152,13 +159,6 @@ export class DancingCharacterScene {
         this.applyColors(settings);
         this.refreshDistance();
         this.writeCameraPose(0);
-    }
-
-    setSkybox(texture: THREE.Texture | null): void {
-        this.skybox?.dispose();
-        this.skybox = texture;
-        // A missing texture keeps the flat color, so the page still looks intentional.
-        this.scene.background = texture ?? this.fallbackBackground;
     }
 
     setCharacter(model: THREE.Group): void {
@@ -290,6 +290,10 @@ export class DancingCharacterScene {
             this.mixer.update(dt * timing.timeScale + timing.phaseNudge * DANCE_CLIP_DURATION);
         }
 
+        // The club: floor ripple and lights follow the beat phase, the flashes follow the bass. With no mixer (no rig)
+        // the dancer is calm, so the club is too.
+        this.club.update(rhythm.beatPhase, frame.bass, this.mixer ? timing.danceWeight : CALM_DANCE_WEIGHT, dt);
+
         // 2. Bass.
         const bump = Math.min(Math.max(frame.bass * settings.bassStrength, 0), MAX_BASS_BUMP);
         this.ring.visible = bump > 0;
@@ -333,14 +337,10 @@ export class DancingCharacterScene {
         if (this.disposed) return;
         this.disposed = true;
         this.disposeCharacter();
-        this.skybox?.dispose();
-        this.skybox = null;
-        this.scene.background = null;
-        this.floor.geometry.dispose();
-        this.floor.material.dispose();
+        this.club.dispose();
         this.ring.geometry.dispose();
         this.ring.material.dispose();
-        this.scene.remove(this.floor, this.ring, ...this.lights);
+        this.scene.remove(this.ring, ...this.lights);
     }
 
     private disposeCharacter(): void {
@@ -363,7 +363,7 @@ export class DancingCharacterScene {
     }
 
     private placeFloor(feetY: number): void {
-        this.floor.position.y = feetY + FLOOR_LIFT;
+        this.club.setFloorY(feetY);
         this.ring.position.y = feetY + RING_LIFT;
     }
 
@@ -405,9 +405,9 @@ export class DancingCharacterScene {
 
     // Colors change rarely, so each string is compared with the last applied one before any color work happens.
     private applyColors(settings: DancingCharacterSettings): void {
-        if (settings.floorColor !== this.lastFloorColor) {
+        if (settings.floorColor !== this.lastFloorColor || settings.accentColor !== this.lastAccentColor) {
             this.lastFloorColor = settings.floorColor;
-            this.floor.material.color.set(settings.floorColor);
+            this.club.setColors(settings.floorColor, settings.accentColor);
         }
         if (settings.accentColor !== this.lastAccentColor) {
             this.lastAccentColor = settings.accentColor;

@@ -112,5 +112,70 @@ export const BASS_SQUASH = 0.08;
 export const BASS_LIFT = 0.12;
 // Seconds for the character to fade in once it has loaded.
 export const FADE_IN_SECONDS = 0.5;
-// Background color when the sky image is missing or fails to load.
-export const FALLBACK_BACKGROUND = '#0b1020';
+
+// ---- The club set (dancingCharacterClub.ts) ----
+
+// Background and fog share one near-black blue, so whatever fades out (the floor's edge, distant tiles) turns into the
+// background exactly, with no visible seam.
+export const CLUB_BACKGROUND = '#07080f';
+// Linear fog: clear until the dancer's distance plus some margin, then a light haze toward the background color.
+export const CLUB_FOG_NEAR = 6;
+export const CLUB_FOG_FAR = 24;
+// The LED floor is a square grid of tiles clipped to a circle. The pitch is the distance between tile centers and the
+// fill is the share of it the lit square takes, so the gaps between tiles read as the dark frame of an LED panel.
+export const CLUB_TILE_GRID = 16;
+export const CLUB_TILE_PITCH = 0.5;
+export const CLUB_TILE_FILL = 0.9;
+// Tiles beyond this radius are not built; the ones inside fade out over the last stretch of it (see
+// CLUB_FLOOR_FADE_START), so the edge is never seen at any orbit angle.
+export const CLUB_FLOOR_RADIUS = (CLUB_TILE_GRID * CLUB_TILE_PITCH) / 2;
+// Where the fade starts, as a fraction of the floor radius.
+export const CLUB_FLOOR_FADE_START = 0.45;
+// The floor sits this far above the feet so it never z-fights with the soles.
+export const CLUB_FLOOR_LIFT = 0.01;
+// Tile brightness at rest (a share of the floor color), the alternation between neighbors, the slow idle shimmer and the
+// beat pulse (smooth, a cosine of the beat phase, so it never jumps).
+export const CLUB_TILE_IDLE = 0.3;
+export const CLUB_TILE_CHECKER = 0.25;
+export const CLUB_TILE_SHIMMER = 0.06;
+export const CLUB_TILE_SHIMMER_RATE = 0.6;
+export const CLUB_TILE_BEAT_PULSE = 0.14;
+// The beat ripple: a ring that leaves the center on each beat and travels outward. Distances are fractions of the floor
+// radius; the front goes a little past the edge so the ring fully leaves. The gain is how strongly the ring lights the
+// tiles in the accent color.
+export const CLUB_RIPPLE_TRAVEL = 1.1;
+export const CLUB_RIPPLE_WIDTH = 0.14;
+export const CLUB_RIPPLE_GAIN = 1.3;
+// The bass lift on the floor, as a share of the floor color and of the accent color, at a full flash.
+export const CLUB_FLOOR_FLASH_FLOOR = 1.4;
+export const CLUB_FLOOR_FLASH_ACCENT = 0.3;
+
+// Photosensitivity limit: a large-area brightness jump (a spotlight flash or the floor's bass lift) may start at most
+// this many times per second, whatever the tempo or the bass does.
+export const CLUB_MAX_FLASHES_PER_SECOND = 3;
+// Flash strength under reduced motion (1 is full strength).
+export const CLUB_REDUCED_MOTION_FLASH_STRENGTH = 0.3;
+// Bass level (0..1) that starts a flash.
+export const CLUB_FLASH_BASS_THRESHOLD = 0.5;
+// Time constant in seconds of the flash fading out. Between flashes brightness only decays, smoothly.
+export const CLUB_FLASH_DECAY_SECONDS = 0.15;
+
+// Spotlights: cones hanging above the floor, aimed at the middle and swept slowly. The sweep speed (rad/s) is the calm
+// speed plus the dance speed term times the dance weight, so the lights wake up with the dancer.
+export const CLUB_LIGHT_COLORS = ['#ff3da0', '#31d7ff', '#8a5bff', '#ffb347'] as const;
+export const CLUB_CONE_HEIGHT = 5;
+export const CLUB_CONE_RADIUS = 0.8;
+export const CLUB_CONE_RING_RADIUS = 3.6;
+// How far each cone leans toward the middle, in radians, and how far the sweep swings it either way.
+export const CLUB_CONE_TILT = 0.45;
+export const CLUB_CONE_SWEEP_ANGLE = 0.3;
+export const CLUB_SWEEP_CALM_SPEED = 0.25;
+export const CLUB_SWEEP_DANCE_SPEED = 0.9;
+// Cone opacity (additive) at rest, scaled up a little with the dance weight, and the flash on top at full strength.
+export const CLUB_CONE_BASE_OPACITY = 0.07;
+export const CLUB_CONE_FLASH_OPACITY = 0.2;
+
+// Two cheap point lights (no shadows) tint the dancer with the club colors. Point light units, like the rim light.
+export const CLUB_SPILL_BASE_INTENSITY = 5;
+export const CLUB_SPILL_FLASH_INTENSITY = 14;
+export const CLUB_SPILL_COLORS = ['#ff3da0', '#31d7ff'] as const;

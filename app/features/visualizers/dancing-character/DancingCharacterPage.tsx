@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { controlsForMotionPreference } from './dancingCharacterControls';
+import { controlsForMotionPreference, dancingCharacterControls } from './dancingCharacterControls';
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
@@ -24,6 +24,8 @@ export function DancingCharacterPage() {
         rhythm,
         valuesRef,
         cameraLocked,
+        // The reduced-motion table is the one that was chosen, so the preference is read once, in one place.
+        reducedMotion: controls !== dancingCharacterControls,
         onViewChanged: setViewChanged,
         onStatus: setStatus,
     });

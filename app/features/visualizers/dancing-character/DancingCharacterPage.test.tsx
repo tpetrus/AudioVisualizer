@@ -35,6 +35,7 @@ describe('DancingCharacterPage', () => {
         expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0'));
         const defaults = Object.fromEntries(dancingCharacterControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
+        expect(latestOptions().reducedMotion).toBe(false);
     });
 
     it('lists the dance controls in the settings panel', async () => {
@@ -51,8 +52,6 @@ describe('DancingCharacterPage', () => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
         act(() => latestOptions().onStatus('ready'));
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
-        act(() => latestOptions().onStatus('skyboxFailed'));
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
         act(() => latestOptions().onStatus('modelFailed'));
@@ -88,6 +87,7 @@ describe('DancingCharacterPage', () => {
 
         expect(latestOptions().valuesRef.current.orbitSpeed).toBe(0.5);
         expect(latestOptions().valuesRef.current.bassStrength).toBe(0.5);
+        expect(latestOptions().reducedMotion).toBe(true);
         expect(latestOptions().valuesRef.current.bassCameraStrength).toBe(0.2);
     });
 });
