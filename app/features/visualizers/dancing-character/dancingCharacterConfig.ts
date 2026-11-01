@@ -185,3 +185,30 @@ export const CLUB_CONE_FLASH_OPACITY = 0.4;
 export const CLUB_SPILL_BASE_INTENSITY = 5;
 export const CLUB_SPILL_FLASH_INTENSITY = 14;
 export const CLUB_SPILL_COLORS = ['#ff3da0', '#31d7ff'] as const;
+
+// Bass gate (dancingCharacterBassGate.ts): the bass is only shown once kicks keep landing on the locked beat.
+// A rise of the raw bass through this level counts as one kick; a lower level would count noise, a higher one would
+// miss soft kicks.
+export const BASS_GATE_ONSET_LEVEL = 0.35;
+// The raw bass must fall below this before the next kick can count, so one long boom is one kick, not several.
+export const BASS_GATE_REARM_LEVEL = 0.15;
+// How close to a beat (in beats, either side) a kick must land to count as on the beat.
+export const BASS_GATE_BEAT_WINDOW = 0.15;
+// The most evidence that can pile up, so a long steady stretch does not take many off-beat bumps to unlearn.
+export const BASS_GATE_SCORE_MAX = 6;
+// Evidence lost per beat once no kick has landed on the beat for BASS_GATE_GRACE_BEATS beats, so a few lucky kicks
+// fade away when the kicks stop. The grace period is two bars because the bass pulse often stands out only once a bar
+// (a steady kick on every beat flattens its fast-versus-slow comparison), and a kick on every downbeat is a perfectly
+// consistent beat that must open the gate.
+export const BASS_GATE_GRACE_BEATS = 8;
+export const BASS_GATE_SCORE_DECAY = 1;
+// The gate opens at this score and closes at the lower one below, so a score hovering near one value does not flicker.
+export const BASS_GATE_OPEN_SCORE = 3;
+export const BASS_GATE_CLOSE_SCORE = 1;
+// While open, kicks closer together than this are ignored. It is above a third of a second so the bass can never start
+// more than three reactions in any one second, however fast the input is hit.
+export const BASS_GATE_MIN_INTERVAL = 0.35;
+// How fast the shown bass falls when the raw bass is not being followed, so a stray bump fades instead of snapping.
+export const BASS_GATE_RELEASE_SECONDS = 0.12;
+// How long the gate takes to fade the bass in and out, so opening and closing never pop.
+export const BASS_GATE_EASE_SECONDS = 0.5;

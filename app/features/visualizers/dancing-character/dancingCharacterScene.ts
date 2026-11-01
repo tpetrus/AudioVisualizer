@@ -18,6 +18,7 @@ import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { stepCameraDolly } from './dancingCharacterCamera';
+import { createBassGateState, stepBassGate } from './dancingCharacterBassGate';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
@@ -105,6 +106,7 @@ export class DancingCharacterScene {
     // Per-frame scratch, preallocated so update() allocates nothing.
     private readonly timingState = createDanceTimingState();
     private readonly timing = createDanceTimingResult();
+    private readonly bassGate = createBassGateState();
     private readonly bodyTint = new THREE.Color();
     private lastBodyColor = '';
     private lastAccentColor = '';
@@ -215,6 +217,8 @@ export class DancingCharacterScene {
         this.distanceZoom = NaN;
 
         this.timingState.locked = false;
+        this.bassGate.open = false;
+        this.bassGate.score = 0;
         this.fadeElapsed = 0;
         this.applyModelTransform(0);
         this.refreshDistance();
@@ -290,12 +294,16 @@ export class DancingCharacterScene {
             this.mixer.update(dt * timing.timeScale + timing.phaseNudge * DANCE_CLIP_DURATION);
         }
 
-        // The club: floor ripple and lights follow the beat phase, the flashes follow the bass. With no mixer (no rig)
-        // the dancer is calm, so the club is too.
-        this.club.update(rhythm.beatPhase, frame.bass, this.mixer ? timing.danceWeight : CALM_DANCE_WEIGHT, dt);
+        // The raw bass is shown only once its kicks keep landing on the locked beat, so stray bass never moves anything.
+        // Without a rig the timing result still says whether the tempo is locked (it stays undefined).
+        const bass = stepBassGate(frame.bass, rhythm, timing.normalizedBpm !== undefined, this.bassGate, dt);
+
+        // The club: floor ripple and lights follow the beat phase, the flashes follow the gated bass. With no mixer (no
+        // rig) the dancer is calm, so the club is too.
+        this.club.update(rhythm.beatPhase, bass, this.mixer ? timing.danceWeight : CALM_DANCE_WEIGHT, dt);
 
         // 2. Bass.
-        const bump = Math.min(Math.max(frame.bass * settings.bassStrength, 0), MAX_BASS_BUMP);
+        const bump = Math.min(Math.max(bass * settings.bassStrength, 0), MAX_BASS_BUMP);
         this.ring.visible = bump > 0;
         this.ring.material.opacity = Math.min(1, bump) * RING_MAX_OPACITY;
         this.ring.scale.setScalar(1 + bump * RING_GROWTH);
@@ -315,7 +323,7 @@ export class DancingCharacterScene {
             );
             this.azimuth += this.orbitSpeed * dt;
             this.refreshDistance();
-            this.writeCameraPose(stepCameraDolly(frame.bass, settings.bassCameraStrength, this.distance));
+            this.writeCameraPose(stepCameraDolly(bass, settings.bassCameraStrength, this.distance));
         }
 
         // 4. Colors.

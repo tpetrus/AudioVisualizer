@@ -564,14 +564,34 @@ describe('dance layers', () => {
     });
 });
 
+// A locked 120 BPM rhythm at the given frame (a beat every 30 frames at 60 fps).
+function beatRhythm(frame: number): RhythmState {
+    const beat = frame / 30;
+    const rhythm = lockedRhythm((beat / 4) % 1);
+    rhythm.beatCount = Math.floor(beat);
+    return rhythm;
+}
+
 describe('bass', () => {
+    const WARM_UP_FRAMES = 30 * 8;
+
+    // Six beats of on-beat kicks open the bass gate and two silent beats let its tail die away; the last frame is the next beat with the given bass, after
+    // silence so it counts as a fresh kick.
     function settled(bass: number, overrides: Partial<DancingCharacterSettings> = {}) {
         const rig = setup(overrides);
         const { model } = makeModel();
         rig.dancing.setCharacter(model);
-        run(rig.dancing, 60, () => makeFrame({ bass: 0, settings: settings(overrides) }));
+        for (let i = 0; i < WARM_UP_FRAMES; i++) {
+            rig.dancing.update(
+                makeFrame({
+                    bass: i < 30 * 6 && i % 30 < 4 ? 1 : 0,
+                    rhythm: beatRhythm(i),
+                    settings: settings(overrides),
+                }),
+            );
+        }
         const rest = distanceOf(rig.camera);
-        rig.dancing.update(makeFrame({ bass, settings: settings(overrides) }));
+        rig.dancing.update(makeFrame({ bass, rhythm: beatRhythm(WARM_UP_FRAMES), settings: settings(overrides) }));
         const ring = rig.scene.children.find(
             (child) =>
                 (child as THREE.Mesh).isMesh &&
@@ -603,8 +623,26 @@ describe('bass', () => {
     it('returns the camera to the fitted distance when the bass falls to 0', () => {
         const { camera, dancing, rest } = settled(1, { autoOrbit: false });
         expect(distanceOf(camera)).toBeLessThan(rest);
-        dancing.update(makeFrame({ bass: 0, settings: settings({ autoOrbit: false }) }));
+        run(dancing, 90, () =>
+            makeFrame({ bass: 0, rhythm: beatRhythm(WARM_UP_FRAMES + 1), settings: settings({ autoOrbit: false }) }),
+        );
         expect(distanceOf(camera)).toBeCloseTo(rest);
+    });
+
+    it('ignores a stray bass bump while no tempo is locked', () => {
+        const { camera, scene, dancing } = setup({ autoOrbit: false });
+        dancing.setCharacter(makeModel().model);
+        const rim = scene.children.find((child) => (child as THREE.PointLight).isPointLight) as THREE.PointLight;
+        const ring = scene.children.find(
+            (child) => (child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry.type === 'RingGeometry',
+        ) as THREE.Mesh;
+        run(dancing, 60, () => makeFrame({ settings: settings({ autoOrbit: false }) }));
+        const rest = distanceOf(camera);
+        const rimRest = rim.intensity;
+        run(dancing, 30, () => makeFrame({ bass: 1, settings: settings({ autoOrbit: false }) }));
+        expect(distanceOf(camera)).toBeCloseTo(rest);
+        expect(ring.visible).toBe(false);
+        expect(rim.intensity).toBe(rimRest);
     });
 
     it('writes nothing to the camera while it is unlocked, whatever the bass', () => {
@@ -672,7 +710,8 @@ describe('club', () => {
         expect(update).toHaveBeenCalledTimes(1);
         const [beatPhase, bass, weight, dt] = update.mock.calls[0];
         expect(beatPhase).toBeCloseTo((0.3 * 4) % 1);
-        expect(bass).toBe(0.8);
+        // The bass gate is still closed on a first frame, so the club gets 0 (the gate has its own specs).
+        expect(bass).toBe(0);
         expect(weight).toBeGreaterThan(CALM_DANCE_WEIGHT);
         expect(dt).toBeCloseTo(1 / 60);
     });
@@ -686,7 +725,7 @@ describe('club', () => {
 
         dancing.update(makeFrame({ bass: 0.2 }));
 
-        expect(update).toHaveBeenCalledWith(undefined, 0.2, CALM_DANCE_WEIGHT, expect.any(Number));
+        expect(update).toHaveBeenCalledWith(undefined, 0, CALM_DANCE_WEIGHT, expect.any(Number));
     });
 
     it('lowers the flash strength only under reduced motion', () => {
