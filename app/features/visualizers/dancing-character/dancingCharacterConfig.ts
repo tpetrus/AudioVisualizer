@@ -160,20 +160,29 @@ export const CLUB_FLASH_BASS_THRESHOLD = 0.5;
 // Time constant in seconds of the flash fading out. Between flashes brightness only decays, smoothly.
 export const CLUB_FLASH_DECAY_SECONDS = 0.15;
 
-// Spotlights: cones hanging above the floor, aimed at the middle and swept slowly. The sweep speed (rad/s) is the calm
-// speed plus the dance speed term times the dance weight, so the lights wake up with the dancer.
+// Spotlights: slim beams that hang high above the floor, aimed down toward the middle and swept slowly. The sweep speed
+// (rad/s) is the calm speed plus the dance speed term times the dance weight, so the lights wake up with the dancer.
 export const CLUB_LIGHT_COLORS = ['#ff3da0', '#31d7ff', '#8a5bff', '#ffb347'] as const;
-export const CLUB_CONE_HEIGHT = 5;
-export const CLUB_CONE_RADIUS = 0.8;
-export const CLUB_CONE_RING_RADIUS = 3.6;
-// How far each cone leans toward the middle, in radians, and how far the sweep swings it either way.
-export const CLUB_CONE_TILT = 0.45;
-export const CLUB_CONE_SWEEP_ANGLE = 0.3;
+// Each beam is a narrow cone from its source down: its length, its radius at the far end (it is a point at the source),
+// and how many rings it has so the fade below is smooth. The sources sit well above and outside the camera's orbit, so
+// no beam comes near the camera at any azimuth or bass dolly.
+export const CLUB_CONE_HEIGHT = 9;
+export const CLUB_CONE_RADIUS = 0.22;
+export const CLUB_CONE_HEIGHT_SEGMENTS = 10;
+export const CLUB_CONE_SOURCE_HEIGHT = 7;
+export const CLUB_CONE_RING_RADIUS = 5;
+// Along the beam (0 at the source, 1 at the far end) the brightness stays full until the start and is gone by the end,
+// so a beam dissolves in the air before it reaches the floor instead of ending in a hard edge.
+export const CLUB_CONE_FADE_START = 0.1;
+export const CLUB_CONE_FADE_END = 0.8;
+// How far each beam leans toward the middle, in radians, and how far the sweep swings it either way.
+export const CLUB_CONE_TILT = 0.7;
+export const CLUB_CONE_SWEEP_ANGLE = 0.1;
 export const CLUB_SWEEP_CALM_SPEED = 0.25;
 export const CLUB_SWEEP_DANCE_SPEED = 0.9;
-// Cone opacity (additive) at rest, scaled up a little with the dance weight, and the flash on top at full strength.
-export const CLUB_CONE_BASE_OPACITY = 0.07;
-export const CLUB_CONE_FLASH_OPACITY = 0.2;
+// Beam opacity (additive) at rest, scaled up a little with the dance weight, and the flash on top at full strength.
+export const CLUB_CONE_BASE_OPACITY = 0.3;
+export const CLUB_CONE_FLASH_OPACITY = 0.4;
 
 // Two cheap point lights (no shadows) tint the dancer with the club colors. Point light units, like the rim light.
 export const CLUB_SPILL_BASE_INTENSITY = 5;

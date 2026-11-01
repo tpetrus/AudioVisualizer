@@ -10,6 +10,11 @@ import {
 } from './dancingCharacterClub';
 import {
     CLUB_BACKGROUND,
+    CLUB_CONE_FADE_END,
+    CLUB_CONE_HEIGHT,
+    CLUB_CONE_RADIUS,
+    CLUB_CONE_SWEEP_ANGLE,
+    CLUB_CONE_TILT,
     CLUB_FLASH_BASS_THRESHOLD,
     CLUB_MAX_FLASHES_PER_SECOND,
     CLUB_REDUCED_MOTION_FLASH_STRENGTH,
@@ -163,6 +168,74 @@ describe('ClubSet construction', () => {
         club.setFloorY(-0.8);
         expect(floor.position.y).toBeCloseTo(-0.79);
         for (const cone of cones) expect(cone.position.y).toBeGreaterThan(3);
+    });
+
+    it('shapes each spotlight as a slim beam that is brightest at the source and gone before its far end', () => {
+        const { cones, club } = setup();
+        const geometry = cones[0].geometry;
+        const position = geometry.getAttribute('position');
+        const color = geometry.getAttribute('color');
+        expect(cones[0].material.vertexColors).toBe(true);
+        // A point at the source, a slim disc at the far end.
+        let widest = 0;
+        let nearSource = 0;
+        let beyondFade = 0;
+        for (let i = 0; i < position.count; i++) {
+            const along = -position.getY(i) / CLUB_CONE_HEIGHT;
+            const radius = Math.hypot(position.getX(i), position.getZ(i));
+            if (along < 1e-6) {
+                expect(radius).toBeCloseTo(0, 5);
+                nearSource = Math.max(nearSource, color.getX(i));
+            }
+            if (along >= CLUB_CONE_FADE_END - 1e-6) beyondFade = Math.max(beyondFade, color.getX(i));
+            widest = Math.max(widest, radius);
+        }
+        expect(widest).toBeCloseTo(CLUB_CONE_RADIUS, 5);
+        expect(CLUB_CONE_RADIUS).toBeLessThanOrEqual(0.35);
+        expect(nearSource).toBeCloseTo(1, 6);
+        expect(beyondFade).toBeCloseTo(0, 6);
+        // The fade never brightens going away from the source.
+        const byDepth = Array.from({ length: position.count }, (_, i) => [position.getY(i), color.getX(i)]);
+        byDepth.sort((a, b) => b[0] - a[0]);
+        for (let i = 1; i < byDepth.length; i++) expect(byDepth[i][1]).toBeLessThanOrEqual(byDepth[i - 1][1] + 1e-9);
+        club.dispose();
+    });
+
+    it('keeps every visible part of every beam at least one unit from a camera orbiting the dancer', () => {
+        const { cones, club } = setup();
+        club.setFloorY(0);
+        // A close orbit at about eye height (the default framing is farther out, and the bass dolly never pulls the
+        // camera in past this).
+        const cameraHeight = 1.4;
+        const cameraRing = 3;
+        const start = new THREE.Vector3();
+        const direction = new THREE.Vector3();
+        const point = new THREE.Vector3();
+        const camera = new THREE.Vector3();
+        let closest = Infinity;
+        for (const cone of cones) {
+            for (const tiltX of [-CLUB_CONE_SWEEP_ANGLE, 0, CLUB_CONE_SWEEP_ANGLE]) {
+                for (const tiltZ of [-CLUB_CONE_SWEEP_ANGLE, 0, CLUB_CONE_SWEEP_ANGLE]) {
+                    cone.rotation.x = CLUB_CONE_TILT + tiltX;
+                    cone.rotation.z = tiltZ;
+                    cone.updateMatrixWorld(true);
+                    start.setFromMatrixPosition(cone.matrixWorld);
+                    direction.set(0, -1, 0).transformDirection(cone.matrixWorld);
+                    for (let step = 0; step <= 20; step++) {
+                        point
+                            .copy(start)
+                            .addScaledVector(direction, (step / 20) * CLUB_CONE_FADE_END * CLUB_CONE_HEIGHT);
+                        for (let azimuth = 0; azimuth < 72; azimuth++) {
+                            const a = (azimuth / 72) * Math.PI * 2;
+                            camera.set(Math.cos(a) * cameraRing, cameraHeight, Math.sin(a) * cameraRing);
+                            closest = Math.min(closest, point.distanceTo(camera));
+                        }
+                    }
+                }
+            }
+        }
+        expect(closest).toBeGreaterThan(1);
+        club.dispose();
     });
 });
 

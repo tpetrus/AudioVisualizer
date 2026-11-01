@@ -2,10 +2,14 @@ import * as THREE from 'three';
 import {
     CLUB_BACKGROUND,
     CLUB_CONE_BASE_OPACITY,
+    CLUB_CONE_FADE_END,
+    CLUB_CONE_FADE_START,
     CLUB_CONE_FLASH_OPACITY,
     CLUB_CONE_HEIGHT,
+    CLUB_CONE_HEIGHT_SEGMENTS,
     CLUB_CONE_RADIUS,
     CLUB_CONE_RING_RADIUS,
+    CLUB_CONE_SOURCE_HEIGHT,
     CLUB_CONE_SWEEP_ANGLE,
     CLUB_CONE_TILT,
     CLUB_FLASH_BASS_THRESHOLD,
@@ -86,7 +90,7 @@ export function rippleAt(radius: number, beatPhase: number): number {
 
 const LIGHT_COUNT = CLUB_LIGHT_COLORS.length;
 
-// The club: a dark room (background and haze), an LED dance floor under the dancer, sweeping spotlight cones and two
+// The club: a dark room (background and haze), an LED dance floor under the dancer, sweeping spotlight beams and two
 // color-spill lights. The floor and the lights pulse to the beat and the bass, with a hard cap on large flashes.
 export class ClubSet {
     private readonly scene: THREE.Scene;
@@ -161,17 +165,30 @@ export class ClubSet {
         this.tiles.instanceMatrix.needsUpdate = true;
         scene.add(this.tiles);
 
-        // One open-ended cone with its apex at the origin, pointing down; every spotlight shares it.
-        this.coneGeometry = new THREE.ConeGeometry(CLUB_CONE_RADIUS, CLUB_CONE_HEIGHT, 24, 1, true).translate(
-            0,
-            -CLUB_CONE_HEIGHT / 2,
-            0,
-        );
+        // One open-ended slim cone with its apex (the light source) at the origin, pointing down; every spotlight
+        // shares it. Vertex colors carry the fade along the beam: with additive blending a darker vertex adds less
+        // light, so the beam is brightest at the source and gone before its far end.
+        this.coneGeometry = new THREE.ConeGeometry(
+            CLUB_CONE_RADIUS,
+            CLUB_CONE_HEIGHT,
+            16,
+            CLUB_CONE_HEIGHT_SEGMENTS,
+            true,
+        ).translate(0, -CLUB_CONE_HEIGHT / 2, 0);
+        const coneVertices = this.coneGeometry.getAttribute('position');
+        const fade = new Float32Array(coneVertices.count * 3);
+        for (let i = 0; i < coneVertices.count; i++) {
+            const along = -coneVertices.getY(i) / CLUB_CONE_HEIGHT;
+            const level = 1 - smoothstep(CLUB_CONE_FADE_START, CLUB_CONE_FADE_END, along);
+            fade.fill(level, i * 3, i * 3 + 3);
+        }
+        this.coneGeometry.setAttribute('color', new THREE.BufferAttribute(fade, 3));
         for (let i = 0; i < LIGHT_COUNT; i++) {
             const cone = new THREE.Mesh(
                 this.coneGeometry,
                 new THREE.MeshBasicMaterial({
                     color: CLUB_LIGHT_COLORS[i],
+                    vertexColors: true,
                     transparent: true,
                     opacity: CLUB_CONE_BASE_OPACITY,
                     blending: THREE.AdditiveBlending,
@@ -218,7 +235,7 @@ export class ClubSet {
             const angle = cone.userData.angle as number;
             cone.position.set(
                 Math.cos(angle) * CLUB_CONE_RING_RADIUS,
-                y + CLUB_CONE_HEIGHT,
+                y + CLUB_CONE_SOURCE_HEIGHT,
                 Math.sin(angle) * CLUB_CONE_RING_RADIUS,
             );
         }
