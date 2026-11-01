@@ -98,7 +98,7 @@ export const CAMERA_ELEVATION = 0.12;
 // The space the dancer takes up (width, height, depth in meters) at scale 1, measured from the dance's skinned poses
 // with both layers at full weight (dancingCharacterScene.test.ts pins it to the real model); used to place the camera
 // before the model has loaded.
-export const NOMINAL_CHARACTER_SIZE = { width: 0.95, height: 1.7, depth: 0.6 } as const;
+export const NOMINAL_CHARACTER_SIZE = { width: 1.14, height: 1.68, depth: 0.34 } as const;
 
 // ---- Bass reaction ----
 

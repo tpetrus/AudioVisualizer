@@ -125,7 +125,8 @@ describe('buildDanceClip', () => {
         const { accents } = build();
         for (const name of ['upperarm01L', 'upperarm01R', 'lowerarm01L', 'lowerarm01R']) {
             const [one, two, three, four] = peakPerBeat(track(accents, `${name}.quaternion`));
-            expect(one, name).toBeGreaterThan(0.3);
+            // The elbow only has a slight bend to straighten from the relaxed pose, so its swing is smaller.
+            expect(one, name).toBeGreaterThan(name.startsWith('upperarm') ? 0.3 : 0.1);
             expect(three, name).toBeCloseTo(one, 6);
             expect(two, name).toBeLessThan(1e-6);
             expect(four, name).toBeLessThan(1e-6);
@@ -209,6 +210,35 @@ describe('real MakeHumanDancer.glb', () => {
         expect(Math.abs(dipFoot.y - topFoot.y)).toBeLessThan(0.01);
         expect(Math.abs(dipFoot.z - topFoot.z)).toBeLessThan(0.02);
         expect(world('head').y).toBeLessThan(topHead.y - 0.03);
+    });
+
+    it('keeps the hands relaxed beside the body, never in front of the belly', async () => {
+        const { model, bones } = await load();
+        const clips = buildDanceClip(bones)!;
+        const mixer = new THREE.AnimationMixer(model);
+        mixer.clipAction(clips.base).play();
+        mixer.clipAction(clips.accents).play();
+        const world = (name: string) => {
+            const bone = bones.find((candidate) => candidate.name === name)!;
+            return new THREE.Vector3().setFromMatrixPosition(bone.matrixWorld);
+        };
+        // The dip, the top and a point inside each beat, so both the base pose and the sway are covered.
+        for (const time of [0, 0.125, 0.25, 0.4, 0.5, 0.625, 0.75, 1, 1.125, 1.25, 1.5, 1.75]) {
+            mixer.setTime(time);
+            model.updateMatrixWorld(true);
+            for (const side of ['L', 'R'] as const) {
+                const sign = side === 'L' ? 1 : -1;
+                const wrist = world(`wrist${side}`);
+                const hip = world(`upperleg01${side}`);
+                const elbow = world(`lowerarm01${side}`);
+                // Outside the hip joint, with room for the clothing's volume, and well apart from the other wrist.
+                expect(sign * wrist.x, `${side} wrist x at ${time}`).toBeGreaterThan(sign * hip.x + 0.1);
+                // Not raised in front of the belly: the wrist stays about level with the hip joint's depth, and below the chest.
+                expect(wrist.z, `${side} wrist z at ${time}`).toBeLessThan(hip.z + 0.2);
+                expect(wrist.y, `${side} wrist y at ${time}`).toBeLessThan(world('spine02').y);
+                expect(elbow.y, `${side} elbow y at ${time}`).toBeGreaterThan(wrist.y - 0.05);
+            }
+        }
     });
 
     it('applies the additive accents on top of the base', async () => {

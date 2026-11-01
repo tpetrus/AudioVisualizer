@@ -34,15 +34,20 @@ const FOOT_COUNTER = KNEE_BEND - HIP_FLEXION;
 // The chest leans forward a little at the bottom of the bounce, shared across the five spine bones.
 const CHEST_LEAN_PER_BONE = 0.03;
 const SHRUG = 0.08;
-// Arms hang lower than the A-pose they start in (about 43 degrees out) and the elbows stay bent.
-const ARM_LOWER = 0.4;
-const ARM_FORWARD = 0.1;
-const ELBOW_REST = 0.8;
-const ELBOW_BOUNCE = 0.3;
-// Accents: the arms lift outward and forward and straighten, and the head nods.
-const SWAY_LIFT = 0.75;
-const SWAY_FORWARD = 0.3;
-const SWAY_STRAIGHTEN = 0.5;
+// The model's rest pose is an A-pose (about 38 degrees out from the body) whose forearms point forward, which reads as
+// holding something in front of the belly. The upper arms are lowered until they hang beside the body, leaving a small
+// outward angle so the hands clear the hips and the clothing's volume there, with no forward raise. The forearms are
+// swung back (positive Z, the opposite of flexing) from their forward rest until they hang down with only a slight
+// natural bend; the bounce bends the elbows a little more at the bottom.
+const ARM_LOWER = 0.6;
+const ARM_FORWARD = 0;
+const ELBOW_RELEASE = 0.9;
+const ELBOW_BOUNCE = 0.1;
+// Accents: the arms swing outward and a little forward from the relaxed pose and the elbows straighten a little. The
+// lift is large enough to read from a hanging pose and only goes outward, so the hands never cross into the torso.
+const SWAY_LIFT = 0.7;
+const SWAY_FORWARD = 0.12;
+const SWAY_STRAIGHTEN = 0.15;
 const NOD_NECK = 0.12;
 const NOD_HEAD = 0.35;
 
@@ -155,7 +160,7 @@ export function buildDanceClip(bones: readonly THREE.Bone[]): DanceClips | null 
                 { axis: 'z', angle: constant(-ARM_FORWARD) },
             ]),
             rotationTrack(`lowerarm01${side}`, rest(`lowerarm01${side}`), [
-                { axis: 'z', angle: (beat, u) => -ELBOW_REST - ELBOW_BOUNCE * dip(beat, u) },
+                { axis: 'z', angle: (beat, u) => ELBOW_RELEASE - ELBOW_BOUNCE * dip(beat, u) },
             ]),
         );
     }
