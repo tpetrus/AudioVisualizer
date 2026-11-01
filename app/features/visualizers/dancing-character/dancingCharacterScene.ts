@@ -222,14 +222,15 @@ export class DancingCharacterScene {
         this.refreshDistance();
     }
 
-    // The bones of every skinned mesh in the model, in skeleton order. Runs once per load.
+    // The bones of the model's skeleton, in skeleton order. The dressed dancer has several skinned meshes that all share
+    // one skeleton, so a bone is collected once however many meshes use it. Runs once per load.
     private collectBones(model: THREE.Group): THREE.Bone[] {
-        const bones: THREE.Bone[] = [];
+        const bones = new Set<THREE.Bone>();
         model.traverse((object) => {
-            if ((object as THREE.SkinnedMesh).isSkinnedMesh)
-                bones.push(...(object as THREE.SkinnedMesh).skeleton.bones);
+            if (!(object as THREE.SkinnedMesh).isSkinnedMesh) return;
+            for (const bone of (object as THREE.SkinnedMesh).skeleton.bones) bones.add(bone);
         });
-        return bones;
+        return [...bones];
     }
 
     // Unions the model's box over evenly spaced moments of the clip into `framingBox`, then rewinds to the start. Both
@@ -247,7 +248,8 @@ export class DancingCharacterScene {
             this.mixer?.setTime((DANCE_CLIP_DURATION * i) / samples);
             model.updateMatrixWorld(true);
             // Precise: a skinned mesh caches its bounding box, so the default mode would measure the first pose 16
-            // times. The precise mode skins every vertex, which for this 13,000-vertex figure costs little, once per load.
+            // times. The precise mode skins every vertex, which for this 16,000-vertex dressed figure costs little, once
+            // per load.
             pose.setFromObject(model, true);
             if (i === 0) box.copy(pose);
             else box.union(pose);

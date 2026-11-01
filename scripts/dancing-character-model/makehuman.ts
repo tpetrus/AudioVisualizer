@@ -25,8 +25,8 @@ export const UNIT_SCALE = 0.1;
 export interface BaseMesh {
     // Every vertex of base.obj (body and helper geometry), in MakeHuman units, as x, y, z triples.
     vertices: Float64Array;
-    // Triangles (three vertex indices each, into `vertices`) of the `body` group only.
-    bodyTriangles: number[];
+    // The faces (3 or 4 vertex indices each, into `vertices`) of the `body` group only, as written in the file.
+    bodyFaces: number[][];
 }
 
 export interface Bone {
@@ -44,18 +44,22 @@ interface SkeletonFile {
     planes: Record<string, [string, string, string]>;
 }
 
-export function readInput(dir: string, input: { file: string; sha256: string }): string {
+export function readInputBytes(dir: string, input: { file: string; sha256: string }): Buffer {
     const bytes = readFileSync(join(dir, input.file));
     const actual = createHash('sha256').update(bytes).digest('hex');
     if (actual !== input.sha256) {
         throw new Error(`${input.file}: sha256 ${actual} does not match the expected ${input.sha256}`);
     }
-    return bytes.toString('utf8');
+    return bytes;
+}
+
+export function readInput(dir: string, input: { file: string; sha256: string }): string {
+    return readInputBytes(dir, input).toString('utf8');
 }
 
 export function parseObj(text: string): BaseMesh {
     const positions: number[] = [];
-    const bodyTriangles: number[] = [];
+    const bodyFaces: number[][] = [];
     let group = '';
     for (const line of text.split('\n')) {
         const parts = line.trim().split(/\s+/);
@@ -64,14 +68,11 @@ export function parseObj(text: string): BaseMesh {
         } else if (parts[0] === 'g') {
             group = parts[1] ?? '';
         } else if (parts[0] === 'f' && group === 'body') {
-            // "v/vt" corners, 1-based. Quads are split along the first diagonal.
-            const corners = parts.slice(1).map((corner) => Number(corner.split('/')[0]) - 1);
-            for (let i = 1; i + 1 < corners.length; i++) {
-                bodyTriangles.push(corners[0], corners[i], corners[i + 1]);
-            }
+            // "v/vt" corners, 1-based. Kept as polygons so a garment can hide a whole quad.
+            bodyFaces.push(parts.slice(1).map((corner) => Number(corner.split('/')[0]) - 1));
         }
     }
-    return { vertices: Float64Array.from(positions), bodyTriangles };
+    return { vertices: Float64Array.from(positions), bodyFaces };
 }
 
 // The joint position is the centroid of the listed base.obj vertices, taken over the full vertex array (the joint

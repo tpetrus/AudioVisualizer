@@ -760,9 +760,91 @@ describe('real MakeHumanDancer.glb', () => {
     async function parse() {
         const file = readFileSync(new URL('./assets/MakeHumanDancer.glb', import.meta.url));
         const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
-        // A fresh parse per use, because the scene takes ownership and disposes the model.
-        return (await new GLTFLoader().parseAsync(bytes, '')).scene;
+        // GLTFLoader decodes the garment textures through an <img> element, which the node environment lacks. This
+        // stand-in answers "loaded", so the loader builds its Texture objects; it is removed again right after.
+        vi.stubGlobal('self', globalThis);
+        vi.stubGlobal('document', {
+            createElementNS: () => {
+                const listeners = new Map<string, () => void>();
+                return {
+                    width: 1,
+                    height: 1,
+                    addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+                    removeEventListener: (type: string) => listeners.delete(type),
+                    set src(_value: string) {
+                        queueMicrotask(() => listeners.get('load')?.());
+                    },
+                };
+            },
+        });
+        try {
+            // A fresh parse per use, because the scene takes ownership and disposes the model.
+            return (await new GLTFLoader().parseAsync(bytes, '')).scene;
+        } finally {
+            vi.unstubAllGlobals();
+        }
     }
+
+    function meshesOf(model: THREE.Group): THREE.SkinnedMesh[] {
+        const meshes: THREE.SkinnedMesh[] = [];
+        model.traverse((object) => {
+            if ((object as THREE.SkinnedMesh).isSkinnedMesh) meshes.push(object as THREE.SkinnedMesh);
+        });
+        return meshes;
+    }
+
+    it('is dressed: several skinned meshes share one skeleton and the garments carry textures', async () => {
+        const model = await parse();
+        const meshes = meshesOf(model);
+        expect(meshes.map((mesh) => mesh.name).sort()).toEqual(['Body', 'Eyes', 'Hair', 'Outfit', 'Shoes']);
+        for (const mesh of meshes) expect(mesh.skeleton.bones).toEqual(meshes[0].skeleton.bones);
+        const material = (name: string) =>
+            meshes.find((mesh) => mesh.name === name)!.material as THREE.MeshStandardMaterial;
+        expect(material('Body').map).toBeNull();
+        for (const name of ['Outfit', 'Shoes', 'Hair', 'Eyes'])
+            expect(material(name).map).toBeInstanceOf(THREE.Texture);
+        // The hair is a cutout card, drawn from both sides.
+        expect(material('Hair').alphaTest).toBeGreaterThan(0);
+        expect(material('Hair').side).toBe(THREE.DoubleSide);
+    });
+
+    it('hands the dance every bone once, however many meshes share the skeleton', async () => {
+        const { dancing } = setup();
+        const collect = (dancing as unknown as { collectBones(model: THREE.Group): THREE.Bone[] }).collectBones;
+        const bones = collect.call(dancing, await parse());
+        expect(bones).toHaveLength(163);
+        expect(new Set(bones).size).toBe(163);
+    });
+
+    it('tints only the Skin material when the body color changes', async () => {
+        const { dancing } = setup();
+        const model = await parse();
+        dancing.setCharacter(model);
+        const colors = (name: string) =>
+            (meshesOf(model).find((mesh) => mesh.name === name)!.material as THREE.MeshStandardMaterial).color;
+        dancing.update(makeFrame({ settings: settings({ bodyColor: '#ff0000' }) }));
+        expect(colors('Body').getHexString()).not.toBe('ffffff');
+        for (const name of ['Outfit', 'Shoes', 'Hair', 'Eyes']) expect(colors(name).getHexString()).toBe('ffffff');
+        dancing.dispose();
+    });
+
+    it('frees the garment textures along with the geometries and materials', async () => {
+        const { dancing } = setup();
+        const model = await parse();
+        dancing.setCharacter(model);
+        const textures = new Set<THREE.Texture>();
+        model.traverse((object) => {
+            const mesh = object as THREE.Mesh;
+            if (mesh.isMesh) {
+                const map = (mesh.material as THREE.MeshStandardMaterial).map;
+                if (map) textures.add(map);
+            }
+        });
+        expect(textures.size).toBe(4);
+        const spies = [...textures].map((texture) => vi.spyOn(texture, 'dispose'));
+        dancing.dispose();
+        for (const spy of spies) expect(spy).toHaveBeenCalled();
+    });
 
     it('loads, dances with every layer, frames fully at both aspects and disposes', async () => {
         for (const aspect of [16 / 9, 9 / 16]) {
@@ -786,7 +868,7 @@ describe('real MakeHumanDancer.glb', () => {
                 const mesh = object as THREE.Mesh;
                 if (mesh.isMesh) for (const material of [mesh.material].flat()) names.add(material.name);
             });
-            expect(names).toEqual(new Set(['Skin']));
+            expect(names).toEqual(new Set(['Skin', 'Outfit', 'Shoes', 'Hair', 'Eyes']));
             dancing.dispose();
             expect(scene.children).toHaveLength(0);
         }

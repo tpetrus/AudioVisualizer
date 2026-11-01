@@ -3,8 +3,8 @@
 // which way a small rotation about each local axis moves the bone's child. Throws when an expectation fails.
 
 import { readFileSync } from 'node:fs';
-import { Box3, Matrix4, PropertyBinding, Quaternion, SkinnedMesh, Vector3 } from 'three';
-import type { Bone, Object3D } from 'three';
+import { Box3, Matrix4, PropertyBinding, Quaternion, SkinnedMesh, Texture, Vector3 } from 'three';
+import type { Bone, Material, MeshStandardMaterial, Object3D } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // [bone, a descendant whose movement shows what rotating the bone does]
@@ -51,6 +51,19 @@ const DANCE_BONES: [string, string][] = [
     ['foot.R', 'foot.R'],
 ];
 
+// What the generator must have produced: per mesh the material name, whether it has a texture and its triangle count.
+// The body keeps the plain "Skin" material (the app tints it by name) and has lost the faces the clothes hide: the
+// base mesh has 26756 body triangles, 4912 quads of them are hidden.
+const BASE_BODY_TRIANGLES = 26756;
+const EXPECTED_PARTS: Record<string, { material: string; textured: boolean; triangles: number }> = {
+    Body: { material: 'Skin', textured: false, triangles: 16932 },
+    Outfit: { material: 'Outfit', textured: true, triangles: 7168 },
+    Shoes: { material: 'Shoes', textured: true, triangles: 3064 },
+    Hair: { material: 'Hair', textured: true, triangles: 3344 },
+    Eyes: { material: 'Eyes', textured: true, triangles: 172 },
+};
+const MAX_BYTES = 2.5 * 1024 * 1024;
+
 const fmt = (v: Vector3): string => `(${v.x.toFixed(3)}, ${v.y.toFixed(3)}, ${v.z.toFixed(3)})`;
 // The nearest cardinal direction of a vector, e.g. "+Y" or "-Z" (with the dominant share in parentheses).
 function cardinal(v: Vector3): string {
@@ -68,10 +81,43 @@ function expect(condition: boolean, message: string): void {
     console.log(`ok: ${message}`);
 }
 
+// GLTFLoader decodes textures through an <img> element, which Node lacks. This stand-in answers "loaded" for any
+// source, so the loader builds its Texture objects (the check only needs them to exist), and is removed afterwards.
+async function withFakeImages<T>(run: () => Promise<T>): Promise<T> {
+    const scope = globalThis as unknown as Record<string, unknown>;
+    const added: string[] = [];
+    const define = (name: string, value: unknown): void => {
+        if (scope[name] !== undefined) return;
+        scope[name] = value;
+        added.push(name);
+    };
+    define('self', globalThis);
+    define('document', {
+        createElementNS: () => {
+            const listeners = new Map<string, () => void>();
+            const image = {
+                width: 1,
+                height: 1,
+                addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
+                removeEventListener: (type: string) => listeners.delete(type),
+                set src(_value: string) {
+                    queueMicrotask(() => listeners.get('load')?.());
+                },
+            };
+            return image;
+        },
+    });
+    try {
+        return await run();
+    } finally {
+        for (const name of added) delete scope[name];
+    }
+}
+
 export async function checkGlb(path: string): Promise<void> {
     const bytes = readFileSync(path);
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    const gltf = await new GLTFLoader().parseAsync(buffer, '');
+    const gltf = await withFakeImages(() => new GLTFLoader().parseAsync(buffer, ''));
     const scene = gltf.scene;
     scene.updateMatrixWorld(true);
 
@@ -81,9 +127,56 @@ export async function checkGlb(path: string): Promise<void> {
         if (object instanceof SkinnedMesh) meshes.push(object as SkinnedMesh);
         if ('isBone' in object) boneObjects.set(object.name, object as Bone);
     });
-    expect(meshes.length === 1, `one SkinnedMesh (found ${meshes.length})`);
-    const mesh = meshes[0];
-    expect(mesh.skeleton.bones.length === 163, `163 bones (found ${mesh.skeleton.bones.length})`);
+    expect(bytes.length <= MAX_BYTES, `file is ${bytes.length} bytes (at most ${MAX_BYTES})`);
+    const names = meshes.map((m) => m.name).sort();
+    const expectedNames = Object.keys(EXPECTED_PARTS).sort();
+    expect(
+        names.join() === expectedNames.join(),
+        `SkinnedMeshes are ${expectedNames.join(', ')} (found ${names.join(', ')})`,
+    );
+    const textures = new Set<Texture>();
+    const materialNames = new Set<string>();
+    for (const m of meshes) {
+        const expected = EXPECTED_PARTS[m.name];
+        const material = m.material as MeshStandardMaterial;
+        expect(
+            !Array.isArray(m.material) && material.name === expected.material,
+            `${m.name} uses material ${expected.material}`,
+        );
+        materialNames.add(material.name);
+        expect(
+            Boolean(material.map) === expected.textured,
+            `${m.name} ${expected.textured ? 'has a' : 'has no'} base color texture`,
+        );
+        if (material.map) textures.add(material.map);
+        const triangles = (m.geometry.index?.count ?? 0) / 3;
+        expect(triangles === expected.triangles, `${m.name} has ${expected.triangles} triangles (found ${triangles})`);
+        const positions = m.geometry.getAttribute('position');
+        let bad = 0;
+        for (let i = 0; i < positions.array.length; i++) if (!Number.isFinite(positions.array[i])) bad++;
+        expect(bad === 0, `${m.name} has no NaN or infinite positions`);
+        expect(
+            m.geometry.getAttribute('skinIndex') !== undefined && m.geometry.getAttribute('skinWeight') !== undefined,
+            `${m.name} is skinned (joints and weights present)`,
+        );
+        expect(m.skeleton.bones.length === 163, `${m.name} is bound to 163 bones (found ${m.skeleton.bones.length})`);
+        expect(
+            m.skeleton.bones.every((b, i) => b === meshes[0].skeleton.bones[i]),
+            `${m.name} shares the skeleton's bones with the other meshes`,
+        );
+    }
+    expect(
+        materialNames.size === meshes.length && materialNames.has('Skin'),
+        'every mesh has its own material, one is "Skin"',
+    );
+    expect(textures.size === 4, `four distinct textures (found ${textures.size})`);
+    const hair = meshes.find((m) => m.name === 'Hair')?.material as Material & { alphaTest: number; side: number };
+    expect(hair.alphaTest > 0 && hair.side === 2, 'the hair is a double-sided cutout');
+    const mesh = meshes.find((m) => m.name === 'Body') as SkinnedMesh;
+    expect(
+        (mesh.geometry.index as { count: number }).count / 3 < BASE_BODY_TRIANGLES,
+        'the body faces the clothes hide are gone',
+    );
     // GLTFLoader strips "[ ] . : /" from node names, so "upperarm01.L" is "upperarm01L" once loaded.
     const bone = (name: string): Bone => {
         const found = boneObjects.get(PropertyBinding.sanitizeNodeName(name));
@@ -91,23 +184,31 @@ export async function checkGlb(path: string): Promise<void> {
         return found;
     };
     for (const name of ['root', 'spine05', 'head', 'upperarm01.L', 'lowerleg01.R', 'foot.L']) bone(name);
-    expect(mesh.geometry.getAttribute('position').count > 10000, 'mesh has the body vertices');
+    expect(mesh.geometry.getAttribute('position').count > 8000, 'body mesh has its vertices');
 
     // Weights sum to 1 on every vertex.
-    const weights = mesh.geometry.getAttribute('skinWeight');
     let worstSum = 0;
-    for (let i = 0; i < weights.count; i++) {
-        worstSum = Math.max(
-            worstSum,
-            Math.abs(weights.getX(i) + weights.getY(i) + weights.getZ(i) + weights.getW(i) - 1),
-        );
+    for (const m of meshes) {
+        const weights = m.geometry.getAttribute('skinWeight');
+        for (let i = 0; i < weights.count; i++) {
+            worstSum = Math.max(
+                worstSum,
+                Math.abs(weights.getX(i) + weights.getY(i) + weights.getZ(i) + weights.getW(i) - 1),
+            );
+        }
     }
     expect(worstSum < 1e-5, `every vertex's weights sum to 1 (worst error ${worstSum.toExponential(2)})`);
 
     const box = new Box3().setFromObject(mesh, true);
     const size = box.getSize(new Vector3());
-    console.log(`bbox min ${fmt(box.min)} max ${fmt(box.max)} size ${fmt(size)}`);
-    expect(size.y > 1.6 && size.y < 1.8, `about 1.7 m tall (${size.y.toFixed(3)} m)`);
+    console.log(`body bbox min ${fmt(box.min)} max ${fmt(box.max)} size ${fmt(size)}`);
+    const dressed = new Box3();
+    for (const m of meshes) dressed.union(new Box3().setFromObject(m, true));
+    console.log(
+        `dressed bbox min ${fmt(dressed.min)} max ${fmt(dressed.max)} size ${fmt(dressed.getSize(new Vector3()))}`,
+    );
+    const height = dressed.getSize(new Vector3()).y;
+    expect(height > 1.6 && height < 1.8, `about 1.7 m tall with hair and shoes (${height.toFixed(3)} m)`);
 
     // Facing: the toes lie in front of the heel, and the figure's left (.L) is on the +X side when it faces +Z.
     const world = (name: string): Vector3 => bone(name).getWorldPosition(new Vector3());
@@ -122,13 +223,13 @@ export async function checkGlb(path: string): Promise<void> {
     expect(dropAngle > 15 && dropAngle < 70 && Math.abs(arm.z) < 0.25, 'rest pose is an A-pose');
 
     // Skinning: bend the left upper arm about each local axis, and count which vertices move.
-    const rest = positionsOf(mesh);
+    const rest = positionsOf(meshes);
     const upperArm = bone('upperarm01.L');
     for (const axis of ['x', 'y', 'z'] as const) {
         const restQuaternion = upperArm.quaternion.clone();
         upperArm.quaternion.multiply(localRotation(axis, 0.6));
         scene.updateMatrixWorld(true);
-        const moved = positionsOf(mesh);
+        const moved = positionsOf(meshes);
         let count = 0;
         let wrongSide = 0;
         for (let i = 0; i < rest.length; i += 3) {
@@ -189,14 +290,19 @@ function localRotation(axis: 'x' | 'y' | 'z', angle: number): Quaternion {
     return new Quaternion().setFromAxisAngle(unit, angle);
 }
 
-function positionsOf(mesh: SkinnedMesh): Float32Array {
-    const count = mesh.geometry.getAttribute('position').count;
-    const out = new Float32Array(count * 3);
+function positionsOf(meshes: SkinnedMesh[]): Float32Array {
+    const total = meshes.reduce((sum, m) => sum + m.geometry.getAttribute('position').count, 0);
+    const out = new Float32Array(total * 3);
     const v = new Vector3();
-    for (let i = 0; i < count; i++) {
-        mesh.getVertexPosition(i, v);
-        // getVertexPosition is in mesh space and the mesh node has no transform, so this is also world space.
-        out.set([v.x, v.y, v.z], i * 3);
+    let at = 0;
+    for (const mesh of meshes) {
+        const count = mesh.geometry.getAttribute('position').count;
+        for (let i = 0; i < count; i++) {
+            mesh.getVertexPosition(i, v);
+            // getVertexPosition is in mesh space and the mesh node has no transform, so this is also world space.
+            out.set([v.x, v.y, v.z], at);
+            at += 3;
+        }
     }
     return out;
 }
