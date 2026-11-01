@@ -203,7 +203,7 @@ export function stepBassGate(
     const weightTarget = state.open ? 1 : 0;
     state.weight += Math.min(maxMove, Math.max(-maxMove, weightTarget - state.weight));
 
-    // Tiny leftovers are snapped to 0 so a closed gate is exactly 0 and the ring and lights can switch off.
+    // Tiny leftovers are snapped to 0 so a closed gate is exactly 0 and the lights and camera settle exactly.
     const shown = state.level * state.weight;
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
 }

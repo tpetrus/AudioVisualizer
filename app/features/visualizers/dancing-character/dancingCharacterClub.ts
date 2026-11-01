@@ -250,6 +250,16 @@ export class ClubSet {
         this.accentColor.set(accent);
     }
 
+    // The floor's resting color alone, as a CSS color.
+    setFloorColor(floor: string): void {
+        this.floorColor.set(floor);
+    }
+
+    // The ripple's color, copied from a color the caller owns; cheap enough for every frame (the rainbow accent).
+    setAccentColor(accent: THREE.Color): void {
+        this.accentColor.copy(accent);
+    }
+
     // 0..1, the share of the flash brightness that shows; reduced motion lowers it.
     setFlashStrength(value: number): void {
         this.flashStrength = Math.min(1, Math.max(0, value));

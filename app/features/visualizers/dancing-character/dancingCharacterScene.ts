@@ -35,19 +35,9 @@ export interface DancingCharacterFrame {
 
 // Look-and-feel numbers that only this scene uses; the shared tuning constants are in dancingCharacterConfig.ts.
 
-// The bass ring sits this far above the feet so it never z-fights with the soles or with the LED floor (which sits
-// at CLUB_FLOOR_LIFT).
-const RING_LIFT = 0.02;
-// The bass ring is a band around the dancer's feet that swells clearly on each kick, to about two and a half times its
-// size. It starts close to her so it reads as hers rather than as one more ripple of the LED floor, which pulses in
-// the same accent color.
-const RING_INNER_RADIUS = 0.5;
-const RING_OUTER_RADIUS = 0.72;
-const RING_GROWTH = 1.5;
-const RING_MAX_OPACITY = 1;
-// The ring's color is the accent mixed this far toward white, so it glows brighter than the accent-colored tiles.
-const RING_WHITEN = 0.6;
-const WHITE = new THREE.Color('#ffffff');
+// The rainbow accent's saturation and lightness: vivid, and bright enough to read on the dark floor.
+const RAINBOW_SATURATION = 0.9;
+const RAINBOW_LIGHTNESS = 0.6;
 // The hemisphere light is only a faint fill: the club is dark.
 const HEMISPHERE_INTENSITY = 0.35;
 // Rim light: a dim base so the accent color always tints the edges, plus a flash on the bass (point light units).
@@ -83,7 +73,6 @@ export class DancingCharacterScene {
     private readonly club: ClubSet;
     private readonly lights: THREE.Object3D[] = [];
     private readonly rimLight: THREE.PointLight;
-    private readonly ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
 
     // Camera state.
     private readonly framingBox = new THREE.Box3();
@@ -115,6 +104,9 @@ export class DancingCharacterScene {
     private readonly bodyTint = new THREE.Color();
     private lastBodyColor = '';
     private lastAccentColor = '';
+    // The accent shared by the club's ripple and the rim light, and the rainbow's current hue (0..1).
+    private readonly accent = new THREE.Color();
+    private accentHue = 0;
     private lastFloorColor = '';
     private disposed = false;
 
@@ -142,26 +134,13 @@ export class DancingCharacterScene {
         this.lights.push(hemisphere, key, this.rimLight);
         scene.add(hemisphere, key, this.rimLight);
 
-        this.ring = new THREE.Mesh(
-            new THREE.RingGeometry(RING_INNER_RADIUS, RING_OUTER_RADIUS, 64).rotateX(-Math.PI / 2),
-            new THREE.MeshBasicMaterial({
-                transparent: true,
-                opacity: 0,
-                blending: THREE.AdditiveBlending,
-                depthWrite: false,
-                side: THREE.DoubleSide,
-            }),
-        );
-        this.ring.visible = false;
-        scene.add(this.ring);
-
         // Until a model loads, frame a box the size of the dancer so the camera starts in a sensible place.
         const { width, height, depth } = NOMINAL_CHARACTER_SIZE;
         this.framingBox.min.set(-width / 2, -height / 2, -depth / 2);
         this.framingBox.max.set(width / 2, height / 2, depth / 2);
         this.placeFloor(-height / 2);
 
-        this.applyColors(settings);
+        this.applyColors(settings, 0);
         this.refreshDistance();
         this.writeCameraPose(0);
     }
@@ -308,9 +287,6 @@ export class DancingCharacterScene {
 
         // 2. Bass.
         const bump = Math.min(Math.max(bass * settings.bassStrength, 0), MAX_BASS_BUMP);
-        this.ring.visible = bump > 0;
-        this.ring.material.opacity = Math.min(1, bump) * RING_MAX_OPACITY;
-        this.ring.scale.setScalar(1 + bump * RING_GROWTH);
         this.rimLight.intensity = RIM_BASE_INTENSITY + bump * RIM_FLASH_INTENSITY;
         if (this.model) {
             this.fadeElapsed += dt;
@@ -331,7 +307,7 @@ export class DancingCharacterScene {
         }
 
         // 4. Colors.
-        this.applyColors(settings);
+        this.applyColors(settings, dt);
     }
 
     resize(): void {
@@ -350,9 +326,7 @@ export class DancingCharacterScene {
         this.disposed = true;
         this.disposeCharacter();
         this.club.dispose();
-        this.ring.geometry.dispose();
-        this.ring.material.dispose();
-        this.scene.remove(this.ring, ...this.lights);
+        this.scene.remove(...this.lights);
     }
 
     private disposeCharacter(): void {
@@ -376,12 +350,11 @@ export class DancingCharacterScene {
 
     private placeFloor(feetY: number): void {
         this.club.setFloorY(feetY);
-        this.ring.position.y = feetY + RING_LIFT;
     }
 
     // Only the fade-in (a smoothstep from nearly nothing to full size) changes the model's size. The bass never scales
     // or lifts the dancer: she stays the same size with her feet on the floor, and the bass shows in the camera bump,
-    // the ring and the lights instead.
+    // the rim light and the club's lights instead.
     private applyModelTransform(fade: number): void {
         const model = this.model;
         if (!model) return;
@@ -415,17 +388,24 @@ export class DancingCharacterScene {
         this.camera.lookAt(this.lookTarget);
     }
 
-    // Colors change rarely, so each string is compared with the last applied one before any color work happens.
-    private applyColors(settings: DancingCharacterSettings): void {
-        if (settings.floorColor !== this.lastFloorColor || settings.accentColor !== this.lastAccentColor) {
+    // The floor and skin colors change rarely, so each string is compared with the last applied one before any color
+    // work happens. The accent either cycles through the hues (rainbow, `rainbowSpeed` full cycles per second) or is
+    // the static accent color; either way the club's ripple and the rim light share it.
+    private applyColors(settings: DancingCharacterSettings, dt: number): void {
+        if (settings.floorColor !== this.lastFloorColor) {
             this.lastFloorColor = settings.floorColor;
-            this.club.setColors(settings.floorColor, settings.accentColor);
+            this.club.setFloorColor(settings.floorColor);
         }
-        if (settings.accentColor !== this.lastAccentColor) {
+        if (settings.accentRainbow) {
+            this.accentHue = (this.accentHue + Math.max(0, settings.rainbowSpeed) * Math.max(0, dt)) % 1;
+            this.accent.setHSL(this.accentHue, RAINBOW_SATURATION, RAINBOW_LIGHTNESS);
+            this.lastAccentColor = '';
+        } else if (settings.accentColor !== this.lastAccentColor) {
             this.lastAccentColor = settings.accentColor;
-            this.ring.material.color.set(settings.accentColor).lerp(WHITE, RING_WHITEN);
-            this.rimLight.color.set(settings.accentColor);
+            this.accent.set(settings.accentColor);
         }
+        this.club.setAccentColor(this.accent);
+        this.rimLight.color.copy(this.accent);
         if (settings.bodyColor !== this.lastBodyColor) {
             this.lastBodyColor = settings.bodyColor;
             this.bodyTint.set(settings.bodyColor);

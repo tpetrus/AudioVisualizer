@@ -26,9 +26,10 @@ export const dancingCharacterControls = [
         default: 1,
         shownWhen: 'autoOrbit',
     },
-    // 1 frames the whole body; higher values move the camera closer.
-    { section: 'Camera', key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.05, default: 1 },
-    // How strongly the bass lights the ring at the dancer's feet and the rim light; the dancer never changes size.
+    // 1 frames the whole body tightly; lower values move the camera back (the default leaves room around the dancer and
+    // the floor), higher values move it closer.
+    { section: 'Camera', key: 'zoom', label: 'Zoom', type: 'range', min: 0.5, max: 2, step: 0.05, default: 0.75 },
+    // How strongly the bass flashes the rim light on the dancer; the dancer never changes size.
     {
         section: 'Bass',
         key: 'bassStrength',
@@ -48,11 +49,32 @@ export const dancingCharacterControls = [
         min: 0,
         max: 1,
         step: 0.05,
-        default: 0.6,
+        default: 0.4,
     },
     // White multiplies the model's own colors by one, so the default keeps the skin color the model ships with.
     { section: 'Colors', key: 'bodyColor', label: 'Skin tint', type: 'color', default: '#ffffff' },
-    { section: 'Colors', key: 'accentColor', label: 'Accent', type: 'color', default: '#ff7ab6' },
+    // The accent (the floor's beat ripple and the rim light) cycles through the hues by default; turning the rainbow off
+    // uses the static accent color instead. The speed is in full color cycles per second.
+    { section: 'Colors', key: 'accentRainbow', label: 'Rainbow accent', type: 'checkbox', default: true },
+    {
+        section: 'Colors',
+        key: 'rainbowSpeed',
+        label: 'Rainbow speed',
+        type: 'range',
+        min: 0.01,
+        max: 0.5,
+        step: 0.01,
+        default: 0.1,
+        shownWhen: 'accentRainbow',
+    },
+    {
+        section: 'Colors',
+        key: 'accentColor',
+        label: 'Accent',
+        type: 'color',
+        default: '#ff7ab6',
+        shownWhen: '!accentRainbow',
+    },
     { section: 'Colors', key: 'floorColor', label: 'Floor', type: 'color', default: '#2b3a55' },
 ] as const satisfies readonly ControlDefinition[];
 
@@ -66,6 +88,8 @@ export const dancingCharacterReducedMotionControls = dancingCharacterControls.ma
             return { ...control, default: 0.5 };
         case 'bassCameraStrength':
             return { ...control, default: 0.2 };
+        case 'rainbowSpeed':
+            return { ...control, default: 0.05 };
         default:
             return control;
     }

@@ -93,7 +93,8 @@ export const ORBIT_MAX_CHANGE_PER_SECOND = 0.1;
 
 // The fitted box takes 1 / margin of the view at zoom 1, leaving some room around the dancer.
 export const FRAMING_MARGIN = 1.15;
-// Camera height above the dancer's center as an angle in radians: slightly from above, so the floor ring is visible.
+// Camera height above the dancer's center as an angle in radians: slightly from above, so the floor and its beat
+// ripple are visible.
 export const CAMERA_ELEVATION = 0.12;
 // The space the dancer takes up (width, height, depth in meters) at scale 1, measured from the dance's skinned poses
 // with both layers at full weight (dancingCharacterScene.test.ts pins it to the real model); used to place the camera

@@ -160,14 +160,14 @@ afterEach(() => {
 });
 
 describe('constructor', () => {
-    it('builds the dark club, adds lights and the ring and frames the nominal box', () => {
+    it('builds the dark club, adds lights and frames the nominal box', () => {
         const { scene, camera, dancing } = setup();
         expect((scene.background as THREE.Color).getHexString()).toBe(new THREE.Color(CLUB_BACKGROUND).getHexString());
         expect(scene.fog).toBeInstanceOf(THREE.Fog);
         // Hemisphere, key and rim, plus the club's two color-spill lights.
         expect(scene.children.filter((child) => (child as THREE.Light).isLight)).toHaveLength(5);
-        // The LED floor (one instanced mesh), four spotlight cones and the bass ring.
-        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(6);
+        // The LED floor (one instanced mesh) and four spotlight cones.
+        expect(scene.children.filter((child) => (child as THREE.Mesh).isMesh)).toHaveLength(5);
         expect(scene.children.filter((child) => (child as THREE.InstancedMesh).isInstancedMesh)).toHaveLength(1);
         expect(dancing.lookTarget.toArray()).toEqual([0, 0, 0]);
 
@@ -190,7 +190,7 @@ describe('constructor', () => {
     });
 
     it('halves the distance at zoom 2', () => {
-        const base = distanceOf(setup().camera);
+        const base = distanceOf(setup({ zoom: 1 }).camera);
         expect(distanceOf(setup({ zoom: 2 }).camera)).toBeCloseTo(base / 2);
     });
 });
@@ -219,20 +219,16 @@ describe('setCharacter', () => {
         }
     });
 
-    it('moves the LED floor and the ring to the feet', () => {
+    it('moves the LED floor to the feet', () => {
         const { scene, dancing } = setup();
         const { model } = makeModel();
         const floor = scene.children.find((child) => (child as THREE.InstancedMesh).isInstancedMesh)!;
-        const ring = scene.children.find(
-            (child) => (child as THREE.Mesh).geometry?.type === 'RingGeometry',
-        ) as THREE.Mesh;
         const before = floor.position.y;
         dancing.setCharacter(model);
         // The makeModel rig is 3 m tall, taller than the nominal dancer, so the feet move down.
         expect(floor.position.y).toBeLessThan(before);
         expect(floor.position.y).toBeGreaterThan(-3);
         expect(floor.position.y).toBeLessThan(0);
-        expect(ring.position.y).toBeCloseTo(floor.position.y + 0.01);
     });
 
     it('clones the materials, so the input model keeps its colors, and tints Skin only', () => {
@@ -372,8 +368,8 @@ describe('camera', () => {
     });
 
     it('follows zoom changes and aspect changes (after resize)', () => {
-        const { camera, dancing } = setup();
-        dancing.update(makeFrame());
+        const { camera, dancing } = setup({ zoom: 1 });
+        dancing.update(makeFrame({ settings: settings({ zoom: 1 }) }));
         const base = distanceOf(camera);
         dancing.update(makeFrame({ settings: settings({ zoom: 2 }) }));
         expect(distanceOf(camera)).toBeCloseTo(base / 2, 1);
@@ -577,11 +573,12 @@ describe('bass', () => {
     const WARM_UP_BEATS = 16;
     const kickAt = (frame: number) => (frame % 30 < 4 ? 1 : 0);
 
-    function ringOf(scene: THREE.Scene) {
-        return scene.children.find(
-            (child) => (child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry.type === 'RingGeometry',
-        ) as THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+    // The club adds its own point lights first; the rim light is the last one.
+    function rimOf(scene: THREE.Scene) {
+        return scene.children.filter((child) => (child as THREE.PointLight).isPointLight).at(-1) as THREE.PointLight;
     }
+    // The rim light's intensity with no bass, read from a fresh scene.
+    const rimRest = () => rimOf(setup().scene).intensity;
 
     // Plays `beats` beats with `bassAt(frame)` from frame `from`, then returns where it stopped.
     function play(
@@ -608,7 +605,7 @@ describe('bass', () => {
         const quiet = setup(overrides);
         quiet.dancing.setCharacter(makeModel().model);
         play(quiet.dancing, 0, 30 * WARM_UP_BEATS + into, () => 0, overrides);
-        return { ...rig, model, ring: ringOf(rig.scene), rest: distanceOf(quiet.camera) };
+        return { ...rig, model, rim: rimOf(rig.scene), rest: distanceOf(quiet.camera) };
     }
 
     it('does nothing without kicks', () => {
@@ -616,26 +613,22 @@ describe('bass', () => {
         const { model } = makeModel();
         rig.dancing.setCharacter(model);
         play(rig.dancing, 0, 30 * WARM_UP_BEATS, () => 0, { autoOrbit: false });
-        const ring = ringOf(rig.scene);
         expect(model.scale.toArray()).toEqual([1, 1, 1]);
-        expect(ring.material.opacity).toBe(0);
-        expect(ring.visible).toBe(false);
+        expect(rimOf(rig.scene).intensity).toBe(rimRest());
     });
 
-    it('keeps the model its size and on the floor, swells the ring and pulls the camera in on the beat', () => {
-        const { model, ring, camera, rest } = pulsing({ autoOrbit: false });
+    it('keeps the model its size and on the floor, flashes the rim light and pulls the camera in on the beat', () => {
+        const { model, rim, camera, rest } = pulsing({ autoOrbit: false });
         expect(model.scale.toArray()).toEqual([1, 1, 1]);
-        expect(ring.visible).toBe(true);
-        expect(ring.material.opacity).toBeGreaterThan(0.5);
-        expect(ring.scale.x).toBeGreaterThan(2);
-        expect(ring.scale.x).toBeLessThanOrEqual(2.5);
-        expect(distanceOf(camera) / rest).toBeLessThan(1 - 0.5 * 0.6 * DOLLY_MAX_FRACTION);
+        expect(rim.intensity).toBeGreaterThan(rimRest() + 20);
+        // The default camera bump (0.4) at a full pulse pulls in by a tenth of the distance.
+        expect(distanceOf(camera) / rest).toBeLessThan(1 - 0.5 * 0.4 * DOLLY_MAX_FRACTION);
     });
 
     it('lets the bump fade between beats', () => {
         const peak = pulsing({ autoOrbit: false }, 3);
         const late = pulsing({ autoOrbit: false }, 20);
-        expect(late.ring.scale.x).toBeLessThan(peak.ring.scale.x);
+        expect(late.rim.intensity).toBeLessThan(peak.rim.intensity);
         expect(distanceOf(late.camera)).toBeGreaterThan(distanceOf(peak.camera));
     });
 
@@ -645,29 +638,26 @@ describe('bass', () => {
         // Eight beats with no kick heard at all: the pulse carries on from the beat clock.
         const end = play(rig.dancing, 30 * WARM_UP_BEATS, 30 * 8 + 3, () => 0, overrides);
         expect(end).toBeGreaterThan(0);
-        expect(rig.ring.visible).toBe(true);
-        expect(rig.ring.scale.x).toBeGreaterThan(2);
+        expect(rig.rim.intensity).toBeGreaterThan(rimRest() + 20);
     });
 
     it('fades the bass out slowly once the kicks have been gone for a long time', () => {
         const overrides = { autoOrbit: false };
         const rig = pulsing(overrides, 0);
         play(rig.dancing, 30 * WARM_UP_BEATS, 30 * 40, () => 0, overrides);
-        expect(rig.ring.visible).toBe(false);
+        expect(rig.rim.intensity).toBe(rimRest());
         expect(distanceOf(rig.camera)).toBeCloseTo(rig.rest);
     });
 
     it('ignores a stray bass bump while no tempo is locked', () => {
         const { camera, scene, dancing } = setup({ autoOrbit: false });
         dancing.setCharacter(makeModel().model);
-        const rim = scene.children.find((child) => (child as THREE.PointLight).isPointLight) as THREE.PointLight;
-        const ring = ringOf(scene);
+        const rim = rimOf(scene);
         run(dancing, 60, () => makeFrame({ settings: settings({ autoOrbit: false }) }));
         const rest = distanceOf(camera);
         const rimRest = rim.intensity;
         run(dancing, 30, () => makeFrame({ bass: 1, settings: settings({ autoOrbit: false }) }));
         expect(distanceOf(camera)).toBeCloseTo(rest);
-        expect(ring.visible).toBe(false);
         expect(rim.intensity).toBe(rimRest);
     });
 
@@ -678,50 +668,75 @@ describe('bass', () => {
         expect(camera.position.toArray()).toEqual([1, 2, 3]);
     });
 
-    it('does not move the camera when the camera bump is 0 but still shows the ring', () => {
-        const { ring, camera, rest } = pulsing({ bassCameraStrength: 0, autoOrbit: false });
+    it('does not move the camera when the camera bump is 0 but still flashes the rim light', () => {
+        const { rim, camera, rest } = pulsing({ bassCameraStrength: 0, autoOrbit: false });
         expect(distanceOf(camera)).toBeCloseTo(rest);
-        expect(ring.visible).toBe(true);
+        expect(rim.intensity).toBeGreaterThan(rimRest() + 20);
     });
 
-    it('hides the ring when the bass glow is 0 but still bumps the camera', () => {
-        const { ring, camera, rest } = pulsing({ bassStrength: 0, autoOrbit: false });
-        expect(ring.material.opacity).toBe(0);
+    it('keeps the rim light steady when the bass glow is 0 but still bumps the camera', () => {
+        const { rim, camera, rest } = pulsing({ bassStrength: 0, autoOrbit: false });
+        expect(rim.intensity).toBe(rimRest());
         expect(distanceOf(camera)).toBeLessThan(rest);
     });
 });
 
 describe('colors', () => {
-    // The ring is the accent mixed toward white, so it stands out on the accent-colored floor.
-    const whitened = (accent: string) => new THREE.Color(accent).lerp(new THREE.Color('#ffffff'), 0.6).getHexString();
+    // The club adds its own point lights first; the rim light is the last one.
+    const rimOf = (scene: THREE.Scene) =>
+        scene.children.filter((c) => (c as THREE.PointLight).isPointLight).at(-1) as THREE.PointLight;
+    const hex = (color: string) => new THREE.Color(color).getHexString();
 
-    it('applies the accent color to the ring and rim light and both colors to the club, and re-applies on change', () => {
-        const setColors = vi.spyOn(ClubSet.prototype, 'setColors');
-        const { scene, dancing } = setup({ accentColor: '#00ff00', floorColor: '#0000ff' });
-        const ring = scene.children.find((c) => (c as THREE.Mesh).geometry?.type === 'RingGeometry') as THREE.Mesh<
-            THREE.RingGeometry,
-            THREE.MeshBasicMaterial
-        >;
-        // The club adds its own point lights first; the rim light is the last one.
-        const rim = scene.children.filter((c) => (c as THREE.PointLight).isPointLight).at(-1) as THREE.PointLight;
-        expect(ring.material.color.getHexString()).toBe(whitened('#00ff00'));
-        expect(rim.color.getHexString()).toBe(new THREE.Color('#00ff00').getHexString());
-        expect(setColors).toHaveBeenLastCalledWith('#0000ff', '#00ff00');
-        const calls = setColors.mock.calls.length;
+    it('uses the static accent for the club and the rim light when the rainbow is off, and re-applies on change', () => {
+        const setFloor = vi.spyOn(ClubSet.prototype, 'setFloorColor');
+        const setAccent = vi.spyOn(ClubSet.prototype, 'setAccentColor');
+        const values = { accentRainbow: false, accentColor: '#00ff00', floorColor: '#0000ff' };
+        const { scene, dancing } = setup(values);
+        expect(rimOf(scene).color.getHexString()).toBe(hex('#00ff00'));
+        expect(setAccent.mock.lastCall![0].getHexString()).toBe(hex('#00ff00'));
+        expect(setFloor).toHaveBeenLastCalledWith('#0000ff');
+        const floorCalls = setFloor.mock.calls.length;
 
-        // Unchanged settings do no color work.
-        dancing.update(makeFrame({ settings: settings({ accentColor: '#00ff00', floorColor: '#0000ff' }) }));
-        expect(setColors).toHaveBeenCalledTimes(calls);
+        // An unchanged floor color does no floor work.
+        dancing.update(makeFrame({ settings: settings(values) }));
+        expect(setFloor).toHaveBeenCalledTimes(floorCalls);
 
-        dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#ffffff' }) }));
-        expect(setColors).toHaveBeenLastCalledWith('#ffffff', '#ff0000');
-        expect(ring.material.color.getHexString()).toBe(whitened('#ff0000'));
-        expect(rim.color.getHexString()).toBe(new THREE.Color('#ff0000').getHexString());
+        dancing.update(makeFrame({ settings: settings({ ...values, accentColor: '#ff0000', floorColor: '#ffffff' }) }));
+        expect(setFloor).toHaveBeenLastCalledWith('#ffffff');
+        expect(setAccent.mock.lastCall![0].getHexString()).toBe(hex('#ff0000'));
+        expect(rimOf(scene).color.getHexString()).toBe(hex('#ff0000'));
+    });
 
-        // Only the floor changes: the club hears about it, the ring keeps its color.
-        dancing.update(makeFrame({ settings: settings({ accentColor: '#ff0000', floorColor: '#123456' }) }));
-        expect(setColors).toHaveBeenLastCalledWith('#123456', '#ff0000');
-        expect(ring.material.color.getHexString()).toBe(whitened('#ff0000'));
+    it('cycles the accent through the hues in rainbow mode at the rainbow speed', () => {
+        const setAccent = vi.spyOn(ClubSet.prototype, 'setAccentColor');
+        const { scene, dancing } = setup();
+        const hsl = { h: 0, s: 0, l: 0 };
+        const hueAfter = (seconds: number, speed: number) => {
+            for (let t = 0; t < seconds; t += 0.05) {
+                dancing.update(makeFrame({ dt: 0.05, settings: settings({ rainbowSpeed: speed }) }));
+            }
+            return rimOf(scene).color.getHSL(hsl).h;
+        };
+        const start = hueAfter(0, 0.1);
+        // A quarter of a cycle in 2.5 s at 0.1 cycles per second, and the club gets the same color as the rim light.
+        const quarter = hueAfter(2.5, 0.1);
+        expect(quarter - start).toBeCloseTo(0.25, 1);
+        expect(setAccent.mock.lastCall![0].getHexString()).toBe(rimOf(scene).color.getHexString());
+        // Twice the speed covers twice the hue in the same time.
+        const before = rimOf(scene).color.getHSL(hsl).h;
+        const after = hueAfter(1, 0.2);
+        expect(after - before).toBeCloseTo(0.2, 1);
+    });
+
+    it('switches from the rainbow to the static accent and back', () => {
+        const { scene, dancing } = setup();
+        dancing.update(makeFrame({ dt: 1, settings: settings() }));
+        dancing.update(makeFrame({ settings: settings({ accentRainbow: false, accentColor: '#123456' }) }));
+        expect(rimOf(scene).color.getHexString()).toBe(hex('#123456'));
+        dancing.update(makeFrame({ dt: 1, settings: settings() }));
+        expect(rimOf(scene).color.getHexString()).not.toBe(hex('#123456'));
+        dancing.update(makeFrame({ settings: settings({ accentRainbow: false, accentColor: '#123456' }) }));
+        expect(rimOf(scene).color.getHexString()).toBe(hex('#123456'));
     });
 });
 
