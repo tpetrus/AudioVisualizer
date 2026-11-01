@@ -13,12 +13,12 @@ import {
     FADE_IN_SECONDS,
     FALLBACK_BACKGROUND,
     MAX_FRAME_DT,
-    MAX_ZOOM_KICK,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
 import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
+import { stepCameraDolly } from './dancingCharacterCamera';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
@@ -292,7 +292,6 @@ export class DancingCharacterScene {
 
         // 2. Bass.
         const bump = Math.min(Math.max(frame.bass * settings.bassStrength, 0), MAX_BASS_BUMP);
-        const kick = bump * MAX_ZOOM_KICK;
         this.ring.visible = bump > 0;
         this.ring.material.opacity = Math.min(1, bump) * RING_MAX_OPACITY;
         this.ring.scale.setScalar(1 + bump * RING_GROWTH);
@@ -312,7 +311,7 @@ export class DancingCharacterScene {
             );
             this.azimuth += this.orbitSpeed * dt;
             this.refreshDistance();
-            this.writeCameraPose(kick);
+            this.writeCameraPose(stepCameraDolly(frame.bass, settings.bassCameraStrength, this.distance));
         }
 
         // 4. Colors.
@@ -392,8 +391,9 @@ export class DancingCharacterScene {
         this.distanceAspect = this.camera.aspect;
     }
 
-    private writeCameraPose(kick: number): void {
-        const distance = this.distance * (1 - kick);
+    // `dolly` is how far the bass pulls the camera in, in scene units, on top of the fitted distance.
+    private writeCameraPose(dolly: number): void {
+        const distance = this.distance - dolly;
         const horizontal = Math.cos(CAMERA_ELEVATION) * distance;
         this.camera.position.set(
             Math.sin(this.azimuth) * horizontal,

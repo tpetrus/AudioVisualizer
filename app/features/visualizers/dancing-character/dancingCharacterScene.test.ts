@@ -15,7 +15,7 @@ import {
     DANCE_REQUIRED_BONES,
     FADE_IN_SECONDS,
     FALLBACK_BACKGROUND,
-    MAX_ZOOM_KICK,
+    DOLLY_MAX_FRACTION,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
@@ -613,14 +613,34 @@ describe('bass', () => {
         expect(ring.visible).toBe(true);
         expect(ring.material.opacity).toBeGreaterThan(0.5);
         expect(ring.scale.x).toBeGreaterThan(1.5);
-        expect(distanceOf(camera) / rest).toBeCloseTo(1 - MAX_ZOOM_KICK, 3);
+        expect(distanceOf(camera) / rest).toBeCloseTo(1 - 0.6 * DOLLY_MAX_FRACTION, 3);
+    });
+
+    it('returns the camera to the fitted distance when the bass falls to 0', () => {
+        const { camera, dancing, rest } = settled(1, { autoOrbit: false });
+        expect(distanceOf(camera)).toBeLessThan(rest);
+        dancing.update(makeFrame({ bass: 0, settings: settings({ autoOrbit: false }) }));
+        expect(distanceOf(camera)).toBeCloseTo(rest);
+    });
+
+    it('writes nothing to the camera while it is unlocked, whatever the bass', () => {
+        const { camera, dancing } = settled(0, { autoOrbit: false });
+        camera.position.set(1, 2, 3);
+        dancing.update(makeFrame({ bass: 1, cameraLocked: false, settings: settings({ autoOrbit: false }) }));
+        expect(camera.position.toArray()).toEqual([1, 2, 3]);
+    });
+
+    it('does not move the camera when the camera bump is 0 but still bumps the body', () => {
+        const { model, camera, rest } = settled(1, { bassCameraStrength: 0, autoOrbit: false });
+        expect(distanceOf(camera)).toBeCloseTo(rest);
+        expect(model.scale.y).toBeCloseTo(1 - BASS_SQUASH);
     });
 
     it('has no effect when the bass strength is 0', () => {
         const { model, ring, camera, rest } = settled(1, { bassStrength: 0, autoOrbit: false });
         expect(model.scale.y).toBe(1);
         expect(ring.material.opacity).toBe(0);
-        expect(distanceOf(camera)).toBeCloseTo(rest);
+        expect(distanceOf(camera)).toBeCloseTo(rest * (1 - 0.6 * DOLLY_MAX_FRACTION), 1);
     });
 });
 

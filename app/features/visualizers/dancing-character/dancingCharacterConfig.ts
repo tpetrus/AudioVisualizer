@@ -102,8 +102,11 @@ export const NOMINAL_CHARACTER_SIZE = { width: 0.95, height: 1.7, depth: 0.6 } a
 
 // ---- Bass reaction ----
 
-// Largest fraction of the camera distance the bass pulls the camera in at bass bump 1: felt, not nauseating.
-export const MAX_ZOOM_KICK = 0.04;
+// Fraction of the fitted camera distance the bass pulls the camera in at camera bump 1 and a full pulse. The default
+// camera bump (0.6) gives 15 % of the distance, which reads as a clear push on a kick.
+export const DOLLY_MAX_FRACTION = 0.25;
+// The dolly never exceeds this fraction of the fitted distance, whatever the settings, so the dancer stays in frame.
+export const DOLLY_CLAMP_FRACTION = 0.25;
 // Largest squash of the character's height at full bass (the width grows by half of it) and its lift, in scene units.
 export const BASS_SQUASH = 0.08;
 export const BASS_LIFT = 0.12;

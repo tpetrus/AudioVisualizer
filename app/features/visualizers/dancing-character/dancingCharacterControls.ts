@@ -38,6 +38,17 @@ export const dancingCharacterControls = [
         step: 0.05,
         default: 1,
     },
+    // 0 turns the camera push off; the push is a fraction of the fitted distance, so it holds at any aspect ratio.
+    {
+        section: 'Bass',
+        key: 'bassCameraStrength',
+        label: 'Camera bump',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.6,
+    },
     // White multiplies the model's own colors by one, so the default keeps the skin color the model ships with.
     { section: 'Colors', key: 'bodyColor', label: 'Skin tint', type: 'color', default: '#ffffff' },
     { section: 'Colors', key: 'accentColor', label: 'Accent', type: 'color', default: '#ff7ab6' },
@@ -52,6 +63,8 @@ export const dancingCharacterReducedMotionControls = dancingCharacterControls.ma
             return { ...control, default: 0.5 };
         case 'bassStrength':
             return { ...control, default: 0.5 };
+        case 'bassCameraStrength':
+            return { ...control, default: 0.2 };
         default:
             return control;
     }

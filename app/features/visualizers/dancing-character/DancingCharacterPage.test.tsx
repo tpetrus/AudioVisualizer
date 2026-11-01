@@ -88,5 +88,6 @@ describe('DancingCharacterPage', () => {
 
         expect(latestOptions().valuesRef.current.orbitSpeed).toBe(0.5);
         expect(latestOptions().valuesRef.current.bassStrength).toBe(0.5);
+        expect(latestOptions().valuesRef.current.bassCameraStrength).toBe(0.2);
     });
 });

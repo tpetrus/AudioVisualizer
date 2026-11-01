@@ -14,6 +14,7 @@ describe('dancingCharacterControls', () => {
             orbitSpeed: 1,
             zoom: 1,
             bassStrength: 1,
+            bassCameraStrength: 0.6,
             bodyColor: '#ffffff',
             accentColor: '#ff7ab6',
             floorColor: '#2b3a55',
@@ -25,11 +26,17 @@ describe('dancingCharacterControls', () => {
         expect(danceSpeed).toMatchObject({ min: 0.5, max: 2, step: 0.5 });
     });
 
-    it('lowers only the orbit speed and bass bump defaults for reduced motion', () => {
+    it('has a camera bump slider that can be switched off', () => {
+        const control = dancingCharacterControls.find((c) => c.key === 'bassCameraStrength');
+        expect(control).toMatchObject({ section: 'Bass', label: 'Camera bump', min: 0, max: 1, step: 0.05 });
+    });
+
+    it('lowers only the orbit speed, bass bump and camera bump defaults for reduced motion', () => {
         expect(defaultValues(dancingCharacterReducedMotionControls)).toEqual({
             ...defaultValues(dancingCharacterControls),
             orbitSpeed: 0.5,
             bassStrength: 0.5,
+            bassCameraStrength: 0.2,
         });
         expect(dancingCharacterReducedMotionControls.map((control) => control.key)).toEqual(
             dancingCharacterControls.map((control) => control.key),
