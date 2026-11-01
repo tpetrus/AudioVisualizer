@@ -18,7 +18,7 @@ import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { stepCameraDolly } from './dancingCharacterCamera';
-import { createBassGateState, stepBassGate } from './dancingCharacterBassGate';
+import { createBassGateState, forgetBassline, stepBassGate } from './dancingCharacterBassGate';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
@@ -222,8 +222,7 @@ export class DancingCharacterScene {
         this.distanceZoom = NaN;
 
         this.timingState.locked = false;
-        this.bassGate.open = false;
-        this.bassGate.score = 0;
+        forgetBassline(this.bassGate);
         this.fadeElapsed = 0;
         this.applyModelTransform(0);
         this.refreshDistance();

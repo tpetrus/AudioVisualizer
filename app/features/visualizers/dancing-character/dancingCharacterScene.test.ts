@@ -573,71 +573,95 @@ function beatRhythm(frame: number): RhythmState {
 }
 
 describe('bass', () => {
-    const WARM_UP_FRAMES = 30 * 8;
+    // Sixteen beats of kicks right on the beat open the bass gate and let its slow fade-in finish.
+    const WARM_UP_BEATS = 16;
+    const kickAt = (frame: number) => (frame % 30 < 4 ? 1 : 0);
 
-    // Six beats of on-beat kicks open the bass gate and two silent beats let its tail die away; the last frame is the next beat with the given bass, after
-    // silence so it counts as a fresh kick.
-    function settled(bass: number, overrides: Partial<DancingCharacterSettings> = {}) {
+    function ringOf(scene: THREE.Scene) {
+        return scene.children.find(
+            (child) => (child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry.type === 'RingGeometry',
+        ) as THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+    }
+
+    // Plays `beats` beats with `bassAt(frame)` from frame `from`, then returns where it stopped.
+    function play(
+        dancing: DancingCharacterScene,
+        from: number,
+        frames: number,
+        bassAt: (frame: number) => number,
+        overrides: Partial<DancingCharacterSettings>,
+    ): number {
+        for (let i = from; i < from + frames; i++) {
+            dancing.update(makeFrame({ bass: bassAt(i), rhythm: beatRhythm(i), settings: settings(overrides) }));
+        }
+        return from + frames;
+    }
+
+    // A dancer whose bass gate has locked onto kicks on the beat, stopped `into` frames after the start of a beat
+    // (3 is the peak of a bump, 20 is late in the beat when the bump has faded).
+    function pulsing(overrides: Partial<DancingCharacterSettings> = {}, into = 3) {
         const rig = setup(overrides);
         const { model } = makeModel();
         rig.dancing.setCharacter(model);
-        for (let i = 0; i < WARM_UP_FRAMES; i++) {
-            rig.dancing.update(
-                makeFrame({
-                    bass: i < 30 * 6 && i % 30 < 4 ? 1 : 0,
-                    rhythm: beatRhythm(i),
-                    settings: settings(overrides),
-                }),
-            );
-        }
-        const rest = distanceOf(rig.camera);
-        rig.dancing.update(makeFrame({ bass, rhythm: beatRhythm(WARM_UP_FRAMES), settings: settings(overrides) }));
-        const ring = rig.scene.children.find(
-            (child) =>
-                (child as THREE.Mesh).isMesh &&
-                child !== model &&
-                (child as THREE.Mesh).geometry.type === 'RingGeometry',
-        ) as THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
-        return { ...rig, model, ring, rest };
+        play(rig.dancing, 0, 30 * WARM_UP_BEATS + into, kickAt, overrides);
+        // The same run with no kicks gives the fitted distance the camera would be at without the bass.
+        const quiet = setup(overrides);
+        quiet.dancing.setCharacter(makeModel().model);
+        play(quiet.dancing, 0, 30 * WARM_UP_BEATS + into, () => 0, overrides);
+        return { ...rig, model, ring: ringOf(rig.scene), rest: distanceOf(quiet.camera) };
     }
 
-    it('does nothing at bass 0', () => {
-        const { model, ring } = settled(0);
-        expect(model.scale.y).toBe(1);
-        expect(model.scale.x).toBe(1);
+    it('does nothing without kicks', () => {
+        const rig = setup({ autoOrbit: false });
+        const { model } = makeModel();
+        rig.dancing.setCharacter(model);
+        play(rig.dancing, 0, 30 * WARM_UP_BEATS, () => 0, { autoOrbit: false });
+        const ring = ringOf(rig.scene);
+        expect(model.scale.toArray()).toEqual([1, 1, 1]);
         expect(ring.material.opacity).toBe(0);
         expect(ring.visible).toBe(false);
     });
 
-    it('keeps the model its size and on the floor, shows the ring and pulls the camera in at bass 1', () => {
-        const { model, ring, camera, rest } = settled(1, { autoOrbit: false });
-        const { model: still } = settled(0, { autoOrbit: false });
+    it('keeps the model its size and on the floor, swells the ring and pulls the camera in on the beat', () => {
+        const { model, ring, camera, rest } = pulsing({ autoOrbit: false });
         expect(model.scale.toArray()).toEqual([1, 1, 1]);
-        expect(model.position.toArray()).toEqual(still.position.toArray());
         expect(ring.visible).toBe(true);
         expect(ring.material.opacity).toBeGreaterThan(0.5);
-        // It swells with the bass but stays near the feet.
         expect(ring.scale.x).toBeGreaterThan(2);
         expect(ring.scale.x).toBeLessThanOrEqual(2.5);
-        expect(distanceOf(camera) / rest).toBeCloseTo(1 - 0.6 * DOLLY_MAX_FRACTION, 3);
+        expect(distanceOf(camera) / rest).toBeLessThan(1 - 0.5 * 0.6 * DOLLY_MAX_FRACTION);
     });
 
-    it('returns the camera to the fitted distance when the bass falls to 0', () => {
-        const { camera, dancing, rest } = settled(1, { autoOrbit: false });
-        expect(distanceOf(camera)).toBeLessThan(rest);
-        run(dancing, 90, () =>
-            makeFrame({ bass: 0, rhythm: beatRhythm(WARM_UP_FRAMES + 1), settings: settings({ autoOrbit: false }) }),
-        );
-        expect(distanceOf(camera)).toBeCloseTo(rest);
+    it('lets the bump fade between beats', () => {
+        const peak = pulsing({ autoOrbit: false }, 3);
+        const late = pulsing({ autoOrbit: false }, 20);
+        expect(late.ring.scale.x).toBeLessThan(peak.ring.scale.x);
+        expect(distanceOf(late.camera)).toBeGreaterThan(distanceOf(peak.camera));
+    });
+
+    it('keeps pulsing on the beat through a stretch of masked kicks', () => {
+        const overrides = { autoOrbit: false };
+        const rig = pulsing(overrides, 0);
+        // Eight beats with no kick heard at all: the pulse carries on from the beat clock.
+        const end = play(rig.dancing, 30 * WARM_UP_BEATS, 30 * 8 + 3, () => 0, overrides);
+        expect(end).toBeGreaterThan(0);
+        expect(rig.ring.visible).toBe(true);
+        expect(rig.ring.scale.x).toBeGreaterThan(2);
+    });
+
+    it('fades the bass out slowly once the kicks have been gone for a long time', () => {
+        const overrides = { autoOrbit: false };
+        const rig = pulsing(overrides, 0);
+        play(rig.dancing, 30 * WARM_UP_BEATS, 30 * 40, () => 0, overrides);
+        expect(rig.ring.visible).toBe(false);
+        expect(distanceOf(rig.camera)).toBeCloseTo(rig.rest);
     });
 
     it('ignores a stray bass bump while no tempo is locked', () => {
         const { camera, scene, dancing } = setup({ autoOrbit: false });
         dancing.setCharacter(makeModel().model);
         const rim = scene.children.find((child) => (child as THREE.PointLight).isPointLight) as THREE.PointLight;
-        const ring = scene.children.find(
-            (child) => (child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry.type === 'RingGeometry',
-        ) as THREE.Mesh;
+        const ring = ringOf(scene);
         run(dancing, 60, () => makeFrame({ settings: settings({ autoOrbit: false }) }));
         const rest = distanceOf(camera);
         const rimRest = rim.intensity;
@@ -648,23 +672,22 @@ describe('bass', () => {
     });
 
     it('writes nothing to the camera while it is unlocked, whatever the bass', () => {
-        const { camera, dancing } = settled(0, { autoOrbit: false });
+        const { camera, dancing } = pulsing({ autoOrbit: false });
         camera.position.set(1, 2, 3);
         dancing.update(makeFrame({ bass: 1, cameraLocked: false, settings: settings({ autoOrbit: false }) }));
         expect(camera.position.toArray()).toEqual([1, 2, 3]);
     });
 
     it('does not move the camera when the camera bump is 0 but still shows the ring', () => {
-        const { ring, camera, rest } = settled(1, { bassCameraStrength: 0, autoOrbit: false });
+        const { ring, camera, rest } = pulsing({ bassCameraStrength: 0, autoOrbit: false });
         expect(distanceOf(camera)).toBeCloseTo(rest);
         expect(ring.visible).toBe(true);
     });
 
-    it('has no effect when the bass strength is 0', () => {
-        const { model, ring, camera, rest } = settled(1, { bassStrength: 0, autoOrbit: false });
-        expect(model.scale.y).toBe(1);
+    it('hides the ring when the bass glow is 0 but still bumps the camera', () => {
+        const { ring, camera, rest } = pulsing({ bassStrength: 0, autoOrbit: false });
         expect(ring.material.opacity).toBe(0);
-        expect(distanceOf(camera)).toBeCloseTo(rest * (1 - 0.6 * DOLLY_MAX_FRACTION), 1);
+        expect(distanceOf(camera)).toBeLessThan(rest);
     });
 });
 

@@ -1,17 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { createRhythmState } from '~/features/rhythm/types';
-import { createBassGateState, stepBassGate } from './dancingCharacterBassGate';
-import { BASS_GATE_GRACE_BEATS, BASS_GATE_MIN_INTERVAL } from './dancingCharacterConfig';
+import { createBassGateState, forgetBassline, stepBassGate } from './dancingCharacterBassGate';
+import {
+    BASS_GATE_ATTACK_SECONDS,
+    BASS_GATE_EASE_SECONDS,
+    BASS_GATE_GRACE_BEATS,
+    BASS_GATE_LOCK_GRACE_SECONDS,
+    BASS_GATE_MIN_INTERVAL,
+} from './dancingCharacterConfig';
 
 const DT = 1 / 60;
 // 120 BPM: a beat every 30 frames.
 const FRAMES_PER_BEAT = 30;
 
+type State = ReturnType<typeof createBassGateState>;
+
 // Steps the gate with a 120 BPM clock. `bassAt(frame, phase)` gives the raw bass for each frame.
 function drive(
     frames: number,
     bassAt: (frame: number, phase: number) => number,
-    options: { locked?: boolean; start?: number; state?: ReturnType<typeof createBassGateState> } = {},
+    options: { locked?: boolean; start?: number; state?: State } = {},
 ) {
     const state = options.state ?? createBassGateState();
     const rhythm = createRhythmState();
@@ -26,52 +34,94 @@ function drive(
     return { state, rhythm, outputs };
 }
 
+// The largest output in each beat of `outputs` (which started at a beat).
+function peaksPerBeat(outputs: readonly number[]): number[] {
+    const peaks: number[] = [];
+    for (let i = 0; i < outputs.length; i += FRAMES_PER_BEAT) {
+        peaks.push(Math.max(...outputs.slice(i, i + FRAMES_PER_BEAT)));
+    }
+    return peaks;
+}
+
 // A kick on every beat: 4 frames of 0.8 right after the beat, silence between.
 const onBeatKick = (frame: number) => (frame % FRAMES_PER_BEAT < 4 ? 0.8 : 0);
+const silent = () => 0;
+
+// A gate locked onto on-beat kicks for 12 beats, with its fade-in finished.
+function locked(): State {
+    const { state } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+    expect(state.open).toBe(true);
+    expect(state.weight).toBe(1);
+    return state;
+}
 
 describe('stepBassGate', () => {
-    it('opens after a few on-beat kicks and then passes the pulse', () => {
-        const { state, outputs } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
+    it('opens after a short run of kicks at one place, then pulses on every beat', () => {
+        const { state, outputs } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
         expect(state.open).toBe(true);
-        // The early beats show nothing; later kicks come through at full strength once the gate has eased in.
-        expect(outputs.slice(0, FRAMES_PER_BEAT * 2).every((value) => value === 0)).toBe(true);
-        expect(Math.max(...outputs.slice(-FRAMES_PER_BEAT * 2))).toBeCloseTo(1);
-    });
-
-    // Measured with the e2e beat fixture: the bass pulse often stands out only once a bar, because a steady kick on
-    // every beat flattens its fast-versus-slow comparison. A kick on every downbeat is still a consistent beat.
-    it('opens on one kick per bar and stays open while the kicks keep coming', () => {
-        const kickPerBar = (frame: number) => (frame % (FRAMES_PER_BEAT * 4) < 4 ? 0.8 : 0);
-        const { state, outputs } = drive(FRAMES_PER_BEAT * 4 * 6, kickPerBar);
-        expect(state.open).toBe(true);
-        const more = drive(FRAMES_PER_BEAT * 4 * 8, kickPerBar, { state, start: FRAMES_PER_BEAT * 4 * 6 });
-        expect(more.state.open).toBe(true);
-        expect(Math.max(...outputs, ...more.outputs)).toBeCloseTo(1);
+        // The first kick only sets the place and the next four open the gate, so the first beats show nothing.
+        expect(outputs.slice(0, FRAMES_PER_BEAT * 4).every((value) => value === 0)).toBe(true);
+        for (const peak of peaksPerBeat(outputs).slice(-4)) expect(peak).toBeGreaterThan(0.9);
     });
 
     // The user's report: bumps showed at a song's start and stopped 10 to 15 s in. The bass pulse compares the bass
     // with its last ~1.5 s, so mid-song a kick is only a small rise on a raised floor: here it swings between 0.2 and
-    // 0.32 every beat, never below the old fixed re-arm level (0.15) nor above the old onset level (0.35).
-    it('keeps showing full bumps mid-song, when each kick is only a small rise on a raised floor', () => {
+    // 0.32 every beat.
+    it('locks onto kicks that are only a small rise on a raised floor', () => {
         const midSong = (frame: number) => (frame % FRAMES_PER_BEAT < 6 ? 0.32 : 0.2);
-        const beats = 60;
-        const { state, outputs } = drive(FRAMES_PER_BEAT * beats, midSong);
+        const { state, outputs } = drive(FRAMES_PER_BEAT * 60, midSong);
         expect(state.open).toBe(true);
-        // Every beat in the last 40 (20 s at 120 BPM) shows a clear bump.
-        for (let beat = beats - 40; beat < beats; beat++) {
-            const slice = outputs.slice(beat * FRAMES_PER_BEAT, (beat + 1) * FRAMES_PER_BEAT);
-            expect(Math.max(...slice)).toBeGreaterThanOrEqual(0.5);
-        }
+        for (const peak of peaksPerBeat(outputs).slice(-40)) expect(peak).toBeGreaterThanOrEqual(0.5);
     });
 
-    it('keeps the gate open through the grace period of silence, then closes it', () => {
-        const { state } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
-        const silent = () => 0;
-        const start = FRAMES_PER_BEAT * 8;
+    // Measured with the e2e beat fixture: the bass pulse often stands out only once a bar.
+    it('opens on one kick per bar and then pulses on every beat', () => {
+        const kickPerBar = (frame: number) => (frame % (FRAMES_PER_BEAT * 4) < 4 ? 0.8 : 0);
+        const { state, outputs } = drive(FRAMES_PER_BEAT * 4 * 10, kickPerBar);
+        expect(state.open).toBe(true);
+        for (const peak of peaksPerBeat(outputs).slice(-8)) expect(peak).toBeGreaterThan(0.5);
+    });
+
+    // Business as usual: a locked bassline keeps pulsing through masked kicks and extra notes.
+    it('keeps pulsing on every beat through eight beats in which no kick is heard', () => {
+        const state = locked();
+        const { outputs } = drive(FRAMES_PER_BEAT * 8, silent, { state, start: FRAMES_PER_BEAT * 12 });
+        expect(state.open).toBe(true);
+        for (const peak of peaksPerBeat(outputs)) expect(peak).toBeGreaterThan(0.9);
+    });
+
+    it('is not shaken by extra notes between the beats once locked', () => {
+        const state = locked();
+        const score = state.score;
+        // The kick plus a second note half way through every beat.
+        const busy = (frame: number) => (frame % FRAMES_PER_BEAT < 4 || frame % FRAMES_PER_BEAT >= 15 ? 0.8 : 0);
+        drive(FRAMES_PER_BEAT * 16, busy, { state, start: FRAMES_PER_BEAT * 12 });
+        expect(state.open).toBe(true);
+        expect(state.score).toBeGreaterThanOrEqual(score);
+        expect(state.kickPhase).toBeLessThan(0.1);
+    });
+
+    it('does not show a stray bump between the beats', () => {
+        const start = FRAMES_PER_BEAT * 12;
+        const plain = drive(FRAMES_PER_BEAT, silent, { state: locked(), start });
+        const stray = drive(FRAMES_PER_BEAT, (frame) => (frame - start >= 14 && frame - start < 18 ? 0.9 : 0), {
+            state: locked(),
+            start,
+        });
+        expect(stray.outputs).toEqual(plain.outputs);
+    });
+
+    it('keeps the pulse for the grace period after the kicks stop, then fades it out', () => {
+        const state = locked();
+        const start = FRAMES_PER_BEAT * 12;
         drive(FRAMES_PER_BEAT * BASS_GATE_GRACE_BEATS, silent, { state, start });
         expect(state.open).toBe(true);
-        drive(FRAMES_PER_BEAT * 8, silent, { state, start: start + FRAMES_PER_BEAT * BASS_GATE_GRACE_BEATS });
+        const after = drive(FRAMES_PER_BEAT * 16, silent, {
+            state,
+            start: start + FRAMES_PER_BEAT * BASS_GATE_GRACE_BEATS,
+        });
         expect(state.open).toBe(false);
+        expect(after.outputs.at(-1)).toBe(0);
     });
 
     // Bass bumps at a different place in every beat have no rhythm, so they never open the gate. (A bassline that lands
@@ -89,94 +139,82 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(false);
     });
 
-    it('does not show one stray off-beat bump while open', () => {
-        const base = drive(FRAMES_PER_BEAT * 8, onBeatKick);
-        const start = FRAMES_PER_BEAT * 8;
-        // Silent until half way through the beat, then a bump, then silence again.
-        const { outputs } = drive(FRAMES_PER_BEAT, (frame) => (frame - start >= 14 && frame - start < 18 ? 0.9 : 0), {
-            state: base.state,
-            start,
-        });
-        // Only the previous kick's decay may remain, so nothing after the bump starts is above where it began.
-        expect(Math.max(...outputs.slice(14))).toBeLessThanOrEqual(outputs[13]);
-    });
-
-    it('shows nothing while the tempo is not locked, whatever the bass', () => {
-        const { outputs, state } = drive(FRAMES_PER_BEAT * 8, onBeatKick, { locked: false });
+    it('shows nothing while the tempo has never locked, whatever the bass', () => {
+        const { outputs, state } = drive(FRAMES_PER_BEAT * 12, onBeatKick, { locked: false });
         expect(Math.max(...outputs)).toBe(0);
         expect(state.open).toBe(false);
     });
 
-    it('closes and forgets the score when the tempo lock is lost', () => {
-        const { state } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
+    it('holds the bassline through a short tempo dropout and forgets it after a long one', () => {
+        const state = locked();
+        let at = FRAMES_PER_BEAT * 12;
+        const short = Math.floor(BASS_GATE_LOCK_GRACE_SECONDS / 2 / DT);
+        drive(short, onBeatKick, { state, locked: false, start: at });
+        at += short;
         expect(state.open).toBe(true);
-        drive(2, onBeatKick, { state, locked: false, start: FRAMES_PER_BEAT * 8 });
+        drive(FRAMES_PER_BEAT * 2, onBeatKick, { state, start: at });
+        at += FRAMES_PER_BEAT * 2;
+        drive(Math.ceil((BASS_GATE_LOCK_GRACE_SECONDS + 0.5) / DT), onBeatKick, { state, locked: false, start: at });
         expect(state.open).toBe(false);
-        expect(state.score).toBe(0);
+        expect(state.phaseKnown).toBe(false);
     });
 
-    it('closes when the song changes', () => {
-        const { state, rhythm } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
+    it('forgets the bassline when the song changes, and fades out rather than snapping', () => {
+        const { state, rhythm } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
         rhythm.songChangeCount++;
+        rhythm.beatPhase = 0.5;
         stepBassGate(0, rhythm, true, state, DT);
         expect(state.open).toBe(false);
         expect(state.score).toBe(0);
+        expect(state.weight).toBeGreaterThan(0.9);
     });
 
-    it('closes when the kicks move to a different place in the beat, then learns the new place', () => {
-        const { state } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
+    it('learns a new place only after the bassline has moved for a long time', () => {
+        const state = locked();
         // The same kick, now half a beat later.
         const offBeat = (frame: number) => ((frame + FRAMES_PER_BEAT / 2) % FRAMES_PER_BEAT < 4 ? 0.8 : 0);
-        let closed = false;
-        for (let beat = 8; beat < 20; beat++) {
-            drive(FRAMES_PER_BEAT, offBeat, { state, start: beat * FRAMES_PER_BEAT });
-            if (!state.open) closed = true;
-        }
-        expect(closed).toBe(true);
+        const start = FRAMES_PER_BEAT * 12;
+        drive(FRAMES_PER_BEAT * 8, offBeat, { state, start });
+        // Two bars of a moved bassline are not enough to give up on the old one.
+        expect(state.open).toBe(true);
+        expect(state.kickPhase).toBeLessThan(0.1);
+        drive(FRAMES_PER_BEAT * 40, offBeat, { state, start: start + FRAMES_PER_BEAT * 8 });
         expect(state.open).toBe(true);
         expect(state.kickPhase).toBeCloseTo(0.5, 1);
     });
 
-    it('starts at most three reactions in any closed second even for 6 Hz kicks', () => {
-        const { state } = drive(FRAMES_PER_BEAT * 8, onBeatKick);
-        // Kicks every 10 frames (6 Hz). Whenever one starts following, the level jumps to the raw bass.
-        const start = FRAMES_PER_BEAT * 8;
+    it('starts at most three bumps in any closed second, however fast the beat', () => {
+        const state = locked();
+        // A 360 BPM clock (a beat every 10 frames) with a kick on each beat.
         const starts: number[] = [];
-        let wasFollowing = false;
-        for (let i = start; i < start + 120; i++) {
-            const rhythm = createRhythmState();
-            const beat = i / FRAMES_PER_BEAT;
-            // Every kick is inside the beat window of a beat that is 10 frames apart (a fast double-time clock).
-            rhythm.beatPhase = ((i % 10) / 10) * 0.1;
-            rhythm.beatCount = Math.floor(beat);
+        const rhythm = createRhythmState();
+        for (let i = 0; i < 180; i++) {
+            rhythm.beatPhase = (i % 10) / 10;
+            rhythm.beatCount = 1000 + Math.floor(i / 10);
             stepBassGate(i % 10 < 3 ? 0.9 : 0, rhythm, true, state, DT);
-            if (state.following && !wasFollowing) starts.push(i);
-            wasFollowing = state.following;
+            if (Math.abs(state.attackLeft - (BASS_GATE_ATTACK_SECONDS - DT)) < 1e-9) starts.push(i);
         }
-        expect(starts.length).toBeGreaterThan(0);
+        expect(starts.length).toBeGreaterThan(3);
         for (const first of starts) {
-            const inWindow = starts.filter((frame) => frame >= first && frame <= first + 60).length;
-            expect(inWindow).toBeLessThanOrEqual(3);
+            expect(starts.filter((frame) => frame >= first && frame <= first + 60).length).toBeLessThanOrEqual(3);
         }
         for (let i = 1; i < starts.length; i++) {
             expect((starts[i] - starts[i - 1]) * DT).toBeGreaterThanOrEqual(BASS_GATE_MIN_INTERVAL - 1e-9);
         }
     });
 
-    it('eases in and out within [0, 1] without jumps', () => {
-        const opening = drive(FRAMES_PER_BEAT * 10, onBeatKick);
-        const closing = drive(FRAMES_PER_BEAT * 6, () => 0, {
-            state: opening.state,
-            locked: false,
-            start: FRAMES_PER_BEAT * 10,
-        });
-        for (const value of [...opening.outputs, ...closing.outputs]) {
+    it('fades out over the whole ease time and stays within [0, 1]', () => {
+        const opening = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+        for (const value of opening.outputs) {
             expect(value).toBeGreaterThanOrEqual(0);
             expect(value).toBeLessThanOrEqual(1);
         }
-        expect(closing.outputs.at(-1)).toBe(0);
-        // The weight moves at most dt / ease per frame, so the output never jumps by more than the kick height.
-        expect(opening.state.weight).toBe(0);
+        const fading = opening.state;
+        forgetBassline(fading);
+        drive(Math.round(BASS_GATE_EASE_SECONDS / 2 / DT), silent, { state: fading, start: FRAMES_PER_BEAT * 12 });
+        expect(fading.weight).toBeCloseTo(0.5, 1);
+        drive(Math.round(BASS_GATE_EASE_SECONDS / DT), silent, { state: fading, start: FRAMES_PER_BEAT * 20 });
+        expect(fading.weight).toBe(0);
     });
 
     it('clamps a huge or negative dt and ignores out of range bass', () => {

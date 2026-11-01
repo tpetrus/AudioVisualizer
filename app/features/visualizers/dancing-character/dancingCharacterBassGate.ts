@@ -1,26 +1,29 @@
 import type { RhythmState } from '~/features/rhythm/types';
 import {
+    BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_CLOSE_SCORE,
     BASS_GATE_EASE_SECONDS,
-    BASS_GATE_GRACE_BEATS,
-    BASS_GATE_MIN_INTERVAL,
     BASS_GATE_FULL_RISE,
+    BASS_GATE_GRACE_BEATS,
+    BASS_GATE_LOCK_GRACE_SECONDS,
+    BASS_GATE_MIN_INTERVAL,
     BASS_GATE_MIN_LEVEL,
     BASS_GATE_MIN_STRENGTH,
     BASS_GATE_ONSET_RISE,
+    BASS_GATE_OPEN_SCORE,
     BASS_GATE_PHASE_ADAPT,
     BASS_GATE_PHASE_WINDOW,
-    BASS_GATE_OPEN_SCORE,
     BASS_GATE_REARM_FALL,
     BASS_GATE_RELEASE_SECONDS,
     BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
+    BASS_GATE_STRENGTH_ADAPT,
     MAX_FRAME_DT,
 } from './dancingCharacterConfig';
 
 // Plain numbers and booleans only, so it can be kept across frames without allocation.
 export interface BassGateState {
-    // Evidence that the kicks follow the beat, 0..BASS_GATE_SCORE_MAX.
+    // Evidence that the kicks land at one place in the beat, 0..BASS_GATE_SCORE_MAX.
     score: number;
     open: boolean;
     // 0..1, eases toward 1 while open and toward 0 while closed.
@@ -31,17 +34,25 @@ export interface BassGateState {
     // below it).
     trough: number;
     peak: number;
-    // True from an accepted kick until re-arming: the shown level grows with the kick's rise while it lasts.
-    following: boolean;
+    // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
+    measuring: boolean;
     // Where in the beat (0..1) the kicks land, learned from them; meaningless until phaseKnown.
     kickPhase: number;
     phaseKnown: boolean;
-    // Beats since a kick last landed on the beat; the score only decays after BASS_GATE_GRACE_BEATS of them.
+    // The bump to show on each beat, learned from the in-rhythm kicks' rises.
+    kickStrength: number;
+    // Beats since a kick last landed at the learned place; the score only decays after BASS_GATE_GRACE_BEATS of them.
     beatsSinceOnBeat: number;
-    // Seconds since the last accepted kick (capped, only compared against the minimum interval).
-    sinceAccepted: number;
-    // The bass before the gate weight is applied.
+    // Seconds the tempo has been unlocked; the gate forgets the beat only after BASS_GATE_LOCK_GRACE_SECONDS.
+    unlockedSeconds: number;
+    // The beat phase seen on the previous call, to notice the clock passing the learned kick place.
+    lastPhase: number;
+    // Seconds since the last bump started (capped, only compared against the minimum interval).
+    sinceBump: number;
+    // The bump envelope before the gate weight: it rises over attackLeft seconds toward bumpTarget, then fades.
     level: number;
+    bumpTarget: number;
+    attackLeft: number;
     beatCount: number;
     songChangeCount: number;
     initialized: boolean;
@@ -55,20 +66,35 @@ export function createBassGateState(): BassGateState {
         armed: true,
         trough: 0,
         peak: 0,
-        following: false,
+        measuring: false,
         kickPhase: 0,
         phaseKnown: false,
+        kickStrength: 1,
         beatsSinceOnBeat: 0,
-        sinceAccepted: BASS_GATE_MIN_INTERVAL,
+        unlockedSeconds: 0,
+        lastPhase: 0,
+        sinceBump: BASS_GATE_MIN_INTERVAL,
         level: 0,
+        bumpTarget: 0,
+        attackLeft: 0,
         beatCount: 0,
         songChangeCount: 0,
         initialized: false,
     };
 }
 
-// Lets the raw bass through only while its kicks keep landing on the locked beat, so stray bass (a clap, a vocal, a
-// bump between beats) never moves the camera or the flashes. Returns the bass to show, 0..1. Allocates nothing.
+// Forgets the learned bassline, as for a new song. The shown level and the gate weight are left to fade on their own.
+export function forgetBassline(state: BassGateState): void {
+    state.open = false;
+    state.score = 0;
+    state.phaseKnown = false;
+    state.measuring = false;
+    state.beatsSinceOnBeat = 0;
+}
+
+// Shows the bass as a steady pulse on the beat once its kicks have locked onto one place in the beat, and keeps that
+// pulse going ("business as usual") through masked kicks, extra notes and brief tempo dropouts, since a song's
+// bassline almost never changes quickly. Stray bass never shows. Returns the bass to show, 0..1. Allocates nothing.
 export function stepBassGate(
     bass: number,
     rhythm: Readonly<RhythmState>,
@@ -79,29 +105,28 @@ export function stepBassGate(
     const step = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
     const raw = Math.min(Math.max(bass, 0), 1);
 
-    // Losing the tempo or changing song throws away what was learned about the old beat.
+    // A new song throws away the old bassline at once; a lost tempo lock only after a grace period, because the
+    // tracker's confidence dips briefly in busy passages while the music carries on unchanged.
     const songChanged = state.initialized && rhythm.songChangeCount !== state.songChangeCount;
-    if (!tempoLocked || songChanged) {
-        state.open = false;
-        state.score = 0;
-        state.beatsSinceOnBeat = 0;
-        state.phaseKnown = false;
-        state.following = false;
-    }
+    state.unlockedSeconds = tempoLocked ? 0 : state.unlockedSeconds + step;
+    if (songChanged || state.unlockedSeconds > BASS_GATE_LOCK_GRACE_SECONDS) forgetBassline(state);
     // The first call only records the counters, so a track already playing does not count as a new beat.
     const newBeat = state.initialized && rhythm.beatCount !== state.beatCount;
     state.songChangeCount = rhythm.songChangeCount;
     state.beatCount = rhythm.beatCount;
     state.initialized = true;
-    state.sinceAccepted = Math.min(state.sinceAccepted + step, BASS_GATE_MIN_INTERVAL);
+    state.sinceBump = Math.min(state.sinceBump + step, BASS_GATE_MIN_INTERVAL);
 
+    // Only a long run of beats with no kick at the learned place wears the evidence down.
     if (newBeat) {
         state.beatsSinceOnBeat++;
-        if (state.beatsSinceOnBeat > BASS_GATE_GRACE_BEATS)
+        if (state.beatsSinceOnBeat > BASS_GATE_GRACE_BEATS) {
             state.score = Math.max(0, state.score - BASS_GATE_SCORE_DECAY);
+        }
     }
 
-    // A kick is a rise above the lowest point since re-arming; re-arming is a fall below the peak since the kick.
+    // A kick is a rise above the lowest point since re-arming; re-arming is a fall below the peak since the kick. A
+    // finished in-rhythm kick teaches the bump strength, from its whole rise.
     let onset = false;
     if (state.armed) {
         state.trough = Math.min(state.trough, raw);
@@ -113,52 +138,63 @@ export function stepBassGate(
     } else {
         state.peak = Math.max(state.peak, raw);
         if (raw <= state.peak - BASS_GATE_REARM_FALL) {
+            if (state.measuring) {
+                const strength = Math.min(
+                    1,
+                    Math.max(BASS_GATE_MIN_STRENGTH, (state.peak - state.trough) / BASS_GATE_FULL_RISE),
+                );
+                state.kickStrength += (strength - state.kickStrength) * BASS_GATE_STRENGTH_ADAPT;
+            }
             state.armed = true;
-            state.following = false;
+            state.measuring = false;
             state.trough = raw;
         }
     }
 
     // A kick is in rhythm when it lands where the previous kicks landed in the beat. The first kick, or one that comes
-    // once the evidence has run out, only sets that place afresh and earns nothing, so a stray first bump cannot lock
-    // out the real bassline, and bumps at random places (about one in five lands in the window by chance) cannot string
-    // together the run of in-rhythm kicks the gate needs to open.
+    // once the evidence has run out, only sets that place afresh and earns nothing. Before the gate opens a kick
+    // elsewhere costs evidence, so bumps at random places never string together the run it takes to open; once open,
+    // it costs nothing, so extra notes in the bassline do not shake a locked pulse.
     const phase = rhythm.beatPhase;
-    let onBeat = false;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
         if (state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
-            onBeat = true;
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
             state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
             state.beatsSinceOnBeat = 0;
+            state.measuring = true;
         } else if (!state.phaseKnown || state.score <= 0) {
             state.kickPhase = phase;
             state.phaseKnown = true;
-        } else {
+        } else if (!state.open) {
             state.score = Math.max(0, state.score - 1);
         }
     }
-    // Two thresholds, so a score hovering around one value does not flicker the gate.
+    // Two thresholds, so a score hovering near one value does not flicker the gate.
     if (state.open) {
         if (state.score <= BASS_GATE_CLOSE_SCORE) state.open = false;
     } else if (state.score >= BASS_GATE_OPEN_SCORE) {
         state.open = true;
     }
 
-    if (state.open && onset && onBeat && state.sinceAccepted >= BASS_GATE_MIN_INTERVAL) {
-        state.following = true;
-        state.sinceAccepted = 0;
+    // While open, the bump comes from the beat clock: every time it passes the learned kick place, whether or not
+    // this particular kick was heard. A phase that only steps back a little (a tracker correction) is not a pass.
+    if (phase !== undefined) {
+        const before = wrapUnit(state.lastPhase - state.kickPhase);
+        const now = wrapUnit(phase - state.kickPhase);
+        const passed = now < before && before > 0.5;
+        if (passed && state.open && state.sinceBump >= BASS_GATE_MIN_INTERVAL) {
+            state.sinceBump = 0;
+            state.bumpTarget = state.kickStrength;
+            state.attackLeft = BASS_GATE_ATTACK_SECONDS;
+        }
+        state.lastPhase = phase;
     }
 
-    // A followed kick shows its rise above the dip before it, scaled to full strength, so kicks read the same at the
-    // start of a song and minutes into it. Otherwise the shown level only fades.
-    if (state.following) {
-        const strength = Math.min(
-            1,
-            Math.max(BASS_GATE_MIN_STRENGTH, (state.peak - state.trough) / BASS_GATE_FULL_RISE),
-        );
-        state.level = Math.max(state.level, strength);
+    // The bump rises smoothly over the attack time, then fades, so it breathes rather than snaps.
+    if (state.attackLeft > 0) {
+        state.level += (state.bumpTarget - state.level) * Math.min(1, step / state.attackLeft);
+        state.attackLeft -= step;
     } else {
         state.level *= Math.exp(-step / BASS_GATE_RELEASE_SECONDS);
     }
