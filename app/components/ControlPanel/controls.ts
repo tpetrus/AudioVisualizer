@@ -2,6 +2,7 @@ interface ControlBase {
     key: string;
     label: string;
     section: string;
+    // The key of a checkbox this control depends on: shown while it is on, or while it is off with a leading '!'.
     shownWhen?: string;
 }
 
@@ -52,7 +53,9 @@ export function isModified(definition: ControlDefinition, value: ControlValue): 
 }
 
 export function isShown(definition: ControlDefinition, values: Readonly<Record<string, ControlValue>>): boolean {
-    return !definition.shownWhen || Boolean(values[definition.shownWhen]);
+    const when = definition.shownWhen;
+    if (!when) return true;
+    return when.startsWith('!') ? !values[when.slice(1)] : Boolean(values[when]);
 }
 
 // Groups controls by section, keeping the order in which each section first appears.

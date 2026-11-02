@@ -34,11 +34,12 @@ export function LandingPage() {
                 </button>
             </div>
 
+            {/* Three columns, as CARD_COLUMNS in ComingSoonCard says, so the last tile can fill the row. */}
             <div className="grid grid-cols-3">
                 {VISUALIZATIONS.map((visualization) => (
                     <VisualizationCard key={visualization.to} {...visualization} />
                 ))}
-                <ComingSoonCard />
+                <ComingSoonCard cardCount={VISUALIZATIONS.length} />
             </div>
         </main>
     );

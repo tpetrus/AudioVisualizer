@@ -58,6 +58,13 @@ describe('isShown', () => {
         expect(isShown(dependent, { enabled: 2 })).toBe(true);
     });
 
+    it('inverts the controlling value with a leading !', () => {
+        const inverse: ControlDefinition = { ...dependent, shownWhen: '!enabled' };
+        expect(isShown(inverse, { enabled: true })).toBe(false);
+        expect(isShown(inverse, { enabled: false })).toBe(true);
+        expect(isShown(inverse, {})).toBe(true);
+    });
+
     it('hides the control when the controlling value is missing', () => {
         expect(isShown(dependent, {})).toBe(false);
     });
