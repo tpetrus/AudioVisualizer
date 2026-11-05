@@ -250,31 +250,36 @@ export class AudioEngine {
     // opening fails, the old graph keeps running. Never remembers the source: only the capture methods do that.
     public async startSource(open: SourceOpener): Promise<void> {
         const audioContext = new AudioContext();
-        let input: SourceInput;
+        let input: SourceInput | undefined;
+        let graph: AudioGraph;
         try {
             // Contexts created outside a user gesture (e.g. on page load) start suspended and would read silence.
             await audioContext.resume();
             input = await open(audioContext);
+
+            const source = input.node;
+            const gainNode = audioContext.createGain();
+            const analyser = audioContext.createAnalyser();
+            const meter = audioContext.createAnalyser();
+            meter.fftSize = METER_FFT_SIZE;
+            const outputMeter = audioContext.createAnalyser();
+            outputMeter.fftSize = METER_FFT_SIZE;
+
+            source.connect(gainNode);
+            gainNode.connect(analyser);
+            source.connect(meter);
+            gainNode.connect(outputMeter);
+            graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
         } catch (error) {
+            // Nothing is installed yet, so this attempt owns the new context and any input it opened; the old graph is
+            // untouched. (startStream stops the stream's tracks again, which is harmless.)
+            input?.stop();
             void audioContext.close();
             throw error;
         }
 
-        const source = input.node;
-        const gainNode = audioContext.createGain();
-        const analyser = audioContext.createAnalyser();
-        const meter = audioContext.createAnalyser();
-        meter.fftSize = METER_FFT_SIZE;
-        const outputMeter = audioContext.createAnalyser();
-        outputMeter.fftSize = METER_FFT_SIZE;
-
-        source.connect(gainNode);
-        gainNode.connect(analyser);
-        source.connect(meter);
-        gainNode.connect(outputMeter);
-
         this.teardown();
-        this.graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
+        this.graph = graph;
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();
     }
