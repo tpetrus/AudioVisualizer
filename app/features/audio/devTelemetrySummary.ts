@@ -26,7 +26,8 @@ const FIXED_LINES = 5;
 const REQUIRED_COLUMNS = ['t', 'fps', 'bassRaw', 'gain'];
 
 function significant(value: number, digits: number): string {
-    if (!Number.isFinite(value)) return '0';
+    // Non-finite values stay visible so a broken probe is not hidden as a quiet one.
+    if (!Number.isFinite(value)) return 'NaN';
     // Number() drops the trailing zeros toPrecision adds.
     return String(Number(value.toPrecision(digits)));
 }
@@ -55,7 +56,8 @@ export function parseTelemetryCsv(text: string): TelemetryTable {
             throw new Error(`CSV line ${i + 1} has ${cells.length} values, expected ${columns.length}`);
         }
         const row = cells.map((cell) => (cell.trim() === '' ? NaN : Number(cell)));
-        const bad = row.findIndex((value) => !Number.isFinite(value));
+        // A literal NaN cell is data written by the recorder; anything else non-numeric is a corrupt file.
+        const bad = row.findIndex((value, c) => !Number.isFinite(value) && cells[c].trim() !== 'NaN');
         if (bad >= 0) throw new Error(`CSV line ${i + 1}, column "${columns[bad]}" is not a number: "${cells[bad]}"`);
         rows.push(row);
     }
@@ -66,6 +68,8 @@ interface Window {
     start: number;
     end: number;
     count: number;
+    // Per-field counts of finite values, so NaN samples are left out of the means.
+    n: Record<'bassRaw' | 'input' | 'output' | 'gain' | 'fps', number>;
     bassRaw: number;
     input: number;
     output: number;
@@ -116,25 +120,38 @@ export function summarizeTelemetry(table: TelemetryTable, options: SummaryOption
         let w = sparse[index];
         if (w === undefined) {
             const start = tMin + index * width;
-            w = { start, end: start + width, count: 0, bassRaw: 0, input: 0, output: 0, gain: 0, fps: 0 };
+            w = {
+                start,
+                end: start + width,
+                count: 0,
+                n: { bassRaw: 0, input: 0, output: 0, gain: 0, fps: 0 },
+                bassRaw: 0,
+                input: 0,
+                output: 0,
+                gain: 0,
+                fps: 0,
+            };
             sparse[index] = w;
         }
         w.count++;
-        w.bassRaw += row[rawCol];
-        w.gain += row[gainCol];
-        w.fps += row[fpsCol];
+        const add = (key: keyof Window['n'], value: number) => {
+            if (Number.isNaN(value)) return;
+            w![key] += value;
+            w!.n[key]++;
+        };
+        add('bassRaw', row[rawCol]);
+        add('gain', row[gainCol]);
+        add('fps', row[fpsCol]);
         if (inCol >= 0) {
-            w.input += row[inCol];
-            w.output += row[outCol];
+            add('input', row[inCol]);
+            add('output', row[outCol]);
         }
     }
     const used = sparse.filter((w): w is Window => w !== undefined);
     for (const w of used) {
-        w.bassRaw /= w.count;
-        w.gain /= w.count;
-        w.fps /= w.count;
-        w.input /= w.count;
-        w.output /= w.count;
+        for (const key of ['bassRaw', 'gain', 'fps', 'input', 'output'] as const) {
+            w[key] = w.n[key] === 0 ? NaN : w[key] / w.n[key];
+        }
     }
 
     const ratioOf = (w: Window): number | undefined => (w.input < MIN_MEAN_INPUT ? undefined : w.output / w.input);
@@ -177,7 +194,7 @@ export function summarizeTelemetry(table: TelemetryTable, options: SummaryOption
             flagged++;
         }
         const cells = [
-            pad(`${significant(w.start, 3)}-${significant(w.end, 3)}`, 15),
+            pad(`${significant(w.start, 3)}-${significant(Math.min(w.end, tMax), 3)}`, 15),
             pad(significant(w.bassRaw, 3), 8),
         ];
         if (inCol >= 0) {

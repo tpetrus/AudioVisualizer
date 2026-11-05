@@ -32,9 +32,9 @@ describe('CSV', () => {
         });
     });
 
-    it('writes non-finite values as 0 and respects rowCount', () => {
+    it('writes non-finite values as NaN and respects rowCount', () => {
         const csv = formatTelemetryCsv(['a'], [NaN, Infinity, 7], 2);
-        expect(csv).toBe('a\n0\n0\n');
+        expect(csv).toBe('a\nNaN\nNaN\n');
     });
 
     it('parses CRLF and ignores trailing blank lines; a header alone has no rows', () => {
@@ -49,7 +49,6 @@ describe('CSV', () => {
         expect(() => parseTelemetryCsv('a,b\n1,2\n3')).toThrow('line 3 has 1 values, expected 2');
         expect(() => parseTelemetryCsv('a,b\n1,x')).toThrow('line 2, column "b" is not a number: "x"');
         expect(() => parseTelemetryCsv('a,b\n1,')).toThrow('not a number');
-        expect(() => parseTelemetryCsv('a\nNaN')).toThrow('not a number');
         for (const bad of ['', 'a,b\n1,2\n3', 'a\nx']) {
             try {
                 parseTelemetryCsv(bad);
@@ -166,5 +165,36 @@ describe('summarizeTelemetry', () => {
     it('throws a one-line error when a base column is missing', () => {
         const table: TelemetryTable = { columns: ['t', 'bassRaw'], rows: [[0, 1]] };
         expect(() => summarizeTelemetry(table)).toThrow('Telemetry is missing the column(s): fps, gain');
+    });
+
+    it('ends a partial final window at the last sample instead of the nominal end', () => {
+        const table: TelemetryTable = {
+            columns: COLUMNS,
+            rows: [0, 2, 5.01, 7.98].map((t) => [t, 0.016, 60, 0.3, 0.3, 1, 0.5, 0.4]),
+        };
+        const labels = summarizeTelemetry(table, { windowSeconds: 5 }).filter((line) => /^\s*\d/.test(line));
+        expect(labels[0].trim()).toMatch(/^0-5\s/);
+        expect(labels[1].trim()).toMatch(/^5\.01-7\.98\s/);
+    });
+
+    it('writes non-finite values as NaN and reads them back', () => {
+        const csv = formatTelemetryCsv(['a', 'b', 'c'], [NaN, Infinity, 1.5], 1);
+        expect(csv).toBe('a,b,c\nNaN,NaN,1.5\n');
+        const table = parseTelemetryCsv(csv);
+        expect(table.rows[0][0]).toBeNaN();
+        expect(table.rows[0][2]).toBe(1.5);
+        expect(() => parseTelemetryCsv('a\nabc\n')).toThrow('not a number');
+    });
+
+    it('leaves NaN values out of the window means', () => {
+        const table: TelemetryTable = {
+            columns: COLUMNS,
+            rows: [
+                [0, 0.016, 60, 0.4, 0.3, 1, 0.5, 0.4],
+                [1, 0.016, 60, NaN, 0.3, 1, 0.5, 0.4],
+            ],
+        };
+        const row = summarizeTelemetry(table).find((line) => /^\s*0-1\s/.test(line));
+        expect(row).toMatch(/0-1\s+0\.4\s/);
     });
 });
