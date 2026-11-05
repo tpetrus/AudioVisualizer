@@ -120,6 +120,57 @@ describe('device capture', () => {
     });
 });
 
+describe('a capture that fails to start', () => {
+    // Makes every context created from now on fail the way the spec asks.
+    function breakNewContexts(how: 'resume' | 'source', error: Error) {
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    if (how === 'resume') {
+                        this.resume.mockRejectedValue(error);
+                    } else {
+                        this.createMediaStreamSource.mockImplementation(() => {
+                            throw error;
+                        });
+                    }
+                }
+            },
+        );
+    }
+
+    const captures = [
+        ['screen', (engine: AudioEngine) => engine.startScreenCapture()],
+        ['device', (engine: AudioEngine) => engine.startDeviceCapture('mic')],
+    ] as const;
+
+    for (const [name, capture] of captures) {
+        for (const how of ['resume', 'source'] as const) {
+            it(`stops the ${name} stream, rethrows and keeps the old graph when ${how} fails`, async () => {
+                const displayStream = createFakeStream({ audio: true, video: true });
+                const userStream = createFakeStream({ audio: true });
+                const { engine } = setup({ displayStream, userStream });
+                await engine.startDeviceCapture('first');
+                const oldAnalyser = engine.getAnalyser();
+                saveSource({ mode: 'device', deviceId: 'first' });
+                const failure = new Error(`${how} failed`);
+                breakNewContexts(how, failure);
+                const stream = name === 'screen' ? displayStream : userStream;
+                // The first capture used the same user stream; clear its stop calls to see only the failed attempt.
+                stream.getTracks().forEach((track) => track.stop.mockClear());
+
+                await expect(capture(engine)).rejects.toBe(failure);
+
+                stream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
+                expect(engine.getAnalyser()).toBe(oldAnalyser);
+                expect(loadSource()).toEqual({ mode: 'device', deviceId: 'first' });
+            });
+        }
+    }
+});
+
 describe('getInputDevices', () => {
     it('lists audio inputs only, dropping the "communications" alias, and releases the permission probe', async () => {
         const userStream = createFakeStream({ audio: true });
