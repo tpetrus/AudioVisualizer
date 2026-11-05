@@ -228,6 +228,36 @@ describe('a capture that fails to start', () => {
         expect(created[0].close).toHaveBeenCalled();
         expect(engine.getAnalyser()).toBe(oldAnalyser);
     });
+
+    it('still closes the new context and rethrows the original error when the input stop throws', async () => {
+        const { engine } = setup();
+        await engine.startDeviceCapture('first');
+        const oldAnalyser = engine.getAnalyser();
+        const failure = new Error('analyser failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    created.push(this);
+                    this.createAnalyser.mockImplementation(() => {
+                        throw failure;
+                    });
+                }
+            },
+        );
+        const stop = vi.fn(() => {
+            throw new Error('stop failed');
+        });
+
+        await expect(engine.startSource((context) => ({ node: context.createGain(), stop }))).rejects.toBe(failure);
+
+        expect(stop).toHaveBeenCalledTimes(1);
+        expect(created[0].close).toHaveBeenCalled();
+        expect(engine.getAnalyser()).toBe(oldAnalyser);
+    });
 });
 
 describe('getInputDevices', () => {
