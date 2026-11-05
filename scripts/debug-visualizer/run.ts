@@ -12,6 +12,7 @@ import {
     summarizeTelemetry,
 } from '../../app/features/audio/devTelemetrySummary';
 import { VISUALIZATIONS } from '../../app/features/landing/visualizations';
+import { causeNote, createLineCollector, type LineCollector } from './output';
 import { listAudioFiles, parseArgs, scheduleShots, trackBaseName, USAGE } from './args';
 
 const SERVER_TIMEOUT_MS = 60_000;
@@ -70,41 +71,21 @@ function killTree(child: ChildProcess): void {
 }
 
 // Keeps the last few lines the dev server printed. Reading the pipes also stops it blocking on a full buffer.
-function captureLines(child: ChildProcess): string[] {
-    const lines: string[] = [];
-    for (const stream of [child.stdout, child.stderr]) {
-        let partial = '';
+function captureLines(child: ChildProcess): LineCollector {
+    const collector = createLineCollector(SERVER_LOG_LINES, PARTIAL_LINE_CHARS);
+    [child.stdout, child.stderr].forEach((stream, channel) => {
         stream?.setEncoding('utf8');
-        stream?.on('data', (chunk: string) => {
-            // A bare \r is a line break too: progress output redraws a line with it.
-            const parts = (partial + chunk).split(/\r\n|\r|\n/);
-            partial = (parts.pop() ?? '').slice(-PARTIAL_LINE_CHARS);
-            lines.push(...parts);
-            if (lines.length > SERVER_LOG_LINES) lines.splice(0, lines.length - SERVER_LOG_LINES);
-        });
-        stream?.on('end', () => {
-            if (partial) lines.push(partial);
-        });
-    }
-    return lines;
+        stream?.on('data', (chunk: string) => collector.push(chunk, channel));
+        stream?.on('end', () => collector.end(channel));
+    });
+    return collector;
 }
 
-// The one-line error carries the cause: the last line that names an error (a crashing node process ends with a
-// "Node.js vX" footer below it), else the last non-empty line (a port clash, a syntax error).
-function lastLineNote(lines: string[]): string {
-    // Escape sequences (colors, cursor moves, line erases) from the dev server's output would garble the error line.
-    // eslint-disable-next-line no-control-regex
-    const ansi = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
-    const clean = lines.map((line) => line.replace(ansi, '').trim()).filter(Boolean);
-    const cause = [...clean].reverse().find((line) => /error/i.test(line)) ?? clean.at(-1);
-    return cause ? ` Last output: ${cause.slice(0, NOTE_CHARS)}` : '';
-}
-
-async function waitForServer(url: string, server: ChildProcess, lines: string[]): Promise<void> {
+async function waitForServer(url: string, server: ChildProcess, output: LineCollector): Promise<void> {
     const deadline = Date.now() + SERVER_TIMEOUT_MS;
     while (Date.now() < deadline) {
         if (server.exitCode !== null) {
-            throw new UserError(`The dev server exited before it answered.${lastLineNote(lines)}`);
+            throw new UserError(`The dev server exited before it answered.${causeNote(output.lines(), NOTE_CHARS)}`);
         }
         try {
             const response = await fetch(url);
@@ -114,7 +95,9 @@ async function waitForServer(url: string, server: ChildProcess, lines: string[])
         }
         await sleep(250);
     }
-    throw new UserError(`The dev server did not answer within ${SERVER_TIMEOUT_MS / 1000} s.${lastLineNote(lines)}`);
+    throw new UserError(
+        `The dev server did not answer within ${SERVER_TIMEOUT_MS / 1000} s.${causeNote(output.lines(), NOTE_CHARS)}`,
+    );
 }
 
 function num(value: number): string {
@@ -191,7 +174,13 @@ async function main(): Promise<void> {
         );
         const serverLines = captureLines(server);
         // Without a listener a failed spawn would surface as an uncaught exception instead of the one-line error.
-        server.on('error', (error) => serverLines.push(`spawn failed: ${error.message}`));
+        server.on('error', (error) =>
+            serverLines.push(
+                `spawn failed: ${error.message}
+`,
+                2,
+            ),
+        );
         await waitForServer(origin, server, serverLines);
 
         browser = await chromium.launch({
