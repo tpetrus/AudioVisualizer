@@ -1,7 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type TestContext } from 'vitest';
 import { listAudioFiles, parseArgs, scheduleShots, trackBaseName, USAGE } from './args';
 
 const base = ['--dir', 'music', '--track', 'a.mp3', '--viz', 'cubes'];
@@ -84,6 +84,10 @@ describe('parseArgs', () => {
         });
     });
 
+    it('lets the last repeated flag win', () => {
+        expect(run(['--viz', 'waves']).viz).toBe('waves');
+    });
+
     it('rejects a bad --from', () => {
         expect(parseArgs([...base, '--from', 'x'])).toEqual({
             kind: 'error',
@@ -116,6 +120,11 @@ describe('listAudioFiles', () => {
         expect(listAudioFiles(dir)).toEqual(['a.mp3', 'b.WAV', 'c.flac', 'd.ogg', 'e.m4a']);
     });
 
+    it('sorts by code unit, so upper case names come first', () => {
+        for (const name of ['alpha.mp3', 'Zed.mp3', 'beta.mp3']) writeFileSync(join(dir, name), '');
+        expect(listAudioFiles(dir)).toEqual(['Zed.mp3', 'alpha.mp3', 'beta.mp3']);
+    });
+
     it('returns an empty list for an empty folder', () => {
         expect(listAudioFiles(dir)).toEqual([]);
     });
@@ -128,6 +137,35 @@ describe('listAudioFiles', () => {
         mkdirSync(join(dir, 'album.mp3'));
         writeFileSync(join(dir, 'real.wav'), '');
         expect(listAudioFiles(dir)).toEqual(['real.wav']);
+    });
+});
+
+describe('listAudioFiles with symlinks', () => {
+    let dir: string;
+    beforeEach(() => {
+        dir = mkdtempSync(join(tmpdir(), 'args-link-'));
+    });
+    afterEach(() => {
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    // Creating links can need privileges on Windows; skip the spec then instead of failing.
+    function link(ctx: TestContext, target: string, name: string, type?: 'dir' | 'file') {
+        try {
+            symlinkSync(target, join(dir, name), type);
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'EPERM') ctx.skip();
+            else throw error;
+        }
+    }
+
+    it('lists a symlink to a file and ignores links to folders and broken links', (ctx) => {
+        writeFileSync(join(dir, 'real.flac'), '');
+        mkdirSync(join(dir, 'folder'));
+        link(ctx, join(dir, 'real.flac'), 'linked.ogg', 'file');
+        link(ctx, join(dir, 'folder'), 'x.mp3', 'dir');
+        link(ctx, join(dir, 'gone.wav'), 'y.wav', 'file');
+        expect(listAudioFiles(dir)).toEqual(['linked.ogg', 'real.flac']);
     });
 });
 
