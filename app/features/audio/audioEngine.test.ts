@@ -7,6 +7,7 @@ import {
     installFakeWebAudio,
     type FakeAnalyserNode,
     type FakeAudioContext,
+    type FakeMediaStream,
     FakeGainNode,
 } from '~/test/fakeWebAudio';
 import { AudioEngine } from './audioEngine';
@@ -121,24 +122,41 @@ describe('device capture', () => {
 });
 
 describe('a capture that fails to start', () => {
-    // Makes every context created from now on fail the way the spec asks.
-    function breakNewContexts(how: 'resume' | 'source', error: Error) {
+    // Makes every context created from now on fail the way the spec asks, and returns the contexts it creates.
+    function breakNewContexts(how: 'resume' | 'source' | 'wiring', error: Error) {
         const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        const fail = () => {
+            throw error;
+        };
         vi.stubGlobal(
             'AudioContext',
             class extends Base {
                 constructor() {
                     super();
+                    created.push(this);
                     if (how === 'resume') {
                         this.resume.mockRejectedValue(error);
+                    } else if (how === 'source') {
+                        this.createMediaStreamSource.mockImplementation(fail);
                     } else {
-                        this.createMediaStreamSource.mockImplementation(() => {
-                            throw error;
-                        });
+                        this.createGain.mockImplementation(fail);
                     }
                 }
             },
         );
+        return created;
+    }
+
+    // The old graph runs on its own stream, so the specs can tell its tracks from the failed attempt's.
+    async function startFirstCapture(
+        oldStream: FakeMediaStream,
+        media: ReturnType<typeof setup>['media'],
+        engine: AudioEngine,
+    ) {
+        media.getUserMedia.mockResolvedValueOnce(oldStream);
+        await engine.startDeviceCapture('first');
+        saveSource({ mode: 'device', deviceId: 'first' });
     }
 
     const captures = [
@@ -147,28 +165,69 @@ describe('a capture that fails to start', () => {
     ] as const;
 
     for (const [name, capture] of captures) {
-        for (const how of ['resume', 'source'] as const) {
-            it(`stops the ${name} stream, rethrows and keeps the old graph when ${how} fails`, async () => {
+        for (const how of ['resume', 'source', 'wiring'] as const) {
+            it(`stops the new ${name} stream, rethrows and keeps the old graph when ${how} fails`, async () => {
                 const displayStream = createFakeStream({ audio: true, video: true });
                 const userStream = createFakeStream({ audio: true });
-                const { engine } = setup({ displayStream, userStream });
-                await engine.startDeviceCapture('first');
+                const oldStream = createFakeStream({ audio: true });
+                const { engine, media } = setup({ displayStream, userStream });
+                await startFirstCapture(oldStream, media, engine);
                 const oldAnalyser = engine.getAnalyser();
-                saveSource({ mode: 'device', deviceId: 'first' });
                 const failure = new Error(`${how} failed`);
-                breakNewContexts(how, failure);
+                const created = breakNewContexts(how, failure);
                 const stream = name === 'screen' ? displayStream : userStream;
-                // The first capture used the same user stream; clear its stop calls to see only the failed attempt.
-                stream.getTracks().forEach((track) => track.stop.mockClear());
 
                 await expect(capture(engine)).rejects.toBe(failure);
 
                 stream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
+                oldStream.getTracks().forEach((track) => expect(track.stop).not.toHaveBeenCalled());
+                expect(created[0].close).toHaveBeenCalled();
                 expect(engine.getAnalyser()).toBe(oldAnalyser);
+                expect(engine.getIsCapturing()).toBe(true);
                 expect(loadSource()).toEqual({ mode: 'device', deviceId: 'first' });
             });
         }
     }
+
+    it('stops the old stream, and none of the new one, when a later capture succeeds', async () => {
+        const userStream = createFakeStream({ audio: true });
+        const oldStream = createFakeStream({ audio: true });
+        const { engine, media } = setup({ userStream });
+        await startFirstCapture(oldStream, media, engine);
+
+        await engine.startDeviceCapture('mic');
+
+        oldStream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
+        userStream.getTracks().forEach((track) => expect(track.stop).not.toHaveBeenCalled());
+    });
+
+    it('closes the new context, stops the opened input and rethrows when wiring throws in startSource', async () => {
+        const { engine } = setup();
+        await engine.startDeviceCapture('first');
+        const oldAnalyser = engine.getAnalyser();
+        const failure = new Error('analyser failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    created.push(this);
+                    this.createAnalyser.mockImplementation(() => {
+                        throw failure;
+                    });
+                }
+            },
+        );
+        const stop = vi.fn();
+
+        await expect(engine.startSource((context) => ({ node: context.createGain(), stop }))).rejects.toBe(failure);
+
+        expect(stop).toHaveBeenCalledTimes(1);
+        expect(created[0].close).toHaveBeenCalled();
+        expect(engine.getAnalyser()).toBe(oldAnalyser);
+    });
 });
 
 describe('getInputDevices', () => {
