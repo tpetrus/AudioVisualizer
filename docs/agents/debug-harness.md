@@ -190,5 +190,10 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
 - Errors exit non-zero with a one-line reason: missing or empty folder, unknown track (it lists the audio files found),
   unknown visualizer, decode failure (the alert text). `--seconds` past the end is clamped (reported); shots past the
   end are reported as skipped.
+- A recording is at most 600 s: an explicit `--seconds` above 600 is an error (record a long track in parts with
+  `--from`); without `--seconds` a longer remainder is recorded for 600 s and the Run line says so. The recorder is
+  sized for 240 Hz displays.
+- A run fails as stalled when the playback position stops advancing for 15 s. Ctrl+C (exit 130) or SIGTERM (143)
+  stops the dev server and browser within about 5 s; a second signal exits at once.
 - `npm run debug:summary -- <csv>` (`scripts/debug-visualizer/summarize.ts`) reprints the summary of a CSV.
 - `.debug-out/` is git-ignored.
