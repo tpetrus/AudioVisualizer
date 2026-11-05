@@ -36,7 +36,11 @@ export class TrioColorWaveSheet {
     // Current (unscaled) height of every bar, row by row: heights[row * FLAG_WIDTH + column].
     private readonly heights = new Float32Array(FLAG_WIDTH * FLAG_DEPTH);
     // Slowly decaying peak of this band, used to balance loudness between bands.
-    private peak = 0;
+    // Public only so DEV telemetry can read them; nothing outside this class writes them.
+    public peak = 0;
+    // The latest frame's level before and after balancing.
+    public frameLevel = 0;
+    public balancedLevel = 0;
 
     private source?: AnalyserNode;
     private analyser?: AnalyserNode;
@@ -112,6 +116,8 @@ export class TrioColorWaveSheet {
 
         this.peak = Math.max(frameMax, this.peak * PEAK_DECAY);
         const gain = TARGET_LEVEL / Math.max(this.peak, PEAK_FLOOR);
+        this.frameLevel = frameMax;
+        this.balancedLevel = frameMax * gain;
         const growth = Math.pow(values.heightGrowth, this.index);
         const scale = gain * values[heightKey] * values.masterHeight * FRONT_HEIGHT_SCALE * growth;
         const lastRow = this.sheetCount * FLAG_DEPTH - 1;

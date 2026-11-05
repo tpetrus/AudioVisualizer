@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import { Color, type InstancedMesh, type PerspectiveCamera, type Scene } from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
@@ -16,6 +16,23 @@ vi.mock('three', async (importOriginal) => {
     const { threeFakes } = await import('~/test/fakeThree');
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
+
+// The recorder has its own spec; here only what the scene registers and when it ticks matters.
+const telemetry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), tick: vi.fn() }));
+vi.mock('~/features/audio/devTelemetry', () => ({
+    registerTelemetryProbe: (...args: unknown[]) => {
+        telemetry.register(...args);
+        return telemetry.unregister;
+    },
+    tickTelemetry: telemetry.tick,
+}));
+
+const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
+function readProbe(width: number): Float32Array {
+    const out = new Float32Array(width);
+    probeRead()(out);
+    return out;
+}
 
 function createAnalyser() {
     const context = new FakeAudioContext();
@@ -391,6 +408,51 @@ describe('useCubesScene', () => {
             rerender({ analyser: undefined, cameraLocked: true });
 
             expect(result.current.resetView).toBe(first);
+        });
+    });
+
+    describe('telemetry probe', () => {
+        beforeEach(() => {
+            telemetry.register.mockClear();
+            telemetry.unregister.mockClear();
+            telemetry.tick.mockClear();
+        });
+
+        it('registers the cubes columns and reads zeros before a source is bound', () => {
+            mountScene();
+
+            expect(telemetry.register).toHaveBeenCalledWith(
+                'cubes',
+                ['in', 'fast', 'slow', 'ratio', 'out'],
+                expect.any(Function),
+            );
+            expect(Array.from(readProbe(5))).toEqual([0, 0, 0, 0, 0]);
+        });
+
+        it('reads the bass pulse values and ticks with the frame time in seconds', () => {
+            const { context, node } = createAnalyser();
+            const { frame } = mountScene({ analyser: node });
+            context.createdAnalysers[0].setFloatTimeDomainData(0.5);
+
+            frame(16);
+            frame(48);
+
+            const [energy, fast, slow, ratio, out] = readProbe(5);
+            expect(energy).toBeCloseTo(0.5);
+            expect(fast).toBeGreaterThan(0.3);
+            expect(slow).toBeGreaterThan(0.005);
+            expect(ratio).toBeGreaterThan(1.15);
+            expect(out).toBeGreaterThan(0);
+            expect(telemetry.tick).toHaveBeenLastCalledWith(0.032);
+        });
+
+        it('unregisters when the scene is torn down', () => {
+            const { unmount } = mountScene();
+            expect(telemetry.unregister).not.toHaveBeenCalled();
+
+            unmount();
+
+            expect(telemetry.unregister).toHaveBeenCalledTimes(1);
         });
     });
 

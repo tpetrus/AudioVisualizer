@@ -49,6 +49,18 @@ describe('BassPulse', () => {
         expect(harness.bassAnalyser.fftSize).toBe(2048);
     });
 
+    it('exposes the latest energy, followers, ratio and level for telemetry', () => {
+        expect(harness.pulse.ratio).toBe(1);
+
+        const level = run(harness, 0.5, 2);
+
+        expect(harness.pulse.energy).toBeCloseTo(0.5);
+        expect(harness.pulse.fast).toBeCloseTo(0.375);
+        expect(harness.pulse.slow).toBeCloseTo(0.00995);
+        expect(harness.pulse.ratio).toBeCloseTo(0.375 / 0.00995);
+        expect(harness.pulse.pulse).toBe(level);
+    });
+
     it('stays at zero for silence', () => {
         expect(run(harness, 0, 50)).toBe(0);
     });

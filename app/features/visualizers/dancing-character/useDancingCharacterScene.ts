@@ -8,6 +8,7 @@ import { DancingCharacterScene, type DancingCharacterFrame } from './dancingChar
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
+import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
 
 const CAMERA_FOV = 40;
@@ -88,6 +89,24 @@ export function useDancingCharacterScene(
             cameraLocked: true,
         };
 
+        // DEV only: the gate's input is the frame's raw bass; the rest is read from the scene after its update.
+        let unregisterProbe: (() => void) | undefined;
+        if (import.meta.env.DEV) {
+            unregisterProbe = registerTelemetryProbe(
+                'dancing-character',
+                ['in', 'out', 'gateOpen', 'gateScore', 'gateWeight', 'tempoLocked'],
+                (out) => {
+                    const gate = character.bassGate;
+                    out[0] = frame.bass;
+                    out[1] = character.gateOutput;
+                    out[2] = gate.open ? 1 : 0;
+                    out[3] = gate.score;
+                    out[4] = gate.weight;
+                    out[5] = character.gateTempoLocked ? 1 : 0;
+                },
+            );
+        }
+
         return {
             camera,
 
@@ -109,6 +128,10 @@ export function useDancingCharacterScene(
                 frame.settings = valuesRef.current;
                 frame.cameraLocked = cameraLockedRef.current;
                 character.update(frame);
+
+                if (import.meta.env.DEV) {
+                    tickTelemetry(delta / 1000);
+                }
             },
 
             resize: () => character.resize(),
@@ -117,6 +140,7 @@ export function useDancingCharacterScene(
                 orbit.dispose();
                 bass?.dispose();
                 character.dispose();
+                unregisterProbe?.();
             },
         };
     });

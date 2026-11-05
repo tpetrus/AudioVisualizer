@@ -9,6 +9,7 @@ import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
 import { METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
+import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
 import { disposeScene } from '~/lib/three/disposeScene';
 
@@ -94,6 +95,18 @@ export function useCubesScene(
         const bandBinsFor = (source: AnalyserNode) =>
             createBandBins(grid.bandCount, source.context.sampleRate, source.fftSize);
 
+        // DEV only: reports BassPulse's latest values to the telemetry recorder (zeros until a source is bound).
+        let unregisterProbe: (() => void) | undefined;
+        if (import.meta.env.DEV) {
+            unregisterProbe = registerTelemetryProbe('cubes', ['in', 'fast', 'slow', 'ratio', 'out'], (out) => {
+                out[0] = bass?.energy ?? 0;
+                out[1] = bass?.fast ?? 0;
+                out[2] = bass?.slow ?? 0;
+                out[3] = bass?.ratio ?? 0;
+                out[4] = bass?.pulse ?? 0;
+            });
+        }
+
         const bindAudio = (source: AnalyserNode) => {
             source.fftSize = FFT_SIZE;
             source.smoothingTimeConstant = ANALYSER_SMOOTHING;
@@ -107,7 +120,7 @@ export function useCubesScene(
         return {
             camera,
 
-            update: () => {
+            update: (_time, delta) => {
                 const values = valuesRef.current;
                 orbit.setLocked(cameraLockedRef.current);
                 restingColor.set(values.restingColor);
@@ -152,6 +165,10 @@ export function useCubesScene(
                     raisedColor,
                     backdropLift: (pulse + downbeatAccent * DOWNBEAT_ACCENT_LIFT) * MAX_BACKDROP_LIFT,
                 });
+
+                if (import.meta.env.DEV) {
+                    tickTelemetry(delta / 1000);
+                }
             },
 
             resize: () => {
@@ -173,6 +190,7 @@ export function useCubesScene(
                 orbit.dispose();
                 grid.dispose();
                 bass?.dispose();
+                unregisterProbe?.();
             },
         };
     });
