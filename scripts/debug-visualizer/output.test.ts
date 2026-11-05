@@ -79,6 +79,20 @@ describe('createLineCollector', () => {
         expect(c.lines().slice(-3)).toEqual(['x', '', 'y']);
     });
 
+    it('keeps the ring at maxLines when end flushes a partial into a full ring', () => {
+        const c = createLineCollector(3);
+        c.push('a\nb\nc\ntail');
+        c.end();
+        expect(c.lines()).toEqual(['b', 'c', 'tail']);
+    });
+
+    it('rejoins an escape sequence split across chunks so cleaning removes it whole', () => {
+        const c = createLineCollector();
+        c.push('\u001b[3');
+        c.push('1mError: port in use\u001b[0m\n');
+        expect(c.lines().map(cleanLine)).toEqual(['Error: port in use']);
+    });
+
     it('returns a copy of the lines', () => {
         const c = createLineCollector();
         c.push('a\n');

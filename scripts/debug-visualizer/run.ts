@@ -174,13 +174,7 @@ async function main(): Promise<void> {
         );
         const serverLines = captureLines(server);
         // Without a listener a failed spawn would surface as an uncaught exception instead of the one-line error.
-        server.on('error', (error) =>
-            serverLines.push(
-                `spawn failed: ${error.message}
-`,
-                2,
-            ),
-        );
+        server.on('error', (error) => serverLines.push(`spawn failed: ${error.message}\n`, 2));
         await waitForServer(origin, server, serverLines);
 
         browser = await chromium.launch({

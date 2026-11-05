@@ -258,6 +258,43 @@ describe('a capture that fails to start', () => {
         expect(created[0].close).toHaveBeenCalled();
         expect(engine.getAnalyser()).toBe(oldAnalyser);
     });
+
+    it('does not leave an unhandled rejection when closing the failed context rejects', async () => {
+        const { engine } = setup();
+        const failure = new Error('resume failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const closed: Promise<unknown>[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    this.resume.mockRejectedValue(failure);
+                    // A plain function, not a vi.fn: a spy attaches its own handler to a returned promise, which would
+                    // hide the very unhandled rejection this spec looks for.
+                    Object.defineProperty(this, 'close', {
+                        value: () => {
+                            const rejected = Promise.reject(new Error('already closed'));
+                            closed.push(rejected);
+                            return rejected;
+                        },
+                    });
+                }
+            },
+        );
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+            await expect(engine.startSource((context) => ({ node: context.createGain(), stop: vi.fn() }))).rejects.toBe(
+                failure,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect(closed).toHaveLength(1);
+            expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+            process.off('unhandledRejection', unhandled);
+        }
+    });
 });
 
 describe('getInputDevices', () => {

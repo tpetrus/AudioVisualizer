@@ -274,7 +274,8 @@ export class AudioEngine {
             // Nothing is installed yet, so this attempt owns the new context and any input it opened; the old graph is
             // untouched. (startStream stops the stream's tracks again, which is harmless.) Close first and swallow a
             // throwing stop so cleanup can neither leak the context nor mask the original error.
-            void audioContext.close();
+            // A rejected close only means the context is already gone; it must not surface as an unhandled rejection.
+            void audioContext.close().catch(() => {});
             try {
                 input?.stop();
             } catch {
