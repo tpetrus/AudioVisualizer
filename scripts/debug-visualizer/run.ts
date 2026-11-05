@@ -79,16 +79,15 @@ function captureLines(child: ChildProcess): string[] {
     return lines;
 }
 
-// The last non-empty line is usually the cause (a port clash, a syntax error), so the one-line error carries it.
+// The one-line error carries the cause: the last line that names an error (a crashing node process ends with a
+// "Node.js vX" footer below it), else the last non-empty line (a port clash, a syntax error).
 function lastLineNote(lines: string[]): string {
     // Escape sequences from the dev server's colored output would garble the error line.
     // eslint-disable-next-line no-control-regex
     const ansi = /\u001b\[[0-9;]*m/g;
-    const last = lines
-        .map((line) => line.replace(ansi, '').trim())
-        .filter(Boolean)
-        .pop();
-    return last ? ` Last output: ${last}` : '';
+    const clean = lines.map((line) => line.replace(ansi, '').trim()).filter(Boolean);
+    const cause = [...clean].reverse().find((line) => /error/i.test(line)) ?? clean.at(-1);
+    return cause ? ` Last output: ${cause}` : '';
 }
 
 async function waitForServer(url: string, server: ChildProcess, lines: string[]): Promise<void> {
