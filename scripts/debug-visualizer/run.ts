@@ -142,6 +142,10 @@ async function main(): Promise<void> {
             await sleep(100);
         }
 
+        // The source dialog stays open after a source starts; close it so screenshots show the scene alone.
+        const done = page.getByRole('button', { name: 'Done' });
+        if (await done.count()) await done.first().click();
+
         const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
         const available = Math.max(0, duration - from);
         if (available <= 0) throw new UserError(`--from ${from} is past the end of the track (${num(duration)} s).`);
