@@ -136,8 +136,8 @@ export function summarizeTelemetry(table: TelemetryTable, options: SummaryOption
         w.count++;
         const add = (key: keyof Window['n'], value: number) => {
             if (Number.isNaN(value)) return;
-            w![key] += value;
-            w!.n[key]++;
+            w[key] += value;
+            w.n[key]++;
         };
         add('bassRaw', row[rawCol]);
         add('gain', row[gainCol]);
