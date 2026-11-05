@@ -42,7 +42,11 @@ class StubEngine {
     }
 }
 
-function attach(engine = new StubEngine()) {
+// Attaches with a running source unless the engine already has one or `withSource` is false.
+function attach(engine = new StubEngine(), withSource = true) {
+    if (withSource && !engine.post) {
+        engine.useContext();
+    }
     const detach = attachTelemetry(asWebAudio<AudioEngine>(engine));
     return { engine, detach };
 }
@@ -141,11 +145,10 @@ describe('tickTelemetry', () => {
         detach();
     });
 
-    it('writes zeros for time and bass before a source exists', () => {
-        const { detach } = attach();
+    it('writes no rows while no source exists', () => {
+        const { detach } = attach(new StubEngine(), false);
         tickTelemetry(0.01);
-        const expected = [0, 0.01, 100, 0, 0, 1].map(Math.fround);
-        expect(Array.from(hook().snapshot().slice(0, 6))).toEqual(expected);
+        expect(hook().rowCount).toBe(0);
         detach();
     });
 
@@ -314,15 +317,15 @@ describe('analyser binding', () => {
         detach();
     });
 
-    it('goes back to zeros when the source stops', () => {
+    it('stops writing rows when the source stops', () => {
         const { engine, detach } = attach();
-        engine.useContext();
+        tickTelemetry(0.01);
         engine.input = undefined;
         engine.post = undefined;
         engine.notify();
 
         tickTelemetry(0.01);
-        expect(Array.from(hook().snapshot().slice(3, 5))).toEqual([0, 0]);
+        expect(hook().rowCount).toBe(1);
         detach();
     });
 

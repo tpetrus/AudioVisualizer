@@ -91,14 +91,17 @@ export function tickTelemetry(dtSeconds: number): void {
         return;
     }
     const { engine, raw, post } = recorder;
+    // No source (none chosen yet, or the track ended and stopped the engine): there is nothing to measure, and rows
+    // written now would have t = 0 and fold back into the start of the recording.
+    if (!post) return;
     const offset = rowCount * columns.length;
     const playback = getActivePlayback();
 
-    rows[offset] = playback ? playback.position() : ((post ?? raw)?.analyser.context.currentTime ?? 0);
+    rows[offset] = playback ? playback.position() : post.analyser.context.currentTime;
     rows[offset + 1] = dtSeconds;
     rows[offset + 2] = dtSeconds > 0 ? 1 / dtSeconds : 0;
     rows[offset + 3] = raw ? readBass(raw) : 0;
-    rows[offset + 4] = post ? readBass(post) : 0;
+    rows[offset + 4] = readBass(post);
     rows[offset + 5] = engine.getGain();
 
     let at = offset + BASE_COLUMNS.length;
