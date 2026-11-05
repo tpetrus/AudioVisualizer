@@ -174,7 +174,7 @@ describe('summarizeTelemetry', () => {
         };
         const labels = summarizeTelemetry(table, { windowSeconds: 5 }).filter((line) => /^\s*\d/.test(line));
         expect(labels[0].trim()).toMatch(/^0-5\s/);
-        expect(labels[1].trim()).toMatch(/^5\.01-7\.98\s/);
+        expect(labels[1].trim()).toMatch(/^5-7\.98\s/);
     });
 
     it('writes non-finite values as NaN and reads them back', () => {
