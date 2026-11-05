@@ -2,11 +2,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeDevice, installFakeMediaDevices, type FakeMediaOptions } from '~/test/fakeMedia';
 import {
+    asWebAudio,
     createFakeStream,
     installFakeWebAudio,
     type FakeAnalyserNode,
     type FakeAudioContext,
-    type FakeGainNode,
+    FakeGainNode,
 } from '~/test/fakeWebAudio';
 import { AudioEngine } from './audioEngine';
 import { loadNormalize, loadNormalizeSettings, loadSource, saveNormalizeSettings, saveSource } from './storage';
@@ -558,5 +559,82 @@ describe('latencyInfo and trackInfo', () => {
         expect(engine.trackInfo).toBe('Stereo Mix (live)');
         stream.getAudioTracks()[0].muted = true;
         expect(engine.trackInfo).toBe('Stereo Mix (live, muted)');
+    });
+});
+
+describe('startSource', () => {
+    // A source that is a bare node, like the dev file source's bus.
+    function nodeSource(context: AudioContext, label?: string) {
+        const node = asWebAudio<AudioNode>(new FakeGainNode(asWebAudio<FakeAudioContext>(context)));
+        return { node, stop: vi.fn(), label };
+    }
+
+    it('wires a node source through the gain stage and both meters without remembering it', async () => {
+        const { engine, graph } = setup();
+        let node: FakeGainNode | undefined;
+
+        await engine.startSource((context) => {
+            const input = nodeSource(context, 'my track');
+            node = asWebAudio<FakeGainNode>(input.node);
+            return input;
+        });
+
+        const { gain, analyser, meter, outputMeter } = graph();
+        expect(engine.getIsCapturing()).toBe(true);
+        expect(engine.getInputNode()).toBe(node);
+        expect(node?.connect).toHaveBeenCalledWith(gain);
+        expect(node?.connect).toHaveBeenCalledWith(meter);
+        expect(gain.connect).toHaveBeenCalledWith(analyser);
+        expect(gain.connect).toHaveBeenCalledWith(outputMeter);
+        expect(engine.getGain()).toBe(1);
+        expect(loadSource()).toBeUndefined();
+    });
+
+    it('reports 1 as the gain and no input node without a source', () => {
+        const { engine } = setup();
+        expect(engine.getGain()).toBe(1);
+        expect(engine.getInputNode()).toBeUndefined();
+    });
+
+    it('keeps the old graph and closes the new context when the opener fails', async () => {
+        const { engine, web } = setup();
+        await engine.startScreenCapture();
+        const oldAnalyser = engine.getAnalyser();
+
+        await expect(
+            engine.startSource(() => {
+                throw new Error('cannot open');
+            }),
+        ).rejects.toThrow('cannot open');
+        await expect(engine.startSource(() => Promise.reject(new Error('later')))).rejects.toThrow('later');
+
+        expect(engine.getAnalyser()).toBe(oldAnalyser);
+        expect(web.contexts[0].close).not.toHaveBeenCalled();
+        expect(web.contexts[1].close).toHaveBeenCalled();
+        expect(web.contexts[2].close).toHaveBeenCalled();
+    });
+
+    it('stops the previous input when replaced and the current one on stopCapture', async () => {
+        const { engine } = setup();
+        const first = vi.fn();
+        const second = vi.fn();
+        await engine.startSource((context) => ({ ...nodeSource(context), stop: first }));
+        await engine.startSource((context) => ({ ...nodeSource(context), stop: second }));
+        expect(first).toHaveBeenCalledTimes(1);
+        expect(second).not.toHaveBeenCalled();
+
+        engine.stopCapture();
+        expect(second).toHaveBeenCalledTimes(1);
+    });
+
+    it('describes a node source by its label and has no capture latency', async () => {
+        const { engine } = setup();
+        await engine.startSource((context) => nodeSource(context, 'my track'));
+        expect(engine.trackInfo).toBe('my track');
+        expect(engine.latencyInfo.captureLatencyMs).toBeUndefined();
+        expect(engine.latencyInfo.sampleRate).toBe(48000);
+
+        await engine.startSource((context) => nodeSource(context));
+        expect(engine.trackInfo).toBe('');
     });
 });

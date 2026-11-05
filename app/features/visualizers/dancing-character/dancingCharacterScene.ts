@@ -100,7 +100,10 @@ export class DancingCharacterScene {
     // Per-frame scratch, preallocated so update() allocates nothing.
     private readonly timingState = createDanceTimingState();
     private readonly timing = createDanceTimingResult();
-    private readonly bassGate = createBassGateState();
+    // The bass gate and its latest output and tempo lock are public only so DEV telemetry can read them.
+    public readonly bassGate = createBassGateState();
+    public gateOutput = 0;
+    public gateTempoLocked = false;
     private readonly bodyTint = new THREE.Color();
     private lastBodyColor = '';
     private lastAccentColor = '';
@@ -279,7 +282,10 @@ export class DancingCharacterScene {
 
         // The raw bass is shown only once its kicks keep landing on the locked beat, so stray bass never moves anything.
         // Without a rig the timing result still says whether the tempo is locked (it stays undefined).
-        const bass = stepBassGate(frame.bass, rhythm, timing.normalizedBpm !== undefined, this.bassGate, dt);
+        const tempoLocked = timing.normalizedBpm !== undefined;
+        const bass = stepBassGate(frame.bass, rhythm, tempoLocked, this.bassGate, dt);
+        this.gateOutput = bass;
+        this.gateTempoLocked = tempoLocked;
 
         // The club: floor ripple and lights follow the beat phase, the flashes follow the gated bass. With no mixer (no
         // rig) the dancer is calm, so the club is too.

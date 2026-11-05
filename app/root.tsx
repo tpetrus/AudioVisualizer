@@ -1,9 +1,15 @@
+import { lazy, Suspense } from "react";
 import { isRouteErrorResponse, Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import { AudioProvider } from "./features/audio/AudioProvider";
 import { RhythmProvider } from "./features/rhythm/RhythmProvider";
+
+// DEV only: the guard lets the production build drop both the import and the component.
+const DevTelemetryOverlay = import.meta.env.DEV
+  ? lazy(() => import("./components/DevTelemetryOverlay").then((m) => ({ default: m.DevTelemetryOverlay })))
+  : null;
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,6 +23,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body>
         <AudioProvider>
           <RhythmProvider>{children}</RhythmProvider>
+          {DevTelemetryOverlay && (
+            <Suspense fallback={null}>
+              <DevTelemetryOverlay />
+            </Suspense>
+          )}
         </AudioProvider>
         <ScrollRestoration />
         <Scripts />

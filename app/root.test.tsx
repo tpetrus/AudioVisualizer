@@ -67,6 +67,24 @@ describe('Layout', () => {
     });
 });
 
+describe('Layout dev overlay', () => {
+    it('resolves the lazy DevTelemetryOverlay import while developing', async () => {
+        vi.doMock('./components/DevTelemetryOverlay', () => ({ DevTelemetryOverlay: () => <p>overlay</p> }));
+        vi.resetModules();
+        const { Layout: FreshLayout } = await import('./root');
+        // Mounting <html> inside the test container logs a nesting warning that does not matter here.
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        render(
+            <FreshLayout>
+                <p>child</p>
+            </FreshLayout>,
+        );
+
+        expect(await screen.findByText('overlay')).toBeInTheDocument();
+        vi.doUnmock('./components/DevTelemetryOverlay');
+    });
+});
+
 describe('App', () => {
     it('renders the matched child route', () => {
         const Stub = createRoutesStub([

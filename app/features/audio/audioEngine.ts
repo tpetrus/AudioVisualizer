@@ -8,7 +8,14 @@ import {
     saveNormalizeSettings,
     saveSource,
 } from './storage';
-import { DEFAULT_NORMALIZE_SETTINGS, type AudioGraph, type NormalizeSettings, type SavedSource } from './types';
+import {
+    DEFAULT_NORMALIZE_SETTINGS,
+    type AudioGraph,
+    type NormalizeSettings,
+    type SavedSource,
+    type SourceInput,
+    type SourceOpener,
+} from './types';
 
 const AGC_INTERVAL_MS = 30;
 const ATTACK_TIME_CONSTANT = 0.02;
@@ -39,6 +46,9 @@ export class AudioEngine {
     public getIsCapturing = () => this.graph !== undefined;
     public getNormalizeOptions = () => this.normalizeSettings;
     public getNormalize = () => this.normalize;
+    // The source node before the gain stage, and the current AGC gain.
+    public getInputNode = () => this.graph?.source;
+    public getGain = () => this.graph?.gainNode.gain.value ?? 1;
 
     public setNormalize(enabled: boolean): void {
         this.normalize = enabled;
@@ -75,7 +85,7 @@ export class AudioEngine {
 
         // Only audio is needed; drop the video track.
         stream.getVideoTracks().forEach((track) => track.stop());
-        await this.connect(stream);
+        await this.startSource(streamOpener(stream));
         saveSource({ mode: 'screen' });
     }
 
@@ -91,7 +101,7 @@ export class AudioEngine {
             },
             video: false,
         });
-        await this.connect(stream);
+        await this.startSource(streamOpener(stream));
         saveSource({ mode: 'device', deviceId });
     }
 
@@ -172,9 +182,9 @@ export class AudioEngine {
         if (!this.graph) {
             return {};
         }
-        const { audioContext: context, audioStream, analyser } = this.graph;
+        const { audioContext: context, input, analyser } = this.graph;
         const trackLatency = (
-            audioStream.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number }
+            input.stream?.getAudioTracks()[0]?.getSettings() as MediaTrackSettings & { latency?: number }
         )?.latency;
         return {
             sampleRate: context.sampleRate,
@@ -189,7 +199,11 @@ export class AudioEngine {
     }
 
     public get trackInfo(): string {
-        const track = this.graph?.audioStream.getAudioTracks()[0];
+        const input = this.graph?.input;
+        if (!input?.stream) {
+            return input?.label ?? '';
+        }
+        const track = input.stream.getAudioTracks()[0];
         return track ? `${track.label} (${track.readyState}${track.muted ? ', muted' : ''})` : '';
     }
 
@@ -221,14 +235,22 @@ export class AudioEngine {
         }
     }
 
-    // Replaces any current capture with `stream`. The new graph is built before the old one is torn down, so
-    // subscribers go straight from the old analyser to the new one and never see an "undefined" state.
-    private async connect(stream: MediaStream): Promise<void> {
+    // Replaces any current source with whatever `open` produces. The new graph is built before the old one is torn
+    // down, so subscribers go straight from the old analyser to the new one and never see an "undefined" state. If
+    // opening fails, the old graph keeps running. Never remembers the source: only the capture methods do that.
+    public async startSource(open: SourceOpener): Promise<void> {
         const audioContext = new AudioContext();
-        // Contexts created outside a user gesture (e.g. on page load) start suspended and would read silence.
-        await audioContext.resume();
+        let input: SourceInput;
+        try {
+            // Contexts created outside a user gesture (e.g. on page load) start suspended and would read silence.
+            await audioContext.resume();
+            input = await open(audioContext);
+        } catch (error) {
+            void audioContext.close();
+            throw error;
+        }
 
-        const source = audioContext.createMediaStreamSource(new MediaStream(stream.getAudioTracks()));
+        const source = input.node;
         const gainNode = audioContext.createGain();
         const analyser = audioContext.createAnalyser();
         const meter = audioContext.createAnalyser();
@@ -242,7 +264,7 @@ export class AudioEngine {
         gainNode.connect(outputMeter);
 
         this.teardown();
-        this.graph = { audioStream: stream, audioContext, source, gainNode, analyser, meter, outputMeter };
+        this.graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();
     }
@@ -254,9 +276,9 @@ export class AudioEngine {
         if (!this.graph) {
             return;
         }
-        const { audioStream, source, audioContext } = this.graph;
+        const { input, source, audioContext } = this.graph;
         this.graph = undefined;
-        audioStream.getTracks().forEach((track) => track.stop());
+        input.stop();
         source.disconnect();
         void audioContext.close();
     }
@@ -273,5 +295,14 @@ export class AudioEngine {
         }
     }
 }
+
+// Wraps a capture stream as a source: only its audio tracks reach the graph, and stopping frees the whole stream.
+const streamOpener =
+    (stream: MediaStream): SourceOpener =>
+    (context) => ({
+        node: context.createMediaStreamSource(new MediaStream(stream.getAudioTracks())),
+        stop: () => stream.getTracks().forEach((track) => track.stop()),
+        stream,
+    });
 
 export const audioEngine = new AudioEngine();

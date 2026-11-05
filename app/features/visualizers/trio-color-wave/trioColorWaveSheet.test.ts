@@ -124,6 +124,19 @@ describe('TrioColorWaveSheet', () => {
             expect(Array.from(harness.sheet.flags.heightAttribute.array).every((height) => height === 0)).toBe(true);
         });
 
+        it('exposes the frame level, the peak and the balanced level for telemetry', () => {
+            harness.sheet.connect(asWebAudio<AnalyserNode>(harness.source));
+            harness.tap().setByteFrequencyData(255);
+
+            harness.sheet.update(values);
+
+            const { frameLevel, peak: peakLevel, balancedLevel } = harness.sheet;
+            expect(frameLevel).toBeGreaterThan(0);
+            expect(peakLevel).toBe(frameLevel);
+            // A band at its own peak is balanced to the target level (200).
+            expect(balancedLevel).toBeCloseTo(200);
+        });
+
         it('keeps the bars flat for silence', () => {
             harness.sheet.connect(asWebAudio<AnalyserNode>(harness.source));
             harness.tap().setByteFrequencyData(0);

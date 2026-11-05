@@ -58,6 +58,24 @@ describe('test infrastructure', () => {
         expect(engine.getIsCapturing()).toBe(false);
     });
 
+    it('FakeAudioContext decodes, creates buffer sources and can fail to decode', async () => {
+        const web = installFakeWebAudio();
+        const context = new AudioContext() as unknown as FakeAudioContext;
+
+        const buffer = await context.decodeAudioData(new ArrayBuffer(1));
+        expect(buffer.duration).toBe(10);
+        const node = context.createBufferSource();
+        const onended = vi.fn();
+        node.onended = onended;
+        node.finish();
+        expect(onended).toHaveBeenCalledTimes(1);
+        expect(context.createdBufferSources).toEqual([node]);
+
+        web.decodeError = new Error('bad data');
+        const failing = new AudioContext() as unknown as FakeAudioContext;
+        await expect(failing.decodeAudioData(new ArrayBuffer(1))).rejects.toThrow('bad data');
+    });
+
     it('fake permissions and display media can reject', async () => {
         installFakeWebAudio();
         installFakeMediaDevices({ displayStream: new Error('cancelled'), permission: 'denied' });

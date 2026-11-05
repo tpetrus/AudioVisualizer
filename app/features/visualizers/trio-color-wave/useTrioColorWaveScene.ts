@@ -5,6 +5,7 @@ import { TrioColorWaveSheet } from './trioColorWaveSheet';
 import type { TrioColorWaveControlValues } from './trioColorWaveControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
+import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
 
 // A narrow field of view from far away flattens the perspective, so the sheets read like a 2D stack.
@@ -50,10 +51,21 @@ export function useTrioColorWaveScene(
 
         let boundAnalyser: AnalyserNode | undefined;
 
+        // DEV only: the bass sheet is the last one, at the back.
+        let unregisterProbe: (() => void) | undefined;
+        if (import.meta.env.DEV) {
+            const bassSheet = sheets[sheets.length - 1];
+            unregisterProbe = registerTelemetryProbe('trio-color-wave', ['in', 'peak', 'out'], (out) => {
+                out[0] = bassSheet.frameLevel;
+                out[1] = bassSheet.peak;
+                out[2] = bassSheet.balancedLevel;
+            });
+        }
+
         return {
             camera,
 
-            update: () => {
+            update: (_time, delta) => {
                 const values = valuesRef.current;
                 orbit.setLocked(cameraLockedRef.current);
 
@@ -68,11 +80,16 @@ export function useTrioColorWaveScene(
                     sheet.place(values.moveX, values.moveY);
                     sheet.update(values);
                 }
+
+                if (import.meta.env.DEV) {
+                    tickTelemetry(delta / 1000);
+                }
             },
 
             dispose: () => {
                 orbit.dispose();
                 sheets.forEach((sheet) => sheet.dispose());
+                unregisterProbe?.();
             },
         };
     });

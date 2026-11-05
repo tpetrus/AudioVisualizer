@@ -108,6 +108,23 @@ export class FakeBiquadFilterNode extends FakeAudioNode {
     readonly Q = new FakeAudioParam(1);
 }
 
+export class FakeAudioBuffer {
+    constructor(readonly duration: number) {}
+}
+
+// `createBufferSource()` result. `start`/`stop` are spies; `finish()` plays the browser's part when the buffer runs out.
+export class FakeAudioBufferSourceNode extends FakeAudioNode {
+    buffer: FakeAudioBuffer | null = null;
+    loop = false;
+    onended: (() => void) | null = null;
+    readonly start = vi.fn((_when?: number, _offset?: number) => {});
+    readonly stop = vi.fn(() => {});
+
+    finish(): void {
+        this.onended?.();
+    }
+}
+
 export class FakeMediaStreamTrack {
     readyState: 'live' | 'ended' = 'live';
     muted = false;
@@ -203,6 +220,12 @@ export class FakeAudioContext {
     readonly createdGains: FakeGainNode[] = [];
     readonly createdAnalysers: FakeAnalyserNode[] = [];
     readonly createdFilters: FakeBiquadFilterNode[] = [];
+    readonly createdBufferSources: FakeAudioBufferSourceNode[] = [];
+    readonly destination = new FakeAudioNode(this);
+
+    // What `decodeAudioData` resolves with: a buffer this long, or a rejection when `decodeError` is set.
+    decodedDuration = 10;
+    decodeError: unknown = undefined;
 
     // Contexts created outside a user gesture start suspended, and `resume()` is what makes them run.
     readonly resume = vi.fn(async () => {
@@ -231,6 +254,16 @@ export class FakeAudioContext {
         this.createdAnalysers.push(node);
         return node;
     });
+    readonly createBufferSource = vi.fn(() => {
+        const node = new FakeAudioBufferSourceNode(this);
+        this.createdBufferSources.push(node);
+        return node;
+    });
+    readonly decodeAudioData = vi.fn((_data: ArrayBuffer) =>
+        this.decodeError !== undefined
+            ? Promise.reject(this.decodeError)
+            : Promise.resolve(new FakeAudioBuffer(this.decodedDuration)),
+    );
     readonly createBiquadFilter = vi.fn(() => {
         const node = new FakeBiquadFilterNode(this);
         this.createdFilters.push(node);
@@ -264,6 +297,8 @@ export interface FakeWebAudio {
     contexts: FakeAudioContext[];
     workletNodes: FakeAudioWorkletNode[];
     streams: FakeMediaStream[];
+    // Set before the code under test creates its context: that context's `decodeAudioData` then rejects with it.
+    decodeError?: unknown;
 }
 
 // Stubs the three globals. Each constructor is a subclass that records its instances in the returned object.
@@ -273,6 +308,7 @@ export function installFakeWebAudio(): FakeWebAudio {
     class RecordingAudioContext extends FakeAudioContext {
         constructor(options?: { sampleRate?: number }) {
             super(options);
+            this.decodeError = installed.decodeError;
             installed.contexts.push(this);
         }
     }

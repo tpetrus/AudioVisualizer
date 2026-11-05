@@ -3,7 +3,10 @@ import { act, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createFakeDevice } from '~/test/fakeMedia';
 import { renderWithProviders } from '~/test/renderWithProviders';
+import { startFileSource } from '../devFileSource';
 import { SourceChooser } from './SourceChooser';
+
+vi.mock('../devFileSource', () => ({ startFileSource: vi.fn(async () => ({})) }));
 
 const microphone = createFakeDevice({ deviceId: 'mic', label: 'Microphone' });
 const stereoMix = createFakeDevice({ deviceId: 'mix', label: 'Stereo Mix' });
@@ -167,5 +170,50 @@ describe('SourceChooser', () => {
 
         expect(screen.getByRole('alert')).toHaveTextContent('Device busy');
         expect(onStarted).not.toHaveBeenCalled();
+    });
+
+    describe('dev file source', () => {
+        const track = () => new File(['audio'], 'song.mp3', { type: 'audio/mpeg' });
+
+        it('offers a third card with a file input in DEV', () => {
+            renderWithProviders(<SourceChooser showIntro={false} onStarted={vi.fn()} />);
+
+            expect(screen.getByRole('heading', { name: 'Play a file (dev only)' })).toBeInTheDocument();
+            expect(screen.getByLabelText('Audio file')).toHaveAttribute('accept', 'audio/*,.mp3,.wav,.flac');
+        });
+
+        it('leaves the card out of production', () => {
+            vi.stubEnv('DEV', false);
+            renderWithProviders(<SourceChooser showIntro={false} onStarted={vi.fn()} />);
+
+            expect(screen.queryByLabelText('Audio file')).not.toBeInTheDocument();
+            expect(screen.queryByText('Play a file (dev only)')).not.toBeInTheDocument();
+        });
+
+        it('plays the picked file and reports it started', async () => {
+            const onStarted = vi.fn();
+            const { user, engine } = renderWithProviders(<SourceChooser showIntro={false} onStarted={onStarted} />);
+
+            await user.upload(screen.getByLabelText('Audio file'), track());
+
+            await vi.waitFor(() => expect(onStarted).toHaveBeenCalledTimes(1));
+            expect(startFileSource).toHaveBeenCalledWith(engine, expect.any(ArrayBuffer), { label: 'song.mp3' });
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        });
+
+        it('shows the decode error on one line and does not report a start', async () => {
+            vi.mocked(startFileSource).mockRejectedValueOnce(
+                new Error("Couldn't play song.mp3: unsupported or corrupt audio file."),
+            );
+            const onStarted = vi.fn();
+            const { user } = renderWithProviders(<SourceChooser showIntro={false} onStarted={onStarted} />);
+
+            await user.upload(screen.getByLabelText('Audio file'), track());
+
+            expect(await screen.findByRole('alert')).toHaveTextContent(
+                "Couldn't play song.mp3: unsupported or corrupt audio file.",
+            );
+            expect(onStarted).not.toHaveBeenCalled();
+        });
     });
 });
