@@ -85,8 +85,7 @@ export class AudioEngine {
 
         // Only audio is needed; drop the video track.
         stream.getVideoTracks().forEach((track) => track.stop());
-        await this.startSource(streamOpener(stream));
-        saveSource({ mode: 'screen' });
+        await this.startStream(stream, { mode: 'screen' });
     }
 
     // Captures an audio input device (microphone, Stereo Mix, virtual cable, ...). The browser remembers the permission.
@@ -101,8 +100,19 @@ export class AudioEngine {
             },
             video: false,
         });
-        await this.startSource(streamOpener(stream));
-        saveSource({ mode: 'device', deviceId });
+        await this.startStream(stream, { mode: 'device', deviceId });
+    }
+
+    // Starts a granted stream and remembers it. If starting fails nobody else holds the stream, so stop its tracks
+    // here; otherwise the microphone or the browser's screen-sharing indicator would stay on.
+    private async startStream(stream: MediaStream, saved: SavedSource): Promise<void> {
+        try {
+            await this.startSource(streamOpener(stream));
+        } catch (error) {
+            stream.getTracks().forEach((track) => track.stop());
+            throw error;
+        }
+        saveSource(saved);
     }
 
     // Lists audio input devices. Labels are only available once permission has been granted.
