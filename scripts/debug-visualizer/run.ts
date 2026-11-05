@@ -19,8 +19,15 @@ const PLAYBACK_TIMEOUT_MS = 30_000;
 const POLL_MS = 50;
 // The recorder keeps rows past the requested end so the last frames of the range are never cut off.
 const CAPACITY_MARGIN_SECONDS = 5;
+// The recorder holds capacitySeconds * 120 rows (contract C2), sized for 120 Hz. Asking for 2.5x the seconds leaves
+// room for a 240 Hz display plus slack, so headed runs on 144/165/240 Hz screens do not overflow.
+const CAPACITY_FACTOR = 2.5;
+const SERVER_LOG_LINES = 20;
 
 class UserError extends Error {}
+
+// Set by a signal handler. Closing the browser then makes in-flight page calls throw, which is not a real failure.
+let signalExitCode: number | undefined;
 
 function fail(reason: string): never {
     process.stderr.write(`${reason}\n`);
@@ -53,10 +60,43 @@ function killTree(child: ChildProcess): void {
     }
 }
 
-async function waitForServer(url: string, server: ChildProcess): Promise<void> {
+// Keeps the last few lines the dev server printed. Reading the pipes also stops it blocking on a full buffer.
+function captureLines(child: ChildProcess): string[] {
+    const lines: string[] = [];
+    for (const stream of [child.stdout, child.stderr]) {
+        let partial = '';
+        stream?.setEncoding('utf8');
+        stream?.on('data', (chunk: string) => {
+            const parts = (partial + chunk).split(/\r?\n/);
+            partial = parts.pop() ?? '';
+            lines.push(...parts);
+            if (lines.length > SERVER_LOG_LINES) lines.splice(0, lines.length - SERVER_LOG_LINES);
+        });
+        stream?.on('end', () => {
+            if (partial) lines.push(partial);
+        });
+    }
+    return lines;
+}
+
+// The last non-empty line is usually the cause (a port clash, a syntax error), so the one-line error carries it.
+function lastLineNote(lines: string[]): string {
+    // Escape sequences from the dev server's colored output would garble the error line.
+    // eslint-disable-next-line no-control-regex
+    const ansi = /\u001b\[[0-9;]*m/g;
+    const last = lines
+        .map((line) => line.replace(ansi, '').trim())
+        .filter(Boolean)
+        .pop();
+    return last ? ` Last output: ${last}` : '';
+}
+
+async function waitForServer(url: string, server: ChildProcess, lines: string[]): Promise<void> {
     const deadline = Date.now() + SERVER_TIMEOUT_MS;
     while (Date.now() < deadline) {
-        if (server.exitCode !== null) throw new UserError('The dev server exited before it answered.');
+        if (server.exitCode !== null) {
+            throw new UserError(`The dev server exited before it answered.${lastLineNote(lines)}`);
+        }
         try {
             const response = await fetch(url);
             if (response.ok) return;
@@ -65,7 +105,7 @@ async function waitForServer(url: string, server: ChildProcess): Promise<void> {
         }
         await sleep(250);
     }
-    throw new UserError(`The dev server did not answer within ${SERVER_TIMEOUT_MS / 1000} s.`);
+    throw new UserError(`The dev server did not answer within ${SERVER_TIMEOUT_MS / 1000} s.${lastLineNote(lines)}`);
 }
 
 function num(value: number): string {
@@ -98,16 +138,33 @@ async function main(): Promise<void> {
     const origin = `http://localhost:${port}`;
     let server: ChildProcess | undefined;
     let browser: Browser | undefined;
-    let cleaned = false;
-    const cleanup = async (): Promise<void> => {
-        if (cleaned) return;
-        cleaned = true;
-        await browser?.close().catch(() => {});
-        if (server) killTree(server);
+    // Memoized so every caller (the finally and a signal handler) awaits the same run; a boolean guard let the second
+    // caller return early and the process exit before the server was killed.
+    let cleanupRun: Promise<void> | undefined;
+    const cleanup = (): Promise<void> => {
+        cleanupRun ??= (async () => {
+            // The server goes first because it is the one thing that outlives this process; each step has its own
+            // try so a failure in one never skips the other.
+            try {
+                if (server) killTree(server);
+            } catch {
+                // Nothing more can be done for a server that will not die.
+            }
+            try {
+                await browser?.close();
+            } catch {
+                // Already closed.
+            }
+        })();
+        return cleanupRun;
     };
-    for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    for (const [signal, code] of [
+        ['SIGINT', 130],
+        ['SIGTERM', 143],
+    ] as const) {
         process.on(signal, () => {
-            void cleanup().finally(() => process.exit(130));
+            signalExitCode = code;
+            void cleanup().finally(() => process.exit(code));
         });
     }
 
@@ -115,9 +172,12 @@ async function main(): Promise<void> {
         server = spawn(
             process.execPath,
             [resolve('node_modules/@react-router/dev/bin.cjs'), 'dev', '--port', String(port), '--strictPort'],
-            { stdio: 'ignore' },
+            { stdio: ['ignore', 'pipe', 'pipe'] },
         );
-        await waitForServer(origin, server);
+        const serverLines = captureLines(server);
+        // Without a listener a failed spawn would surface as an uncaught exception instead of the one-line error.
+        server.on('error', (error) => serverLines.push(`spawn failed: ${error.message}`));
+        await waitForServer(origin, server, serverLines);
 
         browser = await chromium.launch({
             headless,
@@ -163,20 +223,30 @@ async function main(): Promise<void> {
                 window.__vizTelemetry?.seek(start);
                 window.__vizTelemetry?.reset(capacity);
             },
-            [from, seconds + CAPACITY_MARGIN_SECONDS],
+            [from, (seconds + CAPACITY_MARGIN_SECONDS) * CAPACITY_FACTOR],
         );
 
         const pending = [...due];
         const taken: string[] = [];
+        // A stalled player (paused tab, throttled clock) would otherwise poll forever.
+        const stallSeconds = seconds * 1.5 + 30;
+        const playDeadline = Date.now() + stallSeconds * 1000;
+        let lastPosition = from;
         for (;;) {
             const playback = await page.evaluate(() => window.__vizTelemetry?.playback() ?? null);
             if (!playback) break;
+            lastPosition = playback.position;
             while (pending.length && playback.position >= pending[0]) {
                 const name = `shot-${pending.shift()}.png`;
                 await page.screenshot({ path: join(outDir, name) });
                 taken.push(name);
             }
             if (playback.position >= end || playback.ended) break;
+            if (Date.now() > playDeadline) {
+                throw new UserError(
+                    `Playback stalled: did not reach ${num(end)} s within ${num(stallSeconds)} s; last position ${num(lastPosition)} s.`,
+                );
+            }
             await sleep(POLL_MS);
         }
         // A track that ended before a shot time passed still owes the shots it never reached.
@@ -216,7 +286,7 @@ async function main(): Promise<void> {
         console.log(`Run: viz=${viz} track=${track} from=${num(from)} s seconds=${num(seconds)}${clampNote}`);
         console.log(`Rows: ${rowCount}, measured mean fps: ${num(fps)}`);
         if (snapshot.overflowed)
-            console.log('Warning: the recorder filled up and stopped; the end of the run is missing.');
+            console.log('Warning: the recorder filled up and stopped; the tail of the run is missing from the CSV.');
         if (taken.length) console.log(`Shots: ${taken.join(', ')}`);
         if (skipped.length) console.log(`Skipped shots past the end of the range: ${skipped.join(', ')}`);
         console.log(`Output: ${outDir}`);
@@ -228,5 +298,9 @@ async function main(): Promise<void> {
 
 main().then(
     () => process.exit(0),
-    (error: unknown) => fail(error instanceof Error ? error.message.split('\n')[0] : String(error)),
+    (error: unknown) => {
+        // The signal handler exits with its own code once cleanup finishes; stay quiet until then.
+        if (signalExitCode !== undefined) return;
+        fail(error instanceof Error ? error.message.split('\n')[0] : String(error));
+    },
 );
