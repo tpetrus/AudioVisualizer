@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -122,6 +122,12 @@ describe('listAudioFiles', () => {
 
     it('throws for a missing folder', () => {
         expect(() => listAudioFiles(join(dir, 'missing'))).toThrow();
+    });
+
+    it('ignores directories whose names end in an audio extension', () => {
+        mkdirSync(join(dir, 'album.mp3'));
+        writeFileSync(join(dir, 'real.wav'), '');
+        expect(listAudioFiles(dir)).toEqual(['real.wav']);
     });
 });
 
