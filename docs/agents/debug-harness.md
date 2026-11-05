@@ -4,6 +4,40 @@ A development-only way to play a local music track through the real audio chain 
 visualizer and record how the scene's bass-driven values react. The developer watches it live in `npm run dev`; an agent
 runs one command and reads a short windowed summary. Nothing here ships to production.
 
+## Using it
+
+**Live, as a developer.** Run `npm run dev`, open a visualizer, and in the audio source dialog choose
+**Play a file (dev only)**. The track plays audibly through the normal chain. An overlay at the top left shows the
+pre-gain bass (`bassRaw`), post-gain bass (`bassPost`), the AGC gain, fps and the visualizer's own bass input and
+output, with a sparkline of the last two.
+
+**Headless, as an agent.** One command per run; read the printed summary first, and open the CSV or a screenshot only
+for a window the summary flags:
+
+```
+npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --seconds 60 --shots 12,45
+```
+
+- Output goes to `.debug-out/<viz>-<track>-<stamp>/` (git-ignored): `telemetry.csv` (one row per rendered frame) and
+  `shot-<t>.png` per requested time.
+- The summary (at most 60 lines) gives per-window means and the visualizer's out/in ratio, and flags a window
+  `FALLOFF` when the ratio drops below half the first window's. A window under 50 fps is marked `unreliable` instead,
+  because the visualizers' followers advance per frame and behave differently at low frame rates.
+- Headed is the default (real GPU, real frame rate). `--headless` uses Chromium's new headless mode, which still uses
+  the GPU on a machine that has one; check the reported fps.
+- Playback is real time: a run takes the requested seconds plus about 15 to 25 s to start the dev server and page.
+- `npm run debug:summary -- <csv>` reprints a summary without re-running.
+
+## Notes from implementation
+- Telemetry rows are written only while the engine has a source; after a track ends the engine stops and no rows are
+  added. The CLI also trims rows after the first backward step in `t`.
+- The CLI closes the source dialog once playback starts, so screenshots show the scene.
+- Beyond C2, `devTelemetry.ts` exports `getTelemetryView`, `telemetryProbeCount` and `subscribeTelemetryProbes` for
+  the overlay (DEV only).
+- To make probe values readable, a few visualizer class fields became public and a few new fields store values the code
+  already computed (`BassPulse`, `TrioColorWaveSheet`, `DancingCharacterScene`). No maths changed. These assignments
+  are in production code, which costs about 0.1 kB.
+
 ## Frozen contracts
 
 These were frozen before implementation. Change them only deliberately, and update every consumer in the same change.

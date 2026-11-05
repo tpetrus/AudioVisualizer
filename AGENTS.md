@@ -20,6 +20,8 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Smoke tests against production (or `BASE_URL`) | `npm run test:smoke` |
 | Lighthouse budget on `/` (reads the existing build) | `npm run lighthouse` |
 | Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
+| Play a local track through a visualizer and record its bass telemetry (dev only, see `docs/agents/debug-harness.md`) | `npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]` |
+| Reprint the windowed summary of a recorded telemetry CSV | `npm run debug:summary -- <telemetry.csv>` |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
@@ -102,6 +104,7 @@ Full detail and the reasons are in the docs below; these are the ones most often
 ## Read before working
 - `docs/agents/architecture.md`: how audio, routing, scenes and controls fit together, and the contracts between them.
 - `docs/agents/conventions.md`: code style, naming, TypeScript/React/three.js/Web Audio rules, with examples.
+- `docs/agents/debug-harness.md`: the dev-only harness for debugging how a visualizer reacts to a real track.
 - `.agents/skills/add-visualizer/SKILL.md`: step-by-step for adding a new visualizer (the most common task).
 - `.agents/skills/react-router/SKILL.md`: React Router framework-mode reference.
 
