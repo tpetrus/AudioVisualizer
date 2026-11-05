@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import { ACESFilmicToneMapping, Color, type Mesh, type PerspectiveCamera, type Scene } from 'three';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
@@ -15,6 +15,23 @@ vi.mock('three', async (importOriginal) => {
     const { threeFakes } = await import('~/test/fakeThree');
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
+
+// The recorder has its own spec; here only what the scene registers and when it ticks matters.
+const telemetry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), tick: vi.fn() }));
+vi.mock('~/features/audio/devTelemetry', () => ({
+    registerTelemetryProbe: (...args: unknown[]) => {
+        telemetry.register(...args);
+        return telemetry.unregister;
+    },
+    tickTelemetry: telemetry.tick,
+}));
+
+const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
+function readProbe(width: number): Float32Array {
+    const out = new Float32Array(width);
+    probeRead()(out);
+    return out;
+}
 
 function createAnalyser() {
     const context = new FakeAudioContext();
@@ -218,6 +235,49 @@ describe('useTrioColorWaveScene', () => {
             rerender({ analyser: undefined, cameraLocked: true });
 
             expect(result.current.resetView).toBe(first);
+        });
+    });
+
+    describe('telemetry probe', () => {
+        beforeEach(() => {
+            telemetry.register.mockClear();
+            telemetry.unregister.mockClear();
+            telemetry.tick.mockClear();
+        });
+
+        it('registers the bass sheet columns and reads zeros before a source is bound', () => {
+            mountScene();
+
+            expect(telemetry.register).toHaveBeenCalledWith(
+                'trio-color-wave',
+                ['in', 'peak', 'out'],
+                expect.any(Function),
+            );
+            expect(Array.from(readProbe(3))).toEqual([0, 0, 0]);
+        });
+
+        it('reads the bass sheet levels and ticks with the frame time in seconds', () => {
+            const { context, node } = createAnalyser();
+            const { frame } = mountScene({ analyser: node });
+            // The sheets tap the source in band order, so the last analyser belongs to the bass sheet.
+            context.createdAnalysers[2].setByteFrequencyData(200);
+
+            frame(16);
+            frame(40);
+
+            const [level, peak, balanced] = readProbe(3);
+            expect(level).toBeGreaterThan(0);
+            expect(peak).toBeGreaterThanOrEqual(level);
+            expect(balanced).toBeGreaterThan(0);
+            expect(telemetry.tick).toHaveBeenLastCalledWith(0.024);
+        });
+
+        it('unregisters when the scene is torn down', () => {
+            const { unmount } = mountScene();
+
+            unmount();
+
+            expect(telemetry.unregister).toHaveBeenCalledTimes(1);
         });
     });
 

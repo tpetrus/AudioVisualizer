@@ -13,9 +13,12 @@ export class BassPulse {
     // Backed by a plain ArrayBuffer, which the Web Audio API requires (not a SharedArrayBuffer).
     private readonly samples: Float32Array<ArrayBuffer>;
     // Fast and slow followers of the bass energy; a bump is the fast one rising above the slow one.
-    private fast = 0;
-    private slow = 0;
-    private pulse = 0;
+    // Public only so DEV telemetry can read them; nothing outside this class writes them.
+    public fast = 0;
+    public slow = 0;
+    public pulse = 0;
+    public energy = 0;
+    public ratio = 1;
 
     // Taps the source's output through two cascaded low-pass filters (24 dB/octave) into a bass-only analyser.
     constructor(source: AnalyserNode) {
@@ -52,6 +55,8 @@ export class BassPulse {
 
         // Ignore near-silence, and small wobbles within 15% of the recent level.
         const ratio = this.slow > 0.005 ? this.fast / this.slow : 1;
+        this.energy = energy;
+        this.ratio = ratio;
         const target = Math.min(1, Math.max(0, (ratio - 1.15) * 1.5));
 
         // Rises over a couple of frames rather than instantly, and settles over ~0.3 s, so it moves smoothly.

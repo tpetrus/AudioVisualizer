@@ -681,6 +681,20 @@ describe('bass', () => {
     });
 });
 
+describe('bass gate telemetry', () => {
+    it('exposes the gate output, tempo lock and state after an update', () => {
+        const { dancing } = setup();
+        expect(dancing.gateOutput).toBe(0);
+        expect(dancing.gateTempoLocked).toBe(false);
+
+        dancing.update(makeFrame({ bass: 1, rhythm: beatRhythm(0) }));
+
+        expect(dancing.gateOutput).toBe(0);
+        expect(dancing.bassGate.open).toBe(false);
+        expect(dancing.bassGate.initialized).toBe(true);
+    });
+});
+
 describe('colors', () => {
     // The club adds its own point lights first; the rim light is the last one.
     const rimOf = (scene: THREE.Scene) =>

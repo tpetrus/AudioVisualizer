@@ -64,6 +64,23 @@ vi.mock('~/features/visualizers/cubes/bassPulse', () => ({
     },
 }));
 
+// The recorder has its own spec; here only what the scene registers and when it ticks matters.
+const telemetry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), tick: vi.fn() }));
+vi.mock('~/features/audio/devTelemetry', () => ({
+    registerTelemetryProbe: (...args: unknown[]) => {
+        telemetry.register(...args);
+        return telemetry.unregister;
+    },
+    tickTelemetry: telemetry.tick,
+}));
+
+const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
+function readProbe(width: number): Float32Array {
+    const out = new Float32Array(width);
+    probeRead()(out);
+    return out;
+}
+
 interface FakeCharacterScene {
     frames: DancingCharacterFrame[];
     update: ReturnType<typeof vi.fn>;
@@ -317,6 +334,61 @@ describe('useDancingCharacterScene', () => {
             unmount();
 
             expect(pulses[0].dispose).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('telemetry probe', () => {
+        beforeEach(() => {
+            telemetry.register.mockClear();
+            telemetry.unregister.mockClear();
+            telemetry.tick.mockClear();
+        });
+
+        it('registers the bass gate columns', () => {
+            mountScene();
+
+            expect(telemetry.register).toHaveBeenCalledWith(
+                'dancing-character',
+                ['in', 'out', 'gateOpen', 'gateScore', 'gateWeight', 'tempoLocked'],
+                expect.any(Function),
+            );
+        });
+
+        it('reads the gate input from the frame and the rest from the character, and ticks in seconds', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer } = mountScene({ analyser });
+            renderer.renderFrame(0);
+            const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            scene.gateOutput = 0.4;
+            scene.gateTempoLocked = true;
+            scene.bassGate = { open: true, score: 3, weight: 0.5 };
+            pulses[0].update.mockReturnValue(0.75);
+
+            renderer.renderFrame(16);
+            renderer.renderFrame(32);
+
+            expect(Array.from(readProbe(6))).toEqual([0.75, 0.4, 1, 3, 0.5, 1].map(Math.fround));
+            expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);
+        });
+
+        it('reads closed and unlocked as zeros', () => {
+            const { renderer } = mountScene();
+            const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            scene.gateOutput = 0;
+            scene.gateTempoLocked = false;
+            scene.bassGate = { open: false, score: 0, weight: 0 };
+
+            renderer.renderFrame(16);
+
+            expect(Array.from(readProbe(6))).toEqual([0, 0, 0, 0, 0, 0]);
+        });
+
+        it('unregisters when the scene is torn down', () => {
+            const { unmount } = mountScene();
+
+            unmount();
+
+            expect(telemetry.unregister).toHaveBeenCalledTimes(1);
         });
     });
 
