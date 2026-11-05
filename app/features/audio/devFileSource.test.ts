@@ -22,6 +22,19 @@ const data = new ArrayBuffer(8);
 const lastContext = (): FakeAudioContext => web.contexts.at(-1)!;
 
 describe('startFileSource', () => {
+    it('does not publish a playback when the engine fails after the opener ran', async () => {
+        const before = getActivePlayback();
+        const failing = {
+            startSource: async (open: (context: AudioContext) => Promise<unknown>) => {
+                await open(new AudioContext());
+                throw new Error('install failed');
+            },
+        } as unknown as AudioEngine;
+
+        await expect(startFileSource(failing, data)).rejects.toThrow('install failed');
+        expect(getActivePlayback()).toBe(before);
+    });
+
     it('plays the decoded buffer once, without looping, and does not remember the source', async () => {
         const playback = await startFileSource(engine, data, { label: 'song.mp3' });
 

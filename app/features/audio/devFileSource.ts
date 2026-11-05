@@ -90,7 +90,6 @@ export async function startFileSource(
         };
         playback = own;
         play(offset);
-        active = own;
 
         return {
             node: bus,
@@ -105,5 +104,7 @@ export async function startFileSource(
             },
         };
     });
+    // Only once the engine has installed the graph: a failed install must not leave a playback nobody owns.
+    active = playback;
     return playback;
 }
