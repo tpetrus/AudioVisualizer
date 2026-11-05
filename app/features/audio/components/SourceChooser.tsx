@@ -56,6 +56,14 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
             onStarted();
         });
 
+    // DEV only: plays a local file through the real audio chain (see devFileSource.ts).
+    const startFile = (file: File) =>
+        run(async () => {
+            const { startFileSource } = await import('../devFileSource');
+            await startFileSource(engine, await file.arrayBuffer(), { label: file.name });
+            onStarted();
+        });
+
     return (
         <>
             {showIntro && (
@@ -108,6 +116,26 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                         </>
                     )}
                 </SourceCard>
+
+                {import.meta.env.DEV && (
+                    <SourceCard
+                        title="Play a file (dev only)"
+                        description="Plays a local track through the same chain, for developing and measuring visualizers."
+                    >
+                        <input
+                            type="file"
+                            accept="audio/*,.mp3,.wav,.flac"
+                            aria-label="Audio file"
+                            disabled={busy}
+                            onChange={(event) => {
+                                const file = event.currentTarget.files?.[0];
+                                if (file) {
+                                    void startFile(file);
+                                }
+                            }}
+                        />
+                    </SourceCard>
+                )}
             </div>
 
             {error && (

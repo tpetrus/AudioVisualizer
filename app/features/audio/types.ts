@@ -1,11 +1,20 @@
 export type AudioSourceMode = 'screen' | 'device';
 
+// What a source opener hands the engine: the node that feeds the gain stage and raw meter, plus how to free it.
+export interface SourceInput {
+    node: AudioNode;
+    stop: () => void; // frees the source (stops stream tracks, or stops/disconnects buffer nodes)
+    stream?: MediaStream; // present for capture sources; used by trackInfo and latencyInfo
+    label?: string; // trackInfo text for non-stream sources
+}
+export type SourceOpener = (context: AudioContext) => SourceInput | Promise<SourceInput>;
+
 // The Web Audio nodes for one capture. They exist together or not at all: the engine holds a complete graph while
 // capturing and `undefined` otherwise.
 export interface AudioGraph {
-    audioStream: MediaStream;
+    input: SourceInput;
     audioContext: AudioContext;
-    source: MediaStreamAudioSourceNode;
+    source: AudioNode;
     gainNode: GainNode;
     // What the visualizations read: the input after normalization.
     analyser: AnalyserNode;
