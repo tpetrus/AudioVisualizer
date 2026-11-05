@@ -272,9 +272,14 @@ export class AudioEngine {
             graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
         } catch (error) {
             // Nothing is installed yet, so this attempt owns the new context and any input it opened; the old graph is
-            // untouched. (startStream stops the stream's tracks again, which is harmless.)
-            input?.stop();
+            // untouched. (startStream stops the stream's tracks again, which is harmless.) Close first and swallow a
+            // throwing stop so cleanup can neither leak the context nor mask the original error.
             void audioContext.close();
+            try {
+                input?.stop();
+            } catch {
+                // Ignored on purpose, see above.
+            }
             throw error;
         }
 
