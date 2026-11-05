@@ -82,7 +82,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
 
 // The audio files in a folder, by name.
 export function listAudioFiles(dir: string): string[] {
-    return readdirSync(dir)
+    // Only regular files count: a folder named "album.mp3" is not a track.
+    return readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => entry.name)
         .filter((name) => AUDIO_EXTENSIONS.some((extension) => name.toLowerCase().endsWith(extension)))
         .sort();
 }
