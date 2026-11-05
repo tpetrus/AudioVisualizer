@@ -19,3 +19,6 @@ playwright/.cache/
 
 # Lighthouse CI reports
 /.lighthouseci/
+
+# Output of npm run debug:viz (telemetry CSVs and screenshots)
+/.debug-out/
