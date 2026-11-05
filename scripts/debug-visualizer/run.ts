@@ -23,6 +23,15 @@ const CAPACITY_MARGIN_SECONDS = 5;
 // room for a 240 Hz display plus slack, so headed runs on 144/165/240 Hz screens do not overflow.
 const CAPACITY_FACTOR = 2.5;
 const SERVER_LOG_LINES = 20;
+// Longest partial line kept between chunks, so a server that never prints a newline cannot grow memory.
+const PARTIAL_LINE_CHARS = 500;
+const NOTE_CHARS = 200;
+// The recorder's default capacity is 600 s and a longer snapshot is large over CDP; longer tracks are recorded in parts.
+const MAX_SECONDS = 600;
+// Playback counts as stalled when its position has not moved for this long. Screenshots do not count against it.
+const STALL_MS = 15_000;
+// How long a signal waits for the browser to close before exiting anyway.
+const SIGNAL_CLEANUP_MS = 5_000;
 
 class UserError extends Error {}
 
@@ -67,8 +76,9 @@ function captureLines(child: ChildProcess): string[] {
         let partial = '';
         stream?.setEncoding('utf8');
         stream?.on('data', (chunk: string) => {
-            const parts = (partial + chunk).split(/\r?\n/);
-            partial = parts.pop() ?? '';
+            // A bare \r is a line break too: progress output redraws a line with it.
+            const parts = (partial + chunk).split(/\r\n|\r|\n/);
+            partial = (parts.pop() ?? '').slice(-PARTIAL_LINE_CHARS);
             lines.push(...parts);
             if (lines.length > SERVER_LOG_LINES) lines.splice(0, lines.length - SERVER_LOG_LINES);
         });
@@ -82,12 +92,12 @@ function captureLines(child: ChildProcess): string[] {
 // The one-line error carries the cause: the last line that names an error (a crashing node process ends with a
 // "Node.js vX" footer below it), else the last non-empty line (a port clash, a syntax error).
 function lastLineNote(lines: string[]): string {
-    // Escape sequences from the dev server's colored output would garble the error line.
+    // Escape sequences (colors, cursor moves, line erases) from the dev server's output would garble the error line.
     // eslint-disable-next-line no-control-regex
-    const ansi = /\u001b\[[0-9;]*m/g;
+    const ansi = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
     const clean = lines.map((line) => line.replace(ansi, '').trim()).filter(Boolean);
     const cause = [...clean].reverse().find((line) => /error/i.test(line)) ?? clean.at(-1);
-    return cause ? ` Last output: ${cause}` : '';
+    return cause ? ` Last output: ${cause.slice(0, NOTE_CHARS)}` : '';
 }
 
 async function waitForServer(url: string, server: ChildProcess, lines: string[]): Promise<void> {
@@ -130,6 +140,9 @@ async function main(): Promise<void> {
             `Unknown track "${track}". Audio files in ${dir}: ${audioFiles.length ? audioFiles.join(', ') : '(none)'}`,
         );
     }
+    if (requestedSeconds !== undefined && requestedSeconds > MAX_SECONDS) {
+        fail(`--seconds is capped at ${MAX_SECONDS} (10 minutes); record a long track in parts with --from.`);
+    }
     const names = VISUALIZATIONS.map((visualization) => visualization.to.replace(/^\//, ''));
     if (!names.includes(viz)) fail(`Unknown visualizer "${viz}". Valid names: ${names.join(', ')}`);
 
@@ -162,8 +175,14 @@ async function main(): Promise<void> {
         ['SIGTERM', 143],
     ] as const) {
         process.on(signal, () => {
+            // A second signal means the user gave up waiting: kill the server tree synchronously and leave now.
+            if (signalExitCode !== undefined) {
+                if (server) killTree(server);
+                process.exit(code);
+            }
             signalExitCode = code;
-            void cleanup().finally(() => process.exit(code));
+            // browser.close() has no timeout, so a hung Chromium must not be able to block the exit.
+            void Promise.race([cleanup(), sleep(SIGNAL_CLEANUP_MS)]).finally(() => process.exit(code));
         });
     }
 
@@ -208,9 +227,10 @@ async function main(): Promise<void> {
         const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
         const available = Math.max(0, duration - from);
         if (available <= 0) throw new UserError(`--from ${from} is past the end of the track (${num(duration)} s).`);
-        const seconds = Math.min(requestedSeconds ?? available, available);
+        const seconds = Math.min(requestedSeconds ?? available, available, MAX_SECONDS);
         const end = from + seconds;
         const clamped = requestedSeconds !== undefined && requestedSeconds > available;
+        const capped = requestedSeconds === undefined && available > MAX_SECONDS;
         const { due, skipped } = scheduleShots(shots, end);
 
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -227,23 +247,26 @@ async function main(): Promise<void> {
 
         const pending = [...due];
         const taken: string[] = [];
-        // A stalled player (paused tab, throttled clock) would otherwise poll forever.
-        const stallSeconds = seconds * 1.5 + 30;
-        const playDeadline = Date.now() + stallSeconds * 1000;
+        // A stalled player (paused tab, throttled clock) would otherwise poll forever. The check is on progress rather
+        // than a wall-clock budget, so slow screenshots on software WebGL cannot make a healthy run look stalled.
         let lastPosition = from;
+        let lastAdvance = Date.now();
         for (;;) {
             const playback = await page.evaluate(() => window.__vizTelemetry?.playback() ?? null);
             if (!playback) break;
-            lastPosition = playback.position;
+            if (playback.position !== lastPosition) {
+                lastPosition = playback.position;
+                lastAdvance = Date.now();
+            }
             while (pending.length && playback.position >= pending[0]) {
                 const name = `shot-${pending.shift()}.png`;
                 await page.screenshot({ path: join(outDir, name) });
                 taken.push(name);
             }
             if (playback.position >= end || playback.ended) break;
-            if (Date.now() > playDeadline) {
+            if (Date.now() - lastAdvance > STALL_MS) {
                 throw new UserError(
-                    `Playback stalled: did not reach ${num(end)} s within ${num(stallSeconds)} s; last position ${num(lastPosition)} s.`,
+                    `Playback stalled: position did not advance for ${STALL_MS / 1000} s; last position ${num(lastPosition)} s.`,
                 );
             }
             await sleep(POLL_MS);
@@ -281,7 +304,11 @@ async function main(): Promise<void> {
         const span = table.rows[table.rows.length - 1][0] - table.rows[0][0];
         const fps = span > 0 ? (table.rows.length - 1) / span : 0;
 
-        const clampNote = clamped ? ` (clamped from ${requestedSeconds}; track is ${num(duration)} s)` : '';
+        const clampNote = clamped
+            ? ` (clamped from ${requestedSeconds}; track is ${num(duration)} s)`
+            : capped
+              ? ` (capped at ${MAX_SECONDS}; ${num(available)} s remain, record the rest with --from)`
+              : '';
         console.log(`Run: viz=${viz} track=${track} from=${num(from)} s seconds=${num(seconds)}${clampNote}`);
         console.log(`Rows: ${rowCount}, measured mean fps: ${num(fps)}`);
         if (snapshot.overflowed)
