@@ -140,9 +140,6 @@ async function main(): Promise<void> {
             `Unknown track "${track}". Audio files in ${dir}: ${audioFiles.length ? audioFiles.join(', ') : '(none)'}`,
         );
     }
-    if (requestedSeconds !== undefined && requestedSeconds > MAX_SECONDS) {
-        fail(`--seconds is capped at ${MAX_SECONDS} (10 minutes); record a long track in parts with --from.`);
-    }
     const names = VISUALIZATIONS.map((visualization) => visualization.to.replace(/^\//, ''));
     if (!names.includes(viz)) fail(`Unknown visualizer "${viz}". Valid names: ${names.join(', ')}`);
 
@@ -227,6 +224,12 @@ async function main(): Promise<void> {
         const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
         const available = Math.max(0, duration - from);
         if (available <= 0) throw new UserError(`--from ${from} is past the end of the track (${num(duration)} s).`);
+        // Judged against the track: a long --seconds on a short track still just means "to the end" (clamped below).
+        if (requestedSeconds !== undefined && Math.min(requestedSeconds, available) > MAX_SECONDS) {
+            throw new UserError(
+                `--seconds is capped at ${MAX_SECONDS} (10 minutes); record a long track in parts with --from.`,
+            );
+        }
         const seconds = Math.min(requestedSeconds ?? available, available, MAX_SECONDS);
         const end = from + seconds;
         const clamped = requestedSeconds !== undefined && requestedSeconds > available;
@@ -262,6 +265,8 @@ async function main(): Promise<void> {
                 const name = `shot-${pending.shift()}.png`;
                 await page.screenshot({ path: join(outDir, name) });
                 taken.push(name);
+                // Time spent taking the screenshot is not the player stalling.
+                lastAdvance = Date.now();
             }
             if (playback.position >= end || playback.ended) break;
             if (Date.now() - lastAdvance > STALL_MS) {
