@@ -69,9 +69,11 @@ export type SourceOpener = (context: AudioContext) => SourceInput | Promise<Sour
 
 `AudioEngine`:
 - `public startSource(open: SourceOpener): Promise<void>` replaces the private `connect(stream)`. It creates and resumes
-  a new `AudioContext`, awaits `open(context)`; if that throws or rejects it closes the new context and rethrows, and the
-  previous graph keeps running untouched. Otherwise it wires `input.node` exactly as `connect` wired the stream source
-  (into the gain node and the raw meter), tears down the old graph, installs the new one, starts the AGC timer and notifies.
+  a new `AudioContext`, awaits `open(context)` and wires `input.node` exactly as `connect` wired the stream source (into
+  the gain node and the raw meter). If anything up to and including the wiring throws or rejects, it stops the opened
+  input (if any), closes the new context and rethrows, and the previous graph keeps running untouched. Otherwise it tears
+  down the old graph, installs the new one, starts the AGC timer and notifies. The capture methods also stop their
+  stream's tracks when `startSource` fails, and save the source only on success.
 - `startScreenCapture` / `startDeviceCapture` call `startSource` with an opener that wraps the stream in
   `createMediaStreamSource`, and `stop` stops the stream's tracks. They still call `saveSource` afterward. `startSource`
   itself never calls `saveSource`, so `resumeSavedSource` never resumes a non-capture source.
@@ -190,5 +192,10 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
 - Errors exit non-zero with a one-line reason: missing or empty folder, unknown track (it lists the audio files found),
   unknown visualizer, decode failure (the alert text). `--seconds` past the end is clamped (reported); shots past the
   end are reported as skipped.
+- A recording is at most 600 s: an explicit `--seconds` that would record more than 600 s of the track is an error (record a long track in parts with
+  `--from`); without `--seconds` a longer remainder is recorded for 600 s and the Run line says so. The recorder is
+  sized for 240 Hz displays.
+- A run fails as stalled when the playback position stops advancing for 15 s. Ctrl+C (exit 130) or SIGTERM (143)
+  stops the dev server and browser within about 5 s; a second signal exits at once.
 - `npm run debug:summary -- <csv>` (`scripts/debug-visualizer/summarize.ts`) reprints the summary of a CSV.
 - `.debug-out/` is git-ignored.

@@ -9,7 +9,8 @@ export default defineConfig({
         // The rhythm modules are pure maths, so no DOM is needed. Component tests can opt in with
         // `// @vitest-environment jsdom` at the top of the file.
         environment: 'node',
-        include: ['app/**/*.test.{ts,tsx}'],
+        // Pure helpers of the local node scripts are specced too; coverage below still measures only the shipped app.
+        include: ['app/**/*.test.{ts,tsx}', 'scripts/**/*.test.ts'],
         // Registers jest-dom matchers and the per-test cleanup shared by every spec.
         setupFiles: ['app/test/setup.ts'],
         // Keeps class names readable (and stable) for `*.module.css` imports in specs, e.g. ControlPanel.module.css.

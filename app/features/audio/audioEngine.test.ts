@@ -7,6 +7,7 @@ import {
     installFakeWebAudio,
     type FakeAnalyserNode,
     type FakeAudioContext,
+    type FakeMediaStream,
     FakeGainNode,
 } from '~/test/fakeWebAudio';
 import { AudioEngine } from './audioEngine';
@@ -117,6 +118,182 @@ describe('device capture', () => {
         await expect(engine.startDeviceCapture('gone')).rejects.toThrow('NotFoundError');
         expect(loadSource()).toBeUndefined();
         expect(engine.getIsCapturing()).toBe(false);
+    });
+});
+
+describe('a capture that fails to start', () => {
+    // Makes every context created from now on fail the way the spec asks, and returns the contexts it creates.
+    function breakNewContexts(how: 'resume' | 'source' | 'wiring', error: Error) {
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        const fail = () => {
+            throw error;
+        };
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    created.push(this);
+                    if (how === 'resume') {
+                        this.resume.mockRejectedValue(error);
+                    } else if (how === 'source') {
+                        this.createMediaStreamSource.mockImplementation(fail);
+                    } else {
+                        this.createGain.mockImplementation(fail);
+                    }
+                }
+            },
+        );
+        return created;
+    }
+
+    // The old graph runs on its own stream, so the specs can tell its tracks from the failed attempt's.
+    async function startFirstCapture(
+        oldStream: FakeMediaStream,
+        media: ReturnType<typeof setup>['media'],
+        engine: AudioEngine,
+    ) {
+        media.getUserMedia.mockResolvedValueOnce(oldStream);
+        await engine.startDeviceCapture('first');
+        saveSource({ mode: 'device', deviceId: 'first' });
+    }
+
+    const captures = [
+        ['screen', (engine: AudioEngine) => engine.startScreenCapture()],
+        ['device', (engine: AudioEngine) => engine.startDeviceCapture('mic')],
+    ] as const;
+
+    for (const [name, capture] of captures) {
+        for (const how of ['resume', 'source', 'wiring'] as const) {
+            it(`stops the new ${name} stream, rethrows and keeps the old graph when ${how} fails`, async () => {
+                const displayStream = createFakeStream({ audio: true, video: true });
+                const userStream = createFakeStream({ audio: true });
+                const oldStream = createFakeStream({ audio: true });
+                const { engine, media } = setup({ displayStream, userStream });
+                await startFirstCapture(oldStream, media, engine);
+                const oldAnalyser = engine.getAnalyser();
+                const failure = new Error(`${how} failed`);
+                const created = breakNewContexts(how, failure);
+                const stream = name === 'screen' ? displayStream : userStream;
+
+                await expect(capture(engine)).rejects.toBe(failure);
+
+                stream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
+                oldStream.getTracks().forEach((track) => expect(track.stop).not.toHaveBeenCalled());
+                expect(created[0].close).toHaveBeenCalled();
+                expect(engine.getAnalyser()).toBe(oldAnalyser);
+                expect(engine.getIsCapturing()).toBe(true);
+                expect(loadSource()).toEqual({ mode: 'device', deviceId: 'first' });
+            });
+        }
+    }
+
+    it('stops the old stream, and none of the new one, when a later capture succeeds', async () => {
+        const userStream = createFakeStream({ audio: true });
+        const oldStream = createFakeStream({ audio: true });
+        const { engine, media } = setup({ userStream });
+        await startFirstCapture(oldStream, media, engine);
+
+        await engine.startDeviceCapture('mic');
+
+        oldStream.getTracks().forEach((track) => expect(track.stop).toHaveBeenCalled());
+        userStream.getTracks().forEach((track) => expect(track.stop).not.toHaveBeenCalled());
+    });
+
+    it('closes the new context, stops the opened input and rethrows when wiring throws in startSource', async () => {
+        const { engine } = setup();
+        await engine.startDeviceCapture('first');
+        const oldAnalyser = engine.getAnalyser();
+        const failure = new Error('analyser failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    created.push(this);
+                    this.createAnalyser.mockImplementation(() => {
+                        throw failure;
+                    });
+                }
+            },
+        );
+        const stop = vi.fn();
+
+        await expect(engine.startSource((context) => ({ node: context.createGain(), stop }))).rejects.toBe(failure);
+
+        expect(stop).toHaveBeenCalledTimes(1);
+        expect(created[0].close).toHaveBeenCalled();
+        expect(engine.getAnalyser()).toBe(oldAnalyser);
+    });
+
+    it('still closes the new context and rethrows the original error when the input stop throws', async () => {
+        const { engine } = setup();
+        await engine.startDeviceCapture('first');
+        const oldAnalyser = engine.getAnalyser();
+        const failure = new Error('analyser failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const created: FakeAudioContext[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    created.push(this);
+                    this.createAnalyser.mockImplementation(() => {
+                        throw failure;
+                    });
+                }
+            },
+        );
+        const stop = vi.fn(() => {
+            throw new Error('stop failed');
+        });
+
+        await expect(engine.startSource((context) => ({ node: context.createGain(), stop }))).rejects.toBe(failure);
+
+        expect(stop).toHaveBeenCalledTimes(1);
+        expect(created[0].close).toHaveBeenCalled();
+        expect(engine.getAnalyser()).toBe(oldAnalyser);
+    });
+
+    it('does not leave an unhandled rejection when closing the failed context rejects', async () => {
+        const { engine } = setup();
+        const failure = new Error('resume failed');
+        const Base = AudioContext as unknown as new () => FakeAudioContext;
+        const closed: Promise<unknown>[] = [];
+        vi.stubGlobal(
+            'AudioContext',
+            class extends Base {
+                constructor() {
+                    super();
+                    this.resume.mockRejectedValue(failure);
+                    // A plain function, not a vi.fn: a spy attaches its own handler to a returned promise, which would
+                    // hide the very unhandled rejection this spec looks for.
+                    Object.defineProperty(this, 'close', {
+                        value: () => {
+                            const rejected = Promise.reject(new Error('already closed'));
+                            closed.push(rejected);
+                            return rejected;
+                        },
+                    });
+                }
+            },
+        );
+        const unhandled = vi.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+            await expect(engine.startSource((context) => ({ node: context.createGain(), stop: vi.fn() }))).rejects.toBe(
+                failure,
+            );
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect(closed).toHaveLength(1);
+            expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+            process.off('unhandledRejection', unhandled);
+        }
     });
 });
 

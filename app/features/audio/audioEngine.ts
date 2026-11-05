@@ -85,8 +85,7 @@ export class AudioEngine {
 
         // Only audio is needed; drop the video track.
         stream.getVideoTracks().forEach((track) => track.stop());
-        await this.startSource(streamOpener(stream));
-        saveSource({ mode: 'screen' });
+        await this.startStream(stream, { mode: 'screen' });
     }
 
     // Captures an audio input device (microphone, Stereo Mix, virtual cable, ...). The browser remembers the permission.
@@ -101,8 +100,19 @@ export class AudioEngine {
             },
             video: false,
         });
-        await this.startSource(streamOpener(stream));
-        saveSource({ mode: 'device', deviceId });
+        await this.startStream(stream, { mode: 'device', deviceId });
+    }
+
+    // Starts a granted stream and remembers it. If starting fails nobody else holds the stream, so stop its tracks
+    // here; otherwise the microphone or the browser's screen-sharing indicator would stay on.
+    private async startStream(stream: MediaStream, saved: SavedSource): Promise<void> {
+        try {
+            await this.startSource(streamOpener(stream));
+        } catch (error) {
+            stream.getTracks().forEach((track) => track.stop());
+            throw error;
+        }
+        saveSource(saved);
     }
 
     // Lists audio input devices. Labels are only available once permission has been granted.
@@ -240,31 +250,42 @@ export class AudioEngine {
     // opening fails, the old graph keeps running. Never remembers the source: only the capture methods do that.
     public async startSource(open: SourceOpener): Promise<void> {
         const audioContext = new AudioContext();
-        let input: SourceInput;
+        let input: SourceInput | undefined;
+        let graph: AudioGraph;
         try {
             // Contexts created outside a user gesture (e.g. on page load) start suspended and would read silence.
             await audioContext.resume();
             input = await open(audioContext);
+
+            const source = input.node;
+            const gainNode = audioContext.createGain();
+            const analyser = audioContext.createAnalyser();
+            const meter = audioContext.createAnalyser();
+            meter.fftSize = METER_FFT_SIZE;
+            const outputMeter = audioContext.createAnalyser();
+            outputMeter.fftSize = METER_FFT_SIZE;
+
+            source.connect(gainNode);
+            gainNode.connect(analyser);
+            source.connect(meter);
+            gainNode.connect(outputMeter);
+            graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
         } catch (error) {
-            void audioContext.close();
+            // Nothing is installed yet, so this attempt owns the new context and any input it opened; the old graph is
+            // untouched. (startStream stops the stream's tracks again, which is harmless.) Close first and swallow a
+            // throwing stop so cleanup can neither leak the context nor mask the original error.
+            // A rejected close only means the context is already gone; it must not surface as an unhandled rejection.
+            void audioContext.close().catch(() => {});
+            try {
+                input?.stop();
+            } catch {
+                // Ignored on purpose, see above.
+            }
             throw error;
         }
 
-        const source = input.node;
-        const gainNode = audioContext.createGain();
-        const analyser = audioContext.createAnalyser();
-        const meter = audioContext.createAnalyser();
-        meter.fftSize = METER_FFT_SIZE;
-        const outputMeter = audioContext.createAnalyser();
-        outputMeter.fftSize = METER_FFT_SIZE;
-
-        source.connect(gainNode);
-        gainNode.connect(analyser);
-        source.connect(meter);
-        gainNode.connect(outputMeter);
-
         this.teardown();
-        this.graph = { input, audioContext, source, gainNode, analyser, meter, outputMeter };
+        this.graph = graph;
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();
     }

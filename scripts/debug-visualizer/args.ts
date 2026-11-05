@@ -1,7 +1,8 @@
 // Pure helpers for the debug:viz command (argument parsing, track lookup, shot scheduling). Kept apart from run.ts so
 // the process and browser handling there stays readable. Not part of the app bundle.
 
-import { readdirSync } from 'node:fs';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
@@ -80,9 +81,21 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     };
 }
 
+function linksToFile(path: string): boolean {
+    try {
+        return statSync(path).isFile();
+    } catch {
+        return false;
+    }
+}
+
 // The audio files in a folder, by name.
 export function listAudioFiles(dir: string): string[] {
-    return readdirSync(dir)
+    // Only regular files count: a folder named "album.mp3" is not a track. A symlink counts when its target is a
+    // regular file (Dirent.isFile() is false for links); broken links and links to folders are dropped.
+    return readdirSync(dir, { withFileTypes: true })
+        .filter((entry) => entry.isFile() || (entry.isSymbolicLink() && linksToFile(join(dir, entry.name))))
+        .map((entry) => entry.name)
         .filter((name) => AUDIO_EXTENSIONS.some((extension) => name.toLowerCase().endsWith(extension)))
         .sort();
 }
