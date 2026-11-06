@@ -152,7 +152,9 @@ export class RhythmAnalyzer {
                     this.syncMeterState();
                 }
                 state.tempoConfidence = this.tempo.confidence;
-                if (!this.beat.locked) {
+                // The held estimate looks at seconds of music, so one added note cannot move it, unlike the beat period,
+                // which is corrected on every beat. Without an estimate the beat period stands in while the grid lasts.
+                if (this.tempo.bpm > 0 || !this.beat.locked) {
                     state.bpm = this.tempo.bpm;
                 }
                 if (this.applyBoundary(this.boundary.pushTempo(time, this.tempo.rawBpm, this.tempo.confidence))) {
@@ -272,7 +274,9 @@ export class RhythmAnalyzer {
         if (this.meter.barPosition(beatIndex) === 0) {
             this.declaredDownbeats++;
         }
-        this.state.bpm = 60 / period;
+        if (this.tempo.bpm === 0) {
+            this.state.bpm = 60 / period;
+        }
     }
 
     private syncMeterState(): void {

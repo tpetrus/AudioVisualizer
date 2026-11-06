@@ -178,6 +178,9 @@ AudioEngine analyser ─▶ AudioWorkletNode (rhythmProcessor.worklet.ts: OnsetE
 | Read by | render loops, polling overlays | React components via `useBeatsPerBar()` / `useSongChangeCount()` |
 | Shape | one preallocated mutable object, same reference forever | stable primitives, `notify()` last |
 
+`bpm` is the held tempo estimate, which looks at seconds of music, so a few added notes do not move it. The beat grid
+corrects its own period and phase on each beat, and only `beatPhase` and the counters come from it.
+
 `state` holds `bpm`, `beatPhase` (0..1, or `undefined` until a beat is found), `barPhase` (0..1, or `undefined` while the meter is unsure), `beatsPerBar` (`3 | 4 | undefined` = unsure), `tempoConfidence`,
 `meterConfidence`, `bandOnsets` (kick, mid, high), `chroma`, `novelty`, `nextBeatTime` (AudioContext seconds) and three
 counters. Never copy these into `useState`.

@@ -422,7 +422,7 @@ describe('RhythmAnalyzer on a steady track with decorative notes', () => {
         return runPipeline(track.pcm, { sampleEvery: 0.05 });
     }
 
-    it.fails.each([
+    it.each([
         ['late', [0.15], 4],
         ['early', [-0.15], 8],
     ] as const)('keeps the reported tempo within 1%% through a run of %s decorations', (_name, offsets, phrase) => {

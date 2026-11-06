@@ -99,16 +99,19 @@ export const BEAT_INIT_PERIODS = 8;
 export const BEAT_WINDOW_FRACTION = 0.2;
 // Fraction of the timing error applied to the phase per beat (0..1). Higher locks faster but jitters more.
 export const BEAT_PHASE_GAIN = 0.4;
-// Fraction of the timing error applied to the period per beat (0..1).
-export const BEAT_PERIOD_GAIN = 0.1;
+// Fraction of the timing error applied to the period per beat (0..1). Small, because a run of added notes near the beat
+// would otherwise build up in the period and move the beat clock (measured up to 2.6% on a steady track). Below about 0.05
+// the beat grid follows the estimate so exactly that white noise starts to look like a meter.
+export const BEAT_PERIOD_GAIN = 0.05;
 // Fraction of the gap between the beat period and the tempo estimate closed per beat (0..1).
 export const BEAT_TEMPO_FOLLOW = 0.2;
 // A peak must exceed the running mean of the envelope by this factor to be trusted as an onset.
 export const BEAT_PEAK_MIN_RATIO = 1.3;
 // Per-frame smoothing (0..1) of the running mean of the envelope.
 export const BEAT_ENVELOPE_MEAN_SMOOTHING = 0.02;
-// The phase is searched again after this many consecutive beats without an onset near the prediction.
-export const BEAT_LOST_BEATS = 4;
+// The phase is searched again after this many consecutive beats without an onset near the prediction. Long enough to ride
+// through a two second break with no drums at a usual tempo, because the tempo carries on through one.
+export const BEAT_LOST_BEATS = 8;
 // The grid is rebuilt when the tempo estimate and the beat period differ by more than this fraction.
 export const BEAT_REINIT_TEMPO_RATIO = 0.12;
 
