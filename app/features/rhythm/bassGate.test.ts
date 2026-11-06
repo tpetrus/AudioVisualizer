@@ -126,6 +126,17 @@ describe('stepBassGate', () => {
 
     // Bass bumps at a different place in every beat have no rhythm, so they never open the gate. (A bassline that lands
     // at the same off-beat place every beat does keep the tempo, and is shown.)
+    // Fitted to a real syncopated bassline (docs/agents/rhythm-findings.md): the kicks repeat every bar, but only about a
+    // third land at one place in the beat, so the misses keep spending the evidence the hits earn.
+    it.fails('opens within 8 beats on a syncopated bassline', () => {
+        const pattern = [0, 0.75, 2, 2.3, 3.55];
+        const bass = (frame: number) => {
+            const position = (frame / FRAMES_PER_BEAT) % 4;
+            return pattern.some((place) => position >= place && position < place + 4 / FRAMES_PER_BEAT) ? 0.8 : 0;
+        };
+        expect(drive(FRAMES_PER_BEAT * 8, bass).state.open).toBe(true);
+    });
+
     it.each([1, 7, 42, 99, 2024])('never shows bumps that land at random places in the beat (seed %i)', (start) => {
         let seed = start;
         const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
