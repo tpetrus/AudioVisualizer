@@ -7,7 +7,11 @@ import { join } from 'node:path';
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
 export const USAGE =
-    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]';
+    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--headless]';
+
+export const SUMMARY_USAGE = 'Usage: npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S]';
+
+export const REPEAT_USAGE = 'Usage: npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]';
 
 export interface RunArgs {
     dir: string;
@@ -16,6 +20,7 @@ export interface RunArgs {
     seconds: number | undefined; // undefined: play to the end of the track
     from: number;
     shots: number[];
+    reselect: number; // how many times the track is played in one page, choosing it again each time
     headless: boolean;
 }
 
@@ -35,7 +40,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         if (arg === '--help' || arg === '-h') return { kind: 'help' };
         if (arg === '--headless') {
             headless = true;
-        } else if (['--dir', '--track', '--viz', '--seconds', '--from', '--shots'].includes(arg)) {
+        } else if (['--dir', '--track', '--viz', '--seconds', '--from', '--shots', '--reselect'].includes(arg)) {
             const value = argv[i + 1];
             if (value === undefined || value.startsWith('--'))
                 return { kind: 'error', message: `${arg} needs a value.` };
@@ -67,6 +72,20 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     }
     shots.sort((a, b) => a - b);
 
+    let reselect = 1;
+    if (values.has('reselect')) {
+        const text = values.get('reselect') ?? '';
+        const parsed = text.trim() === '' ? NaN : Number(text);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+            return { kind: 'error', message: `--reselect needs a whole number of at least 1, got "${text}".` };
+        }
+        reselect = parsed;
+    }
+    // Shots are timed against one play; with several plays there is no single folder for them to belong to.
+    if (reselect > 1 && shots.length > 0) {
+        return { kind: 'error', message: '--reselect above 1 cannot be combined with --shots.' };
+    }
+
     return {
         kind: 'run',
         args: {
@@ -76,6 +95,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
             seconds,
             from,
             shots: shots.filter((shot, index) => shots.indexOf(shot) === index),
+            reselect,
             headless,
         },
     };
@@ -112,4 +132,108 @@ export function scheduleShots(shots: readonly number[], end: number) {
 export function trackBaseName(track: string): string {
     const name = track.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '');
     return name.replace(/[^\w.-]+/g, '_');
+}
+
+// The sidecar that sits beside a track: the same name with the extension replaced by ".bpm".
+export function sidecarName(track: string): string {
+    const name = track.replace(/^.*[\\/]/, '');
+    const dot = name.lastIndexOf('.');
+    return `${dot > 0 ? name.slice(0, dot) : name}.bpm`;
+}
+
+// The output folder name for one play. A single play keeps the plain name; with several, each gets its own suffix so
+// plays that start within the same second cannot share a folder.
+export function playFolderName(viz: string, track: string, stamp: string, play: number, plays: number): string {
+    const base = `${viz}-${trackBaseName(track)}-${stamp}`;
+    return plays > 1 ? `${base}-play${play}` : base;
+}
+
+export interface Reference {
+    bpm: number | undefined;
+    warning: string | undefined;
+}
+
+// Picks the reference tempo: --bpm first, then the text of a sidecar, else none. A sidecar that does not parse is a
+// warning and counts as none. An explicit --bpm wins, so the sidecar is not even read then.
+export function chooseReference(
+    flag: number | undefined,
+    sidecarText: string | undefined,
+    sidecarLabel: string,
+    parse: (text: string) => number | undefined,
+): Reference {
+    if (flag !== undefined) return { bpm: flag, warning: undefined };
+    if (sidecarText === undefined) return { bpm: undefined, warning: undefined };
+    const bpm = parse(sidecarText);
+    return bpm === undefined
+        ? { bpm: undefined, warning: `Warning: ${sidecarLabel} does not hold a tempo above 0; ignoring it.` }
+        : { bpm, warning: undefined };
+}
+
+export interface SummaryArgs {
+    path: string;
+    bpm: number | undefined;
+    window: number | undefined;
+}
+
+export type ParsedSummaryArgs =
+    { kind: 'help' } | { kind: 'run'; args: SummaryArgs } | { kind: 'error'; message: string };
+
+// Reads a number option that must be above 0, or returns an error message.
+function readPositive(name: string, text: string | undefined): number | string {
+    const value = text === undefined || text.trim() === '' ? NaN : Number(text);
+    return Number.isFinite(value) && value > 0 ? value : `--${name} needs a number above 0, got "${text ?? ''}".`;
+}
+
+// Splits a command line into positional arguments and the --bpm / --window values it accepts.
+function splitPositional(
+    argv: readonly string[],
+    flags: readonly string[],
+): { positional: string[]; values: Map<string, string>; help: boolean } | string {
+    const positional: string[] = [];
+    const values = new Map<string, string>();
+    for (let i = 0; i < argv.length; i++) {
+        const arg = argv[i];
+        if (arg === '--help' || arg === '-h') return { positional, values, help: true };
+        if (flags.includes(arg)) {
+            const value = argv[i + 1];
+            if (value === undefined || value.startsWith('--')) return `${arg} needs a value.`;
+            values.set(arg.slice(2), value);
+            i++;
+        } else if (arg.startsWith('--')) {
+            return `Unknown argument "${arg}".`;
+        } else {
+            positional.push(arg);
+        }
+    }
+    return { positional, values, help: false };
+}
+
+export function parseSummaryArgs(argv: readonly string[]): ParsedSummaryArgs {
+    const split = splitPositional(argv, ['--bpm', '--window']);
+    if (typeof split === 'string') return { kind: 'error', message: `${split} ${SUMMARY_USAGE}` };
+    if (split.help) return { kind: 'help' };
+    if (split.positional.length !== 1) return { kind: 'error', message: SUMMARY_USAGE };
+    const bpm = split.values.has('bpm') ? readPositive('bpm', split.values.get('bpm')) : undefined;
+    if (typeof bpm === 'string') return { kind: 'error', message: bpm };
+    const window = split.values.has('window') ? readPositive('window', split.values.get('window')) : undefined;
+    if (typeof window === 'string') return { kind: 'error', message: window };
+    return { kind: 'run', args: { path: split.positional[0], bpm, window } };
+}
+
+export interface RepeatArgs {
+    paths: string[];
+    bpm: number | undefined;
+}
+
+export type ParsedRepeatArgs =
+    { kind: 'help' } | { kind: 'run'; args: RepeatArgs } | { kind: 'error'; message: string };
+
+export function parseRepeatArgs(argv: readonly string[]): ParsedRepeatArgs {
+    const split = splitPositional(argv, ['--bpm']);
+    if (typeof split === 'string') return { kind: 'error', message: `${split} ${REPEAT_USAGE}` };
+    if (split.help) return { kind: 'help' };
+    if (split.positional.length < 2) return { kind: 'error', message: REPEAT_USAGE };
+    const bpm = split.values.has('bpm') ? readPositive('bpm', split.values.get('bpm')) : undefined;
+    if (typeof bpm === 'string') return { kind: 'error', message: bpm };
+    return { kind: 'run', args: { paths: split.positional, bpm } };
 }

@@ -2,10 +2,10 @@
 // Run it with `npm run debug:viz -- --help`. Not part of the app bundle: nothing under app/ imports this file.
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
-import { chromium, type Browser } from '@playwright/test';
+import { chromium, type Browser, type Page } from '@playwright/test';
 import {
     formatTelemetryCsv,
     parseTelemetryCsv,
@@ -13,7 +13,8 @@ import {
 } from '../../app/features/audio/devTelemetrySummary';
 import { VISUALIZATIONS } from '../../app/features/landing/visualizations';
 import { causeNote, createLineCollector, type LineCollector } from './output';
-import { listAudioFiles, parseArgs, scheduleShots, trackBaseName, USAGE } from './args';
+import { chooseReference, listAudioFiles, parseArgs, playFolderName, scheduleShots, sidecarName, USAGE } from './args';
+import { parseBpmSidecar, summarizeTempo } from './tempoReport';
 
 const SERVER_TIMEOUT_MS = 60_000;
 const PLAYBACK_TIMEOUT_MS = 30_000;
@@ -31,6 +32,9 @@ const NOTE_CHARS = 200;
 const MAX_SECONDS = 600;
 // Playback counts as stalled when its position has not moved for this long. Screenshots do not count against it.
 const STALL_MS = 15_000;
+// A replay counts as started once the position is back below this many seconds. Tracks start at 0, so this only has to
+// be larger than the delay between the new playback starting and the next poll.
+const RESTART_WITHIN_SECONDS = 2;
 // How long a signal waits for the browser to close before exiting anyway.
 const SIGNAL_CLEANUP_MS = 5_000;
 
@@ -104,6 +108,180 @@ function num(value: number): string {
     return String(Math.round(value * 100) / 100);
 }
 
+interface PlayOptions {
+    viz: string;
+    track: string;
+    requestedSeconds: number | undefined;
+    from: number;
+    shots: readonly number[];
+    reference: number | undefined;
+    play: number;
+    plays: number;
+}
+
+// Waits for the playback to start, or throws the dialog's one-line failure. With `restartedFrom` it also needs the
+// position to be back near 0, so the old playback that keeps running until the new file decodes does not count.
+async function waitForPlaybackStart(page: Page, restartedFrom: number | undefined): Promise<void> {
+    const startDeadline = Date.now() + PLAYBACK_TIMEOUT_MS;
+    for (;;) {
+        const position = await page.evaluate(() => window.__vizTelemetry?.playback()?.position ?? null);
+        if (position !== null) {
+            if (restartedFrom === undefined || position < Math.min(restartedFrom, RESTART_WITHIN_SECONDS)) return;
+        }
+        const alert = page.getByRole('alert');
+        if (await alert.count()) throw new UserError((await alert.first().innerText()).trim().split('\n')[0]);
+        if (Date.now() > startDeadline) {
+            throw new UserError(`Playback did not start within ${PLAYBACK_TIMEOUT_MS / 1000} s.`);
+        }
+        await sleep(100);
+    }
+}
+
+// The source dialog stays open after a source starts; close it so screenshots show the scene alone.
+async function closeSourceDialog(page: Page): Promise<void> {
+    const done = page.getByRole('button', { name: 'Done' });
+    if (await done.count()) await done.first().click();
+}
+
+// Chooses the track again from the visualizer page, as a user would: open the settings panel, then "Audio settings",
+// then "Choose a different source" in the dialog, then pick the file. A track that already ended has no source, so the
+// dialog opens straight on the chooser and that button is absent; both cases are handled.
+async function chooseTrackAgain(page: Page, trackPath: string, previousPosition: number): Promise<void> {
+    const dialog = page.getByRole('dialog', { name: 'Audio source' });
+    let openedPanel = false;
+    if (!(await dialog.count())) {
+        const settings = page.getByRole('button', { name: '☰ Settings' });
+        if (await settings.count()) {
+            await settings.click();
+            openedPanel = true;
+        }
+        await page.getByRole('button', { name: 'Audio settings' }).click();
+    }
+    const another = dialog.getByRole('button', { name: 'Choose a different source' });
+    if (await another.count()) await another.click();
+    await dialog.getByLabel('Audio file').setInputFiles(trackPath);
+    await waitForPlaybackStart(page, previousPosition);
+    await closeSourceDialog(page);
+    // Put the panel back so the scene is framed as it was on the first play.
+    if (openedPanel) {
+        const close = page.getByRole('button', { name: '✕ Close' });
+        if (await close.count()) await close.click();
+    }
+}
+
+// Records one play of the track that is already running: resets the recorder, waits for the range to be played, then
+// writes the CSV and prints the summary. Returns the last playback position seen.
+async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
+    const { viz, track, requestedSeconds, from, shots, reference, play, plays } = options;
+    await closeSourceDialog(page);
+
+    const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
+    const available = Math.max(0, duration - from);
+    if (available <= 0) throw new UserError(`--from ${from} is past the end of the track (${num(duration)} s).`);
+    // Judged against the track: a long --seconds on a short track still just means "to the end" (clamped below).
+    if (requestedSeconds !== undefined && Math.min(requestedSeconds, available) > MAX_SECONDS) {
+        throw new UserError(
+            `--seconds is capped at ${MAX_SECONDS} (10 minutes); record a long track in parts with --from.`,
+        );
+    }
+    const seconds = Math.min(requestedSeconds ?? available, available, MAX_SECONDS);
+    const end = from + seconds;
+    const clamped = requestedSeconds !== undefined && requestedSeconds > available;
+    const capped = requestedSeconds === undefined && available > MAX_SECONDS;
+    const { due, skipped } = scheduleShots(shots, end);
+
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const outDir = resolve('.debug-out', playFolderName(viz, track, stamp, play, plays));
+    mkdirSync(outDir, { recursive: true });
+    // The folder keeps its own copy of the reference so debug:summary can judge it later without the music folder.
+    if (reference !== undefined) writeFileSync(join(outDir, 'track.bpm'), `${reference}\n`);
+
+    // At 0 the track has only just begun. Seeking back to it would feed the tracker a discontinuity of a different
+    // length on every run, so only the recorder is reset and the first row's t is slightly above 0.
+    await page.evaluate(
+        ([start, capacity]) => {
+            if (start > 0) window.__vizTelemetry?.seek(start);
+            window.__vizTelemetry?.reset(capacity);
+        },
+        [from, (seconds + CAPACITY_MARGIN_SECONDS) * CAPACITY_FACTOR],
+    );
+
+    const pending = [...due];
+    const taken: string[] = [];
+    // A stalled player (paused tab, throttled clock) would otherwise poll forever. The check is on progress rather
+    // than a wall-clock budget, so slow screenshots on software WebGL cannot make a healthy run look stalled.
+    let lastPosition = from;
+    let lastAdvance = Date.now();
+    for (;;) {
+        const playback = await page.evaluate(() => window.__vizTelemetry?.playback() ?? null);
+        if (!playback) break;
+        if (playback.position !== lastPosition) {
+            lastPosition = playback.position;
+            lastAdvance = Date.now();
+        }
+        while (pending.length && playback.position >= pending[0]) {
+            const name = `shot-${pending.shift()}.png`;
+            await page.screenshot({ path: join(outDir, name) });
+            taken.push(name);
+            // Time spent taking the screenshot is not the player stalling.
+            lastAdvance = Date.now();
+        }
+        if (playback.position >= end || playback.ended) break;
+        if (Date.now() - lastAdvance > STALL_MS) {
+            throw new UserError(
+                `Playback stalled: position did not advance for ${STALL_MS / 1000} s; last position ${num(lastPosition)} s.`,
+            );
+        }
+        await sleep(POLL_MS);
+    }
+    // A track that ended before a shot time passed still owes the shots it never reached.
+    skipped.push(...pending);
+
+    const snapshot = await page.evaluate(() => {
+        const hook = window.__vizTelemetry;
+        return hook
+            ? {
+                  columns: hook.columns,
+                  data: Array.from(hook.snapshot()),
+                  rowCount: hook.rowCount,
+                  overflowed: hook.overflowed,
+              }
+            : undefined;
+    });
+    if (!snapshot || snapshot.rowCount === 0) throw new UserError('No telemetry rows were recorded.');
+
+    // Once the track ends the engine drops its graph and the clock column falls back to 0, so rows after the first
+    // step backward in time are not part of the playback and would skew the summary.
+    const stride = snapshot.columns.length;
+    let rowCount = 1;
+    while (rowCount < snapshot.rowCount && snapshot.data[rowCount * stride] >= snapshot.data[(rowCount - 1) * stride]) {
+        rowCount++;
+    }
+    const csv = formatTelemetryCsv(snapshot.columns, snapshot.data, rowCount);
+    writeFileSync(join(outDir, 'telemetry.csv'), csv);
+
+    const table = parseTelemetryCsv(csv);
+    const span = table.rows[table.rows.length - 1][0] - table.rows[0][0];
+    const fps = span > 0 ? (table.rows.length - 1) / span : 0;
+
+    const clampNote = clamped
+        ? ` (clamped from ${requestedSeconds}; track is ${num(duration)} s)`
+        : capped
+          ? ` (capped at ${MAX_SECONDS}; ${num(available)} s remain, record the rest with --from)`
+          : '';
+    const playNote = plays > 1 ? ` play=${play}/${plays}` : '';
+    console.log(`Run: viz=${viz} track=${track}${playNote} from=${num(from)} s seconds=${num(seconds)}${clampNote}`);
+    console.log(`Rows: ${rowCount}, measured mean fps: ${num(fps)}`);
+    if (snapshot.overflowed)
+        console.log('Warning: the recorder filled up and stopped; the tail of the run is missing from the CSV.');
+    if (taken.length) console.log(`Shots: ${taken.join(', ')}`);
+    if (skipped.length) console.log(`Skipped shots past the end of the range: ${skipped.join(', ')}`);
+    console.log(`Output: ${outDir}`);
+    console.log(summarizeTelemetry(table, { maxLines: 20 }).join('\n'));
+    console.log(summarizeTempo(table, { referenceBpm: reference }).join('\n'));
+    return lastPosition;
+}
+
 async function main(): Promise<void> {
     const parsed = parseArgs(process.argv.slice(2));
     if (parsed.kind === 'help') {
@@ -111,7 +289,7 @@ async function main(): Promise<void> {
         return;
     }
     if (parsed.kind === 'error') fail(parsed.message);
-    const { dir, track, viz, seconds: requestedSeconds, from, shots, headless } = parsed.args;
+    const { dir, track, viz, seconds: requestedSeconds, from, shots, reselect, headless } = parsed.args;
 
     // Validate everything that needs no browser first, so a typo costs nothing.
     const dirPath = resolve(dir);
@@ -125,6 +303,15 @@ async function main(): Promise<void> {
     }
     const names = VISUALIZATIONS.map((visualization) => visualization.to.replace(/^\//, ''));
     if (!names.includes(viz)) fail(`Unknown visualizer "${viz}". Valid names: ${names.join(', ')}`);
+
+    // A sidecar beside the track gives the tempo the report is judged against. A bad one is a warning, not an error.
+    const trackPath = join(dirPath, track);
+    const sidecarPath = join(dirPath, sidecarName(track));
+    const sidecar = existsSync(sidecarPath)
+        ? chooseReference(undefined, readFileSync(sidecarPath, 'utf8'), sidecarName(track), parseBpmSidecar)
+        : { bpm: undefined, warning: undefined };
+    if (sidecar.warning) console.log(sidecar.warning);
+    const reference = sidecar.bpm;
 
     const port = await freePort();
     const origin = `http://localhost:${port}`;
@@ -186,125 +373,27 @@ async function main(): Promise<void> {
         });
         const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
         await page.goto(`${origin}/${viz}`);
-        await page.getByLabel('Audio file').setInputFiles(join(dirPath, track));
 
-        // Playback starting and the dialog reporting a failure are the two outcomes; wait for either.
-        const startDeadline = Date.now() + PLAYBACK_TIMEOUT_MS;
-        for (;;) {
-            if (await page.evaluate(() => window.__vizTelemetry?.playback() != null)) break;
-            const alert = page.getByRole('alert');
-            if (await alert.count()) throw new UserError((await alert.first().innerText()).trim().split('\n')[0]);
-            if (Date.now() > startDeadline) {
-                throw new UserError(`Playback did not start within ${PLAYBACK_TIMEOUT_MS / 1000} s.`);
+        let lastPosition = 0;
+        for (let play = 1; play <= reselect; play++) {
+            if (play === 1) {
+                await page.getByLabel('Audio file').setInputFiles(trackPath);
+                await waitForPlaybackStart(page, undefined);
+            } else {
+                // Choose the track again the way a user would; the old playback restarts from 0.
+                await chooseTrackAgain(page, trackPath, lastPosition);
             }
-            await sleep(100);
+            lastPosition = await recordPlay(page, {
+                viz,
+                track,
+                requestedSeconds,
+                from,
+                shots,
+                reference,
+                play,
+                plays: reselect,
+            });
         }
-
-        // The source dialog stays open after a source starts; close it so screenshots show the scene alone.
-        const done = page.getByRole('button', { name: 'Done' });
-        if (await done.count()) await done.first().click();
-
-        const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
-        const available = Math.max(0, duration - from);
-        if (available <= 0) throw new UserError(`--from ${from} is past the end of the track (${num(duration)} s).`);
-        // Judged against the track: a long --seconds on a short track still just means "to the end" (clamped below).
-        if (requestedSeconds !== undefined && Math.min(requestedSeconds, available) > MAX_SECONDS) {
-            throw new UserError(
-                `--seconds is capped at ${MAX_SECONDS} (10 minutes); record a long track in parts with --from.`,
-            );
-        }
-        const seconds = Math.min(requestedSeconds ?? available, available, MAX_SECONDS);
-        const end = from + seconds;
-        const clamped = requestedSeconds !== undefined && requestedSeconds > available;
-        const capped = requestedSeconds === undefined && available > MAX_SECONDS;
-        const { due, skipped } = scheduleShots(shots, end);
-
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const outDir = resolve('.debug-out', `${viz}-${trackBaseName(track)}-${stamp}`);
-        mkdirSync(outDir, { recursive: true });
-
-        await page.evaluate(
-            ([start, capacity]) => {
-                window.__vizTelemetry?.seek(start);
-                window.__vizTelemetry?.reset(capacity);
-            },
-            [from, (seconds + CAPACITY_MARGIN_SECONDS) * CAPACITY_FACTOR],
-        );
-
-        const pending = [...due];
-        const taken: string[] = [];
-        // A stalled player (paused tab, throttled clock) would otherwise poll forever. The check is on progress rather
-        // than a wall-clock budget, so slow screenshots on software WebGL cannot make a healthy run look stalled.
-        let lastPosition = from;
-        let lastAdvance = Date.now();
-        for (;;) {
-            const playback = await page.evaluate(() => window.__vizTelemetry?.playback() ?? null);
-            if (!playback) break;
-            if (playback.position !== lastPosition) {
-                lastPosition = playback.position;
-                lastAdvance = Date.now();
-            }
-            while (pending.length && playback.position >= pending[0]) {
-                const name = `shot-${pending.shift()}.png`;
-                await page.screenshot({ path: join(outDir, name) });
-                taken.push(name);
-                // Time spent taking the screenshot is not the player stalling.
-                lastAdvance = Date.now();
-            }
-            if (playback.position >= end || playback.ended) break;
-            if (Date.now() - lastAdvance > STALL_MS) {
-                throw new UserError(
-                    `Playback stalled: position did not advance for ${STALL_MS / 1000} s; last position ${num(lastPosition)} s.`,
-                );
-            }
-            await sleep(POLL_MS);
-        }
-        // A track that ended before a shot time passed still owes the shots it never reached.
-        skipped.push(...pending);
-
-        const snapshot = await page.evaluate(() => {
-            const hook = window.__vizTelemetry;
-            return hook
-                ? {
-                      columns: hook.columns,
-                      data: Array.from(hook.snapshot()),
-                      rowCount: hook.rowCount,
-                      overflowed: hook.overflowed,
-                  }
-                : undefined;
-        });
-        if (!snapshot || snapshot.rowCount === 0) throw new UserError('No telemetry rows were recorded.');
-
-        // Once the track ends the engine drops its graph and the clock column falls back to 0, so rows after the first
-        // step backward in time are not part of the playback and would skew the summary.
-        const stride = snapshot.columns.length;
-        let rowCount = 1;
-        while (
-            rowCount < snapshot.rowCount &&
-            snapshot.data[rowCount * stride] >= snapshot.data[(rowCount - 1) * stride]
-        ) {
-            rowCount++;
-        }
-        const csv = formatTelemetryCsv(snapshot.columns, snapshot.data, rowCount);
-        writeFileSync(join(outDir, 'telemetry.csv'), csv);
-
-        const table = parseTelemetryCsv(csv);
-        const span = table.rows[table.rows.length - 1][0] - table.rows[0][0];
-        const fps = span > 0 ? (table.rows.length - 1) / span : 0;
-
-        const clampNote = clamped
-            ? ` (clamped from ${requestedSeconds}; track is ${num(duration)} s)`
-            : capped
-              ? ` (capped at ${MAX_SECONDS}; ${num(available)} s remain, record the rest with --from)`
-              : '';
-        console.log(`Run: viz=${viz} track=${track} from=${num(from)} s seconds=${num(seconds)}${clampNote}`);
-        console.log(`Rows: ${rowCount}, measured mean fps: ${num(fps)}`);
-        if (snapshot.overflowed)
-            console.log('Warning: the recorder filled up and stopped; the tail of the run is missing from the CSV.');
-        if (taken.length) console.log(`Shots: ${taken.join(', ')}`);
-        if (skipped.length) console.log(`Skipped shots past the end of the range: ${skipped.join(', ')}`);
-        console.log(`Output: ${outDir}`);
-        console.log(summarizeTelemetry(table).join('\n'));
     } finally {
         await cleanup();
     }
