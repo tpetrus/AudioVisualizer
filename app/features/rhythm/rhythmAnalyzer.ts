@@ -260,7 +260,7 @@ export class RhythmAnalyzer {
 
     private handleBeat(): void {
         const beatIndex = this.beat.beatCount;
-        const period = this.beat.periodSeconds;
+        const period = this.beat.lastBeatPeriod;
         this.measureBeat(this.beat.lastBeatTime, period);
         this.meter.addBeat(beatIndex, this.featureKick, this.featureTotal, this.featureChroma, period);
         this.syncMeterState();

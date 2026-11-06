@@ -67,6 +67,12 @@ export class BeatTracker {
         return this.aligned ? this.period : 0;
     }
 
+    // The period the latest beat was declared with. Unlike `periodSeconds` it outlives a grid given up by that same beat,
+    // so a reader never divides by a period of 0.
+    get lastBeatPeriod(): number {
+        return this.period;
+    }
+
     // Number of beats declared since the last reset; the first beat is 1.
     get beatCount(): number {
         return this.declared;

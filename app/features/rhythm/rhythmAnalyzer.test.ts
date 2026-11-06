@@ -488,7 +488,7 @@ describe('RhythmAnalyzer when the beat is lost', () => {
         return analyzer;
     }
 
-    it.fails(`keeps the tempo and counters finite after ${BEAT_LOST_BEATS} missed beats`, () => {
+    it(`keeps the tempo and counters finite after ${BEAT_LOST_BEATS} missed beats`, () => {
         expect(runLostBeat().gridEpoch).toBeGreaterThan(0);
     });
 });
