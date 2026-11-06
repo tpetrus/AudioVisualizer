@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { createRhythmState } from '~/features/rhythm/types';
-import { createBassGateState, forgetBassline, stepBassGate } from './dancingCharacterBassGate';
+import { createBassGateState, forgetBassline, stepBassGate } from './bassGate';
 import {
     BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_GRACE_BEATS,
     BASS_GATE_LOCK_GRACE_SECONDS,
     BASS_GATE_MIN_INTERVAL,
-} from './dancingCharacterConfig';
+} from './bassGateConfig';
+import { createRhythmState } from './types';
 
 const DT = 1 / 60;
 // 120 BPM: a beat every 30 frames.

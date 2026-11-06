@@ -1,4 +1,3 @@
-import type { RhythmState } from '~/features/rhythm/types';
 import {
     BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_CLOSE_SCORE,
@@ -18,8 +17,9 @@ import {
     BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
     BASS_GATE_STRENGTH_ADAPT,
-    MAX_FRAME_DT,
-} from './dancingCharacterConfig';
+    BASS_GATE_MAX_STEP_SECONDS,
+} from './bassGateConfig';
+import type { RhythmState } from './types';
 
 // Plain numbers and booleans only, so it can be kept across frames without allocation.
 export interface BassGateState {
@@ -102,7 +102,7 @@ export function stepBassGate(
     state: BassGateState,
     dt: number,
 ): number {
-    const step = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
+    const step = Math.min(Math.max(dt, 0), BASS_GATE_MAX_STEP_SECONDS);
     const raw = Math.min(Math.max(bass, 0), 1);
 
     // A new song throws away the old bassline at once; a lost tempo lock only after a grace period, because the

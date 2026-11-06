@@ -18,7 +18,7 @@ import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { stepCameraDolly } from './dancingCharacterCamera';
-import { createBassGateState, forgetBassline, stepBassGate } from './dancingCharacterBassGate';
+import { createBassGateState, forgetBassline, stepBassGate } from '~/features/rhythm/bassGate';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 

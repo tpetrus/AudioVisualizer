@@ -2,7 +2,7 @@ import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
-import { BassPulse } from './bassPulse';
+import { BassPulse } from '~/features/rhythm/bassPulse';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';

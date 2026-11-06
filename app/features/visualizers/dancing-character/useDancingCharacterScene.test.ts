@@ -19,7 +19,7 @@ vi.mock('three', async (importOriginal) => {
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
 
-// The loader, the character scene and the shared cubes BassPulse have their own specs; here only the hook's wiring matters.
+// The loader, the character scene and the shared BassPulse have their own specs; here only the hook's wiring matters.
 vi.mock('./dancingCharacterAssets', () => ({
     loadDancingCharacterAssets: vi.fn(),
     disposeDancingCharacterAssets: vi.fn(),
@@ -53,7 +53,7 @@ vi.mock('./dancingCharacterScene', () => ({
     },
 }));
 
-vi.mock('~/features/visualizers/cubes/bassPulse', () => ({
+vi.mock('~/features/rhythm/bassPulse', () => ({
     BassPulse: class {
         level = 0;
         readonly update = vi.fn(() => this.level);

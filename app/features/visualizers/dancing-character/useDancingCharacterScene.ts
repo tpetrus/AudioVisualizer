@@ -1,6 +1,6 @@
 import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
-import { BassPulse } from '~/features/visualizers/cubes/bassPulse';
+import { BassPulse } from '~/features/rhythm/bassPulse';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 import { MAX_FRAME_DT } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';

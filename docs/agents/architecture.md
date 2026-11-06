@@ -122,7 +122,7 @@ Helpers in `app/lib/three/`:
 | `<name>Controls.ts` | control definitions `as const satisfies readonly ControlDefinition[]` + `ControlValues` type |
 | `<name>Config.ts` | tuning constants and static tables (optional) |
 | pure-maths modules | e.g. `bands.ts`, `spectrum.ts`: no three.js, no React, buffers passed in |
-| resource classes | e.g. `CubeGrid`, `BassPulse`, `TrioColorWaveSheet`: own GPU objects and/or audio nodes, expose `update()` + `dispose()` |
+| resource classes | e.g. `CubeGrid`, `TrioColorWaveSheet`: own GPU objects and/or audio nodes, expose `update()` + `dispose()` (the shared `BassPulse` in `features/rhythm/` has the same shape) |
 
 **Audio binding happens inside the render loop**, not in an effect: `update()` compares `analyserRef.current` with the
 analyser it last bound (`boundAnalyser`) and rebinds when it changes (re-tap analysers, reallocate buffers). This keeps the
@@ -206,6 +206,19 @@ METER_VISUAL_CONFIDENCE` before treating a downbeat as real.
   for 3 s (half and double tempo do not count). Cheap when it fires falsely, for example on a chorus.
 - **Always**: everything the meter learned has a ~20 s half-life, so an undetected change heals by itself. A rebuilt beat
   grid (tempo jump, octave change) also shrinks the meter's evidence, without counting as a song change.
+
+### Shared bass surface
+Bass and beat code a visualizer needs comes from this folder, never from another visualizer's folder. Beat phase, tempo
+and meter come from `useRhythm()` and `tracker.state` as described above; the bass comes from these two modules:
+
+- **`BassPulse`** (`bassPulse.ts`) taps the source analyser through its own low-pass chain and returns a 0..1 bass
+  envelope from `update()`, once per frame. It owns Web Audio nodes, so it is not one of the pure modules: create it when
+  the analyser binds, and `dispose()` it on rebind and on teardown. `useCubesScene.ts` shows the pattern.
+- **`stepBassGate`** (`bassGate.ts`) turns that envelope plus `tracker.state` into a steady pulse on the beat, once the
+  kicks have locked onto one place in the beat. It is pure and allocation-free: keep one `createBassGateState()` per scene
+  and call `forgetBassline` when the scene's character or song context is replaced. `dancingCharacterScene.ts` shows the
+  pattern. Its tuning lives in `bassGateConfig.ts` rather than `rhythmConfig.ts`, because `rhythmConfig` is in the bundle
+  every page loads on first paint and only the visualizers that use the gate should pay for these constants.
 
 ### How a visualizer consumes it
 Call `useRhythm()` in the page and pass the tracker into `use<Name>Scene` (a stable instance, so no `useLatestRef`). In
