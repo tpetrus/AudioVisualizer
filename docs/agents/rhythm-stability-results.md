@@ -78,7 +78,7 @@ The plan is `docs/plans/rhythm-bass-stability/` on Trevor's machine; it is not c
 | AC3 decoration specs | Met | Specs in `rhythmAnalyzer.test.ts` failed before the fix |
 | AC4 tempo within 1%, no rebuilds, no song changes | **Partly** | Tempo met on 5 of 6; rebuilds remain on `syncopationbass` and sometimes `lonley` |
 | AC5 gate and bump spacing | **Partly** | Revised with Trevor: open within 4 s of lock, then stay open. Misses on `lonley` and on `syncopationbass` spacing |
-| AC6 real song changes not slower; kickless locks | Met | Specs pass; `eval:rhythm` improved. A real change landing on a dotted ratio takes about 8 s longer, by design |
+| AC6 real song changes not slower; kickless locks | Met | Specs pass; `eval:rhythm` improved. **Gap:** see the dotted-ratio song change under known costs |
 | AC7 shared surface documented | Met | `architecture.md` section 6 |
 | AC8 repository checks | Met | Format, lint, typecheck, coverage, build, size, e2e. `cubes` and `trio-color-wave` ran 20 s at 60 fps with no falloff; their look was not reviewed |
 | AC9 later work listed | Met | Below |
@@ -86,6 +86,14 @@ The plan is `docs/plans/rhythm-bass-stability/` on Trevor's machine; it is not c
 
 ## Known costs of what shipped
 
+- **A real song change at a dotted ratio can go unnoticed as a song change.** Found by the independent review and confirmed by a
+  probe. `BoundaryDetector.pushTempo` skips dotted ratios with no time limit and leaves its reference stale, so 90 to 120 or
+  100 to 150 never raises the tempo cue. Only the spectral-novelty cue can catch it, and without it `songChangeCount` does not
+  rise, so the dance locks and the bass gate are not reset. The held tempo itself still switches after about 8 s, if confidence
+  stays at 0.5 or above; below that a new tempo at these ratios may never replace the old one. Fix first if a change between
+  songs looks wrong: give dotted ratios a longer, confidence-gated jump time, as `tempo.ts` does. Follow-up `FU-boundary-dotted`.
+- **The `state.bpm` change has no direct spec.** Reverting it leaves all rhythm specs passing, because the decoration specs pass
+  on `BEAT_PERIOD_GAIN` alone. Add this before changing that code. Follow-up `FU-pin-state-bpm`.
 - **Scattered bass can open the gate.** Without the penalty, 4 of 5 random bass patterns open it in the spec, recorded with
   `it.fails` in `bassGate.test.ts`. The pulse still lands on the beat clock. If stray pulses show up on real music, this is the
   first thing to revisit: revert the removal, or use the leads below.
