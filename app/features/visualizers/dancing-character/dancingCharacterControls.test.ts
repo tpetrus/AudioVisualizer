@@ -28,6 +28,11 @@ describe('dancingCharacterControls', () => {
         expect(danceSpeed).toMatchObject({ min: 0.5, max: 1, step: 0.5 });
     });
 
+    // The speed limit is about the dance only: the orbit and the bass glow keep their own, wider ranges.
+    it.each(['orbitSpeed', 'bassStrength'])('leaves the range of %s up to 2', (key) => {
+        expect(dancingCharacterControls.find((control) => control.key === key)).toMatchObject({ min: 0, max: 2 });
+    });
+
     it('has a camera bump slider that can be switched off', () => {
         const control = dancingCharacterControls.find((c) => c.key === 'bassCameraStrength');
         expect(control).toMatchObject({ section: 'Bass', label: 'Camera bump', min: 0, max: 1, step: 0.05 });
