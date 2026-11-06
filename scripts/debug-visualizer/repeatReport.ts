@@ -21,6 +21,8 @@ export interface RepeatSpread {
 export interface RepeatComparison {
     runs: number;
     lockTimes: (number | undefined)[];
+    // First t each run's meter locked after its tempo did; undefined when it never did or the table has no such column.
+    meterLockTimes: (number | undefined)[];
     medianBpms: number[];
     sameOctave: boolean;
     samples: number;
@@ -84,6 +86,13 @@ function seriesOf(table: TelemetryTable): RunSeries {
     return series;
 }
 
+function meterLockTimeOf(table: TelemetryTable, lockTime: number | undefined): number | undefined {
+    const columns = findTempoColumns(table.columns);
+    if (!columns || columns.meterLocked < 0 || lockTime === undefined) return undefined;
+    const row = table.rows.find((r) => r[columns.t] >= lockTime && r[columns.meterLocked] === 1);
+    return row ? row[columns.t] : undefined;
+}
+
 export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison {
     if (tables.length < 2) throw new Error('Need at least two recordings to compare.');
 
@@ -99,6 +108,7 @@ export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison
         ? Infinity
         : Math.max(...(lockTimes as number[])) - Math.min(...(lockTimes as number[]));
 
+    const meterLockTimes = tables.map((table, run) => meterLockTimeOf(table, lockTimes[run]));
     const series = tables.map(seriesOf);
     const bpmValues: number[] = [];
     const beatValues: number[] = [];
@@ -107,7 +117,8 @@ export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison
 
     const everyRunLocked = lockTimes.every((lock) => lock !== undefined);
     if (everyRunLocked) {
-        const start = Math.max(...lockTimes);
+        // The dance can only be aligned to a bar once the bar is known, so the spreads start at the latest meter lock.
+        const start = Math.max(...lockTimes, ...meterLockTimes.filter((lock) => lock !== undefined));
         // The runs share track time, so the comparison ends where the shortest one does.
         const end = Math.min(...series.map((s) => s.t[s.t.length - 1]));
         const period = 60 / first;
@@ -143,6 +154,7 @@ export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison
     return {
         runs: tables.length,
         lockTimes,
+        meterLockTimes,
         medianBpms,
         sameOctave,
         samples,
@@ -172,6 +184,7 @@ export function formatRepeatReport(comparison: RepeatComparison, targets: Partia
     const lines = [
         `Repeat: ${comparison.runs} runs, ${comparison.samples} samples every ${SAMPLE_STEP_SECONDS} s of track time`,
         `lock times: ${comparison.lockTimes.map((t) => (t === undefined ? 'never' : `${significant(t)} s`)).join(', ')}`,
+        `meter lock times: ${comparison.meterLockTimes.map((t) => (t === undefined ? 'never' : `${significant(t)} s`)).join(', ')}`,
         `median bpm: ${comparison.medianBpms.map((bpm) => significant(bpm)).join(', ')}` +
             (comparison.sameOctave
                 ? ''

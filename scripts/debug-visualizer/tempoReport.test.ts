@@ -226,10 +226,25 @@ describe('computeTempoMetrics', () => {
         expect(computeTempoMetrics(table)!.bumpIntervalShare).toBe(1);
     });
 
-    it('computes gateShare from the post-lock rows', () => {
-        const metrics = computeTempoMetrics(makeTable(10, (t) => ({ gateOpen: t >= 6 ? 0 : 1 })))!;
-        expect(metrics.gateShare).toBeCloseTo(0.5, 1);
-        expect(metrics.gateOpenTime).toBeCloseTo(2, 1);
+    it('computes gateShare from the first opening, and how long after the lock that was', () => {
+        // Opens at 4 s, two seconds after the lock at 2 s, and closes for good at 7 s, three seconds into seven.
+        const metrics = computeTempoMetrics(makeTable(11, (t) => ({ gateOpen: t >= 4 && t < 7 ? 1 : 0 })))!;
+        expect(metrics.gateOpenTime).toBeCloseTo(4, 1);
+        expect(metrics.gateOpenDelay).toBeCloseTo(2, 1);
+        expect(metrics.gateShare).toBeCloseTo(3 / 7, 1);
+    });
+
+    it('reports a gate that never opens', () => {
+        const table = makeTable(10, () => ({ gateOpen: 0 }));
+        const metrics = computeTempoMetrics(table)!;
+        expect(metrics.gateOpenDelay).toBeUndefined();
+        expect(metrics.gateShare).toBe(0);
+        expect(summarizeTempo(table, { referenceBpm: 120 }).at(-1)).toContain('gate never opened');
+    });
+
+    it('fails a gate that opens too long after the lock, however well it then holds', () => {
+        const table = makeTable(20, (t) => ({ gateOpen: t >= 8 ? 1 : 0 }));
+        expect(summarizeTempo(table, { referenceBpm: 120 }).at(-1)).toContain('after lock > 4 s');
     });
 
     it('reads fps from t when the table has no fps column', () => {
@@ -296,7 +311,7 @@ describe('summarizeTempo', () => {
             makeTable(20, () => ({ gateOpen: 0 })),
             { referenceBpm: 120 },
         );
-        expect(verdictOf(gate)).toContain('gate share');
+        expect(verdictOf(gate)).toContain('gate never opened');
         const off = summarizeTempo(
             makeTable(20, (t) => ({ bumpCount: Math.floor(t * 1.5) })),
             { referenceBpm: 120 },

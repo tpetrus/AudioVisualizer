@@ -20,8 +20,9 @@ export interface TempoMetrics {
     songChanges: number; // rises of songChanges within the recording, so a re-select before the first row never counts
     gridRebuilds: number; // rises of gridEpoch within the recording
     lockedShare: number; // post-lock share of rows with tempoLocked = 1
-    gateShare: number; // post-lock share of rows with gateOpen = 1
+    gateShare: number; // share of rows with gateOpen = 1, from the gate's first opening on; 0 when it never opens
     gateOpenTime: number | undefined; // first post-lock t with gateOpen = 1
+    gateOpenDelay: number | undefined; // seconds from lockTime to gateOpenTime
     bumpIntervalShare: number | undefined; // post-lock intervals within 0.1 beat of a whole number of beats (at least 1)
     meanFps: number;
 }
@@ -32,6 +33,8 @@ const BUMP_GRID_BEATS = 0.1;
 const PASS_WITHIN_TOLERANCE = 0.98;
 const PASS_LOCKED_SHARE = 0.99;
 const PASS_GATE_SHARE = 0.99;
+// The gate has to hear several kicks after the tempo locks, so it is judged on how soon it opens and then on staying open.
+const PASS_GATE_DELAY_SECONDS = 4;
 const PASS_BUMP_SHARE = 0.95;
 // Header, the three metric lines and the verdict. Windows and event lines share what is left.
 const FIXED_LINES = 5;
@@ -48,6 +51,7 @@ export interface TempoColumns {
     tempoConfidence: number;
     beatPhase: number;
     clipPhase: number;
+    meterLocked: number;
     songChanges: number;
     gridEpoch: number;
     tempoLocked: number;
@@ -70,6 +74,7 @@ export function findTempoColumns(columns: readonly string[]): TempoColumns | und
         tempoConfidence: at(`${prefix}tempoConfidence`),
         beatPhase: at(`${prefix}beatPhase`),
         clipPhase: at(`${prefix}clipPhase`),
+        meterLocked: at(`${prefix}meterLocked`),
         songChanges: at(`${prefix}songChanges`),
         gridEpoch: at(`${prefix}gridEpoch`),
         tempoLocked: at(`${prefix}tempoLocked`),
@@ -183,7 +188,13 @@ function analyze(table: TelemetryTable, options: TempoSummaryOptions): Analysis 
 
     const share = (index: number) =>
         post.length === 0 ? 0 : post.filter((row) => cell(row, index) === 1).length / post.length;
-    const gateRow = post.find((row) => cell(row, columns.gateOpen) === 1);
+    const gateIndex = post.findIndex((row) => cell(row, columns.gateOpen) === 1);
+    const gateRow = gateIndex >= 0 ? post[gateIndex] : undefined;
+    const sinceOpen = gateIndex >= 0 ? post.slice(gateIndex) : [];
+    const gateShare =
+        sinceOpen.length === 0
+            ? 0
+            : sinceOpen.filter((row) => cell(row, columns.gateOpen) === 1).length / sinceOpen.length;
 
     // Bump times are the post-lock rows where the counter rose; intervals are measured in beats of the median tempo.
     const bumpTimes: number[] = [];
@@ -215,8 +226,9 @@ function analyze(table: TelemetryTable, options: TempoSummaryOptions): Analysis 
             songChanges: songChangeRows.length,
             gridRebuilds: gridRebuildRows.length,
             lockedShare: share(columns.tempoLocked),
-            gateShare: share(columns.gateOpen),
+            gateShare,
             gateOpenTime: gateRow ? gateRow[columns.t] : undefined,
+            gateOpenDelay: gateRow && lockTime !== undefined ? gateRow[columns.t] - lockTime : undefined,
             bumpIntervalShare,
             meanFps: meanFpsOf(rows, columns),
         },
@@ -243,7 +255,12 @@ function missedTargets(metrics: TempoMetrics): string[] {
     if (!(metrics.lockedShare >= PASS_LOCKED_SHARE)) {
         missed.push(`locked share ${significant(metrics.lockedShare, 3)} < ${PASS_LOCKED_SHARE}`);
     }
-    if (!(metrics.gateShare >= PASS_GATE_SHARE)) {
+    if (metrics.gateOpenDelay === undefined) {
+        missed.push('gate never opened');
+    } else if (metrics.gateOpenDelay > PASS_GATE_DELAY_SECONDS) {
+        missed.push(`gate opened ${significant(metrics.gateOpenDelay, 3)} s after lock > ${PASS_GATE_DELAY_SECONDS} s`);
+    }
+    if (metrics.gateOpenDelay !== undefined && !(metrics.gateShare >= PASS_GATE_SHARE)) {
         missed.push(`gate share ${significant(metrics.gateShare, 3)} < ${PASS_GATE_SHARE}`);
     }
     if (bumpIntervalShare === undefined || !(bumpIntervalShare >= PASS_BUMP_SHARE)) {
@@ -313,7 +330,7 @@ function metricLines(metrics: TempoMetrics): string[] {
             `within tolerance ${optional(metrics.withinTolerance, percent)}, mean fps ${significant(metrics.meanFps, 3)}`,
         `song changes ${metrics.songChanges}, grid rebuilds ${metrics.gridRebuilds}, ` +
             `locked ${percent(metrics.lockedShare)}, gate ${percent(metrics.gateShare)}`,
-        `gate first open at ${optional(metrics.gateOpenTime, (v) => `${significant(v)} s`)}, ` +
+        `gate first open at ${optional(metrics.gateOpenTime, (v) => `${significant(v)} s`)} (${optional(metrics.gateOpenDelay, (v) => `${significant(v)} s`)} after lock), ` +
             `bump intervals on the grid ${optional(metrics.bumpIntervalShare, percent)}`,
     ];
 }

@@ -260,8 +260,9 @@ export interface TempoMetrics {
     songChanges: number; // rises of songChanges within the recording, so a re-select before the first row never counts
     gridRebuilds: number; // rises of gridEpoch within the recording
     lockedShare: number; // post-lock share of rows with tempoLocked = 1
-    gateShare: number; // post-lock share of rows with gateOpen = 1
+    gateShare: number; // share of rows with gateOpen = 1, from the gate's first opening on; 0 when it never opens
     gateOpenTime: number | undefined; // first post-lock t with gateOpen = 1
+    gateOpenDelay: number | undefined; // seconds from lockTime to gateOpenTime
     bumpIntervalShare: number | undefined; // post-lock intervals within 0.1 beat of a whole number of beats (at least 1)
     meanFps: number;
 }
@@ -276,8 +277,7 @@ export function summarizeTempo(table: TelemetryTable, options?: TempoSummaryOpti
   of `songChanges` and `gridEpoch`, locked and gate shares, bumps, and `unreliable` under `minFps`), one line per song
   change and per grid rebuild with its `t`, the `TempoMetrics` values, and a last line that is one of
   `TEMPO VERDICT: PASS`, `TEMPO VERDICT: FAIL (<which target>)` or `TEMPO VERDICT: report only (no sidecar)`. Pass means
-  `withinTolerance` at least 0.98, no song changes, no grid rebuilds, `lockedShare` and `gateShare` at least 0.99 and
-  `bumpIntervalShare` at least 0.95. A recording that never locks fails. Windows are widened to fit `maxLines`, and the
+  `withinTolerance` at least 0.98, no song changes, no grid rebuilds, `lockedShare` at least 0.99, a `gateOpenDelay` of at most 4 s, `gateShare` at least 0.99 and `bumpIntervalShare` at least 0.95. A recording that never locks fails. Windows are widened to fit `maxLines`, and the
   output never exceeds it.
 - `debug:viz` and `debug:summary` print `summarizeTelemetry` with `maxLines: 20`, then `summarizeTempo` with its default,
   so the total stays within the 60 lines above. A probe without the columns adds only the one line.
@@ -290,6 +290,7 @@ export interface RepeatSpread { median: number; p95: number; max: number }
 export interface RepeatComparison {
     runs: number;
     lockTimes: (number | undefined)[];
+    meterLockTimes: (number | undefined)[]; // first meter lock after each run's tempo lock; undefined when there is none
     medianBpms: number[];
     sameOctave: boolean;
     samples: number;
@@ -303,7 +304,7 @@ export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison
 export function formatRepeatReport(comparison: RepeatComparison, targets?: Partial<RepeatTargets>): string[];
 ```
 
-- Sample times are every 0.25 s of `t` from the latest run's `lockTime` to the earliest run's end; each run uses its last
+- Sample times are every 0.25 s of `t` from the latest run's meter lock (its `lockTime` if no run has one, because a dance cannot align to a bar before the bar is known) to the earliest run's end; each run uses its last
   row at or before the sample with a defined `beatPhase` and `bpm > 0`. With no sample time, the spreads are NaN and the
   verdict fails.
 - A beat time is `t - beatPhase * 60 / bpm`, so frame rate does not limit it. Beat times and `clipPhase` are compared

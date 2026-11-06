@@ -198,3 +198,32 @@ describe('describeRunDeviations', () => {
         expect(lines[2]).toContain('0%');
     });
 });
+
+describe('compareRuns from the meter lock', () => {
+    // A run whose dance position is shifted by `clipOffset` until its meter locks at `meterAt`.
+    function withMeter(clipOffset: number, meterAt: number): TelemetryTable {
+        const run = makeRun();
+        const clip = run.columns.indexOf('dancing-character.clipPhase');
+        return {
+            columns: [...run.columns, 'dancing-character.meterLocked'],
+            rows: run.rows.map((row) => {
+                const out = [...row, row[0] >= meterAt ? 1 : 0];
+                if (row[0] < meterAt) out[clip] = (row[clip] + clipOffset) % 1;
+                return out;
+            }),
+        };
+    }
+
+    it('starts the spreads at the latest meter lock, not the tempo lock', () => {
+        const comparison = compareRuns([withMeter(0, 8), withMeter(0.25, 10)]);
+        expect(comparison.meterLockTimes[0]).toBeCloseTo(8, 1);
+        expect(comparison.meterLockTimes[1]).toBeCloseTo(10, 1);
+        expect(comparison.clipLoops.max).toBeLessThan(0.001);
+    });
+
+    it('falls back to the tempo lock for runs with no meter lock, and says so', () => {
+        const comparison = compareRuns([makeRun(), makeRun()]);
+        expect(comparison.meterLockTimes).toEqual([undefined, undefined]);
+        expect(formatRepeatReport(comparison).join('\n')).toContain('meter lock times: never, never');
+    });
+});
