@@ -82,6 +82,13 @@ export const TEMPO_HYSTERESIS = 0.04;
 export const TEMPO_SMOOTHING = 0.25;
 // A different tempo must win this many consecutive estimates (x TEMPO_UPDATE_SECONDS) before it replaces the held one.
 export const TEMPO_SWITCH_ESTIMATES = 4;
+// Dotted notes make a pulse at 4/3 of the beat for a few bars at a time without the tempo changing. The tracker may hold
+// either octave of the beat, so a rival is compared after folding the ratio into one octave, where 4/3 and 3/4 of the beat
+// or of its double become 4/3 and 3/2. Such a rival must win about 8 s of estimates. A longer hold for every rival would be
+// simpler, but it makes real song changes late.
+export const TEMPO_SYNCOPATION_RATIOS = [4 / 3, 3 / 2] as const;
+export const TEMPO_SYNCOPATION_TOLERANCE = 0.02;
+export const TEMPO_SYNCOPATION_SWITCH_ESTIMATES = 32;
 // The tempo is dropped (back to unknown) after this many consecutive estimates below the confidence floor.
 export const TEMPO_LOSE_CONFIDENCE = 0.08;
 export const TEMPO_LOSE_ESTIMATES = 40;
