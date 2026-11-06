@@ -2,7 +2,21 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, type TestContext } from 'vitest';
-import { listAudioFiles, parseArgs, scheduleShots, trackBaseName, USAGE } from './args';
+import {
+    chooseReference,
+    listAudioFiles,
+    parseArgs,
+    parseRepeatArgs,
+    parseSummaryArgs,
+    playFolderName,
+    REPEAT_USAGE,
+    scheduleShots,
+    sidecarName,
+    SUMMARY_USAGE,
+    trackBaseName,
+    USAGE,
+} from './args';
+import { parseBpmSidecar } from './tempoReport';
 
 const base = ['--dir', 'music', '--track', 'a.mp3', '--viz', 'cubes'];
 
@@ -27,6 +41,7 @@ describe('parseArgs', () => {
             seconds: undefined,
             from: 0,
             shots: [],
+            reselect: 1,
             headless: false,
         });
     });
@@ -39,6 +54,7 @@ describe('parseArgs', () => {
             seconds: 12.5,
             from: 3,
             shots: [1, 5],
+            reselect: 1,
             headless: true,
         });
     });
@@ -195,5 +211,143 @@ describe('trackBaseName', () => {
 
     it('keeps a name without an extension', () => {
         expect(trackBaseName('plain')).toBe('plain');
+    });
+});
+
+describe('parseArgs --reselect', () => {
+    it('reads a whole number', () => {
+        expect(run(['--reselect', '3']).reselect).toBe(3);
+    });
+
+    it.each(['0', '-1', '1.5', 'two', ' '])('rejects %j', (value) => {
+        expect(parseArgs([...base, '--reselect', value])).toEqual({
+            kind: 'error',
+            message: `--reselect needs a whole number of at least 1, got "${value}".`,
+        });
+    });
+
+    it('needs a value', () => {
+        expect(parseArgs([...base, '--reselect'])).toEqual({ kind: 'error', message: '--reselect needs a value.' });
+    });
+
+    it('rejects shots with more than one play, but allows them with one', () => {
+        expect(parseArgs([...base, '--reselect', '2', '--shots', '5'])).toEqual({
+            kind: 'error',
+            message: '--reselect above 1 cannot be combined with --shots.',
+        });
+        expect(run(['--reselect', '1', '--shots', '5']).shots).toEqual([5]);
+    });
+
+    it('mentions --reselect in the usage text', () => {
+        expect(USAGE).toContain('--reselect N');
+    });
+});
+
+describe('sidecarName and playFolderName', () => {
+    it('replaces the extension with .bpm', () => {
+        expect(sidecarName('song.mp3')).toBe('song.bpm');
+        expect(sidecarName('my.song.flac')).toBe('my.song.bpm');
+        expect(sidecarName('noext')).toBe('noext.bpm');
+        expect(sidecarName('sub/dir\\song.wav')).toBe('song.bpm');
+    });
+
+    it('keeps the plain name for one play and suffixes each of several', () => {
+        expect(playFolderName('cubes', 'a b.mp3', 'S', 1, 1)).toBe('cubes-a_b-S');
+        expect(playFolderName('cubes', 'a.mp3', 'S', 2, 3)).toBe('cubes-a-S-play2');
+        expect(playFolderName('cubes', 'a.mp3', 'S', 1, 3)).not.toBe(playFolderName('cubes', 'a.mp3', 'S', 2, 3));
+    });
+});
+
+describe('chooseReference', () => {
+    it('prefers --bpm and ignores the sidecar', () => {
+        expect(chooseReference(100, '128', 'track.bpm', parseBpmSidecar)).toEqual({ bpm: 100, warning: undefined });
+    });
+
+    it('uses the sidecar when there is no flag', () => {
+        expect(chooseReference(undefined, '128\n', 'track.bpm', parseBpmSidecar)).toEqual({
+            bpm: 128,
+            warning: undefined,
+        });
+    });
+
+    it('has none without either', () => {
+        expect(chooseReference(undefined, undefined, 'track.bpm', parseBpmSidecar)).toEqual({
+            bpm: undefined,
+            warning: undefined,
+        });
+    });
+
+    it('warns once about a bad sidecar and counts it as none', () => {
+        const result = chooseReference(undefined, 'fast', 'track.bpm', parseBpmSidecar);
+        expect(result.bpm).toBeUndefined();
+        expect(result.warning).toBe('Warning: track.bpm does not hold a tempo above 0; ignoring it.');
+    });
+});
+
+describe('parseSummaryArgs', () => {
+    it('reads the path, --bpm and --window', () => {
+        expect(parseSummaryArgs(['a.csv', '--bpm', '120', '--window', '2.5'])).toEqual({
+            kind: 'run',
+            args: { path: 'a.csv', bpm: 120, window: 2.5 },
+        });
+        expect(parseSummaryArgs(['--bpm', '90', 'a.csv'])).toEqual({
+            kind: 'run',
+            args: { path: 'a.csv', bpm: 90, window: undefined },
+        });
+    });
+
+    it('returns help and usage errors', () => {
+        expect(parseSummaryArgs(['--help'])).toEqual({ kind: 'help' });
+        expect(parseSummaryArgs([])).toEqual({ kind: 'error', message: SUMMARY_USAGE });
+        expect(parseSummaryArgs(['a.csv', 'b.csv'])).toEqual({ kind: 'error', message: SUMMARY_USAGE });
+    });
+
+    it('rejects unknown flags, missing values and bad numbers', () => {
+        expect(parseSummaryArgs(['a.csv', '--x'])).toEqual({
+            kind: 'error',
+            message: `Unknown argument "--x". ${SUMMARY_USAGE}`,
+        });
+        expect(parseSummaryArgs(['a.csv', '--bpm'])).toEqual({
+            kind: 'error',
+            message: `--bpm needs a value. ${SUMMARY_USAGE}`,
+        });
+        expect(parseSummaryArgs(['a.csv', '--bpm', '0'])).toEqual({
+            kind: 'error',
+            message: '--bpm needs a number above 0, got "0".',
+        });
+        expect(parseSummaryArgs(['a.csv', '--window', 'x'])).toEqual({
+            kind: 'error',
+            message: '--window needs a number above 0, got "x".',
+        });
+    });
+});
+
+describe('parseRepeatArgs', () => {
+    it('reads two or more paths and --bpm', () => {
+        expect(parseRepeatArgs(['a.csv', 'b.csv', 'c.csv', '--bpm', '100'])).toEqual({
+            kind: 'run',
+            args: { paths: ['a.csv', 'b.csv', 'c.csv'], bpm: 100 },
+        });
+        expect(parseRepeatArgs(['a.csv', 'b.csv'])).toEqual({
+            kind: 'run',
+            args: { paths: ['a.csv', 'b.csv'], bpm: undefined },
+        });
+    });
+
+    it('prints usage when fewer than two paths are given', () => {
+        expect(parseRepeatArgs([])).toEqual({ kind: 'error', message: REPEAT_USAGE });
+        expect(parseRepeatArgs(['a.csv'])).toEqual({ kind: 'error', message: REPEAT_USAGE });
+        expect(parseRepeatArgs(['-h'])).toEqual({ kind: 'help' });
+    });
+
+    it('rejects unknown flags and a bad --bpm', () => {
+        expect(parseRepeatArgs(['a.csv', 'b.csv', '--nope'])).toEqual({
+            kind: 'error',
+            message: `Unknown argument "--nope". ${REPEAT_USAGE}`,
+        });
+        expect(parseRepeatArgs(['a.csv', 'b.csv', '--bpm', '-3'])).toEqual({
+            kind: 'error',
+            message: '--bpm needs a number above 0, got "-3".',
+        });
     });
 });
