@@ -158,9 +158,9 @@ export function stepBassGate(
     }
 
     // A kick is in rhythm when it lands where the previous kicks landed in the beat. The first kick, or one that comes
-    // once the evidence has run out, only sets that place afresh and earns nothing. Before the gate opens a kick
-    // elsewhere costs evidence, so bumps at random places never string together the run it takes to open; once open,
-    // it costs nothing, so extra notes in the bassline do not shake a locked pulse.
+    // once the evidence has run out, only sets that place afresh and earns nothing. A kick elsewhere costs nothing, because
+    // a syncopated bassline lands most of its notes away from that place: making them cost evidence kept the gate shut for
+    // a whole track on real music (measured in docs/agents/rhythm-findings.md).
     const phase = rhythm.beatPhase;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
@@ -173,8 +173,6 @@ export function stepBassGate(
         } else if (!state.phaseKnown || state.score <= 0) {
             state.kickPhase = phase;
             state.phaseKnown = true;
-        } else if (!state.open) {
-            state.score = Math.max(0, state.score - 1);
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
