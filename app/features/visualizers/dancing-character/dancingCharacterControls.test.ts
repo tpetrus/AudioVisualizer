@@ -23,9 +23,9 @@ describe('dancingCharacterControls', () => {
         });
     });
 
-    it('steps the dance speed through half time, on the beat and double time', () => {
+    it('steps the dance speed through half time and on the beat', () => {
         const danceSpeed = dancingCharacterControls.find((control) => control.key === 'danceSpeed');
-        expect(danceSpeed).toMatchObject({ min: 0.5, max: 2, step: 0.5 });
+        expect(danceSpeed).toMatchObject({ min: 0.5, max: 1, step: 0.5 });
     });
 
     it('has a camera bump slider that can be switched off', () => {
