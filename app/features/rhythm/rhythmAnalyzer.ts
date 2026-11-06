@@ -68,7 +68,7 @@ export class RhythmAnalyzer {
     private framesSinceTempo = 0;
     private latestTime = 0;
     private frames = 0;
-    private gridEpoch = 0;
+    private seenGridEpoch = 0;
 
     // Counters in the state keep increasing across resets; these bases are where this analysis run started.
     private beatBase = 0;
@@ -91,6 +91,25 @@ export class RhythmAnalyzer {
         this.history = new Float32Array(this.historyCapacity * FRAME_STRIDE);
         this.fluxPeakDecay = Math.pow(0.5, 1 / (ONSET_PEAK_HALF_LIFE_SECONDS * frameRate));
         this.clear(true);
+    }
+
+    // Read-only views for DEV telemetry: the beat grid's tempo (0 without a grid), the tempo estimate before and after
+    // hysteresis, and how often the grid was rebuilt since the last hard reset.
+    get rawBeatBpm(): number {
+        const period = this.beat.periodSeconds;
+        return period > 0 ? 60 / period : 0;
+    }
+
+    get rawTempoBpm(): number {
+        return this.tempo.rawBpm;
+    }
+
+    get heldTempoBpm(): number {
+        return this.tempo.bpm;
+    }
+
+    get gridEpoch(): number {
+        return this.seenGridEpoch;
     }
 
     // Number of frames analysed over this analyzer's whole life (resets do not clear it); 0 means nothing was heard yet.
@@ -126,9 +145,9 @@ export class RhythmAnalyzer {
             this.framesSinceTempo = 0;
             if (this.tempo.update()) {
                 this.beat.setTempo(this.tempo.bpm);
-                if (this.beat.gridEpoch !== this.gridEpoch) {
+                if (this.beat.gridEpoch !== this.seenGridEpoch) {
                     // The beats are numbered afresh on a new grid, so what the meter learned no longer lines up.
-                    this.gridEpoch = this.beat.gridEpoch;
+                    this.seenGridEpoch = this.beat.gridEpoch;
                     this.meter.shrink(METER_GRID_RESET_KEEP);
                     this.syncMeterState();
                 }
@@ -210,7 +229,7 @@ export class RhythmAnalyzer {
         this.fluxMean.fill(0);
         this.fluxPeak.fill(0);
         this.framesSinceTempo = 0;
-        this.gridEpoch = 0;
+        this.seenGridEpoch = 0;
         this.beatBase = this.state.beatCount;
         this.downbeatBase = this.state.downbeatCount;
         this.declaredDownbeats = 0;

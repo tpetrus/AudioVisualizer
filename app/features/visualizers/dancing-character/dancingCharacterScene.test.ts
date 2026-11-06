@@ -695,6 +695,29 @@ describe('bass gate telemetry', () => {
     });
 });
 
+describe('dance telemetry', () => {
+    it('shows a clip phase of 0 and no meter lock before a rig is loaded', () => {
+        const { dancing } = setup();
+        dancing.update(makeFrame());
+        expect(dancing.clipPhase).toBe(0);
+        expect(dancing.timingState.meterLocked).toBe(false);
+        expect(dancing.timing.phaseNudge).toBe(0);
+    });
+
+    it('passes its clip position to the timing and exposes the result and meter lock', () => {
+        const { dancing } = setup();
+        const { model } = makeModel();
+        dancing.setCharacter(model);
+        run(dancing, 30, () => makeFrame());
+        // The value given to the timing is the clip position read just before the update advanced it.
+        expect(dancing.clipPhase).toBeGreaterThan(0);
+        expect(dancing.clipPhase).toBeLessThan(1);
+        expect(Number.isFinite(dancing.timing.timeScale)).toBe(true);
+        expect(Number.isFinite(dancing.timing.phaseNudge)).toBe(true);
+        expect(dancing.timingState.meterLocked).toBe(false);
+    });
+});
+
 describe('colors', () => {
     // The club adds its own point lights first; the rim light is the last one.
     const rimOf = (scene: THREE.Scene) =>

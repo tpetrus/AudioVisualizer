@@ -319,6 +319,17 @@ describe('RhythmTracker', () => {
     });
 
     describe('analysis', () => {
+        it('exposes no analysis before a bind and the current analyzer after one', async () => {
+            expect(harness.tracker.analysis).toBeUndefined();
+            const analyser = createAnalyser();
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            await attachedNode(harness.web);
+
+            expect(harness.tracker.analysis).toBeDefined();
+            expect(harness.tracker.analysis?.gridEpoch).toBe(0);
+        });
+
         it('feeds the frames the worklet posts into the state', async () => {
             const analyser = createAnalyser();
             harness.engine.setAnalyser(asAnalyser(analyser));

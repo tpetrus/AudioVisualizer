@@ -342,6 +342,27 @@ describe('RhythmAnalyzer API', () => {
         analyzer.hardReset(false);
         expect(analyzer.state.songChangeCount).toBe(1);
     });
+
+    it('exposes the telemetry getters: zero before any audio, the tempo views after, epoch zero after a reset', () => {
+        const analyzer = new RhythmAnalyzer(100);
+        expect(analyzer.rawBeatBpm).toBe(0);
+        expect(analyzer.rawTempoBpm).toBe(0);
+        expect(analyzer.heldTempoBpm).toBe(0);
+        expect(analyzer.gridEpoch).toBe(0);
+
+        analyzer.pushBatch(0, packedFrames(1500), 1500);
+        expect(analyzer.heldTempoBpm).toBeGreaterThan(0);
+        expect(analyzer.rawTempoBpm).toBeGreaterThan(0);
+        expect(analyzer.rawBeatBpm).toBeGreaterThan(0);
+        // The grid follows the held tempo, so the two agree to within the grid's own corrections.
+        expect(Math.abs(analyzer.rawBeatBpm / analyzer.heldTempoBpm - 1)).toBeLessThan(0.1);
+        expect(analyzer.heldTempoBpm).toBe(analyzer.state.bpm);
+        expect(analyzer.gridEpoch).toBeGreaterThanOrEqual(0);
+
+        analyzer.hardReset(true);
+        expect(analyzer.gridEpoch).toBe(0);
+        expect(analyzer.rawBeatBpm).toBe(0);
+    });
 });
 
 describe('RhythmAnalyzer after a gap in the audio clock', () => {

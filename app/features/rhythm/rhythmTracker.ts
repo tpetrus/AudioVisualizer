@@ -35,6 +35,11 @@ export class RhythmTracker {
     private beatsPerBar: BeatsPerBar | undefined;
     private songChangeCount = 0;
 
+    // The current analyzer, undefined before a bind. Read-only, for DEV telemetry.
+    get analysis(): RhythmAnalyzer | undefined {
+        return this.analyzer;
+    }
+
     private readonly listeners = new Set<() => void>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);

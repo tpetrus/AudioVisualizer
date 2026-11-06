@@ -217,6 +217,64 @@ describe('stepBassGate', () => {
         expect(fading.weight).toBe(0);
     });
 
+    it('counts each bump start exactly once and never counts down', () => {
+        const state = createBassGateState();
+        const rhythm = createRhythmState();
+        const starts: number[] = [];
+        let previous = 0;
+        for (let i = 0; i < FRAMES_PER_BEAT * 24; i++) {
+            const beat = i / FRAMES_PER_BEAT;
+            rhythm.beatPhase = beat % 1;
+            rhythm.beatCount = Math.floor(beat);
+            const wasSinceBump = state.sinceBump;
+            stepBassGate(onBeatKick(i), rhythm, true, state, DT);
+            expect(state.bumpCount).toBeGreaterThanOrEqual(previous);
+            expect(state.bumpCount - previous).toBeLessThanOrEqual(1);
+            // A bump starts exactly when the timer is zeroed.
+            const started = state.sinceBump === 0 && wasSinceBump > 0;
+            expect(state.bumpCount - previous).toBe(started ? 1 : 0);
+            if (started) starts.push(i);
+            previous = state.bumpCount;
+        }
+        expect(state.bumpCount).toBe(starts.length);
+        expect(state.bumpCount).toBeGreaterThan(10);
+    });
+
+    it('leaves bumpCount and kickOffset alone when the bassline is forgotten', () => {
+        const state = locked();
+        const { bumpCount, kickOffset } = state;
+        expect(bumpCount).toBeGreaterThan(0);
+        forgetBassline(state);
+        expect(state.bumpCount).toBe(bumpCount);
+        expect(state.kickOffset).toBe(kickOffset);
+    });
+
+    it('starts kickOffset at NaN, keeps it NaN until a place is known, then records the wrapped offset', () => {
+        const state = createBassGateState();
+        const rhythm = createRhythmState();
+        expect(state.bumpCount).toBe(0);
+        expect(state.kickOffset).toBeNaN();
+
+        // The first kick sets the place: no offset is measured against a place that was not known.
+        rhythm.beatPhase = 0.1;
+        stepBassGate(0.8, rhythm, true, state, DT);
+        expect(state.phaseKnown).toBe(true);
+        expect(state.kickPhase).toBeCloseTo(0.1, 12);
+        expect(state.kickOffset).toBeNaN();
+
+        // Re-arm, then a kick 0.05 beats late is measured before the place adapts.
+        stepBassGate(0, rhythm, true, state, DT);
+        rhythm.beatPhase = 0.15;
+        stepBassGate(0.8, rhythm, true, state, DT);
+        expect(state.kickOffset).toBeCloseTo(0.05, 12);
+
+        // A kick just before the place across the wrap is a small negative offset, not nearly a whole beat.
+        stepBassGate(0, rhythm, true, state, DT);
+        rhythm.beatPhase = (state.kickPhase - 0.2 + 1) % 1;
+        stepBassGate(0.8, rhythm, true, state, DT);
+        expect(state.kickOffset).toBeCloseTo(-0.2, 12);
+    });
+
     it('clamps a huge or negative dt and ignores out of range bass', () => {
         const state = createBassGateState();
         const rhythm = createRhythmState();

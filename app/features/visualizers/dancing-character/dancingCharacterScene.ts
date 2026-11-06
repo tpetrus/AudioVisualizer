@@ -98,9 +98,11 @@ export class DancingCharacterScene {
     private tinted: TintedMaterial[] = [];
 
     // Per-frame scratch, preallocated so update() allocates nothing.
-    private readonly timingState = createDanceTimingState();
-    private readonly timing = createDanceTimingResult();
-    // The bass gate and its latest output and tempo lock are public only so DEV telemetry can read them.
+    // The timing state and result, the clip position given to the timing this frame, the bass gate and its latest
+    // output and tempo lock are public only so DEV telemetry can read them.
+    public readonly timingState = createDanceTimingState();
+    public readonly timing = createDanceTimingResult();
+    public clipPhase = 0;
     public readonly bassGate = createBassGateState();
     public gateOutput = 0;
     public gateTempoLocked = false;
@@ -261,15 +263,8 @@ export class DancingCharacterScene {
         const timing = this.timing;
         timing.normalizedBpm = undefined;
         if (this.mixer && this.baseAction && this.accentAction) {
-            computeDanceTiming(
-                rhythm,
-                DANCE_CLIP_BEATS,
-                this.baseAction.time / DANCE_CLIP_DURATION,
-                settings,
-                this.timingState,
-                dt,
-                timing,
-            );
+            this.clipPhase = this.baseAction.time / DANCE_CLIP_DURATION;
+            computeDanceTiming(rhythm, DANCE_CLIP_BEATS, this.clipPhase, settings, this.timingState, dt, timing);
             // Weights below 1 blend toward the rest pose, so the calm state is a gentler bounce at the native rate. The
             // accents are only wanted while the bar is known, and ease in and out so they never pop.
             this.baseAction.weight = timing.danceWeight;

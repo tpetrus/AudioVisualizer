@@ -56,6 +56,10 @@ export interface BassGateState {
     beatCount: number;
     songChangeCount: number;
     initialized: boolean;
+    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), and the latest measured
+    // kick's signed distance from the learned place in beats (NaN until one was measured).
+    bumpCount: number;
+    kickOffset: number;
 }
 
 export function createBassGateState(): BassGateState {
@@ -80,6 +84,8 @@ export function createBassGateState(): BassGateState {
         beatCount: 0,
         songChangeCount: 0,
         initialized: false,
+        bumpCount: 0,
+        kickOffset: NaN,
     };
 }
 
@@ -158,6 +164,7 @@ export function stepBassGate(
     const phase = rhythm.beatPhase;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
+        if (state.phaseKnown) state.kickOffset = offset;
         if (state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
             state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
@@ -185,6 +192,7 @@ export function stepBassGate(
         const passed = now < before && before > 0.5;
         if (passed && state.open && state.sinceBump >= BASS_GATE_MIN_INTERVAL) {
             state.sinceBump = 0;
+            state.bumpCount++;
             state.bumpTarget = state.kickStrength;
             state.attackLeft = BASS_GATE_ATTACK_SECONDS;
         }

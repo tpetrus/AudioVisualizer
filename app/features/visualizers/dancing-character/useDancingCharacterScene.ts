@@ -94,15 +94,60 @@ export function useDancingCharacterScene(
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
                 'dancing-character',
-                ['in', 'out', 'gateOpen', 'gateScore', 'gateWeight', 'tempoLocked'],
+                [
+                    'in',
+                    'out',
+                    'gateOpen',
+                    'gateScore',
+                    'gateWeight',
+                    'tempoLocked',
+                    'bpm',
+                    'rawBeatBpm',
+                    'rawTempoBpm',
+                    'heldTempoBpm',
+                    'tempoConfidence',
+                    'meterConfidence',
+                    'beatsPerBar',
+                    'beatPhase',
+                    'barPhase',
+                    'beatCount',
+                    'songChanges',
+                    'gridEpoch',
+                    'timeScale',
+                    'phaseNudge',
+                    'meterLocked',
+                    'clipPhase',
+                    'bumpCount',
+                    'kickPhaseOffset',
+                ],
                 (out) => {
                     const gate = character.bassGate;
+                    const state = rhythm.state;
+                    const analysis = rhythm.analysis;
                     out[0] = frame.bass;
                     out[1] = character.gateOutput;
                     out[2] = gate.open ? 1 : 0;
                     out[3] = gate.score;
                     out[4] = gate.weight;
                     out[5] = character.gateTempoLocked ? 1 : 0;
+                    out[6] = state.bpm;
+                    out[7] = analysis?.rawBeatBpm ?? 0;
+                    out[8] = analysis?.rawTempoBpm ?? 0;
+                    out[9] = analysis?.heldTempoBpm ?? 0;
+                    out[10] = state.tempoConfidence;
+                    out[11] = state.meterConfidence;
+                    out[12] = state.beatsPerBar ?? NaN;
+                    out[13] = state.beatPhase ?? NaN;
+                    out[14] = state.barPhase ?? NaN;
+                    out[15] = state.beatCount;
+                    out[16] = state.songChangeCount;
+                    out[17] = analysis?.gridEpoch ?? 0;
+                    out[18] = character.timing.timeScale;
+                    out[19] = character.timing.phaseNudge;
+                    out[20] = character.timingState.meterLocked ? 1 : 0;
+                    out[21] = character.clipPhase;
+                    out[22] = gate.bumpCount;
+                    out[23] = gate.kickOffset;
                 },
             );
         }
