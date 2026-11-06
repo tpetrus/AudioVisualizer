@@ -315,6 +315,17 @@ export class DancingCharacterScene {
         this.distanceAspect = NaN;
     }
 
+    // Starts the dance over for a new source, so a track gets the same dance however long the page was open and whatever
+    // played before: the clip position would otherwise carry over, and the bar lock takes seconds to correct it. Called
+    // only when the source changes, and the weight is left to ease, so this is never a visible pop during a song.
+    restartDance(): void {
+        if (this.baseAction && this.accentAction) {
+            this.baseAction.time = 0;
+            this.accentAction.time = 0;
+        }
+        Object.assign(this.timingState, createDanceTimingState(), { danceWeight: this.timingState.danceWeight });
+    }
+
     resetOrbit(): void {
         this.azimuth = 0;
         this.orbitSpeed = 0;

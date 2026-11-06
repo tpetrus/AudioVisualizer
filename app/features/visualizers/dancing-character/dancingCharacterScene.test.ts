@@ -8,6 +8,7 @@ import { dancingCharacterControls, type DancingCharacterSettings } from './danci
 import {
     ACCENT_EASE_SECONDS,
     CALM_DANCE_WEIGHT,
+    CALM_TIME_SCALE,
     CAMERA_ELEVATION,
     DANCE_CLIP_BEATS,
     DANCE_CLIP_DURATION,
@@ -507,6 +508,26 @@ describe('dance layers', () => {
         run(rig.dancing, 300, () => frame(lockedButNoBar()));
         expect(accentAction!.weight).toBeLessThan(0.01);
         expect(baseAction!.weight).toBeCloseTo(1, 2);
+    });
+
+    it('restartDance puts both actions back at the start and forgets the locks, keeping the weight', () => {
+        const { dancing, base, accent } = loaded(() => lockedRhythm(0.3), 90);
+        const weight = dancing.timingState.danceWeight;
+        expect(base.time).toBeGreaterThan(0);
+        expect(dancing.timingState.locked).toBe(true);
+
+        dancing.restartDance();
+
+        expect(base.time).toBe(0);
+        expect(accent.time).toBe(0);
+        expect(dancing.timingState.locked).toBe(false);
+        expect(dancing.timingState.timeScale).toBe(CALM_TIME_SCALE);
+        expect(dancing.timingState.danceWeight).toBe(weight);
+    });
+
+    it('restartDance does nothing to a scene without a rig', () => {
+        const { dancing } = setup();
+        expect(() => dancing.restartDance()).not.toThrow();
     });
 
     it('keeps both actions at the same time through phase nudges and wraps', () => {

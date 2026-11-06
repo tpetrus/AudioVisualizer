@@ -164,6 +164,7 @@ export function useDancingCharacterScene(
                     bass?.dispose();
                     bass = source ? new BassPulse(source) : undefined;
                     boundAnalyser = source;
+                    if (source) character.restartDance();
                 }
 
                 rhythm.updatePhase();

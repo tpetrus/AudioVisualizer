@@ -41,6 +41,7 @@ vi.mock('./dancingCharacterScene', () => ({
         readonly setCharacter = vi.fn();
         readonly resize = vi.fn();
         readonly resetOrbit = vi.fn();
+        readonly restartDance = vi.fn();
         readonly dispose = vi.fn();
         // What the DEV probe reads from the real scene.
         readonly timing = { timeScale: 0, phaseNudge: 0 };
@@ -308,6 +309,23 @@ describe('useDancingCharacterScene', () => {
             expect(pulses).toHaveLength(1);
             expect(pulses[0].source).toBe(analyser);
             expect(character().frames.map((frame) => frame.bass)).toEqual([0, 0.7]);
+        });
+
+        it('restarts the dance for each new source, but not when the source goes away', () => {
+            const first = createAnalyser();
+            const { renderer, rerender } = mountScene({ analyser: first });
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            const scene = scenes[scenes.length - 1] as unknown as { restartDance: ReturnType<typeof vi.fn> };
+            expect(scene.restartDance).toHaveBeenCalledTimes(1);
+
+            rerender({ analyser: createAnalyser(), cameraLocked: true });
+            renderer.renderFrame(32);
+            expect(scene.restartDance).toHaveBeenCalledTimes(2);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            renderer.renderFrame(48);
+            expect(scene.restartDance).toHaveBeenCalledTimes(2);
         });
 
         it('is rebound when the analyser changes and dropped when it goes away', () => {
