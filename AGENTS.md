@@ -106,6 +106,7 @@ Full detail and the reasons are in the docs below; these are the ones most often
 - `docs/agents/architecture.md`: how audio, routing, scenes and controls fit together, and the contracts between them.
 - `docs/agents/conventions.md`: code style, naming, TypeScript/React/three.js/Web Audio rules, with examples.
 - `docs/agents/debug-harness.md`: the dev-only harness for debugging how a visualizer reacts to a real track.
+- `docs/agents/rhythm-stability-results.md`: where tempo and bassline stability stands, known costs and what to refine next.
 - `.agents/skills/add-visualizer/SKILL.md`: step-by-step for adding a new visualizer (the most common task).
 - `.agents/skills/react-router/SKILL.md`: React Router framework-mode reference.
 

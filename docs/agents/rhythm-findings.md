@@ -3,6 +3,10 @@
 Why visualizers appear to speed up and slow down on steady tracks, measured on the unchanged tracker before any fix was
 written. This is the S3 baseline of the `rhythm-bass-stability` plan. All numbers come from commit `9149d1c` unless stated.
 
+**Later results are in `rhythm-stability-results.md`.** This file records the first baseline, on two tracks. Tracks added later
+changed some conclusions: a syncopated bassline did make false song changes and move the held tempo, which H3 and H4 below
+reject for these two samples, though through the dotted-note pulse rather than the faster-pulse takeover H3 named.
+
 ## Summary
 
 The source of the issue is identified. Four separate defects produce what looks like one problem, and the two with the
