@@ -21,7 +21,18 @@ import {
     TEMPO_REFINE_STEP,
     TEMPO_SMOOTHING,
     TEMPO_SWITCH_ESTIMATES,
+    TEMPO_SYNCOPATION_MIN_CONFIDENCE,
+    TEMPO_SYNCOPATION_RATIOS,
+    TEMPO_SYNCOPATION_SWITCH_ESTIMATES,
+    TEMPO_SYNCOPATION_TOLERANCE,
 } from './rhythmConfig';
+
+// True when `bpm` is a pulse that dotted notes make against `reference`, rather than a different tempo.
+export function isSyncopationRatio(bpm: number, reference: number): boolean {
+    const ratio = bpm / reference;
+    const folded = ratio / 2 ** Math.floor(Math.log2(ratio));
+    return TEMPO_SYNCOPATION_RATIOS.some((known) => Math.abs(folded / known - 1) <= TEMPO_SYNCOPATION_TOLERANCE);
+}
 
 // True when one lag is (nearly) a whole multiple of the other, up to TEMPO_RELATED_MAX_MULTIPLE: the same pulse
 // counted at a different metrical level, which is not a rival tempo.
@@ -301,6 +312,11 @@ export class TempoTracker {
             this.challengerWins = 0;
             return;
         }
+        const dotted = isSyncopationRatio(bpm, this.held);
+        if (dotted && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+            this.challengerWins = 0;
+            return;
+        }
         if (this.challengerWins > 0 && Math.abs(bpm / this.challenger - 1) <= TEMPO_HYSTERESIS) {
             this.challengerWins++;
             this.challenger += (bpm - this.challenger) * TEMPO_SMOOTHING;
@@ -308,7 +324,8 @@ export class TempoTracker {
             this.challenger = bpm;
             this.challengerWins = 1;
         }
-        if (this.challengerWins >= TEMPO_SWITCH_ESTIMATES) {
+        const needed = dotted ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
+        if (this.challengerWins >= needed) {
             this.held = this.challenger;
             this.challengerWins = 0;
         }

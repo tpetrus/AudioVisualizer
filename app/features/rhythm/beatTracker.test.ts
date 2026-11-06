@@ -144,6 +144,32 @@ describe('BeatTracker', () => {
     });
 });
 
+describe('BeatTracker when it gives up its grid', () => {
+    it('keeps the period of the beat that gave up the grid, while periodSeconds reports no grid', () => {
+        const tracker = new BeatTracker(100);
+        tracker.setTempo(120);
+        let time = 0;
+        const push = (onset: number) => tracker.push((time++ * 1) / 100, onset);
+        // A pulse every 0.5 s aligns the grid.
+        for (let i = 0; i < 500; i++) push(i % 50 < 2 ? 1 : 0.02);
+        expect(tracker.periodSeconds).toBeGreaterThan(0);
+        const epoch = tracker.gridEpoch;
+        // A level envelope has no peak above its mean, so every predicted beat misses until the grid is given up.
+        let lastDeclared = false;
+        while (tracker.gridEpoch === epoch && time < 3000) lastDeclared = push(0.3);
+
+        expect(lastDeclared).toBe(true);
+        expect(tracker.periodSeconds).toBe(0);
+        expect(tracker.lastBeatPeriod).toBeCloseTo(0.5, 1);
+    });
+
+    it('has no period after a reset', () => {
+        const tracker = new BeatTracker(100);
+        tracker.reset();
+        expect(tracker.lastBeatPeriod).toBe(0);
+    });
+});
+
 describe('BeatTracker with unusual tempo estimates', () => {
     // Pushes `seconds` of a steady pulse train (one pulse per half second) at the tempo set beforehand.
     function pushFlat(tracker: BeatTracker, seconds: number): void {

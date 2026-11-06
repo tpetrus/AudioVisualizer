@@ -8,6 +8,7 @@ import { dancingCharacterControls, type DancingCharacterSettings } from './danci
 import {
     ACCENT_EASE_SECONDS,
     CALM_DANCE_WEIGHT,
+    CALM_TIME_SCALE,
     CAMERA_ELEVATION,
     DANCE_CLIP_BEATS,
     DANCE_CLIP_DURATION,
@@ -509,6 +510,26 @@ describe('dance layers', () => {
         expect(baseAction!.weight).toBeCloseTo(1, 2);
     });
 
+    it('restartDance puts both actions back at the start and forgets the locks, keeping the weight', () => {
+        const { dancing, base, accent } = loaded(() => lockedRhythm(0.3), 90);
+        const weight = dancing.timingState.danceWeight;
+        expect(base.time).toBeGreaterThan(0);
+        expect(dancing.timingState.locked).toBe(true);
+
+        dancing.restartDance();
+
+        expect(base.time).toBe(0);
+        expect(accent.time).toBe(0);
+        expect(dancing.timingState.locked).toBe(false);
+        expect(dancing.timingState.timeScale).toBe(CALM_TIME_SCALE);
+        expect(dancing.timingState.danceWeight).toBe(weight);
+    });
+
+    it('restartDance does nothing to a scene without a rig', () => {
+        const { dancing } = setup();
+        expect(() => dancing.restartDance()).not.toThrow();
+    });
+
     it('keeps both actions at the same time through phase nudges and wraps', () => {
         const rig = setup({ autoOrbit: false });
         const { model } = makeModel();
@@ -692,6 +713,29 @@ describe('bass gate telemetry', () => {
         expect(dancing.gateOutput).toBe(0);
         expect(dancing.bassGate.open).toBe(false);
         expect(dancing.bassGate.initialized).toBe(true);
+    });
+});
+
+describe('dance telemetry', () => {
+    it('shows a clip phase of 0 and no meter lock before a rig is loaded', () => {
+        const { dancing } = setup();
+        dancing.update(makeFrame());
+        expect(dancing.clipPhase).toBe(0);
+        expect(dancing.timingState.meterLocked).toBe(false);
+        expect(dancing.timing.phaseNudge).toBe(0);
+    });
+
+    it('passes its clip position to the timing and exposes the result and meter lock', () => {
+        const { dancing } = setup();
+        const { model } = makeModel();
+        dancing.setCharacter(model);
+        run(dancing, 30, () => makeFrame());
+        // The value given to the timing is the clip position read just before the update advanced it.
+        expect(dancing.clipPhase).toBeGreaterThan(0);
+        expect(dancing.clipPhase).toBeLessThan(1);
+        expect(Number.isFinite(dancing.timing.timeScale)).toBe(true);
+        expect(Number.isFinite(dancing.timing.phaseNudge)).toBe(true);
+        expect(dancing.timingState.meterLocked).toBe(false);
     });
 });
 

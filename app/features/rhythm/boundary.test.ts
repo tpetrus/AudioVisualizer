@@ -202,3 +202,24 @@ describe('BoundaryDetector tempo cue', () => {
         expect(count(results, BOUNDARY_SOFT)).toBe(0);
     });
 });
+
+describe('BoundaryDetector tempo jumps on syncopation', () => {
+    it.each([4 / 3, 3 / 4, 2 / 3, 3 / 2])(
+        'does not call a sustained tempo at %f of the reference a new song',
+        (ratio) => {
+            const detector = new BoundaryDetector(100);
+            for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 98, 1);
+            for (let t = 10; t < 20; t += 0.25) {
+                expect(detector.pushTempo(t, 98 * ratio, 1)).toBe(BOUNDARY_NONE);
+            }
+        },
+    );
+
+    it('still calls another sustained tempo a new song', () => {
+        const detector = new BoundaryDetector(100);
+        for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 100, 1);
+        const kinds: BoundaryKind[] = [];
+        for (let t = 10; t < 20; t += 0.25) kinds.push(detector.pushTempo(t, 140, 1));
+        expect(kinds).toContain(BOUNDARY_SOFT);
+    });
+});

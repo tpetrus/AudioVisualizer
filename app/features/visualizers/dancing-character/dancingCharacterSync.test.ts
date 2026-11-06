@@ -15,6 +15,8 @@ import {
     MAX_TIME_SCALE_CHANGE_PER_SECOND,
     MIN_TIME_SCALE,
     NATIVE_BEATS_PER_LOOP,
+    MAX_DANCE_BPM,
+    MAX_DANCE_BPM_RELEASE,
     NATIVE_BPM,
     NORMALIZED_BPM_MIN,
     STEP_MULTIPLES,
@@ -154,6 +156,70 @@ describe('computeDanceTiming', () => {
     it.each([0.5, 1, 2])('converges the time scale to (bpm / native) * multiple at danceSpeed %s', (danceSpeed) => {
         const { out } = simulate({ bpm: 120, seconds: 8, danceSpeed });
         expect(out.timeScale).toBeCloseTo((120 / NATIVE_BPM) * danceSpeed, 2);
+    });
+
+    describe('dance speed limit', () => {
+        it('steps at half time above the limit and keeps the same tempo reading', () => {
+            const { out } = simulate({ bpm: 150, seconds: 10 });
+            expect(out.normalizedBpm).toBeCloseTo(150, 6);
+            expect(out.timeScale).toBeCloseTo((150 / NATIVE_BPM) * 0.5, 2);
+        });
+
+        it.each([135, MAX_DANCE_BPM])('leaves %s BPM at full speed', (bpm) => {
+            const { out } = simulate({ bpm, seconds: 10 });
+            expect(out.timeScale).toBeCloseTo(bpm / NATIVE_BPM, 2);
+        });
+
+        it('stays on the bar at half time, with two bars in one loop', () => {
+            const { clipPhase, time, out } = simulate({ bpm: 150, seconds: 25, startClipPhase: 0.3 });
+            expect(out.barLocked).toBe(true);
+            const bars = (time * (150 / 60)) / 4;
+            expect(Math.abs(wrapSigned(bars - clipPhase * 2))).toBeLessThan(0.02);
+        });
+
+        it('stays on the beat at half time without a bar, with eight beats in one loop', () => {
+            const { clipPhase, time, out } = simulate({
+                bpm: 150,
+                seconds: 25,
+                startClipPhase: 0.3,
+                rhythm: { beatsPerBar: undefined, barPhase: undefined },
+            });
+            expect(out.barLocked).toBe(false);
+            const beats = time * (150 / 60);
+            expect(Math.abs(wrapSigned(beats - clipPhase * CLIP_BEATS * 2))).toBeLessThan(0.02);
+        });
+
+        it('does not flip between half and full time for a tempo at the limit', () => {
+            const state = createDanceTimingState();
+            const out = createDanceTimingResult();
+            simulate({ bpm: MAX_DANCE_BPM + 1, seconds: 4, state, out });
+            expect(state.overSpeedLimit).toBe(true);
+            simulate({ bpm: MAX_DANCE_BPM - 1, seconds: 4, state, out });
+            expect(state.overSpeedLimit).toBe(true);
+            expect(out.timeScale).toBeCloseTo(((MAX_DANCE_BPM - 1) / NATIVE_BPM) * 0.5, 2);
+            simulate({ bpm: MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE - 1, seconds: 4, state, out });
+            expect(state.overSpeedLimit).toBe(false);
+        });
+
+        it('forgets the limit on a new song', () => {
+            const state = createDanceTimingState();
+            const out = createDanceTimingResult();
+            simulate({ bpm: 150, seconds: 4, state, out });
+            expect(state.overSpeedLimit).toBe(true);
+            step(makeRhythm({ bpm: 100, songChangeCount: 1 }), state, out);
+            expect(state.overSpeedLimit).toBe(false);
+        });
+
+        it('leaves half time and double time settings as chosen', () => {
+            expect(simulate({ bpm: 150, seconds: 10, danceSpeed: 2 }).out.timeScale).toBeCloseTo(
+                (150 / NATIVE_BPM) * 2,
+                2,
+            );
+            expect(simulate({ bpm: 150, seconds: 10, danceSpeed: 0.5 }).out.timeScale).toBeCloseTo(
+                (150 / NATIVE_BPM) * 0.5,
+                2,
+            );
+        });
     });
 
     describe('octave folding', () => {
@@ -469,9 +535,9 @@ describe('computeDanceTiming', () => {
         it('releases the locks and the octave memory, keeps the time scale, and re-syncs once confident again', () => {
             const state = createDanceTimingState();
             const out = createDanceTimingResult();
-            for (let i = 0; i < 300; i++) step(makeRhythm({ bpm: 159 }), state, out);
+            for (let i = 0; i < 300; i++) step(makeRhythm({ bpm: 130 }), state, out);
             const before = out.timeScale;
-            expect(before).toBeCloseTo(159 / NATIVE_BPM, 2);
+            expect(before).toBeCloseTo(130 / NATIVE_BPM, 2);
             expect(out.barLocked).toBe(true);
 
             // The tracker reports no tempo right after a song change.

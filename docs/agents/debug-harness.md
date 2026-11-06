@@ -26,7 +26,13 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
 - Headed is the default (real GPU, real frame rate). `--headless` uses Chromium's new headless mode, which still uses
   the GPU on a machine that has one; check the reported fps.
 - Playback is real time: a run takes the requested seconds plus about 15 to 25 s to start the dev server and page.
-- `npm run debug:summary -- <csv>` reprints a summary without re-running.
+- `npm run debug:summary -- <csv> [--bpm N] [--window S]` reprints a summary without re-running.
+- **Tempo checks.** Put a sidecar named after the track next to it (`song.mp3` and `song.bpm`, one number, the format
+  `eval:rhythm` reads) and the summary also judges the tempo against it, octave-normalized. Without a sidecar the tempo
+  block is printed as a report with no pass or fail.
+- `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` compares two or more recordings of one track on track time.
+  Record them with separate `debug:viz` runs (fresh page loads) or with `--reselect N` (one page, the track chosen again
+  each time).
 
 ## Notes from implementation
 - Telemetry rows are written only while the engine has a source; after a track ends the engine stops and no rows are
@@ -142,7 +148,7 @@ export function attachTelemetry(engine: AudioEngine): () => void; // installs wi
   - `trio-color-wave`: `in` (bass sheet frame level before balancing), `peak` (its decaying peak), `out` (bass level
     after balancing).
   - `dancing-character`: `in` (bass input to the gate), `out` (gate output), `gateOpen`, `gateScore`, `gateWeight`,
-    `tempoLocked` (booleans as 0/1).
+    `tempoLocked` (booleans as 0/1), then the tempo columns of C5.
 
 ### C3 Window telemetry hook (DEV only)
 Installed by `attachTelemetry`, removed on detach:
@@ -199,3 +205,123 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
   stops the dev server and browser within about 5 s; a second signal exits at once.
 - `npm run debug:summary -- <csv>` (`scripts/debug-visualizer/summarize.ts`) reprints the summary of a CSV.
 - `.debug-out/` is git-ignored.
+
+### C5 Tempo telemetry and reports
+Added for the rhythm stability work. Everything here stays DEV-only or outside the app bundle, except the read-only
+accessors named below.
+
+**Probe columns.** The `dancing-character` probe's columns are, in this exact order, the six in C2 followed by:
+
+| Column | Value |
+|---|---|
+| `bpm` | `rhythm.state.bpm` |
+| `rawBeatBpm` | `60 / beat period` from the analyzer's `BeatTracker`, 0 without a grid |
+| `rawTempoBpm` | `TempoTracker.rawBpm`: the latest estimate before hysteresis |
+| `heldTempoBpm` | `TempoTracker.bpm`: the held tempo that drives the beat grid |
+| `tempoConfidence`, `meterConfidence` | from `rhythm.state` |
+| `beatsPerBar`, `beatPhase`, `barPhase` | from `rhythm.state`, NaN while undefined |
+| `beatCount`, `songChanges` | `rhythm.state.beatCount`, `rhythm.state.songChangeCount` |
+| `gridEpoch` | the analyzer's grid epoch (back to 0 on a hard reset) |
+| `timeScale`, `phaseNudge`, `meterLocked` | the scene's latest `computeDanceTiming` result and state (0/1), read after its update |
+| `clipPhase` | the position in the dance loop, 0..1, the value passed to `computeDanceTiming` this frame; 0 before a rig is loaded |
+| `bumpCount` | new monotonic `BassGateState.bumpCount`, raised each time a bump starts |
+| `kickPhaseOffset` | new `BassGateState.kickOffset`: the latest kick's signed distance from the learned place, in beats, (-0.5, 0.5], NaN until one was measured |
+
+`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`.
+`RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
+The new gate fields are written only, never read by the gate's own logic, so its output does not change. `read` must not
+allocate. These are the only production changes, and the bundle delta is measured with `npm run size` in the same pull
+request.
+
+**Sidecar.** `run.ts` looks for `<dir>/<track without extension>.bpm`. When it exists, the number is written to
+`<outDir>/track.bpm` so the output folder stays self-contained. `debug:summary` takes the reference from `--bpm`, else a
+`track.bpm` beside the CSV, else there is none. A sidecar that does not parse prints one warning line and counts as none.
+
+**Pure report functions** (no DOM or node APIs; exported for specs) live in `scripts/debug-visualizer/`, outside the app
+bundle.
+
+`tempoReport.ts`:
+
+```ts
+export function parseBpmSidecar(text: string): number | undefined; // first whitespace token; finite and above 0, else undefined
+export function normalizeOctave(bpm: number, reference: number): number; // bpm * 2^round(log2(reference / bpm)); 0 stays 0
+export interface TempoSummaryOptions {
+    referenceBpm?: number;
+    windowSeconds?: number; // default 5
+    tolerance?: number; // default 0.01
+    lockHoldSeconds?: number; // default 2
+    minFps?: number; // default 50
+    maxLines?: number; // default 40
+}
+export interface TempoMetrics {
+    lockTime: number | undefined; // first t at which tempoLocked has held 1 for lockHoldSeconds; post-lock starts here
+    medianBpm: number; // post-lock, of the bpm column; NaN when never locked
+    withinTolerance: number | undefined; // post-lock share of rows, octave-normalized; undefined without a reference
+    songChanges: number; // rises of songChanges within the recording, so a re-select before the first row never counts
+    gridRebuilds: number; // rises of gridEpoch within the recording
+    lockedShare: number; // post-lock share of rows with tempoLocked = 1
+    gateShare: number; // share of rows with gateOpen = 1, from the gate's first opening on; 0 when it never opens
+    gateOpenTime: number | undefined; // first post-lock t with gateOpen = 1
+    gateOpenDelay: number | undefined; // seconds from lockTime to gateOpenTime
+    bumpIntervalShare: number | undefined; // post-lock intervals within 0.1 beat of a whole number of beats (at least 1)
+    meanFps: number;
+}
+export function computeTempoMetrics(table: TelemetryTable, options?: TempoSummaryOptions): TempoMetrics | undefined;
+export function summarizeTempo(table: TelemetryTable, options?: TempoSummaryOptions): string[];
+```
+
+- Columns are found by the first name ending in `.bpm`; its prefix locates the others. A table without one returns
+  `undefined` from `computeTempoMetrics`, and one line saying so from `summarizeTempo`.
+- `summarizeTempo` prints one line per window by `t` (mean, min and max bpm; largest octave-normalized deviation in
+  percent and the share of rows in tolerance when there is a reference; mean `rawTempoBpm`, min `tempoConfidence`, rises
+  of `songChanges` and `gridEpoch`, locked and gate shares, bumps, and `unreliable` under `minFps`), one line per song
+  change and per grid rebuild with its `t`, the `TempoMetrics` values, and a last line that is one of
+  `TEMPO VERDICT: PASS`, `TEMPO VERDICT: FAIL (<which target>)` or `TEMPO VERDICT: report only (no sidecar)`. Pass means
+  `withinTolerance` at least 0.98, no song changes, no grid rebuilds, `lockedShare` at least 0.99, a `gateOpenDelay` of at most 4 s, `gateShare` at least 0.99 and `bumpIntervalShare` at least 0.95. A recording that never locks fails. Windows are widened to fit `maxLines`, and the
+  output never exceeds it.
+- `debug:viz` and `debug:summary` print `summarizeTelemetry` with `maxLines: 20`, then `summarizeTempo` with its default,
+  so the total stays within the 60 lines above. A probe without the columns adds only the one line.
+
+`repeatReport.ts`:
+
+```ts
+export interface RepeatTargets { bpmPercent: number; beatMs: number; clipLoops: number; lockSeconds: number } // defaults 1, 40, 0.05, 2
+export interface RepeatSpread { median: number; p95: number; max: number }
+export interface RepeatComparison {
+    runs: number;
+    lockTimes: (number | undefined)[];
+    meterLockTimes: (number | undefined)[]; // first meter lock after each run's tempo lock; undefined when there is none
+    medianBpms: number[];
+    sameOctave: boolean;
+    samples: number;
+    // Each is the spread across runs at one sample time, summarized over all samples.
+    bpmPercent: RepeatSpread;
+    beatMs: RepeatSpread;
+    clipLoops: RepeatSpread;
+    lockSeconds: number; // Infinity when a run never locked
+}
+export function compareRuns(tables: readonly TelemetryTable[]): RepeatComparison;
+export function formatRepeatReport(comparison: RepeatComparison, targets?: Partial<RepeatTargets>): string[];
+```
+
+- Sample times are every 0.25 s of `t` from the latest run's meter lock (its `lockTime` if no run has one, because a dance cannot align to a bar before the bar is known) to the earliest run's end; each run uses its last
+  row at or before the sample with a defined `beatPhase` and `bpm > 0`. With no sample time, the spreads are NaN and the
+  verdict fails.
+- A beat time is `t - beatPhase * 60 / bpm`, so frame rate does not limit it. Beat times and `clipPhase` are compared
+  around a circle (one beat, at the first run's median period, and one loop), and the spread is the smallest arc holding
+  every run. `bpmPercent` is `(max - min) / mean` of the values, octave-normalized to the first run.
+- `sameOctave` compares `round(log2(medianBpm / first run's medianBpm))`; when false the beat spread is NaN and the report
+  says so.
+- The last line is `REPEAT VERDICT: PASS` when `sameOctave` holds and each `p95` and `lockSeconds` is within its target,
+  else `REPEAT VERDICT: FAIL (<which target>)`. Fewer than two tables throws a one-line Error.
+
+**Commands.**
+
+- `scripts/debug-visualizer/repeat.ts` is `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]`. `--bpm` is used only for
+  a line per run giving its median's octave-normalized deviation.
+- `debug:viz` gains `--reselect N` (a whole number, at least 1, default 1): play the track N times in one page, choosing it
+  again in the source dialog each time, each play with its own output folder and summary. `--reselect` above 1 with
+  `--shots` is an error.
+- With `--from 0` the harness no longer seeks after the upload, because restarting the track a moment after it began feeds
+  the tracker a discontinuity of a different length on every run. It resets the recorder only, so the first row's `t` is
+  slightly above 0.

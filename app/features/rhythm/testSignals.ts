@@ -135,6 +135,55 @@ export function renderTrack(options: TrackOptions): Track {
     return { pcm, beatTimes, downbeatTimes };
 }
 
+export interface DecoratedTrackOptions {
+    sampleRate?: number;
+    seconds: number;
+    bpm: number;
+    // Level of the low kick on every beat. 0 makes a kickless track, carried by the mid and high clicks alone.
+    kick?: number;
+    // Where each decoration lands, in beats after the beat it follows. A decoration inside the tracker's correction window
+    // is what pulls its period, so these are the values to test with.
+    decorationOffsets: readonly number[];
+    // Decorated beats come in phrases: this many in a row (default 4) out of every `phraseBeats` (default 16). Real
+    // recordings wander furthest during a run of added notes, because each beat's timing error builds on the last.
+    phraseLength?: number;
+    phraseBeats?: number;
+    // Level of the decorations in each band. All three together outvote a beat that only has a kick and a light click.
+    kickLevel?: number;
+    midLevel?: number;
+    highLevel?: number;
+}
+
+// A constant-tempo track with temporary notes added around the beat: nothing about the true tempo changes, so any change
+// in the reported tempo is the tracker following the decorations.
+export function renderDecoratedTrack(options: DecoratedTrackOptions): Track {
+    const sampleRate = options.sampleRate ?? TEST_SAMPLE_RATE;
+    const kick = options.kick ?? 0.8;
+    const phraseLength = options.phraseLength ?? 4;
+    const phraseBeats = options.phraseBeats ?? 16;
+    const period = 60 / options.bpm;
+    const pcm = new Float32Array(Math.round(options.seconds * sampleRate));
+    const beatTimes: number[] = [];
+    const downbeatTimes: number[] = [];
+    let beat = 0;
+    for (let time = 0.1; time < options.seconds; time = 0.1 + ++beat * period) {
+        beatTimes.push(time);
+        if (beat % 4 === 0) downbeatTimes.push(time);
+        if (kick > 0) addBurst(pcm, sampleRate, time, 55, kick, 0.06, 1.0);
+        addBurst(pcm, sampleRate, time, 800, 0.1, 0.01, 0);
+        addBurst(pcm, sampleRate, time, 3000, 0.1, 0.008, 0);
+        if (beat % phraseBeats < phraseLength) {
+            for (const offset of options.decorationOffsets) {
+                const at = time + offset * period;
+                addBurst(pcm, sampleRate, at, 70, options.kickLevel ?? 0.9, 0.05, 0.5);
+                addBurst(pcm, sampleRate, at, 800, options.midLevel ?? 0.5, 0.02, 0);
+                addBurst(pcm, sampleRate, at, 3000, options.highLevel ?? 0.4, 0.01, 0);
+            }
+        }
+    }
+    return { pcm, beatTimes, downbeatTimes };
+}
+
 // Seconds of digital silence.
 export function silence(seconds: number, sampleRate: number = TEST_SAMPLE_RATE): Float32Array {
     return new Float32Array(Math.round(seconds * sampleRate));

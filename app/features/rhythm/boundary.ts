@@ -19,6 +19,7 @@ import {
     TEMPO_JUMP_SECONDS,
     TEMPO_REFERENCE_FOLLOW,
 } from './rhythmConfig';
+import { isSyncopationRatio } from './tempo';
 
 // What the detector found: nothing, a likely song or section change (soft: shrink the accumulators), or the end of
 // the music (hard: clear everything).
@@ -124,6 +125,11 @@ export class BoundaryDetector {
         const octaves = Math.abs(Math.log2(ratio));
         // Tempo trackers flip between half and double speed on one and the same song; that is not a new song.
         if (Math.abs(octaves - Math.round(octaves)) < TEMPO_JUMP_OCTAVE_TOLERANCE && octaves > 0.5) {
+            this.jumpStart = -1;
+            return BOUNDARY_NONE;
+        }
+        // Nor is the pulse that dotted notes make against the beat.
+        if (isSyncopationRatio(rawBpm, this.referenceBpm)) {
             this.jumpStart = -1;
             return BOUNDARY_NONE;
         }

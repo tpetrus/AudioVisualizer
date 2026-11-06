@@ -18,7 +18,7 @@ import { buildDanceClip } from './dancingCharacterDanceClip';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
 import { stepCameraDolly } from './dancingCharacterCamera';
-import { createBassGateState, forgetBassline, stepBassGate } from './dancingCharacterBassGate';
+import { createBassGateState, forgetBassline, stepBassGate } from '~/features/rhythm/bassGate';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
@@ -98,9 +98,11 @@ export class DancingCharacterScene {
     private tinted: TintedMaterial[] = [];
 
     // Per-frame scratch, preallocated so update() allocates nothing.
-    private readonly timingState = createDanceTimingState();
-    private readonly timing = createDanceTimingResult();
-    // The bass gate and its latest output and tempo lock are public only so DEV telemetry can read them.
+    // The timing state and result, the clip position given to the timing this frame, the bass gate and its latest
+    // output and tempo lock are public only so DEV telemetry can read them.
+    public readonly timingState = createDanceTimingState();
+    public readonly timing = createDanceTimingResult();
+    public clipPhase = 0;
     public readonly bassGate = createBassGateState();
     public gateOutput = 0;
     public gateTempoLocked = false;
@@ -261,15 +263,8 @@ export class DancingCharacterScene {
         const timing = this.timing;
         timing.normalizedBpm = undefined;
         if (this.mixer && this.baseAction && this.accentAction) {
-            computeDanceTiming(
-                rhythm,
-                DANCE_CLIP_BEATS,
-                this.baseAction.time / DANCE_CLIP_DURATION,
-                settings,
-                this.timingState,
-                dt,
-                timing,
-            );
+            this.clipPhase = this.baseAction.time / DANCE_CLIP_DURATION;
+            computeDanceTiming(rhythm, DANCE_CLIP_BEATS, this.clipPhase, settings, this.timingState, dt, timing);
             // Weights below 1 blend toward the rest pose, so the calm state is a gentler bounce at the native rate. The
             // accents are only wanted while the bar is known, and ease in and out so they never pop.
             this.baseAction.weight = timing.danceWeight;
@@ -318,6 +313,17 @@ export class DancingCharacterScene {
 
     resize(): void {
         this.distanceAspect = NaN;
+    }
+
+    // Starts the dance over for a new source, so a track gets the same dance however long the page was open and whatever
+    // played before: the clip position would otherwise carry over, and the bar lock takes seconds to correct it. Called
+    // only when the source changes, and the weight is left to ease, so this is never a visible pop during a song.
+    restartDance(): void {
+        if (this.baseAction && this.accentAction) {
+            this.baseAction.time = 0;
+            this.accentAction.time = 0;
+        }
+        Object.assign(this.timingState, createDanceTimingState(), { danceWeight: this.timingState.danceWeight });
     }
 
     resetOrbit(): void {

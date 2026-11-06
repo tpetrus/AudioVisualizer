@@ -1,11 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
-import { FRAME_STRIDE, METER_VISUAL_CONFIDENCE } from './rhythmConfig';
+import {
+    BEAT_LOST_BEATS,
+    FRAME_ENERGY_OFFSET,
+    FRAME_FLUX_OFFSET,
+    FRAME_RMS_OFFSET,
+    FRAME_STRIDE,
+    METER_VISUAL_CONFIDENCE,
+} from './rhythmConfig';
 import {
     addNoise,
     concat,
     crossfade,
     downbeatHitRate,
+    renderDecoratedTrack,
     renderTrack,
     runPipeline,
     silence,
@@ -342,6 +350,27 @@ describe('RhythmAnalyzer API', () => {
         analyzer.hardReset(false);
         expect(analyzer.state.songChangeCount).toBe(1);
     });
+
+    it('exposes the telemetry getters: zero before any audio, the tempo views after, epoch zero after a reset', () => {
+        const analyzer = new RhythmAnalyzer(100);
+        expect(analyzer.rawBeatBpm).toBe(0);
+        expect(analyzer.rawTempoBpm).toBe(0);
+        expect(analyzer.heldTempoBpm).toBe(0);
+        expect(analyzer.gridEpoch).toBe(0);
+
+        analyzer.pushBatch(0, packedFrames(1500), 1500);
+        expect(analyzer.heldTempoBpm).toBeGreaterThan(0);
+        expect(analyzer.rawTempoBpm).toBeGreaterThan(0);
+        expect(analyzer.rawBeatBpm).toBeGreaterThan(0);
+        // The grid follows the held tempo, so the two agree to within the grid's own corrections.
+        expect(Math.abs(analyzer.rawBeatBpm / analyzer.heldTempoBpm - 1)).toBeLessThan(0.1);
+        expect(analyzer.heldTempoBpm).toBe(analyzer.state.bpm);
+        expect(analyzer.gridEpoch).toBeGreaterThanOrEqual(0);
+
+        analyzer.hardReset(true);
+        expect(analyzer.gridEpoch).toBe(0);
+        expect(analyzer.rawBeatBpm).toBe(0);
+    });
 });
 
 describe('RhythmAnalyzer after a gap in the audio clock', () => {
@@ -372,5 +401,94 @@ describe('RhythmAnalyzer after a gap in the audio clock', () => {
         expect(Number.isFinite(analyzer.state.meterConfidence)).toBe(true);
         expect(analyzer.state.beatPhase).toBeGreaterThanOrEqual(0);
         expect(analyzer.state.beatPhase).toBeLessThan(1);
+    });
+});
+
+// Fitted to the baseline in docs/agents/rhythm-findings.md: a real track strayed up to 2.6% around runs of added notes
+// while the tempo estimate stayed flat. 126.3 BPM is 47.5 frames, halfway between two autocorrelation lags, so a tracker
+// that only copied the nearest lag could not pass either.
+describe('RhythmAnalyzer on a steady track with decorative notes', () => {
+    const TRUE_BPM = 126.3;
+    const AFTER_LOCK = 12;
+
+    function worstDeviation(result: RunResult): number {
+        const settled = result.samples.filter((sample) => sample.time >= AFTER_LOCK);
+        expect(settled.length).toBeGreaterThan(0);
+        return Math.max(...settled.map((sample) => octaveError(sample.bpm, TRUE_BPM)));
+    }
+
+    function runDecorated(decorationOffsets: readonly number[], phraseLength: number): RunResult {
+        const track = renderDecoratedTrack({ seconds: 40, bpm: TRUE_BPM, decorationOffsets, phraseLength });
+        return runPipeline(track.pcm, { sampleEvery: 0.05 });
+    }
+
+    it.each([
+        ['late', [0.15], 4],
+        ['early', [-0.15], 8],
+    ] as const)('keeps the reported tempo within 1%% through a run of %s decorations', (_name, offsets, phrase) => {
+        expect(worstDeviation(runDecorated(offsets, phrase))).toBeLessThanOrEqual(0.01);
+    });
+
+    it.each([
+        ['late', [0.15], 4],
+        ['early', [-0.15], 8],
+    ] as const)('raises no song change and rebuilds no grid for %s decorations', (_name, offsets, phrase) => {
+        const result = runDecorated(offsets, phrase);
+        expect(last(result).songChangeCount).toBe(0);
+        expect(result.analyzer.gridEpoch).toBe(0);
+    });
+
+    it('still locks onto a constant tempo with no kick at all', () => {
+        const track = renderDecoratedTrack({ seconds: 30, bpm: TRUE_BPM, kick: 0, decorationOffsets: [] });
+        const result = runPipeline(track.pcm, { sampleEvery: 0.05 });
+        expect(worstDeviation(result)).toBeLessThanOrEqual(0.01);
+    });
+});
+
+// Measured on the tracker before any stability fix: a steadier tempo must not cost any of this.
+describe('RhythmAnalyzer reports a new song no later than before the stability work', () => {
+    const firstSong = () => renderTrack({ seconds: 30, bpm: 100, beatsPerBar: 4 }).pcm;
+    const secondSong = () => renderTrack({ seconds: 30, bpm: 140, beatsPerBar: 4, clickHz: 1500 }).pcm;
+
+    // The last time the reported tempo was more than 1% from the new song's, so after this it stays right.
+    function settledAt(result: RunResult): number {
+        const outside = result.samples.filter((sample) => octaveError(sample.bpm, 140) > 0.01);
+        return outside[outside.length - 1].time;
+    }
+
+    it('after a 6 s crossfade to another tempo', () => {
+        const result = runPipeline(crossfade(firstSong(), secondSong(), 6), { sampleEvery: 0.05 });
+        expect(settledAt(result)).toBeLessThanOrEqual(31.6);
+    });
+
+    it('after a 2 s silence', () => {
+        const result = runPipeline(concat(firstSong(), silence(2), secondSong()), { sampleEvery: 0.05 });
+        expect(settledAt(result)).toBeLessThanOrEqual(33.6);
+    });
+});
+
+describe('RhythmAnalyzer when the beat is lost', () => {
+    // A steady pulse, then a level onset with no peaks, so every predicted beat misses until the grid is given up.
+    function runLostBeat(): RhythmAnalyzer {
+        const frameRate = 100;
+        const analyzer = new RhythmAnalyzer(frameRate);
+        const frame = new Float32Array(FRAME_STRIDE).fill(0.2);
+        for (let b = 0; b < 3; b++) frame[FRAME_ENERGY_OFFSET + b] = 1;
+        frame[FRAME_RMS_OFFSET] = 0.2;
+        for (let i = 0; i < 30 * frameRate; i++) {
+            const pulse = i < 15 * frameRate ? (i % 50 < 2 ? 1 : 0.02) : 0.3;
+            for (let b = 0; b < 3; b++) frame[FRAME_FLUX_OFFSET + b] = pulse;
+            const time = i / frameRate;
+            analyzer.pushFrame(time, frame, 0);
+            analyzer.updatePhase(time);
+            // Checked every frame: the bad value only lasts until the grid is rebuilt, but the counters keep it for good.
+            expect(Number.isFinite(analyzer.state.bpm)).toBe(true);
+            expect(Number.isFinite(analyzer.state.beatCount)).toBe(true);
+        }
+        return analyzer;
+    }
+
+    it(`keeps the tempo and counters finite after ${BEAT_LOST_BEATS} missed beats`, () => {
+        expect(runLostBeat().gridEpoch).toBeGreaterThan(0);
     });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEMPO_MIN_HISTORY_SECONDS, TEMPO_UPDATE_SECONDS } from './rhythmConfig';
-import { TempoTracker } from './tempo';
+import { isSyncopationRatio, TempoTracker } from './tempo';
 import { createRandom } from './testSignals';
 
 const FRAME_RATE = 100;
@@ -175,5 +175,69 @@ describe('TempoTracker', () => {
         expect(tracker.rawBpm).toBe(0);
         expect(tracker.confidence).toBe(0);
         expect(tracker.update()).toBe(false);
+    });
+});
+
+describe('TempoTracker on a syncopated pattern', () => {
+    function concatenated(...parts: Float32Array[]): Float32Array {
+        const out = new Float32Array(parts.reduce((total, part) => total + part.length, 0));
+        let offset = 0;
+        for (const part of parts) {
+            out.set(part, offset);
+            offset += part.length;
+        }
+        return out;
+    }
+
+    // Dotted notes make a pulse 4/3 of the true tempo for a few bars (measured on a real syncopated bassline, 98 and 130.7
+    // BPM). The tempo has not changed, so the held value must not follow it.
+    it('keeps the held tempo through a few seconds of a 4/3 pulse', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        const trace = drive(tracker, concatenated(pulseTrain(98, 15), pulseTrain(98 * (4 / 3), 6), pulseTrain(98, 6)));
+        for (const bpm of trace.bpm.slice(Math.round(10 / TEMPO_UPDATE_SECONDS))) {
+            expect(Math.abs(bpm / 98 - 1)).toBeLessThan(0.02);
+        }
+    });
+
+    // The same pulse seen from the double: measured holding 196 with a rival at 130.7.
+    it('keeps a held double-time tempo through a 2/3 pulse', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        const trace = drive(
+            tracker,
+            concatenated(pulseTrain(196, 15), pulseTrain(196 * (2 / 3), 6), pulseTrain(196, 6)),
+        );
+        for (const bpm of trace.bpm.slice(Math.round(10 / TEMPO_UPDATE_SECONDS))) {
+            expect(Math.abs(bpm / 196 - 1)).toBeLessThan(0.02);
+        }
+    });
+
+    it.each([
+        [130.67, 98, true],
+        [98, 130.67, true],
+        [130.67, 196, true],
+        [196, 130.67, true],
+        [98, 196, false],
+        [140, 100, false],
+        [100, 100, false],
+    ])('classifies %f against %f as dotted: %s', (bpm, reference, expected) => {
+        expect(isSyncopationRatio(bpm, reference)).toBe(expected);
+    });
+
+    it('still follows a 4/3 tempo that lasts', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        const trace = drive(tracker, concatenated(pulseTrain(98, 15), pulseTrain(98 * (4 / 3), 25)));
+        expect(Math.abs(trace.bpm[trace.bpm.length - 1] / (98 * (4 / 3)) - 1)).toBeLessThan(0.02);
+    });
+
+    it('follows a change at another ratio much sooner than a 4/3 pulse', () => {
+        const settle = (next: number) => {
+            const trace = drive(new TempoTracker(FRAME_RATE), concatenated(pulseTrain(98, 15), pulseTrain(next, 25)));
+            const index = trace.bpm.findIndex(
+                (bpm, i) => i * TEMPO_UPDATE_SECONDS >= 15 && Math.abs(bpm / next - 1) < 0.02,
+            );
+            expect(index).toBeGreaterThan(0);
+            return index * TEMPO_UPDATE_SECONDS;
+        };
+        expect(settle(140)).toBeLessThan(settle(98 * (4 / 3)));
     });
 });

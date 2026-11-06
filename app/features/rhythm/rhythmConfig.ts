@@ -82,6 +82,16 @@ export const TEMPO_HYSTERESIS = 0.04;
 export const TEMPO_SMOOTHING = 0.25;
 // A different tempo must win this many consecutive estimates (x TEMPO_UPDATE_SECONDS) before it replaces the held one.
 export const TEMPO_SWITCH_ESTIMATES = 4;
+// Dotted notes make a pulse at 4/3 of the beat for a few bars at a time without the tempo changing. The tracker may hold
+// either octave of the beat, so a rival is compared after folding the ratio into one octave, where 4/3 and 3/4 of the beat
+// or of its double become 4/3 and 3/2. Such a rival must win about 8 s of estimates. A longer hold for every rival would be
+// simpler, but it makes real song changes late.
+export const TEMPO_SYNCOPATION_RATIOS = [4 / 3, 3 / 2] as const;
+export const TEMPO_SYNCOPATION_TOLERANCE = 0.02;
+export const TEMPO_SYNCOPATION_SWITCH_ESTIMATES = 32;
+// Such a rival only counts at this confidence (0..1) or above: measured at 0.15 to 0.41 during dotted passages of a real
+// bassline, against 0.5 to 0.9 for a pulse the music really has.
+export const TEMPO_SYNCOPATION_MIN_CONFIDENCE = 0.5;
 // The tempo is dropped (back to unknown) after this many consecutive estimates below the confidence floor.
 export const TEMPO_LOSE_CONFIDENCE = 0.08;
 export const TEMPO_LOSE_ESTIMATES = 40;
@@ -99,16 +109,19 @@ export const BEAT_INIT_PERIODS = 8;
 export const BEAT_WINDOW_FRACTION = 0.2;
 // Fraction of the timing error applied to the phase per beat (0..1). Higher locks faster but jitters more.
 export const BEAT_PHASE_GAIN = 0.4;
-// Fraction of the timing error applied to the period per beat (0..1).
-export const BEAT_PERIOD_GAIN = 0.1;
+// Fraction of the timing error applied to the period per beat (0..1). Small, because a run of added notes near the beat
+// would otherwise build up in the period and move the beat clock (measured up to 2.6% on a steady track). Below about 0.05
+// the beat grid follows the estimate so exactly that white noise starts to look like a meter.
+export const BEAT_PERIOD_GAIN = 0.05;
 // Fraction of the gap between the beat period and the tempo estimate closed per beat (0..1).
 export const BEAT_TEMPO_FOLLOW = 0.2;
 // A peak must exceed the running mean of the envelope by this factor to be trusted as an onset.
 export const BEAT_PEAK_MIN_RATIO = 1.3;
 // Per-frame smoothing (0..1) of the running mean of the envelope.
 export const BEAT_ENVELOPE_MEAN_SMOOTHING = 0.02;
-// The phase is searched again after this many consecutive beats without an onset near the prediction.
-export const BEAT_LOST_BEATS = 4;
+// The phase is searched again after this many consecutive beats without an onset near the prediction. Long enough to ride
+// through a two second break with no drums at a usual tempo, because the tempo carries on through one.
+export const BEAT_LOST_BEATS = 8;
 // The grid is rebuilt when the tempo estimate and the beat period differ by more than this fraction.
 export const BEAT_REINIT_TEMPO_RATIO = 0.12;
 

@@ -1,4 +1,3 @@
-import type { RhythmState } from '~/features/rhythm/types';
 import {
     BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_CLOSE_SCORE,
@@ -18,8 +17,9 @@ import {
     BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
     BASS_GATE_STRENGTH_ADAPT,
-    MAX_FRAME_DT,
-} from './dancingCharacterConfig';
+    BASS_GATE_MAX_STEP_SECONDS,
+} from './bassGateConfig';
+import type { RhythmState } from './types';
 
 // Plain numbers and booleans only, so it can be kept across frames without allocation.
 export interface BassGateState {
@@ -56,6 +56,10 @@ export interface BassGateState {
     beatCount: number;
     songChangeCount: number;
     initialized: boolean;
+    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), and the latest measured
+    // kick's signed distance from the learned place in beats (NaN until one was measured).
+    bumpCount: number;
+    kickOffset: number;
 }
 
 export function createBassGateState(): BassGateState {
@@ -80,6 +84,8 @@ export function createBassGateState(): BassGateState {
         beatCount: 0,
         songChangeCount: 0,
         initialized: false,
+        bumpCount: 0,
+        kickOffset: NaN,
     };
 }
 
@@ -102,7 +108,7 @@ export function stepBassGate(
     state: BassGateState,
     dt: number,
 ): number {
-    const step = Math.min(Math.max(dt, 0), MAX_FRAME_DT);
+    const step = Math.min(Math.max(dt, 0), BASS_GATE_MAX_STEP_SECONDS);
     const raw = Math.min(Math.max(bass, 0), 1);
 
     // A new song throws away the old bassline at once; a lost tempo lock only after a grace period, because the
@@ -152,12 +158,13 @@ export function stepBassGate(
     }
 
     // A kick is in rhythm when it lands where the previous kicks landed in the beat. The first kick, or one that comes
-    // once the evidence has run out, only sets that place afresh and earns nothing. Before the gate opens a kick
-    // elsewhere costs evidence, so bumps at random places never string together the run it takes to open; once open,
-    // it costs nothing, so extra notes in the bassline do not shake a locked pulse.
+    // once the evidence has run out, only sets that place afresh and earns nothing. A kick elsewhere costs nothing, because
+    // a syncopated bassline lands most of its notes away from that place: making them cost evidence kept the gate shut for
+    // a whole track on real music (measured in docs/agents/rhythm-findings.md).
     const phase = rhythm.beatPhase;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
+        if (state.phaseKnown) state.kickOffset = offset;
         if (state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
             state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
@@ -166,8 +173,6 @@ export function stepBassGate(
         } else if (!state.phaseKnown || state.score <= 0) {
             state.kickPhase = phase;
             state.phaseKnown = true;
-        } else if (!state.open) {
-            state.score = Math.max(0, state.score - 1);
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
@@ -185,6 +190,7 @@ export function stepBassGate(
         const passed = now < before && before > 0.5;
         if (passed && state.open && state.sinceBump >= BASS_GATE_MIN_INTERVAL) {
             state.sinceBump = 0;
+            state.bumpCount++;
             state.bumpTarget = state.kickStrength;
             state.attackLeft = BASS_GATE_ATTACK_SECONDS;
         }

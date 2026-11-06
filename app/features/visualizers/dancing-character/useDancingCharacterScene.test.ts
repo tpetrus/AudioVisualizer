@@ -19,7 +19,7 @@ vi.mock('three', async (importOriginal) => {
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
 
-// The loader, the character scene and the shared cubes BassPulse have their own specs; here only the hook's wiring matters.
+// The loader, the character scene and the shared BassPulse have their own specs; here only the hook's wiring matters.
 vi.mock('./dancingCharacterAssets', () => ({
     loadDancingCharacterAssets: vi.fn(),
     disposeDancingCharacterAssets: vi.fn(),
@@ -41,7 +41,12 @@ vi.mock('./dancingCharacterScene', () => ({
         readonly setCharacter = vi.fn();
         readonly resize = vi.fn();
         readonly resetOrbit = vi.fn();
+        readonly restartDance = vi.fn();
         readonly dispose = vi.fn();
+        // What the DEV probe reads from the real scene.
+        readonly timing = { timeScale: 0, phaseNudge: 0 };
+        readonly timingState = { meterLocked: false };
+        clipPhase = 0;
         constructor(
             readonly scene: unknown,
             readonly camera: unknown,
@@ -53,7 +58,7 @@ vi.mock('./dancingCharacterScene', () => ({
     },
 }));
 
-vi.mock('~/features/visualizers/cubes/bassPulse', () => ({
+vi.mock('~/features/rhythm/bassPulse', () => ({
     BassPulse: class {
         level = 0;
         readonly update = vi.fn(() => this.level);
@@ -306,6 +311,23 @@ describe('useDancingCharacterScene', () => {
             expect(character().frames.map((frame) => frame.bass)).toEqual([0, 0.7]);
         });
 
+        it('restarts the dance for each new source, but not when the source goes away', () => {
+            const first = createAnalyser();
+            const { renderer, rerender } = mountScene({ analyser: first });
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            const scene = scenes[scenes.length - 1] as unknown as { restartDance: ReturnType<typeof vi.fn> };
+            expect(scene.restartDance).toHaveBeenCalledTimes(1);
+
+            rerender({ analyser: createAnalyser(), cameraLocked: true });
+            renderer.renderFrame(32);
+            expect(scene.restartDance).toHaveBeenCalledTimes(2);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            renderer.renderFrame(48);
+            expect(scene.restartDance).toHaveBeenCalledTimes(2);
+        });
+
         it('is rebound when the analyser changes and dropped when it goes away', () => {
             const first = createAnalyser();
             const second = createAnalyser();
@@ -349,9 +371,82 @@ describe('useDancingCharacterScene', () => {
 
             expect(telemetry.register).toHaveBeenCalledWith(
                 'dancing-character',
-                ['in', 'out', 'gateOpen', 'gateScore', 'gateWeight', 'tempoLocked'],
+                expect.arrayContaining(['in', 'out', 'gateOpen', 'gateScore', 'gateWeight', 'tempoLocked']),
                 expect.any(Function),
             );
+        });
+
+        it('registers the tempo columns after the gate columns, in the contract order', () => {
+            mountScene();
+
+            expect(telemetry.register.mock.calls.at(-1)![1]).toEqual([
+                'in',
+                'out',
+                'gateOpen',
+                'gateScore',
+                'gateWeight',
+                'tempoLocked',
+                'bpm',
+                'rawBeatBpm',
+                'rawTempoBpm',
+                'heldTempoBpm',
+                'tempoConfidence',
+                'meterConfidence',
+                'beatsPerBar',
+                'beatPhase',
+                'barPhase',
+                'beatCount',
+                'songChanges',
+                'gridEpoch',
+                'timeScale',
+                'phaseNudge',
+                'meterLocked',
+                'clipPhase',
+                'bumpCount',
+                'kickPhaseOffset',
+            ]);
+        });
+
+        it('reads the tempo columns, with zeros for the analyzer values when there is no analyzer', () => {
+            const { renderer, tracker } = mountScene();
+            renderer.renderFrame(0);
+            const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            scene.timing = { timeScale: 1.25, phaseNudge: -0.01 };
+            scene.timingState = { meterLocked: true };
+            scene.clipPhase = 0.75;
+            scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 7, kickOffset: -0.25 };
+            Object.assign(tracker.state, {
+                bpm: 120,
+                tempoConfidence: 0.5,
+                meterConfidence: 0.25,
+                beatsPerBar: 4,
+                beatPhase: 0.5,
+                barPhase: 0.125,
+                beatCount: 9,
+                songChangeCount: 2,
+            });
+
+            const out = Array.from(readProbe(24));
+
+            expect(out.slice(6)).toEqual(
+                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25].map(Math.fround),
+            );
+        });
+
+        it('reads the analyzer values and writes NaN for undefined phases and an unmeasured kick', () => {
+            const { renderer, tracker } = mountScene();
+            renderer.renderFrame(0);
+            Object.assign(tracker, {
+                analysis: { rawBeatBpm: 121, rawTempoBpm: 60.5, heldTempoBpm: 120, gridEpoch: 3 },
+            });
+            const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 0, kickOffset: NaN };
+
+            const out = readProbe(24);
+
+            expect([out[7], out[8], out[9], out[17]]).toEqual([121, 60.5, 120, 3]);
+            // beatsPerBar, beatPhase and barPhase are undefined in a fresh state.
+            expect([out[12], out[13], out[14], out[23]].every(Number.isNaN)).toBe(true);
         });
 
         it('reads the gate input from the frame and the rest from the character, and ticks in seconds', () => {
