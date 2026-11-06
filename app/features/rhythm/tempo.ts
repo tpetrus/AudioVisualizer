@@ -21,6 +21,7 @@ import {
     TEMPO_REFINE_STEP,
     TEMPO_SMOOTHING,
     TEMPO_SWITCH_ESTIMATES,
+    TEMPO_SYNCOPATION_MIN_CONFIDENCE,
     TEMPO_SYNCOPATION_RATIOS,
     TEMPO_SYNCOPATION_SWITCH_ESTIMATES,
     TEMPO_SYNCOPATION_TOLERANCE,
@@ -311,6 +312,11 @@ export class TempoTracker {
             this.challengerWins = 0;
             return;
         }
+        const dotted = isSyncopationRatio(bpm, this.held);
+        if (dotted && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+            this.challengerWins = 0;
+            return;
+        }
         if (this.challengerWins > 0 && Math.abs(bpm / this.challenger - 1) <= TEMPO_HYSTERESIS) {
             this.challengerWins++;
             this.challenger += (bpm - this.challenger) * TEMPO_SMOOTHING;
@@ -318,9 +324,7 @@ export class TempoTracker {
             this.challenger = bpm;
             this.challengerWins = 1;
         }
-        const needed = isSyncopationRatio(this.challenger, this.held)
-            ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES
-            : TEMPO_SWITCH_ESTIMATES;
+        const needed = dotted ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
         if (this.challengerWins >= needed) {
             this.held = this.challenger;
             this.challengerWins = 0;

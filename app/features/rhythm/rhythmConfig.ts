@@ -89,6 +89,9 @@ export const TEMPO_SWITCH_ESTIMATES = 4;
 export const TEMPO_SYNCOPATION_RATIOS = [4 / 3, 3 / 2] as const;
 export const TEMPO_SYNCOPATION_TOLERANCE = 0.02;
 export const TEMPO_SYNCOPATION_SWITCH_ESTIMATES = 32;
+// Such a rival only counts at this confidence (0..1) or above: measured at 0.15 to 0.41 during dotted passages of a real
+// bassline, against 0.5 to 0.9 for a pulse the music really has.
+export const TEMPO_SYNCOPATION_MIN_CONFIDENCE = 0.5;
 // The tempo is dropped (back to unknown) after this many consecutive estimates below the confidence floor.
 export const TEMPO_LOSE_CONFIDENCE = 0.08;
 export const TEMPO_LOSE_ESTIMATES = 40;
