@@ -9,6 +9,8 @@ import {
     CALM_DANCE_WEIGHT,
     CALM_TIME_SCALE,
     DANCE_WEIGHT_RATE,
+    MAX_DANCE_BPM,
+    MAX_DANCE_BPM_RELEASE,
     MAX_FRAME_DT,
     MAX_PHASE_NUDGE_PER_SECOND,
     MAX_TIME_SCALE_CHANGE_PER_SECOND,
@@ -47,6 +49,8 @@ export interface DanceTimingState {
     meterLocked: boolean;
     // 0 until a tempo has been normalized (also after a song change).
     lastNormalizedBpm: number;
+    // True while the tempo is over the dance speed limit, so the steps are at half time.
+    overSpeedLimit: boolean;
     timeScale: number;
     danceWeight: number;
     songChangeCount: number;
@@ -58,6 +62,7 @@ export function createDanceTimingState(): DanceTimingState {
         locked: false,
         meterLocked: false,
         lastNormalizedBpm: 0,
+        overSpeedLimit: false,
         timeScale: CALM_TIME_SCALE,
         danceWeight: CALM_DANCE_WEIGHT,
         songChangeCount: 0,
@@ -137,6 +142,7 @@ export function computeDanceTiming(
         state.locked = false;
         state.meterLocked = false;
         state.lastNormalizedBpm = 0;
+        state.overSpeedLimit = false;
     }
     state.songChangeCount = rhythm.songChangeCount;
     state.initialized = true;
@@ -164,7 +170,10 @@ export function computeDanceTiming(
     if (rhythm.beatPhase !== undefined && state.locked) {
         const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm);
         state.lastNormalizedBpm = normalized;
-        const multiple = snapStepMultiple(settings.danceSpeed);
+        state.overSpeedLimit =
+            normalized > (state.overSpeedLimit ? MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE : MAX_DANCE_BPM);
+        const chosen = snapStepMultiple(settings.danceSpeed);
+        const multiple = chosen === 1 && state.overSpeedLimit ? 0.5 : chosen;
         target = (normalized / NATIVE_BPM) * multiple;
 
         if (state.meterLocked && rhythm.barPhase !== undefined) {
