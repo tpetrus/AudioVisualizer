@@ -119,6 +119,7 @@ export function useDancingCharacterScene(
                     'clipPhase',
                     'bumpCount',
                     'kickPhaseOffset',
+                    'rivalBpm',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -148,6 +149,7 @@ export function useDancingCharacterScene(
                     out[21] = character.clipPhase;
                     out[22] = gate.bumpCount;
                     out[23] = gate.kickOffset;
+                    out[24] = analysis?.rivalBpm ?? 0;
                 },
             );
         }
