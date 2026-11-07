@@ -159,6 +159,78 @@ before that it only aligns to the nearest beat. The capped nudge (`MAX_PHASE_NUD
 - `summer2000`'s reference is a weaker estimate than the others; `lonley`'s has not been confirmed by ear.
 - Small tooling follow-ups: verdict rounding (`0.99 < 0.99`), and CSVs writing Infinity as NaN.
 
+## Evidence probe (2026-11-06)
+
+Measured to choose the first-lock rule. Offline numbers come from `npm run probe:rhythm` and the committed fixtures, which
+leave out the AGC and block timing. Live numbers come from `npm run debug:viz` at 60 fps, on code whose tempo decisions match
+`main`. Six tracks can overfit a threshold, so treat any value below as a starting point.
+
+### What the tracks do live
+
+| Track | First lock, this run | Grid rebuilds | Settled `timeScale` | Note |
+|---|---|---|---|---|
+| `imyourgirl` | 134.8, 1 of 1 plays | 0 | 1.12 | Correct |
+| `syncopationbass2` | 127.7, 1 of 1 | 0 | 1.06 | Correct |
+| `summer2000` | 126.8, 1 of 1 | 0 | 1.06 | Correct |
+| `lonley` | 141.1, 4 of 4 | 0 | **0.58 on all 4** | 187.5 in 2 of the 4 earlier plays on this tempo code, so 2 of 8 overall |
+| `syncopationbass` | 195.7 or 195.1, 4 of 4 | 1 on all 4, at the octave move | 0.82 | Twice the reference, then 98. Passes the "or its octave" test |
+| `syncopation-no-kick` | 179.1, 1 of 1 | 0 | 0.75 | Wrong for the whole track. The raw estimate is also 180, so the hold is not the cause |
+
+### Corrections to the earlier reading
+
+- **`lonley`'s speed difference has a second cause.** The section "Dance speed differs per play" blames a corrected lock. On
+  these plays the first lock was right and the dance still settled at half speed. The first estimate, 141.1, is over the
+  140 limit, so half time starts. The tempo then settles at 139.5, which is inside the hysteresis band (135.8 to 140), so half
+  time never ends. A play whose first estimate is 139.5 dances at 1.16. Re-seeding the octave alone cannot close this.
+- **`lonley`'s wrong first lock is rarer live than offline.** Offline it is always 187.5, live 2 of 8. Fixtures can guard the
+  rule but cannot predict how often a live play fails.
+- **The kick does not break the tie on `lonley`.** Band 0 at 8 s is 0.138 for 140 and 0.112 for 187, too close to use.
+
+### Bar repeat separates the rivals, given a full window
+
+Autocorrelation at each rival's own 4L and 8L, offline. 8L needs the full 8 s window on the tempos below.
+
+| Track, true against rival | 4L at 8 s | 8L at 8 s | 4L + 8L at 8 s | 4L + 8L at 10 s |
+|---|---|---|---|---|
+| `lonley`, 140 against 186.7 | 0.40 / 0.55 (wrong) | 0.68 / 0.33 | **1.08 / 0.88** | 1.08 / 1.04 |
+| `syncopation-no-kick`, 135 against 180 | 0.57 / 0.25 | 0.61 / 0.16 | **1.19 / 0.40** | 1.54 / 0.63 |
+| `syncopationbass`, 196 against 130.7 | 0.54 / 0.37 | 0.60 / 0.53 | **1.14 / 0.90** | 1.64 / 1.38 |
+| `summer2000`, 127.5 against 170 | 0.43 / 0.41 | 0.29 / 0.30 | 0.71 / 0.71 (tie) | 1.29 / 0.78 |
+| `syncopationbass2`, 128 against 170.7 | 0.48 / 0.53 | 0.56 / 0.50 | 1.05 / 1.03 (tie) | 1.66 / 1.73 (wrong) |
+
+- 4L alone is wrong on `lonley` until about 12 s, so it cannot be the rule.
+- The last two rows must not reach a tie-break. At first lock the dotted rival's height against the winner's is 0.07 on
+  `imyourgirl` and 0.29 on `syncopationbass2`, and 0.52 to 0.87 on the four tie tracks (`syncopation-no-kick` 0.52,
+  `syncopationbass` 0.57, `lonley` 0.85, `summer2000` 0.87). `summer2000` does reach it, so a tie must keep the current winner,
+  which is right on this track.
+- `summer2000` turns against the true tempo after its break (from about 16 s), so the comparison belongs at first lock only.
+
+### Causes for `syncopation-no-kick`
+
+The raw estimate is 180 from first lock to the end, with confidence 0.59 to 0.65.
+
+| Cause | Evidence | Reading |
+|---|---|---|
+| Self-locking hold | Raw is already 180 | Ruled out as the main cause |
+| No subdivision test | L/2 and L/3 are 0.19 / 0.12 for 135, and -0.02 / 0.27 for 180 | Supported: 180 looks ternary |
+| No bar-repeat test | 1.19 against 0.40 at 8 s | Strongly supported |
+| Band mix | Every band favors 180 at L (1.32 against 0.85) | Not a way out |
+| Frame-grid bias | 0.47 against 0.27 at L, too large for a split peak | Not the main cause |
+| Early decision | Locks at 3 s, when 4L does not fit | Supported, and the same fix as bar repeat |
+
+### Old-pulse support, for a song change at a dotted ratio
+
+Height at the old tempo's lag. Spliced songs are the only real changes available, and only one correction exists.
+
+| Case | Old-pulse height | Result wanted |
+|---|---|---|
+| `lonley` correcting from 187.5 to 140, 8 to 31 s | 0.17 to 0.31 | No boundary |
+| Song change, 98 to 128 (splice), 6 to 16 s after | -0.10 to 0.03 | Boundary |
+| Song change, 128 to 98 (splice), 6 to 16 s after | 0.21 to 0.32 | Boundary |
+
+The test does not fully separate them. A threshold near 0.10 raises nothing on the correction and catches the first change, but
+misses the second, because `syncopationbass` really has a pulse near 128.
+
 ## How to reproduce
 
 ```
