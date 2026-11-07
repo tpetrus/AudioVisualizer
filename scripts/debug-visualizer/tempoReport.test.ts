@@ -319,6 +319,14 @@ describe('summarizeTempo', () => {
         expect(verdictOf(off)).toContain('bump interval share');
     });
 
+    it('never prints a miss that reads as its own threshold (0.99 < 0.99)', () => {
+        // 29 of 3000 rows unlocked at the end: a locked share of about 0.9899, which rounds to 0.99 at three digits.
+        const table = makeTable(50, (t) => ({ locked: t >= 50 - 29 / 60 ? 0 : 1 }));
+        const verdict = verdictOf(summarizeTempo(table, { referenceBpm: 120 }));
+        expect(verdict).toContain('locked share 0.9899 < 0.99');
+        expect(verdict).not.toContain('0.99 < 0.99');
+    });
+
     it('fails when there are no bump intervals to judge', () => {
         const lines = summarizeTempo(
             makeTable(10, () => ({ bumpCount: 0 })),

@@ -31,6 +31,15 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   `eval:rhythm` reads) and the summary also judges the tempo against it, octave-normalized. Without a sidecar the tempo
   block is printed as a report with no pass or fail.
 - `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` compares two or more recordings of one track on track time.
+- `npm run replay:gate -- <telemetry.csv> --rule NAME` feeds a recording's `in`, `beatPhase`, `tempoLocked`, `beatCount` and
+  `songChanges` columns into the real `stepBassGate` and prints the first open time, the delay after lock and the open
+  share, next to the opening the recording's own `gateOpen` column shows. `--rule current` is the shipped rule; the
+  rules are the small table `GATE_RULES` in `scripts/rhythm-tools/gateReplay.ts`, so a candidate is one more entry, and an
+  unknown name is an error. A recording made before the last change to the gate will not reproduce its own opening under
+  `current`; that is the gate having changed, not the replay. Trimmed recordings of the kick-bearing tracks are in
+  `scripts/fixtures/rhythm/gate/` and replayed by `scripts/rhythm-tools/gateReplay.test.ts`.
+- The telemetry CSV writes `NaN`, `Infinity` and `-Infinity` each under its own name, and the scripts read all three back
+  (`scripts/debug-visualizer/csv.ts`).
 - `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` (`scripts/rhythm-ablate.ts`) runs the real `OnsetExtractor` and
   `RhythmAnalyzer` over a WAV with `rhythmConfig` constants overridden by an esbuild plugin, so `app/` does not change. It is
   deterministic and an unknown constant is an error, but it leaves out the AGC and block timing of the live chain.
