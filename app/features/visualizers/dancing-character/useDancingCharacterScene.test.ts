@@ -404,6 +404,7 @@ describe('useDancingCharacterScene', () => {
                 'clipPhase',
                 'bumpCount',
                 'kickPhaseOffset',
+                'rivalBpm',
             ]);
         });
 
@@ -426,10 +427,10 @@ describe('useDancingCharacterScene', () => {
                 songChangeCount: 2,
             });
 
-            const out = Array.from(readProbe(24));
+            const out = Array.from(readProbe(25));
 
             expect(out.slice(6)).toEqual(
-                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25].map(Math.fround),
+                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25, 0].map(Math.fround),
             );
         });
 
@@ -437,14 +438,14 @@ describe('useDancingCharacterScene', () => {
             const { renderer, tracker } = mountScene();
             renderer.renderFrame(0);
             Object.assign(tracker, {
-                analysis: { rawBeatBpm: 121, rawTempoBpm: 60.5, heldTempoBpm: 120, gridEpoch: 3 },
+                analysis: { rawBeatBpm: 121, rawTempoBpm: 60.5, heldTempoBpm: 120, gridEpoch: 3, rivalBpm: 93.5 },
             });
             const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
             scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 0, kickOffset: NaN };
 
-            const out = readProbe(24);
+            const out = readProbe(25);
 
-            expect([out[7], out[8], out[9], out[17]]).toEqual([121, 60.5, 120, 3]);
+            expect([out[7], out[8], out[9], out[17], out[24]]).toEqual([121, 60.5, 120, 3, 93.5]);
             // beatsPerBar, beatPhase and barPhase are undefined in a fresh state.
             expect([out[12], out[13], out[14], out[23]].every(Number.isNaN)).toBe(true);
         });

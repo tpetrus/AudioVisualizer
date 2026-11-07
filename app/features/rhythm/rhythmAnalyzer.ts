@@ -104,6 +104,11 @@ export class RhythmAnalyzer {
         return this.tempo.rawBpm;
     }
 
+    // The strongest rival pulse of the latest tempo estimate in BPM, 0 when it has none.
+    get rivalBpm(): number {
+        return this.tempo.rivalBpm;
+    }
+
     get heldTempoBpm(): number {
         return this.tempo.bpm;
     }
