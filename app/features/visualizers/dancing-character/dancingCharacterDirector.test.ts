@@ -5,8 +5,13 @@ import { createDanceDirector, createDanceDirectorOutput, type DanceDirectorInput
 type Id = 'a' | 'b' | 'c';
 const ALL: readonly Id[] = ['a', 'b', 'c'];
 
-function setup(available: readonly Id[] = ALL, selection: string = AUTO_DANCE, locked = true) {
-    const director = createDanceDirector<Id>(available);
+function setup(
+    available: readonly Id[] = ALL,
+    selection: string = AUTO_DANCE,
+    locked = true,
+    known: readonly Id[] = ALL,
+) {
+    const director = createDanceDirector<Id>(available, known);
     const out = createDanceDirectorOutput<Id>(available[0]);
     const input: DanceDirectorInput = {
         selection,
@@ -131,21 +136,40 @@ describe('createDanceDirector', () => {
         expect(s.out).toEqual({ active: 'a', next: null, switchNow: false });
     });
 
-    it('maps unavailable and unknown selections to the first available dance', () => {
+    it('maps a known dance that did not load to the first available dance', () => {
         const s = setup(['b', 'c'], 'c');
         s.out.active = 'c';
         s.input.selection = 'a';
         s.tick();
         expect(s.out.next).toBe('b');
         s.bar();
-        expect(s.out.active).toBe('b');
-        s.input.selection = 'not-a-dance';
-        s.out.active = 'c';
-        s.tick();
-        expect(s.out.next).toBe('b');
-        s.out.active = 'b';
-        s.tick();
+        expect(s.out).toEqual({ active: 'b', next: null, switchNow: true });
+    });
+
+    it('treats a selection that is no known id as Auto', () => {
+        const s = setup(ALL, 'not-a-dance');
         expect(s.out.next).toBeNull();
+        for (let i = 0; i < AUTO_ROTATE_BARS - 1; i++) {
+            s.bar();
+            expect(s.out.switchNow).toBe(false);
+        }
+        s.bar();
+        expect(s.out).toEqual({ active: 'b', next: null, switchNow: true });
+    });
+
+    it('defaults the known ids to the available ones', () => {
+        const director = createDanceDirector<Id>(['a', 'b']);
+        const out = createDanceDirectorOutput<Id>('a');
+        const input: DanceDirectorInput = {
+            selection: 'c',
+            beatCount: 0,
+            downbeatCount: 0,
+            meterLocked: true,
+            songChangeCount: 0,
+        };
+        director.update(input, out);
+        // 'c' is not among the defaulted known ids, so it is a stale value and means Auto: nothing is pending.
+        expect(out.next).toBeNull();
     });
 
     it('rotates in Auto every 8 bars while locked and never repeats', () => {

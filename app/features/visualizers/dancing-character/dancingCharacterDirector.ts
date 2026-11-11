@@ -1,7 +1,7 @@
 import { AUTO_DANCE, AUTO_ROTATE_BARS, FALLBACK_BEATS_PER_BAR } from './dancingCharacterConfig';
 
 export interface DanceDirectorInput {
-    /** AUTO_DANCE or a dance id. Any other string counts as an unavailable id. */
+    /** AUTO_DANCE or a dance id. A string that is no known id at all (a stale value) counts as AUTO_DANCE. */
     selection: string;
     beatCount: number;
     downbeatCount: number;
@@ -36,12 +36,18 @@ export function createDanceDirectorOutput<Id extends string>(initial: Id): Dance
  *
  * `update` allocates nothing: all state lives in one object made at creation and the output is written in place.
  */
-export function createDanceDirector<Id extends string>(available: readonly Id[]): DanceDirector<Id> {
+// `known` is every id the dance registry has, `available` the ones that actually loaded. A known id that did not load
+// falls back to the first loaded dance, so the visitor still sees a dance; anything else is a stale value and means Auto.
+export function createDanceDirector<Id extends string>(
+    available: readonly Id[],
+    known: readonly Id[] = available,
+): DanceDirector<Id> {
     if (available.length === 0) {
         throw new Error('createDanceDirector needs at least one available dance.');
     }
     const first = available[0];
     const availableStrings: readonly string[] = available;
+    const knownStrings: readonly string[] = known;
 
     const state = {
         started: false,
@@ -106,10 +112,10 @@ export function createDanceDirector<Id extends string>(available: readonly Id[])
         if (input.songChangeCount > state.lastSong) state.songPending = true;
         state.lastSong = input.songChangeCount;
 
-        // Only a selection that is exactly AUTO_DANCE means Auto. Ids are plain strings here, so this module cannot
-        // tell a stale or unknown string from a real id that is merely unavailable; every other string that is not in
-        // `available` therefore maps to the first available dance.
-        const isAuto = input.selection === AUTO_DANCE;
+        // A selection that is neither a known nor a loaded id (for example a dance renamed since) is treated as Auto.
+        const isAuto =
+            input.selection === AUTO_DANCE ||
+            (!knownStrings.includes(input.selection) && !availableStrings.includes(input.selection));
         if (isAuto && !state.wasAuto) {
             // Entering Auto never switches by itself; it starts counting bars from now.
             state.boundaries = 0;
