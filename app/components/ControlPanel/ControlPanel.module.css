@@ -64,6 +64,12 @@
     min-width: 0;
 }
 
+/* Like the slider, a dropdown takes the row's spare width instead of its own intrinsic size. */
+.controlRow select {
+    flex: 1;
+    min-width: 0;
+}
+
 .value {
     flex: 0 0 38px;
     text-align: right;
