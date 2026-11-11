@@ -45,8 +45,6 @@ export class BeatTracker {
     private aligned = false;
     private lastBeat = 0;
     private declared = 0;
-    // Time of the latest frame, so an octave move can skip predictions that already fell in the past.
-    private now = 0;
     private epoch = 0;
     // Consecutive beats whose window held no onset strong enough to correct the phase.
     private missedBeats = 0;
@@ -98,8 +96,9 @@ export class BeatTracker {
                 return;
             }
             const ratio = this.tempoPeriod / this.period;
-            if (Math.abs(ratio / 2 - 1) <= BEAT_OCTAVE_TOLERANCE || Math.abs(ratio * 2 - 1) <= BEAT_OCTAVE_TOLERANCE) {
-                this.changeOctave(ratio > 1 ? 2 : 0.5);
+            const factor = ratio > 1 ? 2 : 0.5;
+            if (Math.abs(ratio / factor - 1) <= BEAT_OCTAVE_TOLERANCE) {
+                this.changeOctave(factor);
             } else if (Math.abs(ratio - 1) > BEAT_REINIT_TEMPO_RATIO) {
                 this.aligned = false;
                 this.epoch++;
@@ -113,20 +112,16 @@ export class BeatTracker {
     // beat, starting with the one after the latest declared; doubling it adds a beat between each pair of old ones.
     // Numbering carries on by one per beat of the new grid, so the count advances half as fast after a halving and twice
     // as fast after a doubling. The next beat is placed one new period after the latest declared beat, which is also
-    // where consumers extrapolate to, and moved on if that time has already passed.
+    // where consumers extrapolate to, (after a doubling that can already be in the past, and then the beat is declared at once).
     private changeOctave(factor: number): void {
         const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
         this.period *= factor;
         this.pendingBeat = base + this.period;
-        while (this.pendingBeat + BEAT_WINDOW_FRACTION * this.period < this.now) {
-            this.pendingBeat += this.period;
-        }
     }
 
     // Advances to the frame at `time` (seconds, strictly increasing) with onset-envelope value `onset`. Returns true
     // when a beat was declared by this frame; its time is `lastBeatTime`.
     push(time: number, onset: number): boolean {
-        this.now = time;
         this.envelope[this.head] = onset;
         this.times[this.head] = time;
         this.head = (this.head + 1) % this.capacity;
@@ -164,7 +159,6 @@ export class BeatTracker {
         this.aligned = false;
         this.lastBeat = 0;
         this.declared = 0;
-        this.now = 0;
         this.epoch = 0;
         this.missedBeats = 0;
     }
