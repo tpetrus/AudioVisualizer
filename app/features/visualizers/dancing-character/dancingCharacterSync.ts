@@ -106,8 +106,7 @@ export function snapStepMultiple(danceSpeed: number): number {
 // after a first lock at 93.75, and the dance would run at half the speed of a play that locked on 140 first.
 function normalizeOctave(bpm: number, previous: number, previousRaw: number): number {
     const reseed = previous <= 0 || (previousRaw > 0 && isSyncopationRatio(bpm, previousRaw));
-    const octaves =
-        !reseed ? Math.round(Math.log2(previous / bpm)) : Math.ceil(Math.log2(NORMALIZED_BPM_MIN / bpm));
+    const octaves = !reseed ? Math.round(Math.log2(previous / bpm)) : Math.ceil(Math.log2(NORMALIZED_BPM_MIN / bpm));
     return bpm * 2 ** octaves;
 }
 
