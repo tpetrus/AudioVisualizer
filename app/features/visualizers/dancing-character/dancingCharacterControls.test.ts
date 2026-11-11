@@ -23,9 +23,14 @@ describe('dancingCharacterControls', () => {
         });
     });
 
-    it('steps the dance speed through half time, on the beat and double time', () => {
+    it('steps the dance speed through half time and on the beat', () => {
         const danceSpeed = dancingCharacterControls.find((control) => control.key === 'danceSpeed');
-        expect(danceSpeed).toMatchObject({ min: 0.5, max: 2, step: 0.5 });
+        expect(danceSpeed).toMatchObject({ min: 0.5, max: 1, step: 0.5 });
+    });
+
+    // The speed limit is about the dance only: the orbit and the bass glow keep their own, wider ranges.
+    it.each(['orbitSpeed', 'bassStrength'])('leaves the range of %s up to 2', (key) => {
+        expect(dancingCharacterControls.find((control) => control.key === key)).toMatchObject({ min: 0, max: 2 });
     });
 
     it('has a camera bump slider that can be switched off', () => {
