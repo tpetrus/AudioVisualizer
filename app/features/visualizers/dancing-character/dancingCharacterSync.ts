@@ -3,8 +3,9 @@ import {
     METER_EXIT_CONFIDENCE,
     TEMPO_LOCK_CONFIDENCE,
     TEMPO_LOSE_CONFIDENCE,
+    TEMPO_SYNCOPATION_RATIOS,
+    TEMPO_SYNCOPATION_TOLERANCE,
 } from '~/features/rhythm/rhythmConfig';
-import { isSyncopationRatio } from '~/features/rhythm/tempo';
 import type { RhythmState } from '~/features/rhythm/types';
 import {
     CALM_DANCE_WEIGHT,
@@ -99,13 +100,21 @@ export function snapStepMultiple(danceSpeed: number): number {
     return best;
 }
 
+// Same test as isSyncopationRatio in rhythm/tempo.ts, repeated here because importing that module pulls the whole tempo
+// tracker into the dance chunk, which costs more than these lines in the bundle budget.
+function isDottedRatio(bpm: number, reference: number): boolean {
+    const ratio = bpm / reference;
+    const folded = ratio / 2 ** Math.floor(Math.log2(ratio));
+    return TEMPO_SYNCOPATION_RATIOS.some((known) => Math.abs(folded / known - 1) <= TEMPO_SYNCOPATION_TOLERANCE);
+}
+
 // Moves the raw tempo by factors of two to the octave nearest the previous value, so a half or double time estimate
 // (which the tracker may flip between mid-song) gives the same dance. The first value is folded into
 // [NORMALIZED_BPM_MIN, 2 * NORMALIZED_BPM_MIN). A dotted correction (the tracker moving from 187.5 to 140) is a
 // different tempo, not an octave flip, so it re-seeds the same way: keeping the nearest octave would put 140 at 70
 // after a first lock at 93.75, and the dance would run at half the speed of a play that locked on 140 first.
 function normalizeOctave(bpm: number, previous: number, previousRaw: number): number {
-    const reseed = previous <= 0 || (previousRaw > 0 && isSyncopationRatio(bpm, previousRaw));
+    const reseed = previous <= 0 || (previousRaw > 0 && isDottedRatio(bpm, previousRaw));
     const octaves = !reseed ? Math.round(Math.log2(previous / bpm)) : Math.ceil(Math.log2(NORMALIZED_BPM_MIN / bpm));
     return bpm * 2 ** octaves;
 }
