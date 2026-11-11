@@ -1,5 +1,10 @@
 import {
     BASS_GATE_ATTACK_SECONDS,
+    BASS_GATE_BAR_BEATS,
+    BASS_GATE_BAR_WINDOW,
+    BASS_GATE_KICK_HISTORY,
+    BASS_GATE_RECENT_KICKS,
+    BASS_GATE_RUN_KICKS,
     BASS_GATE_CLOSE_SCORE,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_FULL_RISE,
@@ -21,9 +26,11 @@ import {
 } from './bassGateConfig';
 import type { RhythmState } from './types';
 
-// Plain numbers and booleans only, so it can be kept across frames without allocation.
+// Numbers, booleans and two fixed-size arrays made once, so it can be kept across frames without allocation.
 export interface BassGateState {
-    // Evidence that the kicks land at one place in the beat, 0..BASS_GATE_SCORE_MAX.
+    // Evidence that the bassline repeats, 0..BASS_GATE_SCORE_MAX: while closed, how many of the last
+    // BASS_GATE_RECENT_KICKS kicks repeated one in the bar before; while open, matches add to it and long runs without one
+    // wear it down.
     score: number;
     open: boolean;
     // 0..1, eases toward 1 while open and toward 0 while closed.
@@ -36,6 +43,14 @@ export interface BassGateState {
     peak: number;
     // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
     measuring: boolean;
+    // Beat positions of the latest kicks (a ring of BASS_GATE_KICK_HISTORY) and, for each of the latest
+    // BASS_GATE_RECENT_KICKS kicks, whether it repeated a kick one bar earlier (a ring of 0 or 1).
+    kickTimes: Float64Array;
+    kickCount: number;
+    kickHead: number;
+    recentMatches: Uint8Array;
+    recentCount: number;
+    recentHead: number;
     // Where in the beat (0..1) the kicks land, learned from them; meaningless until phaseKnown.
     kickPhase: number;
     phaseKnown: boolean;
@@ -71,6 +86,12 @@ export function createBassGateState(): BassGateState {
         trough: 0,
         peak: 0,
         measuring: false,
+        kickTimes: new Float64Array(BASS_GATE_KICK_HISTORY),
+        kickCount: 0,
+        kickHead: 0,
+        recentMatches: new Uint8Array(BASS_GATE_RECENT_KICKS),
+        recentCount: 0,
+        recentHead: 0,
         kickPhase: 0,
         phaseKnown: false,
         kickStrength: 1,
@@ -96,6 +117,8 @@ export function forgetBassline(state: BassGateState): void {
     state.phaseKnown = false;
     state.measuring = false;
     state.beatsSinceOnBeat = 0;
+    state.kickCount = 0;
+    state.recentCount = 0;
 }
 
 // Shows the bass as a steady pulse on the beat once its kicks have locked onto one place in the beat, and keeps that
@@ -157,22 +180,51 @@ export function stepBassGate(
         }
     }
 
-    // A kick is in rhythm when it lands where the previous kicks landed in the beat. The first kick, or one that comes
-    // once the evidence has run out, only sets that place afresh and earns nothing. A kick elsewhere costs nothing, because
-    // a syncopated bassline lands most of its notes away from that place: making them cost evidence kept the gate shut for
-    // a whole track on real music (measured in docs/agents/rhythm-findings.md).
+    // A bassline repeats every bar and scattered bass does not, so a kick is in rhythm when a kick landed at the same
+    // beat position one bar (four beats) earlier. Chance alone puts a random kick
+    // in the place-in-the-beat window one time in five, so that is not enough to open the gate (scattered bass opened
+    // it that way); needing a repeat of the previous bar in most of the recent kicks is.
     const phase = rhythm.beatPhase;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
         if (state.phaseKnown) state.kickOffset = offset;
-        if (state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
+        const atPlace = state.phaseKnown && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW;
+        const position = rhythm.beatCount + phase;
+        // Once open, only kicks at the learned place keep the evidence, so a bassline that has moved to another place wears
+        // it down and is learned afresh, as before; the bar repeat is what finds a bassline in the first place.
+        const matched = state.open ? atPlace : repeatsLastBar(state, position);
+        state.kickTimes[state.kickHead] = position;
+        state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
+        state.kickCount = Math.min(BASS_GATE_KICK_HISTORY, state.kickCount + 1);
+        state.recentMatches[state.recentHead] = matched ? 1 : 0;
+        state.recentHead = (state.recentHead + 1) % BASS_GATE_RECENT_KICKS;
+        state.recentCount = Math.min(BASS_GATE_RECENT_KICKS, state.recentCount + 1);
+        if (atPlace) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
-            state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
-            state.beatsSinceOnBeat = 0;
-            state.measuring = true;
-        } else if (!state.phaseKnown || state.score <= 0) {
+        } else if (!state.open) {
+            // Until it opens, the place follows the latest kick, so it is a real kick's place once the bassline is found.
             state.kickPhase = phase;
             state.phaseKnown = true;
+        }
+        if (matched) {
+            state.beatsSinceOnBeat = 0;
+            state.measuring = true;
+        }
+        if (state.open) {
+            if (matched) state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
+        } else {
+            let count = 0;
+            for (let i = 0; i < state.recentCount; i++) count += state.recentMatches[i];
+            // The latest kicks must all have repeated, so a lucky streak earlier in the window cannot open the gate.
+            let run = 0;
+            while (
+                run < state.recentCount &&
+                state.recentMatches[(state.recentHead - 1 - run + BASS_GATE_RECENT_KICKS) % BASS_GATE_RECENT_KICKS] ===
+                    1
+            ) {
+                run++;
+            }
+            state.score = run >= BASS_GATE_RUN_KICKS ? count : 0;
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
@@ -180,6 +232,8 @@ export function stepBassGate(
         if (state.score <= BASS_GATE_CLOSE_SCORE) state.open = false;
     } else if (state.score >= BASS_GATE_OPEN_SCORE) {
         state.open = true;
+        // Opened evidence starts at the top, so a bassline that has just been found is held through its first breaks.
+        state.score = BASS_GATE_SCORE_MAX;
     }
 
     // While open, the bump comes from the beat clock: every time it passes the learned kick place, whether or not
@@ -212,6 +266,18 @@ export function stepBassGate(
     // Tiny leftovers are snapped to 0 so a closed gate is exactly 0 and the lights and camera settle exactly.
     const shown = state.level * state.weight;
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
+}
+
+// True when a kick landed one bar before this beat position, within the bar window. It walks from the newest kick back
+// and stops once the kicks are older than that bar.
+function repeatsLastBar(state: BassGateState, position: number): boolean {
+    for (let i = 1; i <= state.kickCount; i++) {
+        const before = state.kickTimes[(state.kickHead - i + BASS_GATE_KICK_HISTORY) % BASS_GATE_KICK_HISTORY];
+        const gap = position - before - BASS_GATE_BAR_BEATS;
+        if (gap > BASS_GATE_BAR_WINDOW) return false;
+        if (gap >= -BASS_GATE_BAR_WINDOW) return true;
+    }
+    return false;
 }
 
 // Difference of two phases as the shortest way around the beat, in (-0.5, 0.5].
