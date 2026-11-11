@@ -455,6 +455,78 @@ describe('RhythmAnalyzer on a steady track with decorative notes', () => {
     });
 });
 
+// Pins that `state.bpm` publishes the held tempo, not the beat period. The beat period is corrected on every beat, so
+// added notes move it by a few percent while the tempo estimate stays flat; publishing it made the shown tempo wander.
+// The decoration specs above pass on BEAT_PERIOD_GAIN alone, so they cannot catch a revert. This one checks the value
+// on every frame, because the next tempo update overwrites state.bpm and a check at the end of a run would miss it.
+describe('RhythmAnalyzer publishes the held tempo as state.bpm', () => {
+    const FRAME_RATE = 100;
+    const BEAT_FRAMES = 50;
+
+    // A kick on every beat, plus an off-grid note a little before the beat of every other beat, which pulls the beat
+    // period away from the tempo estimate.
+    function decoratedFrames(count: number): Float32Array {
+        const frames = new Float32Array(count * FRAME_STRIDE);
+        for (let i = 0; i < count; i++) {
+            const base = i * FRAME_STRIDE;
+            const phase = i % (2 * BEAT_FRAMES);
+            const onBeat = phase === 0 || phase === BEAT_FRAMES;
+            const decoration = phase === BEAT_FRAMES - 8;
+            frames[base] = onBeat ? 1 : decoration ? 0.7 : 0.02;
+            frames[base + FRAME_RMS_OFFSET] = 0.2;
+        }
+        return frames;
+    }
+
+    it('equals the held tempo, never the beat period, on every frame once the tempo has locked', () => {
+        const count = 4000;
+        const frames = decoratedFrames(count);
+        const analyzer = new RhythmAnalyzer(FRAME_RATE);
+        let checked = 0;
+        let apart = 0;
+        for (let i = 0; i < count; i++) {
+            const time = i / FRAME_RATE;
+            analyzer.pushFrame(time, frames, i * FRAME_STRIDE);
+            analyzer.updatePhase(time);
+            if (analyzer.heldTempoBpm > 0) {
+                checked++;
+                expect(analyzer.state.bpm).toBe(analyzer.heldTempoBpm);
+                if (analyzer.rawBeatBpm !== analyzer.heldTempoBpm) {
+                    apart++;
+                }
+            }
+        }
+        expect(checked).toBeGreaterThan(count / 2);
+        // The check is only meaningful while the two tempos differ, so the signal has to keep them apart.
+        expect(apart).toBeGreaterThan(checked / 2);
+    });
+
+    it('lets the beat period stand in once the tempo estimate is lost while the grid lasts', () => {
+        // Beats stop after 20 s: the estimate is dropped after a few unconvincing updates, but the grid keeps
+        // declaring beats until BEAT_LOST_BEATS go by without an onset.
+        const count = 4000;
+        const frames = decoratedFrames(count);
+        for (let i = 2000; i < count; i++) {
+            frames[i * FRAME_STRIDE] = 0.02;
+        }
+        const analyzer = new RhythmAnalyzer(FRAME_RATE);
+        let heldBefore = 0;
+        let stoodIn = 0;
+        for (let i = 0; i < count; i++) {
+            const time = i / FRAME_RATE;
+            analyzer.pushFrame(time, frames, i * FRAME_STRIDE);
+            analyzer.updatePhase(time);
+            if (analyzer.heldTempoBpm > 0) {
+                heldBefore = analyzer.heldTempoBpm;
+            } else if (heldBefore > 0 && analyzer.rawBeatBpm > 0) {
+                stoodIn++;
+                expect(analyzer.state.bpm).toBeCloseTo(analyzer.rawBeatBpm, 0);
+            }
+        }
+        expect(stoodIn).toBeGreaterThan(0);
+    });
+});
+
 // Measured on the tracker before any stability fix: a steadier tempo must not cost any of this.
 describe('RhythmAnalyzer reports a new song no later than before the stability work', () => {
     const firstSong = () => renderTrack({ seconds: 30, bpm: 100, beatsPerBar: 4 }).pcm;

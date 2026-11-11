@@ -50,15 +50,15 @@ export const ACCENT_EASE_SECONDS = 0.3;
 // Longest frame step the timing uses in seconds, so a background tab coming back does not make a huge jump.
 export const MAX_FRAME_DT = 0.1;
 // The danceSpeed setting snaps to one of these while the tempo is locked, so the steps stay on the beat:
-// half time, on the beat, double time.
-export const STEP_MULTIPLES = [0.5, 1, 2] as const;
+// half time and on the beat. There is no double time: nobody dances faster than MAX_DANCE_BPM.
+export const STEP_MULTIPLES = [0.5, 1] as const;
 // The raw tempo is folded by factors of two into [MIN, 2 * MIN) so a half or double time estimate dances the same.
-// 80..160 holds the common 4/4 range and the native 144 BPM.
+// 80..160 holds the common 4/4 range.
 export const NORMALIZED_BPM_MIN = 80;
-// There is only so fast a person dances. Above this the steps fall on every second beat, which stays on the music, where
-// clamping the speed would drift off it. Half time only ends below MAX_DANCE_BPM * this share, so a tempo sitting right
-// at the limit does not flip between the two. The Dance speed setting's double time is the visitor's own choice, so it
-// is not limited.
+// There is only so fast a person dances, and no setting exceeds this. Above it the steps fall on every second beat (or
+// fewer), which stays on the music, where clamping the speed would drift off it. Half time only ends below
+// MAX_DANCE_BPM * this share, so a tempo sitting right at the limit does not flip between the two. While the tempo is
+// unknown the calm rate is capped at MAX_DANCE_BPM / NATIVE_BPM instead.
 export const MAX_DANCE_BPM = 140;
 export const MAX_DANCE_BPM_RELEASE = 0.97;
 // How fast timeScale approaches its target, in 1/seconds (exponential). About 0.3 s to settle, so locking looks smooth.
