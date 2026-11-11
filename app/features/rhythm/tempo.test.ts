@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TEMPO_MIN_HISTORY_SECONDS, TEMPO_UPDATE_SECONDS } from './rhythmConfig';
+import {
+    TEMPO_LOCK_CONFIDENCE,
+    TEMPO_MIN_HISTORY_SECONDS,
+    TEMPO_TIE_MAX_DEFER_S,
+    TEMPO_UPDATE_SECONDS,
+} from './rhythmConfig';
 import { isSyncopationRatio, TempoTracker } from './tempo';
 import { createRandom } from './testSignals';
 
@@ -302,5 +307,150 @@ describe('TempoTracker rival view', () => {
 
         expect(tracker.rawBpm).toBe(0);
         expect(tracker.rivalBpm).toBe(0);
+    });
+});
+
+// A bar of 180 frames (1.8 s) with the beat every 45 frames (133 BPM, at `beat` weight) and a dotted pulse every 60 frames
+// (100 BPM, at weight 1). Over 3 s the two score about the same, but only the beat repeats every 4 beats, so only its 4x
+// and 8x lags (the bar and two bars) are in phase.
+function dottedBar(seconds: number, beat: number): Float32Array {
+    const frames = Math.round(seconds * FRAME_RATE);
+    const envelope = new Float32Array(frames);
+    const hits = [
+        [0, 1],
+        [60, 1],
+        [120, 1],
+        [45, beat],
+        [90, beat],
+        [135, beat],
+    ];
+    for (let bar = 0; bar * 180 < frames; bar++) {
+        for (const [offset, weight] of hits) {
+            if (bar * 180 + offset < frames) {
+                envelope[bar * 180 + offset] += weight;
+            }
+        }
+    }
+    return envelope;
+}
+
+interface TieTrace {
+    // Seconds of the first update that published a tempo and of the first that deferred (undefined if none did).
+    published?: number;
+    firstDeferred?: number;
+    bpm: number;
+    publishedWhileDeferring: boolean;
+}
+
+// Pushes the envelope with an estimate every update interval, recording when the tie opened and when a tempo appeared.
+function driveTie(tracker: TempoTracker, envelope: Float32Array): TieTrace {
+    const trace: TieTrace = { bpm: 0, publishedWhileDeferring: false };
+    for (let i = 0; i < envelope.length; i++) {
+        tracker.push(envelope[i]);
+        if ((i + 1) % UPDATE_FRAMES !== 0 || !tracker.update()) {
+            continue;
+        }
+        const time = (i + 1) / FRAME_RATE;
+        if (tracker.deferring) {
+            trace.firstDeferred ??= time;
+            trace.publishedWhileDeferring ||= tracker.bpm > 0;
+        }
+        if (tracker.bpm > 0) {
+            trace.published ??= time;
+        }
+    }
+    trace.bpm = tracker.bpm;
+    return trace;
+}
+
+function openTie(seconds: number): TempoTracker {
+    const tracker = new TempoTracker(FRAME_RATE);
+    const envelope = dottedBar(seconds, 0.6);
+    for (let i = 0; i < envelope.length; i++) {
+        tracker.push(envelope[i]);
+        if ((i + 1) % UPDATE_FRAMES === 0) {
+            tracker.update();
+        }
+    }
+    return tracker;
+}
+
+describe('TempoTracker first-lock tie', () => {
+    it('holds the lock back on a dotted tie and moves to the pulse that repeats every bar', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        const trace = driveTie(tracker, dottedBar(12, 0.6));
+
+        // The dotted pulse (100 BPM) wins the estimate, but nothing is published until the bar-repeat comparison.
+        expect(trace.firstDeferred).toBeCloseTo(3, 1);
+        expect(trace.publishedWhileDeferring).toBe(false);
+        expect(trace.published).toBeGreaterThan(7);
+        expect(Math.abs(trace.bpm / 133.33 - 1)).toBeLessThan(0.02);
+        expect(tracker.deferring).toBe(false);
+    });
+
+    it('keeps publishing the estimate and its confidence while the tie is open', () => {
+        const tracker = openTie(5);
+
+        expect(tracker.deferring).toBe(true);
+        expect(tracker.bpm).toBe(0);
+        expect(tracker.rawBpm).toBeGreaterThan(0);
+        expect(tracker.confidence).toBeGreaterThanOrEqual(TEMPO_LOCK_CONFIDENCE);
+    });
+
+    it('keeps the winner when the rival bar repeat is not clearly better (a draw)', () => {
+        const trace = driveTie(new TempoTracker(FRAME_RATE), dottedBar(12, 0.9));
+
+        // With the beat nearly as strong as the dotted pulse the beat wins the estimate and the rival does not beat it.
+        expect(trace.firstDeferred).toBeDefined();
+        expect(Math.abs(trace.bpm / 133.33 - 1)).toBeLessThan(0.02);
+    });
+
+    it('publishes the winner when the deadline passes, within TEMPO_TIE_MAX_DEFER_S of the first deferral', () => {
+        for (const beat of [0.6, 0.9]) {
+            const trace = driveTie(new TempoTracker(FRAME_RATE), dottedBar(12, beat));
+            const waited = trace.published! - trace.firstDeferred!;
+
+            expect(waited).toBeLessThanOrEqual(TEMPO_TIE_MAX_DEFER_S + TEMPO_UPDATE_SECONDS);
+            expect(waited).toBeGreaterThanOrEqual(TEMPO_TIE_MAX_DEFER_S - TEMPO_UPDATE_SECONDS);
+        }
+    });
+
+    it('locks at once, with no deferral, when there is no dotted rival', () => {
+        const trace = driveTie(new TempoTracker(FRAME_RATE), pulseTrain(120, 12));
+
+        expect(trace.firstDeferred).toBeUndefined();
+        expect(trace.published).toBeLessThanOrEqual(3.25);
+    });
+
+    it('locks at once when the dotted rival is far weaker than the winner (under TEMPO_TIE_MIN_RATIO)', () => {
+        const trace = driveTie(new TempoTracker(FRAME_RATE), dottedBar(12, 0.3));
+
+        expect(trace.firstDeferred).toBeUndefined();
+        expect(trace.published).toBeLessThanOrEqual(3.25);
+    });
+
+    it('is cleared by reset() and by keepRecent()', () => {
+        for (const clear of [(t: TempoTracker) => t.reset(), (t: TempoTracker) => t.keepRecent(1)]) {
+            const tracker = openTie(4);
+            expect(tracker.deferring).toBe(true);
+
+            clear(tracker);
+
+            expect(tracker.deferring).toBe(false);
+            expect(tracker.bpm).toBe(0);
+        }
+    });
+
+    it('closes the tie when the confidence drops under the lock threshold', () => {
+        const tracker = openTie(3.5);
+        expect(tracker.deferring).toBe(true);
+
+        // One huge onset dwarfs the pattern's energy, so no periodicity is left and there is nothing to decide.
+        tracker.push(1000);
+        tracker.update();
+
+        expect(tracker.confidence).toBeLessThan(TEMPO_LOCK_CONFIDENCE);
+        expect(tracker.deferring).toBe(false);
+        expect(tracker.bpm).toBe(0);
     });
 });

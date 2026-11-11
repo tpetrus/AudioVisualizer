@@ -162,7 +162,11 @@ export class RhythmAnalyzer {
                 if (this.tempo.bpm > 0 || !this.beat.locked) {
                     state.bpm = this.tempo.bpm;
                 }
-                if (this.applyBoundary(this.boundary.pushTempo(time, this.tempo.rawBpm, this.tempo.confidence))) {
+                // The boundary's reference tempo is seeded by the first estimate it sees, so it waits for the decided one.
+                if (
+                    !this.tempo.deferring &&
+                    this.applyBoundary(this.boundary.pushTempo(time, this.tempo.rawBpm, this.tempo.confidence))
+                ) {
                     return;
                 }
             }
@@ -279,7 +283,7 @@ export class RhythmAnalyzer {
         if (this.meter.barPosition(beatIndex) === 0) {
             this.declaredDownbeats++;
         }
-        if (this.tempo.bpm === 0) {
+        if (this.tempo.bpm === 0 && !this.tempo.deferring) {
             this.state.bpm = 60 / period;
         }
     }
