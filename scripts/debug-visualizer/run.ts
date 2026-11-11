@@ -6,11 +6,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSy
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import {
-    formatTelemetryCsv,
-    parseTelemetryCsv,
-    summarizeTelemetry,
-} from '../../app/features/audio/devTelemetrySummary';
+import { summarizeTelemetry } from '../../app/features/audio/devTelemetrySummary';
+import { formatCsv, parseCsv } from './csv';
 import { VISUALIZATIONS } from '../../app/features/landing/visualizations';
 import { causeNote, createLineCollector, type LineCollector } from './output';
 import { chooseReference, listAudioFiles, parseArgs, playFolderName, scheduleShots, sidecarName, USAGE } from './args';
@@ -257,10 +254,10 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
     while (rowCount < snapshot.rowCount && snapshot.data[rowCount * stride] >= snapshot.data[(rowCount - 1) * stride]) {
         rowCount++;
     }
-    const csv = formatTelemetryCsv(snapshot.columns, snapshot.data, rowCount);
+    const csv = formatCsv(snapshot.columns, snapshot.data, rowCount);
     writeFileSync(join(outDir, 'telemetry.csv'), csv);
 
-    const table = parseTelemetryCsv(csv);
+    const table = parseCsv(csv);
     const span = table.rows[table.rows.length - 1][0] - table.rows[0][0];
     const fps = span > 0 ? (table.rows.length - 1) / span : 0;
 
