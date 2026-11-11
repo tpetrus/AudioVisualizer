@@ -115,14 +115,14 @@ function simulate(options: {
 }
 
 describe('snapStepMultiple', () => {
-    it('snaps to the nearest of 0.5, 1 and 2', () => {
+    it('snaps to the nearest of 0.5 and 1', () => {
         expect(snapStepMultiple(0.5)).toBe(0.5);
         expect(snapStepMultiple(0.6)).toBe(0.5);
         expect(snapStepMultiple(1)).toBe(1);
         expect(snapStepMultiple(1.25)).toBe(1);
-        expect(snapStepMultiple(1.5)).toBe(2);
-        expect(snapStepMultiple(2)).toBe(2);
-        expect(snapStepMultiple(5)).toBe(2);
+        expect(snapStepMultiple(1.5)).toBe(1);
+        expect(snapStepMultiple(2)).toBe(1);
+        expect(snapStepMultiple(5)).toBe(1);
     });
 
     it('never fails on a zero or negative setting', () => {
@@ -153,7 +153,7 @@ describe('computeDanceTiming', () => {
         expect(loopSeconds).toBeCloseTo((CLIP_BEATS * 60) / normalized, 1);
     });
 
-    it.each([0.5, 1, 2])('converges the time scale to (bpm / native) * multiple at danceSpeed %s', (danceSpeed) => {
+    it.each([0.5, 1])('converges the time scale to (bpm / native) * multiple at danceSpeed %s', (danceSpeed) => {
         const { out } = simulate({ bpm: 120, seconds: 8, danceSpeed });
         expect(out.timeScale).toBeCloseTo((120 / NATIVE_BPM) * danceSpeed, 2);
     });
@@ -210,15 +210,103 @@ describe('computeDanceTiming', () => {
             expect(state.overSpeedLimit).toBe(false);
         });
 
-        it('leaves half time and double time settings as chosen', () => {
-            expect(simulate({ bpm: 150, seconds: 10, danceSpeed: 2 }).out.timeScale).toBeCloseTo(
-                (150 / NATIVE_BPM) * 2,
-                2,
-            );
+        it('leaves the half time setting as chosen when it is already under the limit', () => {
             expect(simulate({ bpm: 150, seconds: 10, danceSpeed: 0.5 }).out.timeScale).toBeCloseTo(
                 (150 / NATIVE_BPM) * 0.5,
                 2,
             );
+        });
+
+        // The implied rate is what a person would see: the time scale times the native tempo.
+        function impliedBpm(timeScale: number): number {
+            return timeScale * NATIVE_BPM;
+        }
+
+        // True when `ratio` is a power of two (the steps stay on the beat).
+        function isPowerOfTwo(ratio: number): boolean {
+            const octaves = Math.log2(ratio);
+            return Math.abs(octaves - Math.round(octaves)) < 1e-6;
+        }
+
+        // Walks the tempo up in steps small enough for normalizeOctave to follow, as a real climb would, so tempos
+        // past 280 are reachable.
+        function climbTo(bpm: number, danceSpeed: number, state: DanceTimingState, out: DanceTimingResult): void {
+            for (let b = Math.min(bpm, 120); b < bpm; b = Math.min(bpm, b + 5)) {
+                step(makeRhythm({ bpm: b }), state, out, { danceSpeed });
+            }
+        }
+
+        describe('never dances faster than MAX_DANCE_BPM', () => {
+            const tempos = [40, 80, 135.8, 140, 141, 159, 175, 281, 400, 1000];
+            const settings = [0.5, 1, 2];
+
+            it.each(tempos.flatMap((bpm) => settings.map((danceSpeed) => [bpm, danceSpeed] as const)))(
+                'locked at %s BPM, danceSpeed %s',
+                (bpm, danceSpeed) => {
+                    const state = createDanceTimingState();
+                    const out = createDanceTimingResult();
+                    climbTo(bpm, danceSpeed, state, out);
+                    simulate({ bpm, seconds: 10, danceSpeed, state, out });
+                    const normalized = out.normalizedBpm ?? 0;
+                    expect(impliedBpm(out.timeScale)).toBeLessThanOrEqual(MAX_DANCE_BPM + 0.5);
+                    // On the beat: the target is the tempo times a power of two, never a clamped value.
+                    const ratio = out.timeScale / (normalized / NATIVE_BPM);
+                    expect(isPowerOfTwo(ratio)).toBe(true);
+                    expect(ratio).toBeLessThanOrEqual(1 + 1e-9);
+                    // Not slower than it has to be: one more doubling would break the limit or pass the setting.
+                    const chosen = snapStepMultiple(danceSpeed);
+                    if (ratio < chosen) expect(impliedBpm(out.timeScale * 2)).toBeGreaterThan(MAX_DANCE_BPM * 0.97);
+                },
+            );
+
+            it('keeps halving for a tempo that climbed past 280', () => {
+                const state = createDanceTimingState();
+                const out = createDanceTimingResult();
+                climbTo(300, 1, state, out);
+                simulate({ bpm: 300, seconds: 10, state, out });
+                expect(out.normalizedBpm).toBeCloseTo(300, 9);
+                expect(out.timeScale).toBeCloseTo((300 / NATIVE_BPM) * 0.25, 2);
+            });
+
+            it('applies the same limit to the half time setting', () => {
+                const state = createDanceTimingState();
+                const out = createDanceTimingResult();
+                climbTo(600, 0.5, state, out);
+                simulate({ bpm: 600, seconds: 10, danceSpeed: 0.5, state, out });
+                expect(out.timeScale).toBeCloseTo((600 / NATIVE_BPM) * 0.125, 2);
+            });
+
+            it('stays on the bar through the extra halving', () => {
+                const state = createDanceTimingState();
+                const out = createDanceTimingResult();
+                climbTo(300, 1, state, out);
+                const { clipPhase, time } = simulate({ bpm: 300, seconds: 40, startClipPhase: 0.3, state, out });
+                expect(out.barLocked).toBe(true);
+                // A quarter speed loop holds four bars.
+                const bars = (time * (300 / 60)) / 4;
+                expect(Math.abs(wrapSigned(bars - clipPhase * 4))).toBeLessThan(0.05);
+            });
+
+            it.each(settings.flatMap((danceSpeed) => [0, 90, 200].map((bpm) => [bpm, danceSpeed] as const)))(
+                'unlocked (bpm %s), danceSpeed %s',
+                (bpm, danceSpeed) => {
+                    const { out } = simulate({
+                        bpm,
+                        seconds: 8,
+                        danceSpeed,
+                        rhythm: { beatPhase: undefined, tempoConfidence: 0 },
+                    });
+                    expect(out.normalizedBpm).toBeUndefined();
+                    expect(impliedBpm(out.timeScale)).toBeLessThanOrEqual(MAX_DANCE_BPM + 1e-6);
+                },
+            );
+
+            it('caps a stale setting at the limit while unlocked, and keeps the default calm rate at 1', () => {
+                const stale = simulate({ bpm: 0, seconds: 8, danceSpeed: 2, rhythm: { beatPhase: undefined } });
+                expect(stale.out.timeScale).toBeCloseTo(MAX_DANCE_BPM / NATIVE_BPM, 3);
+                const normal = simulate({ bpm: 0, seconds: 8, rhythm: { beatPhase: undefined } });
+                expect(normal.out.timeScale).toBeCloseTo(1, 3);
+            });
         });
     });
 
@@ -269,7 +357,6 @@ describe('computeDanceTiming', () => {
         it.each([
             [120, 0.3, 1],
             [100, 0.8, 1],
-            [128, 0.5, 2],
             [90, 0.1, 0.5],
         ])('converges the loop start to the bar phase at %s BPM from %s, multiple %s', (bpm, start, multiple) => {
             const { out, clipPhase, time, maxNudgeRatio } = simulate({
@@ -282,11 +369,7 @@ describe('computeDanceTiming', () => {
             const barsPerLoop = CLIP_BEATS / (4 * multiple);
             const beats = time * (bpm / 60);
             const barPhase = beats / 4 - Math.floor(beats / 4);
-            // A loop of a bar or more is compared in bars; a shorter one against its place within the bar.
-            const error =
-                barsPerLoop >= 1
-                    ? wrapSigned(barPhase - clipPhase * barsPerLoop)
-                    : wrapSigned(barPhase / barsPerLoop - clipPhase);
+            const error = wrapSigned(barPhase - clipPhase * barsPerLoop);
             expect(Math.abs(error)).toBeLessThan(0.02);
             // The correction is bounded per frame, so the catch-up is a speed change rather than a jump.
             expect(maxNudgeRatio).toBeLessThanOrEqual(1 + 1e-9);
@@ -306,21 +389,6 @@ describe('computeDanceTiming', () => {
                 dt: 0.1,
             });
             expect(out.phaseNudge).toBeCloseTo((0.01 * 3 * 0.1) / barsPerLoop, 9);
-        });
-
-        it('aligns a loop shorter than a bar to its place within the bar', () => {
-            const out = createDanceTimingResult();
-            // At double time a loop of CLIP_BEATS / 2 beats repeats 8 / CLIP_BEATS times per bar; at bar position
-            // 0.6 it should be at frac(0.6 * 8 / CLIP_BEATS), and the clip is 0.01 loops behind that.
-            const loopsPerBar = 8 / CLIP_BEATS;
-            const target = (0.6 * loopsPerBar) % 1;
-            step(makeRhythm({ barPhase: 0.6 }), createDanceTimingState(), out, {
-                clipPhase: target - 0.01,
-                danceSpeed: 2,
-                dt: 0.1,
-            });
-            expect(out.barLocked).toBe(true);
-            expect(out.phaseNudge).toBeCloseTo(0.01 * 3 * 0.1, 9);
         });
 
         it('caps the nudge at the per-second limit in both directions', () => {
@@ -475,7 +543,7 @@ describe('computeDanceTiming', () => {
 
     describe('unlocked', () => {
         it('runs at the calm rate times the free dance speed, with no nudge', () => {
-            for (const danceSpeed of [0.5, 1, 1.5, 2]) {
+            for (const danceSpeed of [0.5, 0.8, 1, 1.1]) {
                 const { out } = simulate({ bpm: 0, seconds: 8, danceSpeed, rhythm: { beatPhase: undefined } });
                 expect(out.timeScale).toBeCloseTo(CALM_TIME_SCALE * danceSpeed, 3);
                 expect(out.phaseNudge).toBe(0);
