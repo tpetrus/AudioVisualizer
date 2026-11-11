@@ -3,7 +3,7 @@
 // this file.
 
 import { readFileSync } from 'node:fs';
-import { parseTelemetryCsv } from '../../app/features/audio/devTelemetrySummary';
+import { parseCsv } from './csv';
 import { parseRepeatArgs, REPEAT_USAGE } from './args';
 import { compareRuns, describeRunDeviations, formatRepeatReport } from './repeatReport';
 
@@ -32,7 +32,7 @@ const tables = paths.map((path) => {
         fail(`Cannot read ${path}: ${reasonOf(error)}`);
     }
     try {
-        return parseTelemetryCsv(text);
+        return parseCsv(text);
     } catch (error) {
         return fail(`${path}: ${reasonOf(error)}`);
     }
