@@ -24,7 +24,7 @@ import {
 } from './dancingCharacterConfig';
 
 export interface DanceTimingSettings {
-    // settings.danceSpeed (0.5..2).
+    // settings.danceSpeed (0.5..1; a stale larger value is capped like any other).
     danceSpeed: number;
 }
 
@@ -49,7 +49,7 @@ export interface DanceTimingState {
     meterLocked: boolean;
     // 0 until a tempo has been normalized (also after a song change).
     lastNormalizedBpm: number;
-    // True while the tempo is over the dance speed limit, so the steps are at half time.
+    // True while the tempo is over the dance speed limit, so the steps are halved from the chosen multiple.
     overSpeedLimit: boolean;
     timeScale: number;
     danceWeight: number;
@@ -80,7 +80,7 @@ export function createDanceTimingResult(): DanceTimingResult {
     };
 }
 
-// The step multiple closest to the setting, compared in ratio (log) terms because 0.5, 1 and 2 are octaves apart.
+// The step multiple closest to the setting, compared in ratio (log) terms because 0.5 and 1 are an octave apart.
 export function snapStepMultiple(danceSpeed: number): number {
     const speed = Math.max(danceSpeed, MIN_TIME_SCALE);
     let best: number = STEP_MULTIPLES[0];
@@ -170,29 +170,27 @@ export function computeDanceTiming(
     if (rhythm.beatPhase !== undefined && state.locked) {
         const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm);
         state.lastNormalizedBpm = normalized;
-        state.overSpeedLimit =
-            normalized > (state.overSpeedLimit ? MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE : MAX_DANCE_BPM);
         const chosen = snapStepMultiple(settings.danceSpeed);
-        const multiple = chosen === 1 && state.overSpeedLimit ? 0.5 : chosen;
+        // Halve as often as it takes to get the implied rate (tempo times multiple) under the limit. Normalizing can
+        // follow a gradual climb far past 160, where one halving is not enough, and every halving keeps the steps on
+        // the beat where clamping the speed would drift off it. The release share applies while already over, so a
+        // tempo sitting at the limit does not flip. The loop is a handful of multiplications and allocates nothing.
+        const limit = state.overSpeedLimit ? MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE : MAX_DANCE_BPM;
+        let multiple: number = chosen;
+        // (The floor only guards against a non-finite tempo; timeScale is clamped to MIN_TIME_SCALE below anyway.)
+        while (normalized * multiple > limit && multiple > MIN_TIME_SCALE / 1024) multiple /= 2;
+        state.overSpeedLimit = multiple < chosen;
         target = (normalized / NATIVE_BPM) * multiple;
 
         if (state.meterLocked && rhythm.barPhase !== undefined) {
             // Where the clip is within its bar against where the music is within its bar. The error is in bars, so
             // the correction divides by the bars in one loop to get loop fractions.
+            // With a multiple of at most 1 a loop is at least one bar, so the clip position can always be compared
+            // in bars.
             const barsPerLoop = clipBeats / (4 * multiple);
-            if (barsPerLoop >= 1) {
-                const position = clipPhase * barsPerLoop;
-                const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
-                nudge = correction(error, barsPerLoop, step);
-            } else {
-                // A loop shorter than a bar (double time) covers only part of the bar, so the clip position cannot be
-                // compared in bars; instead the loop is aligned to where it should be within the music's bar, and that
-                // error is already in loop fractions.
-                const loopsPerBar = 1 / barsPerLoop;
-                const target = rhythm.barPhase * loopsPerBar;
-                const error = wrapSigned(target - Math.floor(target) - clipPhase);
-                nudge = correction(error, 1, step);
-            }
+            const position = clipPhase * barsPerLoop;
+            const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
+            nudge = correction(error, barsPerLoop, step);
         } else {
             // Only the beat slot is compared, not which beat of the loop it is: the tracker's beat count can jitter,
             // and targeting the count would make the dancer jump by half a loop.
@@ -203,7 +201,9 @@ export function computeDanceTiming(
         }
         out.normalizedBpm = normalized;
     } else {
-        target = CALM_TIME_SCALE * settings.danceSpeed;
+        // Nothing to stay on the beat with, so the setting scales the rate freely, but never past what a person
+        // dances at.
+        target = Math.min(CALM_TIME_SCALE * settings.danceSpeed, MAX_DANCE_BPM / NATIVE_BPM);
         out.normalizedBpm = undefined;
     }
 
