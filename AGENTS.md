@@ -23,6 +23,8 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Play a local track through a visualizer and record its bass telemetry (dev only, see `docs/agents/debug-harness.md`) | `npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]` |
 | Reprint the windowed summary of a recorded telemetry CSV | `npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S]` |
 | Compare two or more recordings of one track on track time | `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` |
+| Run the rhythm pipeline over a WAV with `rhythmConfig` constants overridden (no app change) | `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` |
+| Print tempo-versus-dotted-rival evidence for a folder of WAVs with `.bpm` sidecars, or regenerate the derived fixtures | `npm run probe:rhythm -- <dir> [--write-fixtures <dir>]` |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
