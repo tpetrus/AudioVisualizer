@@ -50,8 +50,8 @@ const AFTER: Record<
     lonley: { lockSeconds: 8, lockBpm: 139.53, endBpm: 139.53, deferred: true },
     // A draw keeps the winner, which is the right tempo here.
     summer2000: { lockSeconds: 8, lockBpm: 127.66, endBpm: 127.66, deferred: true },
-    // Locks on the reference (135) instead of the dotted 180, but the dotted pulse takes over again after the 8 s dotted
-    // hold: a known weakness the tie-break does not touch.
+    // WEAKNESS (routed to the dotted-hold switch counting in finishEstimate, not fixed here): the tie-break first publishes
+    // the reference (135), but the dotted pulse takes over again at about 16 s and the track ends at 180.02.
     'syncopation-no-kick': { lockSeconds: 8, lockBpm: 134.86, endBpm: 180.02, switchedAt: 16, deferred: true },
     // 196 is the octave of the reference 98, and its tie ratio at the first lock (0.35) is under the threshold.
     syncopationbass: { lockSeconds: 3, lockBpm: 195.7, endBpm: 97.98, switchedAt: 27.5, deferred: false },
@@ -100,9 +100,11 @@ describe('committed rhythm fixtures', () => {
         expect(first.some((step) => step.time < lock.time && step.raw > 0 && step.confidence >= 0.2)).toBe(
             after.deferred,
         );
-        // The held tempo moves to another octave or dotted pulse at most once in these 30 to 40 s.
+        // The held tempo moves to another octave or dotted pulse at most once in these 30 to 40 s. The first publish (held
+        // going from 0 to a tempo) is not a switch, so steps whose previous held is 0 are left out.
         const switches = first.filter(
-            (step, i) => i > 0 && step.held > 0 && Math.abs(step.held / first[i - 1].held - 1) > 0.04,
+            (step, i) =>
+                i > 0 && first[i - 1].held > 0 && step.held > 0 && Math.abs(step.held / first[i - 1].held - 1) > 0.04,
         );
         if (after.switchedAt === undefined) {
             expect(switches).toEqual([]);
