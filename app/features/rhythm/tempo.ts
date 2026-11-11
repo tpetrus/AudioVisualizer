@@ -66,6 +66,7 @@ export class TempoTracker {
 
     private held = 0;
     private raw = 0;
+    private rivalLag = 0;
     private confidenceValue = 0;
     private challenger = 0;
     private challengerWins = 0;
@@ -92,6 +93,12 @@ export class TempoTracker {
     // with the reference tempo, which the hysteresis on `bpm` would otherwise hide.
     get rawBpm(): number {
         return this.raw;
+    }
+
+    // The latest estimate's strongest rival pulse in BPM (0 when it has none). Read-only: DEV telemetry shows how close
+    // the runner-up came, and nothing in the tempo decision reads it.
+    get rivalBpm(): number {
+        return this.rivalLag > 0 ? (60 * this.frameRate) / this.rivalLag : 0;
     }
 
     // 0..1 trust in the latest estimate.
@@ -137,6 +144,7 @@ export class TempoTracker {
         }
         energy /= n;
         if (energy < 1e-12) {
+            this.rivalLag = 0;
             this.finishEstimate(0, 0);
             return true;
         }
@@ -175,6 +183,7 @@ export class TempoTracker {
             }
         }
         if (bestLag < 0) {
+            this.rivalLag = 0;
             this.finishEstimate(0, 0);
             return true;
         }
@@ -203,12 +212,18 @@ export class TempoTracker {
 
         // The strongest rival that is not the same pulse (the winner itself, or a multiple or fraction of it).
         let runnerUp = 0;
+        let rivalLag = 0;
         for (let lag = this.minLag; lag <= lastLag; lag++) {
             if (isRelatedPulse(lag, bestLag)) {
                 continue;
             }
-            runnerUp = Math.max(runnerUp, this.scores[lag]);
+            // Strictly greater keeps the first lag on a tie, and a score of 0 is never a rival.
+            if (this.scores[lag] > runnerUp) {
+                runnerUp = this.scores[lag];
+                rivalLag = lag;
+            }
         }
+        this.rivalLag = rivalLag;
         const margin = Math.min(1, Math.max(0, 1 - runnerUp / bestScore));
         const peak = Math.min(1, correlation[bestLag] / TEMPO_FULL_CONFIDENCE_PEAK);
         const confidence = peak * (0.5 + 0.5 * margin);
@@ -229,6 +244,7 @@ export class TempoTracker {
         this.count = 0;
         this.held = 0;
         this.raw = 0;
+        this.rivalLag = 0;
         this.confidenceValue = 0;
         this.challenger = 0;
         this.challengerWins = 0;

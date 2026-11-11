@@ -241,3 +241,66 @@ describe('TempoTracker on a syncopated pattern', () => {
         expect(settle(140)).toBeLessThan(settle(98 * (4 / 3)));
     });
 });
+
+describe('TempoTracker rival view', () => {
+    // Two pulse trains at once: the louder one wins, the weaker one is a rival that is not a multiple of it.
+    function twoPulses(seconds: number): Float32Array {
+        const strong = pulseTrain(120, seconds);
+        const weak = pulseTrain(160, seconds);
+        return strong.map((value, i) => value + 0.6 * weak[i]);
+    }
+
+    it('is 0 before any estimate and on a clean pulse train that has no unrelated peak', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        expect(tracker.rivalBpm).toBe(0);
+
+        drive(tracker, pulseTrain(120, 20));
+
+        expect(tracker.rawBpm).toBeCloseTo(120, 0);
+        expect(tracker.rivalBpm).toBe(0);
+    });
+
+    it('reports the strongest peak that is not a multiple or fraction of the winner', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+
+        drive(tracker, twoPulses(20));
+
+        expect(tracker.rawBpm).toBeCloseTo(120, 0);
+        expect(tracker.rivalBpm).toBeGreaterThan(0);
+        // Whole multiples of the winner's lag are the same pulse, so the rival is a different tempo.
+        const ratio = tracker.rivalBpm / tracker.rawBpm;
+        expect([1, 2, 3, 4, 1 / 2, 1 / 3, 1 / 4].some((multiple) => Math.abs(ratio / multiple - 1) < 0.1)).toBe(false);
+    });
+
+    it('does not change the tempo decision: the held tempo is the same with and without a rival peak', () => {
+        const withRival = new TempoTracker(FRAME_RATE);
+        const alone = new TempoTracker(FRAME_RATE);
+
+        drive(withRival, twoPulses(20));
+        drive(alone, pulseTrain(120, 20));
+
+        expect(withRival.bpm).toBeCloseTo(alone.bpm, 0);
+    });
+
+    it('is cleared by reset', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        drive(tracker, twoPulses(20));
+        expect(tracker.rivalBpm).toBeGreaterThan(0);
+
+        tracker.reset();
+
+        expect(tracker.rivalBpm).toBe(0);
+    });
+
+    it('is cleared by an estimate with no usable peak', () => {
+        const tracker = new TempoTracker(FRAME_RATE);
+        drive(tracker, twoPulses(20));
+        expect(tracker.rivalBpm).toBeGreaterThan(0);
+
+        // A full history of silence has no energy, so the estimate has nothing to rank.
+        drive(tracker, new Float32Array(10 * FRAME_RATE));
+
+        expect(tracker.rawBpm).toBe(0);
+        expect(tracker.rivalBpm).toBe(0);
+    });
+});
