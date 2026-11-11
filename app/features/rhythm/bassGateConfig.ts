@@ -30,7 +30,7 @@ export const BASS_GATE_PHASE_ADAPT = 0.1;
 export const BASS_GATE_BAR_BEATS = 4;
 export const BASS_GATE_BAR_WINDOW = 0.1;
 // Evidence while closed is how many of the last RECENT_KICKS kicks repeated the bar before, and the gate opens at the
-// open score, six of eight, provided the latest RUN_KICKS kicks all repeated. Replaying five real tracks and 205 random
+// open score, six of eight, provided the latest three kicks all repeated. Replaying five real tracks and 205 random
 // patterns (40 beats each): five of eight opened 13 random patterns, six of eight 3, and six of eight with the run of
 // three 1, while real music still opened in about 4.5 to 15 s after the tempo locked. Once open, each repeat adds 1 up
 // to the maximum, and the gate closes at the close score.
@@ -38,7 +38,6 @@ export const BASS_GATE_RECENT_KICKS = 8;
 export const BASS_GATE_KICK_HISTORY = 32;
 export const BASS_GATE_SCORE_MAX = 8;
 export const BASS_GATE_OPEN_SCORE = 6;
-export const BASS_GATE_RUN_KICKS = 3;
 export const BASS_GATE_CLOSE_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about

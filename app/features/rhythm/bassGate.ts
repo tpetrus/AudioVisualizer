@@ -4,7 +4,6 @@ import {
     BASS_GATE_BAR_WINDOW,
     BASS_GATE_KICK_HISTORY,
     BASS_GATE_RECENT_KICKS,
-    BASS_GATE_RUN_KICKS,
     BASS_GATE_CLOSE_SCORE,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_FULL_RISE,
@@ -44,13 +43,10 @@ export interface BassGateState {
     // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
     measuring: boolean;
     // Beat positions of the latest kicks (a ring of BASS_GATE_KICK_HISTORY) and, for each of the latest
-    // BASS_GATE_RECENT_KICKS kicks, whether it repeated a kick one bar earlier (a ring of 0 or 1).
+    // BASS_GATE_RECENT_KICKS kicks, whether it repeated a kick one bar earlier (one bit each, the latest lowest).
     kickTimes: Float64Array;
-    kickCount: number;
     kickHead: number;
-    recentMatches: Uint8Array;
-    recentCount: number;
-    recentHead: number;
+    recentMatches: number;
     // Where in the beat (0..1) the kicks land, learned from them; meaningless until phaseKnown.
     kickPhase: number;
     phaseKnown: boolean;
@@ -86,12 +82,9 @@ export function createBassGateState(): BassGateState {
         trough: 0,
         peak: 0,
         measuring: false,
-        kickTimes: new Float64Array(BASS_GATE_KICK_HISTORY),
-        kickCount: 0,
+        kickTimes: new Float64Array(BASS_GATE_KICK_HISTORY).fill(NaN),
         kickHead: 0,
-        recentMatches: new Uint8Array(BASS_GATE_RECENT_KICKS),
-        recentCount: 0,
-        recentHead: 0,
+        recentMatches: 0,
         kickPhase: 0,
         phaseKnown: false,
         kickStrength: 1,
@@ -117,8 +110,8 @@ export function forgetBassline(state: BassGateState): void {
     state.phaseKnown = false;
     state.measuring = false;
     state.beatsSinceOnBeat = 0;
-    state.kickCount = 0;
-    state.recentCount = 0;
+    state.kickTimes.fill(NaN);
+    state.recentMatches = 0;
 }
 
 // Shows the bass as a steady pulse on the beat once its kicks have locked onto one place in the beat, and keeps that
@@ -195,10 +188,7 @@ export function stepBassGate(
         const matched = state.open ? atPlace : repeatsLastBar(state, position);
         state.kickTimes[state.kickHead] = position;
         state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
-        state.kickCount = Math.min(BASS_GATE_KICK_HISTORY, state.kickCount + 1);
-        state.recentMatches[state.recentHead] = matched ? 1 : 0;
-        state.recentHead = (state.recentHead + 1) % BASS_GATE_RECENT_KICKS;
-        state.recentCount = Math.min(BASS_GATE_RECENT_KICKS, state.recentCount + 1);
+        state.recentMatches = ((state.recentMatches << 1) | (matched ? 1 : 0)) & ((1 << BASS_GATE_RECENT_KICKS) - 1);
         if (atPlace) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
         } else if (!state.open) {
@@ -213,18 +203,10 @@ export function stepBassGate(
         if (state.open) {
             if (matched) state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
         } else {
-            let count = 0;
-            for (let i = 0; i < state.recentCount; i++) count += state.recentMatches[i];
             // The latest kicks must all have repeated, so a lucky streak earlier in the window cannot open the gate.
-            let run = 0;
-            while (
-                run < state.recentCount &&
-                state.recentMatches[(state.recentHead - 1 - run + BASS_GATE_RECENT_KICKS) % BASS_GATE_RECENT_KICKS] ===
-                    1
-            ) {
-                run++;
-            }
-            state.score = run >= BASS_GATE_RUN_KICKS ? count : 0;
+            let count = 0;
+            for (let bits = state.recentMatches; bits > 0; bits >>= 1) count += bits & 1;
+            state.score = (state.recentMatches & 7) === 7 ? count : 0;
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
@@ -268,14 +250,11 @@ export function stepBassGate(
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
 }
 
-// True when a kick landed one bar before this beat position, within the bar window. It walks from the newest kick back
-// and stops once the kicks are older than that bar.
+// True when any of the remembered kicks landed one bar before this beat position, within the bar window. The unused
+// slots hold NaN, which never matches.
 function repeatsLastBar(state: BassGateState, position: number): boolean {
-    for (let i = 1; i <= state.kickCount; i++) {
-        const before = state.kickTimes[(state.kickHead - i + BASS_GATE_KICK_HISTORY) % BASS_GATE_KICK_HISTORY];
-        const gap = position - before - BASS_GATE_BAR_BEATS;
-        if (gap > BASS_GATE_BAR_WINDOW) return false;
-        if (gap >= -BASS_GATE_BAR_WINDOW) return true;
+    for (const before of state.kickTimes) {
+        if (Math.abs(position - before - BASS_GATE_BAR_BEATS) <= BASS_GATE_BAR_WINDOW) return true;
     }
     return false;
 }
