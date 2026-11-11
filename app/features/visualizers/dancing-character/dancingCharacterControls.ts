@@ -2,15 +2,16 @@ import type { ControlDefinition, ControlValues } from '~/components/ControlPanel
 
 // Ordered dance, camera, bass, colors, so the panel reads from what moves the most to what only changes the look.
 export const dancingCharacterControls = [
-    // While the tempo is locked the dance speed snaps to half time (0.5), on the beat (1) or double time (2), so the
-    // steps stay on the beat. While the tempo is unknown it scales the calm default rate freely.
+    // While the tempo is locked the dance speed snaps to half time (0.5) or on the beat (1), so the steps stay on
+    // the beat; a tempo over the dance speed limit is halved further. While the tempo is unknown it scales the calm
+    // default rate, capped at the same limit.
     {
         section: 'Dance',
         key: 'danceSpeed',
         label: 'Dance speed',
         type: 'range',
         min: 0.5,
-        max: 2,
+        max: 1,
         step: 0.5,
         default: 1,
     },
