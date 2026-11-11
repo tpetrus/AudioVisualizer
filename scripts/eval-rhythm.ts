@@ -9,6 +9,7 @@ import { basename, extname, join } from 'node:path';
 import { concat, createRandom, runPipeline, silence, timeToLock } from '../app/features/rhythm/testSignals';
 import type { RunResult } from '../app/features/rhythm/testSignals';
 import type { BeatsPerBar } from '../app/features/rhythm/types';
+import { tempoStability } from './rhythm-tools/tempoStability';
 
 const USAGE = `Usage: npm run eval:rhythm -- <dataset-dir> [options]
 
@@ -376,9 +377,18 @@ function evaluateSingles(clips: Clip[]): void {
     let f1Files = 0;
     let steadyF1Total = 0;
     let falseResets = 0;
+    let stableTotal = 0;
+    let stableFiles = 0;
+    let jumpTotal = 0;
 
     for (const clip of clips) {
         const run = runPipeline(clip.pcm, { sampleRate: clip.sampleRate });
+        const stability = tempoStability(run.samples);
+        if (stability) {
+            stableFiles++;
+            stableTotal += stability.nearFinalShare;
+            jumpTotal += stability.jumps;
+        }
         const answer = finalAnswer(run);
         const tally = meterHits.get(clip.meter);
         if (tally) {
@@ -437,6 +447,10 @@ function evaluateSingles(clips: Clip[]): void {
     );
     console.log(
         `  song changes per file ${(falseResets / Math.max(1, clips.length)).toFixed(2)} (every one is a false reset)`,
+    );
+    // Added after the lines above, which keep their text. The share is the mean over files that held a tempo at the end.
+    console.log(
+        `  tempo stability       ${stableFiles === 0 ? 'n/a (no file held a tempo)' : `${((100 * stableTotal) / stableFiles).toFixed(1)}% of time after lock within 1% of the final tempo, ${jumpTotal} held-tempo jumps over 4% (${stableFiles} files)`}`,
     );
 }
 
