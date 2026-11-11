@@ -45,6 +45,22 @@ export const DANCE_REQUIRED_BONES = [
 // bar-locked moves instead of snapping.
 export const ACCENT_EASE_SECONDS = 0.3;
 
+// ---- Choosing the dance (dancingCharacterDirector.ts) ----
+
+// One retarget of a motion-capture dance. Every loop is a whole number of 4/4 bars, so any bar line is a point where
+// one dance can hand over to another without breaking the step.
+export interface DanceDefinition {
+    id: string;
+    label: string;
+    beats: 4 | 8;
+}
+// The Dance setting's value that lets the dancer change dance by herself.
+export const AUTO_DANCE = 'auto';
+// In Auto, the dance changes after this many bars (or on a song change), so a long song does not wear one loop out.
+export const AUTO_ROTATE_BARS = 8;
+// Beats per bar used to find a bar line while the meter is not locked: 4/4 is by far the most common meter.
+export const FALLBACK_BEATS_PER_BAR = 4;
+
 // ---- Dance timing (dancingCharacterSync.ts) ----
 
 // Longest frame step the timing uses in seconds, so a background tab coming back does not make a huge jump.
