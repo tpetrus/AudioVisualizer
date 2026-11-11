@@ -22,10 +22,23 @@ export const BASS_GATE_STRENGTH_ADAPT = 0.15;
 export const BASS_GATE_PHASE_WINDOW = 0.1;
 // How far each in-rhythm kick pulls the learned place toward itself, so it follows slow drift without jumping.
 export const BASS_GATE_PHASE_ADAPT = 0.1;
-// Evidence: an in-rhythm kick adds 1 up to the maximum. The gate opens at the open score (four kicks in a row at one
-// place, after the one that set it) and closes at the close score.
+// A bassline repeats every bar and scattered bass does not, so a kick is in rhythm when a kick landed at the same
+// beat position this many beats (one bar) earlier, within this window (in beats, either side). Kicks that land at the
+// learned place in the beat were the evidence before; one random kick in five lands there by chance, so enough scattered
+// bass opened the gate (measured in bassGate.test.ts). A random kick repeats the previous bar's with the same chance, but
+// real bass does it nearly every time, which a count over the last kicks tells apart.
+export const BASS_GATE_BAR_BEATS = 4;
+export const BASS_GATE_BAR_WINDOW = 0.1;
+// Evidence while closed is how many of the last RECENT_KICKS kicks repeated the bar before, and the gate opens at the
+// open score, six of eight, provided the latest RUN_KICKS kicks all repeated. Replaying five real tracks and 205 random
+// patterns (40 beats each): five of eight opened 13 random patterns, six of eight 3, and six of eight with the run of
+// three 1, while real music still opened in about 4.5 to 15 s after the tempo locked. Once open, each repeat adds 1 up
+// to the maximum, and the gate closes at the close score.
+export const BASS_GATE_RECENT_KICKS = 8;
+export const BASS_GATE_KICK_HISTORY = 32;
 export const BASS_GATE_SCORE_MAX = 8;
-export const BASS_GATE_OPEN_SCORE = 4;
+export const BASS_GATE_OPEN_SCORE = 6;
+export const BASS_GATE_RUN_KICKS = 3;
 export const BASS_GATE_CLOSE_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about

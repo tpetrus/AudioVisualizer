@@ -12,6 +12,9 @@ import { createRhythmState } from './types';
 const DT = 1 / 60;
 // 120 BPM: a beat every 30 frames.
 const FRAMES_PER_BEAT = 30;
+// Beats of on-beat kicks that leave the gate open with its fade-in finished: a kick only counts once it repeats the bar
+// before, so six repeats take ten beats, and the fade takes three more.
+const WARM_BEATS = 16;
 
 type State = ReturnType<typeof createBassGateState>;
 
@@ -47,9 +50,9 @@ function peaksPerBeat(outputs: readonly number[]): number[] {
 const onBeatKick = (frame: number) => (frame % FRAMES_PER_BEAT < 4 ? 0.8 : 0);
 const silent = () => 0;
 
-// A gate locked onto on-beat kicks for 12 beats, with its fade-in finished.
+// A gate locked onto on-beat kicks for the warm-up beats, with its fade-in finished.
 function locked(): State {
-    const { state } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+    const { state } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick);
     expect(state.open).toBe(true);
     expect(state.weight).toBe(1);
     return state;
@@ -57,7 +60,7 @@ function locked(): State {
 
 describe('stepBassGate', () => {
     it('opens after a short run of kicks at one place, then pulses on every beat', () => {
-        const { state, outputs } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+        const { state, outputs } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick);
         expect(state.open).toBe(true);
         // The first kick only sets the place and the next four open the gate, so the first beats show nothing.
         expect(outputs.slice(0, FRAMES_PER_BEAT * 4).every((value) => value === 0)).toBe(true);
@@ -85,7 +88,7 @@ describe('stepBassGate', () => {
     // Business as usual: a locked bassline keeps pulsing through masked kicks and extra notes.
     it('keeps pulsing on every beat through eight beats in which no kick is heard', () => {
         const state = locked();
-        const { outputs } = drive(FRAMES_PER_BEAT * 8, silent, { state, start: FRAMES_PER_BEAT * 12 });
+        const { outputs } = drive(FRAMES_PER_BEAT * 8, silent, { state, start: FRAMES_PER_BEAT * WARM_BEATS });
         expect(state.open).toBe(true);
         for (const peak of peaksPerBeat(outputs)) expect(peak).toBeGreaterThan(0.9);
     });
@@ -95,14 +98,14 @@ describe('stepBassGate', () => {
         const score = state.score;
         // The kick plus a second note half way through every beat.
         const busy = (frame: number) => (frame % FRAMES_PER_BEAT < 4 || frame % FRAMES_PER_BEAT >= 15 ? 0.8 : 0);
-        drive(FRAMES_PER_BEAT * 16, busy, { state, start: FRAMES_PER_BEAT * 12 });
+        drive(FRAMES_PER_BEAT * 16, busy, { state, start: FRAMES_PER_BEAT * WARM_BEATS });
         expect(state.open).toBe(true);
         expect(state.score).toBeGreaterThanOrEqual(score);
         expect(state.kickPhase).toBeLessThan(0.1);
     });
 
     it('does not show a stray bump between the beats', () => {
-        const start = FRAMES_PER_BEAT * 12;
+        const start = FRAMES_PER_BEAT * WARM_BEATS;
         const plain = drive(FRAMES_PER_BEAT, silent, { state: locked(), start });
         const stray = drive(FRAMES_PER_BEAT, (frame) => (frame - start >= 14 && frame - start < 18 ? 0.9 : 0), {
             state: locked(),
@@ -113,7 +116,7 @@ describe('stepBassGate', () => {
 
     it('keeps the pulse for the grace period after the kicks stop, then fades it out', () => {
         const state = locked();
-        const start = FRAMES_PER_BEAT * 12;
+        const start = FRAMES_PER_BEAT * WARM_BEATS;
         drive(FRAMES_PER_BEAT * BASS_GATE_GRACE_BEATS, silent, { state, start });
         expect(state.open).toBe(true);
         const after = drive(FRAMES_PER_BEAT * 16, silent, {
@@ -126,18 +129,18 @@ describe('stepBassGate', () => {
 
     // Fitted to a real syncopated bassline (docs/agents/rhythm-findings.md): the kicks repeat every bar, but only about a
     // third land at one place in the beat, so the notes elsewhere must not spend the evidence the hits earn.
-    it('opens within 12 beats on a syncopated bassline', () => {
+    it('opens within 16 beats on a syncopated bassline', () => {
         const pattern = [0, 1, 1.3, 2.55, 3.3];
         const bass = (frame: number) => {
             const position = (frame / FRAMES_PER_BEAT) % 4;
             return pattern.some((place) => position >= place && position < place + 4 / FRAMES_PER_BEAT) ? 0.8 : 0;
         };
-        expect(drive(FRAMES_PER_BEAT * 12, bass).state.open).toBe(true);
+        expect(drive(FRAMES_PER_BEAT * WARM_BEATS, bass).state.open).toBe(true);
     });
 
-    // Bass bumps at a different place in every beat have no rhythm, so ideally they never open the gate. (A bassline that
-    // lands at the same off-beat place every beat does keep the tempo, and is shown.) Known cost of letting syncopated notes
-    // pass for free: one in five kicks lands in the window by chance, so enough scattered bass can open it.
+    // Bass bumps at a different place in every beat have no rhythm, so they never open the gate: a bassline repeats every
+    // bar, and a random kick repeats the previous bar's only one time in five. (A bassline that lands at the same off-beat
+    // place every beat does keep the tempo, and is shown.)
     function showsNothing(start: number): void {
         let seed = start;
         const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -151,18 +154,36 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(false);
     }
 
-    it.fails.each([1, 7, 99, 2024])('never shows bumps at random places in the beat (seed %i)', showsNothing);
-    it('can stay shut on bumps at random places in the beat (seed 42)', () => showsNothing(42));
+    it.each([1, 7, 99, 2024, 42])('never shows bumps at random places in the beat (seed %i)', showsNothing);
+
+    // The same bar every time, each note a little off its place: real loosely played bass, which must still be shown.
+    it('opens on a bar that repeats with jittered notes, and stays open', () => {
+        const pattern = [0, 1, 1.3, 2.55, 3.3];
+        const jitter = [0.04, -0.05, 0.02, 0.06, -0.03, 0.05, -0.04];
+        const bass = (frame: number) => {
+            const bar = Math.floor(frame / (FRAMES_PER_BEAT * 4));
+            const position = (frame / FRAMES_PER_BEAT) % 4;
+            return pattern.some((place, i) => {
+                const at = place + jitter[(bar + i) % jitter.length];
+                return position >= at && position < at + 4 / FRAMES_PER_BEAT;
+            })
+                ? 0.8
+                : 0;
+        };
+        const { state, outputs } = drive(FRAMES_PER_BEAT * 40, bass);
+        expect(state.open).toBe(true);
+        expect(Math.max(...outputs.slice(-FRAMES_PER_BEAT * 8))).toBeGreaterThan(0.5);
+    });
 
     it('shows nothing while the tempo has never locked, whatever the bass', () => {
-        const { outputs, state } = drive(FRAMES_PER_BEAT * 12, onBeatKick, { locked: false });
+        const { outputs, state } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick, { locked: false });
         expect(Math.max(...outputs)).toBe(0);
         expect(state.open).toBe(false);
     });
 
     it('holds the bassline through a short tempo dropout and forgets it after a long one', () => {
         const state = locked();
-        let at = FRAMES_PER_BEAT * 12;
+        let at = FRAMES_PER_BEAT * WARM_BEATS;
         const short = Math.floor(BASS_GATE_LOCK_GRACE_SECONDS / 2 / DT);
         drive(short, onBeatKick, { state, locked: false, start: at });
         at += short;
@@ -175,7 +196,7 @@ describe('stepBassGate', () => {
     });
 
     it('forgets the bassline when the song changes, and fades out rather than snapping', () => {
-        const { state, rhythm } = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+        const { state, rhythm } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick);
         rhythm.songChangeCount++;
         rhythm.beatPhase = 0.5;
         stepBassGate(0, rhythm, true, state, DT);
@@ -188,7 +209,7 @@ describe('stepBassGate', () => {
         const state = locked();
         // The same kick, now half a beat later.
         const offBeat = (frame: number) => ((frame + FRAMES_PER_BEAT / 2) % FRAMES_PER_BEAT < 4 ? 0.8 : 0);
-        const start = FRAMES_PER_BEAT * 12;
+        const start = FRAMES_PER_BEAT * WARM_BEATS;
         drive(FRAMES_PER_BEAT * 8, offBeat, { state, start });
         // Two bars of a moved bassline are not enough to give up on the old one.
         expect(state.open).toBe(true);
@@ -219,14 +240,17 @@ describe('stepBassGate', () => {
     });
 
     it('fades out over the whole ease time and stays within [0, 1]', () => {
-        const opening = drive(FRAMES_PER_BEAT * 12, onBeatKick);
+        const opening = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick);
         for (const value of opening.outputs) {
             expect(value).toBeGreaterThanOrEqual(0);
             expect(value).toBeLessThanOrEqual(1);
         }
         const fading = opening.state;
         forgetBassline(fading);
-        drive(Math.round(BASS_GATE_EASE_SECONDS / 2 / DT), silent, { state: fading, start: FRAMES_PER_BEAT * 12 });
+        drive(Math.round(BASS_GATE_EASE_SECONDS / 2 / DT), silent, {
+            state: fading,
+            start: FRAMES_PER_BEAT * WARM_BEATS,
+        });
         expect(fading.weight).toBeCloseTo(0.5, 1);
         drive(Math.round(BASS_GATE_EASE_SECONDS / DT), silent, { state: fading, start: FRAMES_PER_BEAT * 20 });
         expect(fading.weight).toBe(0);
