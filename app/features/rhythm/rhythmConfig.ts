@@ -76,9 +76,12 @@ export const TEMPO_FASTER_PULSE_RATIO = 0.7;
 export const TEMPO_FASTER_TOLERANCE = 0.04;
 // Confidence (0..1) needed to lock a first tempo.
 export const TEMPO_LOCK_CONFIDENCE = 0.2;
-// A first lock is a tie when the winner has a dotted rival (see TEMPO_SYNCOPATION_RATIOS) whose autocorrelation peak is at
-// least this fraction of the winner's. Measured at the first lock of six real tracks: 0.07 and 0.29 (no tie, lock at
-// once), 0.52, 0.57, 0.85 and 0.87 (tie). 0.4 sits in the gap, but the margin is thin on the low side: 0.29 is 0.11 away.
+// A first lock is a tie when the winner has a dotted rival (4/3 or 3/4 of its lag) whose autocorrelation peak is at least
+// this fraction of the winner's. Measured at the first lock (3 s) of the six fixtures: -0.18 (imyourgirl), 0.29
+// (syncopationbass2) and 0.35 (syncopationbass) are no tie; 0.52 (syncopation-no-kick), 0.85 (lonley) and 0.87
+// (summer2000) are ties. The gap is 0.35 to 0.52 and 0.4 sits in it, 0.05 above the high no-tie track and 0.12 below the
+// low tie track, so the margin is thin on the low side. The 3/2 and 2/3 lag factors were tried and rejected: they made
+// imyourgirl and syncopationbass tie too, and so lock 5 s late.
 export const TEMPO_TIE_MIN_RATIO = 0.4;
 // A tie holds the first lock back for at most this long, so the bar-repeat comparison sees a full history (about 8 s).
 // Measured at the first lock the 4x and 8x multiples are mostly out of reach, because lags past half the history are
