@@ -31,6 +31,12 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   `eval:rhythm` reads) and the summary also judges the tempo against it, octave-normalized. Without a sidecar the tempo
   block is printed as a report with no pass or fail.
 - `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` compares two or more recordings of one track on track time.
+- `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` (`scripts/rhythm-ablate.ts`) runs the real `OnsetExtractor` and
+  `RhythmAnalyzer` over a WAV with `rhythmConfig` constants overridden by an esbuild plugin, so `app/` does not change. It is
+  deterministic and an unknown constant is an error, but it leaves out the AGC and block timing of the live chain.
+- `npm run probe:rhythm -- <dir> [--write-fixtures <dir>]` (`scripts/rhythm-probe.ts`) prints, for each WAV with a `.bpm` sidecar,
+  the Markdown evidence for telling a tempo from its dotted rival. `--write-fixtures` writes the derived onset envelopes that
+  `scripts/fixtures/rhythm/` commits; they hold no audio.
   Record them with separate `debug:viz` runs (fresh page loads) or with `--reselect N` (one page, the track chosen again
   each time).
 
@@ -226,8 +232,9 @@ accessors named below.
 | `clipPhase` | the position in the dance loop, 0..1, the value passed to `computeDanceTiming` this frame; 0 before a rig is loaded |
 | `bumpCount` | new monotonic `BassGateState.bumpCount`, raised each time a bump starts |
 | `kickPhaseOffset` | new `BassGateState.kickOffset`: the latest kick's signed distance from the learned place, in beats, (-0.5, 0.5], NaN until one was measured |
+| `rivalBpm` | `TempoTracker.rivalBpm`: the latest estimate's strongest rival pulse, 0 when it has none. Recordings made before this column still load |
 
-`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`.
+`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
 The new gate fields are written only, never read by the gate's own logic, so its output does not change. `read` must not
 allocate. These are the only production changes, and the bundle delta is measured with `npm run size` in the same pull
