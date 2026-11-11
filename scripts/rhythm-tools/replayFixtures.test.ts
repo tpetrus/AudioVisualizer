@@ -122,7 +122,7 @@ describe('committed rhythm fixtures', () => {
 
             expect(steps.length).toBeGreaterThan(0);
             for (const step of steps) {
-                expect(nearReferenceOctave(step.held, fixture.referenceBpm)).toBe(true);
+                expect(nearReferenceOctave(step.held, fixture.referenceBpm!)).toBe(true);
             }
         },
     );
