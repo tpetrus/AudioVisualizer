@@ -101,6 +101,16 @@ function significant(value: number, digits = 4): string {
     return String(Number(value.toPrecision(digits)));
 }
 
+// A value printed next to the threshold it missed. Three digits can round a miss up to the threshold itself (0.9896
+// prints as 0.99), which reads as "0.99 < 0.99"; more digits are used until the two differ. The threshold stays as is.
+function missReading(value: number, threshold: number): string {
+    for (let digits = 3; digits < 12; digits++) {
+        const text = significant(value, digits);
+        if (text !== String(threshold)) return text;
+    }
+    return significant(value, 12);
+}
+
 function percent(share: number): string {
     return `${significant(share * 100, 3)}%`;
 }
@@ -248,12 +258,14 @@ function missedTargets(metrics: TempoMetrics): string[] {
     if (metrics.lockTime === undefined) return ['never locked'];
     const { withinTolerance, bumpIntervalShare } = metrics;
     if (withinTolerance === undefined || !(withinTolerance >= PASS_WITHIN_TOLERANCE)) {
-        missed.push(`within tolerance ${significant(withinTolerance ?? NaN, 3)} < ${PASS_WITHIN_TOLERANCE}`);
+        missed.push(
+            `within tolerance ${missReading(withinTolerance ?? NaN, PASS_WITHIN_TOLERANCE)} < ${PASS_WITHIN_TOLERANCE}`,
+        );
     }
     if (metrics.songChanges > 0) missed.push(`${metrics.songChanges} song changes`);
     if (metrics.gridRebuilds > 0) missed.push(`${metrics.gridRebuilds} grid rebuilds`);
     if (!(metrics.lockedShare >= PASS_LOCKED_SHARE)) {
-        missed.push(`locked share ${significant(metrics.lockedShare, 3)} < ${PASS_LOCKED_SHARE}`);
+        missed.push(`locked share ${missReading(metrics.lockedShare, PASS_LOCKED_SHARE)} < ${PASS_LOCKED_SHARE}`);
     }
     if (metrics.gateOpenDelay === undefined) {
         missed.push('gate never opened');
@@ -261,13 +273,13 @@ function missedTargets(metrics: TempoMetrics): string[] {
         missed.push(`gate opened ${significant(metrics.gateOpenDelay, 3)} s after lock > ${PASS_GATE_DELAY_SECONDS} s`);
     }
     if (metrics.gateOpenDelay !== undefined && !(metrics.gateShare >= PASS_GATE_SHARE)) {
-        missed.push(`gate share ${significant(metrics.gateShare, 3)} < ${PASS_GATE_SHARE}`);
+        missed.push(`gate share ${missReading(metrics.gateShare, PASS_GATE_SHARE)} < ${PASS_GATE_SHARE}`);
     }
     if (bumpIntervalShare === undefined || !(bumpIntervalShare >= PASS_BUMP_SHARE)) {
         missed.push(
             bumpIntervalShare === undefined
                 ? 'no bump intervals measured'
-                : `bump interval share ${significant(bumpIntervalShare, 3)} < ${PASS_BUMP_SHARE}`,
+                : `bump interval share ${missReading(bumpIntervalShare, PASS_BUMP_SHARE)} < ${PASS_BUMP_SHARE}`,
         );
     }
     return missed;

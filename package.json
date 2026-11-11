@@ -29,6 +29,7 @@
     "lighthouse": "lhci autorun",
     "title-banner": "esbuild scripts/title-banner/browser.ts --bundle --platform=browser --format=iife --log-level=warning --outfile=node_modules/.cache/title-banner-browser.js && esbuild scripts/title-banner/render.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/title-banner.mjs && node node_modules/.cache/title-banner.mjs",
     "images": "esbuild scripts/optimize-images.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/optimize-images.mjs && node node_modules/.cache/optimize-images.mjs",
+    "replay:gate": "esbuild scripts/gate-replay.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/gate-replay.mjs && node node_modules/.cache/gate-replay.mjs",
     "debug:viz": "esbuild scripts/debug-visualizer/run.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/debug-viz.mjs && node node_modules/.cache/debug-viz.mjs",
     "debug:summary": "esbuild scripts/debug-visualizer/summarize.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/debug-summary.mjs && node node_modules/.cache/debug-summary.mjs",
     "debug:repeat": "esbuild scripts/debug-visualizer/repeat.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/debug-repeat.mjs && node node_modules/.cache/debug-repeat.mjs"

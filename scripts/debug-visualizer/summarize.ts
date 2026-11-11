@@ -4,7 +4,8 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { parseTelemetryCsv, summarizeTelemetry } from '../../app/features/audio/devTelemetrySummary';
+import { summarizeTelemetry } from '../../app/features/audio/devTelemetrySummary';
+import { parseCsv } from './csv';
 import { chooseReference, parseSummaryArgs, SUMMARY_USAGE } from './args';
 import { parseBpmSidecar, summarizeTempo } from './tempoReport';
 
@@ -33,7 +34,7 @@ try {
 }
 
 try {
-    const table = parseTelemetryCsv(text);
+    const table = parseCsv(text);
     // The flag wins; otherwise the sidecar the harness copied beside the CSV, if there is one.
     const sidecarPath = join(dirname(path), 'track.bpm');
     let sidecarText: string | undefined;
