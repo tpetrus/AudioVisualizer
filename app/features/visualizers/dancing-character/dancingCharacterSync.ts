@@ -4,6 +4,7 @@ import {
     TEMPO_LOCK_CONFIDENCE,
     TEMPO_LOSE_CONFIDENCE,
 } from '~/features/rhythm/rhythmConfig';
+import { isSyncopationRatio } from '~/features/rhythm/tempo';
 import type { RhythmState } from '~/features/rhythm/types';
 import {
     CALM_DANCE_WEIGHT,
@@ -49,6 +50,8 @@ export interface DanceTimingState {
     meterLocked: boolean;
     // 0 until a tempo has been normalized (also after a song change).
     lastNormalizedBpm: number;
+    // The raw tempo behind lastNormalizedBpm, so a dotted correction can be told from an octave flip.
+    lastRawBpm: number;
     // True while the tempo is over the dance speed limit, so the steps are halved from the chosen multiple.
     overSpeedLimit: boolean;
     timeScale: number;
@@ -62,6 +65,7 @@ export function createDanceTimingState(): DanceTimingState {
         locked: false,
         meterLocked: false,
         lastNormalizedBpm: 0,
+        lastRawBpm: 0,
         overSpeedLimit: false,
         timeScale: CALM_TIME_SCALE,
         danceWeight: CALM_DANCE_WEIGHT,
@@ -97,10 +101,13 @@ export function snapStepMultiple(danceSpeed: number): number {
 
 // Moves the raw tempo by factors of two to the octave nearest the previous value, so a half or double time estimate
 // (which the tracker may flip between mid-song) gives the same dance. The first value is folded into
-// [NORMALIZED_BPM_MIN, 2 * NORMALIZED_BPM_MIN).
-function normalizeOctave(bpm: number, previous: number): number {
+// [NORMALIZED_BPM_MIN, 2 * NORMALIZED_BPM_MIN). A dotted correction (the tracker moving from 187.5 to 140) is a
+// different tempo, not an octave flip, so it re-seeds the same way: keeping the nearest octave would put 140 at 70
+// after a first lock at 93.75, and the dance would run at half the speed of a play that locked on 140 first.
+function normalizeOctave(bpm: number, previous: number, previousRaw: number): number {
+    const reseed = previous <= 0 || (previousRaw > 0 && isSyncopationRatio(bpm, previousRaw));
     const octaves =
-        previous > 0 ? Math.round(Math.log2(previous / bpm)) : Math.ceil(Math.log2(NORMALIZED_BPM_MIN / bpm));
+        !reseed ? Math.round(Math.log2(previous / bpm)) : Math.ceil(Math.log2(NORMALIZED_BPM_MIN / bpm));
     return bpm * 2 ** octaves;
 }
 
@@ -142,6 +149,7 @@ export function computeDanceTiming(
         state.locked = false;
         state.meterLocked = false;
         state.lastNormalizedBpm = 0;
+        state.lastRawBpm = 0;
         state.overSpeedLimit = false;
     }
     state.songChangeCount = rhythm.songChangeCount;
@@ -168,8 +176,9 @@ export function computeDanceTiming(
     let nudge = 0;
     // (A locked state always has a beat phase; the check is ordered so the types narrow.)
     if (rhythm.beatPhase !== undefined && state.locked) {
-        const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm);
+        const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm, state.lastRawBpm);
         state.lastNormalizedBpm = normalized;
+        state.lastRawBpm = rhythm.bpm;
         const chosen = snapStepMultiple(settings.danceSpeed);
         // Halve as often as it takes to get the implied rate (tempo times multiple) under the limit. Normalizing can
         // follow a gradual climb far past 160, where one halving is not enough, and every halving keeps the steps on
