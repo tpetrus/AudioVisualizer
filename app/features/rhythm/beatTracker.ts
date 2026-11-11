@@ -12,6 +12,11 @@ import {
     BEAT_WINDOW_FRACTION,
 } from './rhythmConfig';
 
+// How far a tempo move may be from an exact octave (a ratio of 2 or 0.5) and still count as the same pulse counted at
+// the other level. It is the tempo tracker's own hysteresis (TEMPO_HYSTERESIS, 4%) so the two agree on what an octave
+// is: a real move 195.7 to 98.0 is 1.997, far inside it, while a change of key tempo (a 10 to 12% jump) is outside.
+const BEAT_OCTAVE_TOLERANCE = 0.04;
+
 // How often (in frames) the tracker retries aligning its first beat grid while it has none.
 const INIT_RETRY_FRAMES = 10;
 
@@ -90,11 +95,28 @@ export class BeatTracker {
             if (this.tempoPeriod === 0) {
                 return;
             }
-            if (Math.abs(this.tempoPeriod / this.period - 1) > BEAT_REINIT_TEMPO_RATIO) {
+            const ratio = this.tempoPeriod / this.period;
+            const factor = ratio > 1 ? 2 : 0.5;
+            if (Math.abs(ratio / factor - 1) <= BEAT_OCTAVE_TOLERANCE) {
+                this.changeOctave(factor);
+            } else if (Math.abs(ratio - 1) > BEAT_REINIT_TEMPO_RATIO) {
                 this.aligned = false;
                 this.epoch++;
             }
         }
+    }
+
+    // The tempo moved by exactly one octave: the same music counted at the other level. The grid is kept, so beats
+    // keep landing on the same music and the epoch (and with it the meter's evidence and the beat numbering) is not
+    // broken. The period is scaled at once rather than followed slowly. Halving the tempo (factor 2) keeps every second
+    // beat, starting with the one after the latest declared; doubling it adds a beat between each pair of old ones.
+    // Numbering carries on by one per beat of the new grid, so the count advances half as fast after a halving and twice
+    // as fast after a doubling. The next beat is placed one new period after the latest declared beat, which is also
+    // where consumers extrapolate to, (after a doubling that can already be in the past, and then the beat is declared at once).
+    private changeOctave(factor: number): void {
+        const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
+        this.period *= factor;
+        this.pendingBeat = base + this.period;
     }
 
     // Advances to the frame at `time` (seconds, strictly increasing) with onset-envelope value `onset`. Returns true
