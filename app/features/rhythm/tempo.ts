@@ -409,6 +409,9 @@ export class TempoTracker {
     private finishEstimate(bpm: number, confidence: number): void {
         this.raw = bpm;
         this.confidenceValue = confidence;
+        // An estimate that gets here is not a pending tie (a tie that stays open returns before this), so a confidence drop
+        // under the lock threshold closes it: "deferring" means a decision is pending on a usable estimate.
+        this.tieStart = -1;
 
         if (bpm === 0 || confidence < TEMPO_LOSE_CONFIDENCE) {
             this.lowConfidenceRun++;
