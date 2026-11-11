@@ -309,7 +309,8 @@ describe('computeDanceTiming', () => {
                     expect(ratio).toBeLessThanOrEqual(1 + 1e-9);
                     // Not slower than it has to be: one more doubling would break the limit or pass the setting.
                     const chosen = snapStepMultiple(danceSpeed);
-                    if (ratio < chosen) expect(impliedBpm(out.timeScale * 2)).toBeGreaterThan(MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE);
+                    if (ratio < chosen)
+                        expect(impliedBpm(out.timeScale * 2)).toBeGreaterThan(MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE);
                 },
             );
 
