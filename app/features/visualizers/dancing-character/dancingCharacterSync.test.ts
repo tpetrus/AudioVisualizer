@@ -194,11 +194,65 @@ describe('computeDanceTiming', () => {
             const out = createDanceTimingResult();
             simulate({ bpm: MAX_DANCE_BPM + 1, seconds: 4, state, out });
             expect(state.overSpeedLimit).toBe(true);
-            simulate({ bpm: MAX_DANCE_BPM - 1, seconds: 4, state, out });
+            simulate({ bpm: MAX_DANCE_BPM - 0.1, seconds: 4, state, out });
             expect(state.overSpeedLimit).toBe(true);
-            expect(out.timeScale).toBeCloseTo(((MAX_DANCE_BPM - 1) / NATIVE_BPM) * 0.5, 2);
+            expect(out.timeScale).toBeCloseTo(((MAX_DANCE_BPM - 0.1) / NATIVE_BPM) * 0.5, 2);
             simulate({ bpm: MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE - 1, seconds: 4, state, out });
             expect(state.overSpeedLimit).toBe(false);
+        });
+
+        it('ends half time on the same speed whether the first estimate overshot the limit or not', () => {
+            const overshot = createDanceTimingState();
+            const overshotOut = createDanceTimingResult();
+            simulate({ bpm: 141.1, seconds: 3, state: overshot, out: overshotOut });
+            expect(overshot.overSpeedLimit).toBe(true);
+            // The held tempo settles through 139.8, 139.7 and 139.6 on its way to 139.5.
+            for (const bpm of [139.8, 139.7, 139.6, 139.5]) {
+                simulate({ bpm, seconds: 1, state: overshot, out: overshotOut });
+            }
+            simulate({ bpm: 139.5, seconds: 6, state: overshot, out: overshotOut });
+            const direct = simulate({ bpm: 139.5, seconds: 10 });
+            expect(overshot.overSpeedLimit).toBe(false);
+            expect(overshotOut.timeScale).toBeCloseTo(direct.out.timeScale, 3);
+            expect(overshotOut.timeScale).toBeCloseTo(139.5 / NATIVE_BPM, 3);
+        });
+
+        it('flips the speed at most once for a held tempo that jitters by 0.1 BPM around the limit', () => {
+            const state = createDanceTimingState();
+            const out = createDanceTimingResult();
+            simulate({ bpm: MAX_DANCE_BPM + 1, seconds: 4, state, out });
+            let flips = 0;
+            let previous = state.overSpeedLimit;
+            for (let i = 0; i < 40; i++) {
+                simulate({ bpm: MAX_DANCE_BPM + (i % 2 === 0 ? -0.1 : 0.1), seconds: 0.5, state, out });
+                if (state.overSpeedLimit !== previous) flips++;
+                previous = state.overSpeedLimit;
+            }
+            // 139.9 is above the 139.72 release point and 140.1 is over the limit, so half time holds throughout.
+            expect(flips).toBe(0);
+            expect(state.overSpeedLimit).toBe(true);
+        });
+
+        it('re-seeds the octave after a dotted correction like a first lock', () => {
+            const corrected = createDanceTimingState();
+            const correctedOut = createDanceTimingResult();
+            simulate({ bpm: 187.5, seconds: 3, state: corrected, out: correctedOut });
+            simulate({ bpm: 140, seconds: 12, state: corrected, out: correctedOut });
+            const direct = createDanceTimingState();
+            const directOut = createDanceTimingResult();
+            simulate({ bpm: 140, seconds: 15, state: direct, out: directOut });
+            expect(correctedOut.normalizedBpm).toBeCloseTo(140, 6);
+            expect(correctedOut.normalizedBpm).toBe(directOut.normalizedBpm);
+            expect(correctedOut.timeScale).toBeCloseTo(directOut.timeScale, 3);
+        });
+
+        it('keeps the nearest octave for a plain octave flip', () => {
+            const state = createDanceTimingState();
+            const out = createDanceTimingResult();
+            simulate({ bpm: 187.5, seconds: 3, state, out });
+            const before = out.normalizedBpm;
+            simulate({ bpm: 93.75, seconds: 1, state, out });
+            expect(out.normalizedBpm).toBeCloseTo(before ?? 0, 6);
         });
 
         it('forgets the limit on a new song', () => {
@@ -255,7 +309,8 @@ describe('computeDanceTiming', () => {
                     expect(ratio).toBeLessThanOrEqual(1 + 1e-9);
                     // Not slower than it has to be: one more doubling would break the limit or pass the setting.
                     const chosen = snapStepMultiple(danceSpeed);
-                    if (ratio < chosen) expect(impliedBpm(out.timeScale * 2)).toBeGreaterThan(MAX_DANCE_BPM * 0.97);
+                    if (ratio < chosen)
+                        expect(impliedBpm(out.timeScale * 2)).toBeGreaterThan(MAX_DANCE_BPM * MAX_DANCE_BPM_RELEASE);
                 },
             );
 
