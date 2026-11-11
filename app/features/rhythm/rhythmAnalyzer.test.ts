@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { BoundaryDetector } from './boundary';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import {
     BEAT_LOST_BEATS,
@@ -7,6 +8,7 @@ import {
     FRAME_RMS_OFFSET,
     FRAME_STRIDE,
     METER_VISUAL_CONFIDENCE,
+    TEMPO_LOCK_CONFIDENCE,
 } from './rhythmConfig';
 import {
     addNoise,
@@ -498,5 +500,80 @@ describe('RhythmAnalyzer when the beat is lost', () => {
 
     it(`keeps the tempo and counters finite after ${BEAT_LOST_BEATS} missed beats`, () => {
         expect(runLostBeat().gridEpoch).toBeGreaterThan(0);
+    });
+});
+
+describe('RhythmAnalyzer first-lock tie', () => {
+    // A bar of 1.8 s with a 133 BPM beat (weight 0.6) and a 100 BPM dotted pulse (weight 1): the tempo tracker ties on them
+    // and decides by bar repeat when its history is full (8 s). Hits go in the first band of the packed frames. The estimate
+    // is confident enough to lock from about 3.5 s, so the tie is open between then and the decision.
+    const SECONDS = 14;
+    const TIE_FROM = 4;
+    const TIE_UNTIL = 7.5;
+    function dottedFrames(): Float32Array {
+        const frames = new Float32Array(SECONDS * 100 * FRAME_STRIDE);
+        for (let i = 0; i < SECONDS * 100; i++) {
+            const phase = i % 180;
+            const weight = phase % 60 === 0 ? 1 : phase % 45 === 0 ? 0.6 : 0;
+            frames[i * FRAME_STRIDE + FRAME_FLUX_OFFSET] = Math.max(weight, 0.01);
+            frames[i * FRAME_STRIDE + FRAME_ENERGY_OFFSET] = 0.2;
+            frames[i * FRAME_STRIDE + FRAME_RMS_OFFSET] = 0.2;
+        }
+        return frames;
+    }
+
+    function run(onFrame: (analyzer: RhythmAnalyzer, time: number) => void): RhythmAnalyzer {
+        const frames = dottedFrames();
+        const analyzer = new RhythmAnalyzer(100);
+        for (let i = 0; i < SECONDS * 100; i++) {
+            analyzer.pushFrame(i / 100, frames, i * FRAME_STRIDE);
+            analyzer.updatePhase(i / 100);
+            onFrame(analyzer, i / 100);
+        }
+        return analyzer;
+    }
+
+    it('publishes no tempo, beat grid or meter while the tie is open, then the decided tempo', () => {
+        let openFrames = 0;
+        const analyzer = run((a, time) => {
+            const state = a.state;
+            if (time > TIE_FROM && time < TIE_UNTIL) {
+                openFrames++;
+                expect(state.bpm).toBe(0);
+                expect(state.beatPhase).toBeUndefined();
+                expect(state.barPhase).toBeUndefined();
+                expect(state.beatsPerBar).toBeUndefined();
+                expect(state.beatCount).toBe(0);
+                expect(state.downbeatCount).toBe(0);
+                // The estimate is confident enough to lock, so only its publication waits.
+                expect(state.tempoConfidence).toBeGreaterThanOrEqual(TEMPO_LOCK_CONFIDENCE);
+            }
+        });
+
+        expect(openFrames).toBeGreaterThan(340);
+        expect(Math.abs(analyzer.state.bpm / 133.33 - 1)).toBeLessThan(0.03);
+        expect(analyzer.state.beatCount).toBeGreaterThan(0);
+    });
+
+    it('raises no song change, and feeds the boundary detector nothing while the tie is open', () => {
+        const pushTempo = vi.spyOn(BoundaryDetector.prototype, 'pushTempo');
+        try {
+            let callsAtOpen = -1;
+            let callsAtClose = -1;
+            const analyzer = run((_a, time) => {
+                if (time <= TIE_FROM) {
+                    callsAtOpen = pushTempo.mock.calls.length;
+                } else if (time <= TIE_UNTIL) {
+                    callsAtClose = pushTempo.mock.calls.length;
+                }
+            });
+
+            // The detector's reference tempo is seeded by the first estimate it sees, so it only hears the decided one.
+            expect(callsAtClose).toBe(callsAtOpen);
+            expect(pushTempo.mock.calls.length).toBeGreaterThan(callsAtClose);
+            expect(analyzer.state.songChangeCount).toBe(0);
+        } finally {
+            pushTempo.mockRestore();
+        }
     });
 });
