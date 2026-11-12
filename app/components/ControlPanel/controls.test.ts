@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
-import { defaultValues, groupBySection, isModified, isShown, type ControlDefinition } from './controls';
+import { describe, expect, expectTypeOf, it } from 'vitest';
+import {
+    defaultValues,
+    groupBySection,
+    isModified,
+    isShown,
+    type ControlDefinition,
+    type ControlValues,
+} from './controls';
 
 const range: ControlDefinition = {
     section: 'A',
@@ -80,5 +87,25 @@ describe('groupBySection', () => {
 
     it('returns no sections for no controls', () => {
         expect(groupBySection([])).toEqual([]);
+    });
+});
+
+describe('select controls', () => {
+    const table = [
+        {
+            section: 'A',
+            key: 'mode',
+            label: 'Mode',
+            type: 'select',
+            options: [{ value: 'x', label: 'X' }],
+            default: 'x',
+        },
+    ] as const satisfies readonly ControlDefinition[];
+
+    it('gives a select a string value, defaulting to its default', () => {
+        expectTypeOf<ControlValues<typeof table>>().toEqualTypeOf<{ mode: string }>();
+        expect(defaultValues(table)).toEqual({ mode: 'x' });
+        expect(isModified(table[0], 'y')).toBe(true);
+        expect(isModified(table[0], 'x')).toBe(false);
     });
 });

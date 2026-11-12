@@ -1,24 +1,25 @@
 // Every tuning constant of the dancing character lives here, so the pure modules stay free of magic numbers.
 
-// ---- The procedural dance (dancingCharacterDanceClip.ts) ----
+// ---- The dances (assets/MakeHumanDances.glb) ----
 
-// The dance is built in code for the MakeHuman rig (assets/MakeHumanDancer.glb), which ships without animation. It is
-// a loop of four identical bounces, one per beat, with accents (arm sway, head nod) that only play while the bar is
-// known, so the loop length is a whole bar of 4/4.
+// The dances are motion-capture clips retargeted to the MakeHuman rig (assets/MakeHumanDancer.glb), which ships without
+// animation. Every clip is a whole number of 4/4 bars (DanceDefinition below), and they all play on one shared clock.
+// Beats in one bar of 4/4: the shortest clip and the grid every switch happens on.
 export const DANCE_CLIP_BEATS = 4;
-// Tempo at which the clip plays at timeScale 1. 120 BPM sits in the middle of the range that popular music uses, so the
-// clip is rarely sped up or slowed down by much.
+// Tempo at which a clip plays at timeScale 1. 120 BPM sits in the middle of the range that popular music uses, so the
+// clip is rarely sped up or slowed down by much; a beat is 0.5 s of clip time.
 export const NATIVE_BPM = 120;
-// Length of one loop in seconds (2 s).
+// Length of one bar of clip time in seconds (2 s).
 export const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
-// The number of beats the clip contains, under the name the timing spec uses.
+// The number of beats in a bar, under the name the timing spec uses.
 export const NATIVE_BEATS_PER_LOOP = DANCE_CLIP_BEATS;
-// Where in the loop (0..1 of one beat) the beat lands: 0 puts the knee dip, the lowest point of the bounce, on the beat.
+// Where in the loop (0..1 of one beat) the beat lands: the clips are built with beat 1 at t = 0.
 export const STEP_PHASE_OFFSET = 0;
 // Materials the body color tints: the model's single skin material.
 export const BODY_MATERIAL_NAMES = ['Skin'] as const;
-// Bones the dance drives, by the names three.js gives them (GLTFLoader strips the dots, so 'upperarm01.L' loads as
-// 'upperarm01L'). The clip is not built when any is missing, and the figure then keeps its rest pose.
+// Bones every dance clip must drive, by the names three.js gives them (GLTFLoader strips the dots, so 'upperarm01.L'
+// loads as 'upperarm01L'). A clip without a track for each of them is left out, and with no clip left the figure keeps
+// its rest pose.
 export const DANCE_REQUIRED_BONES = [
     'root',
     'spine05',
@@ -41,9 +42,43 @@ export const DANCE_REQUIRED_BONES = [
     'neck02',
     'head',
 ] as const;
-// Seconds for the accent layer to fade in or out (exponential time constant), so the arms and head ease into the
-// bar-locked moves instead of snapping.
-export const ACCENT_EASE_SECONDS = 0.3;
+
+// ---- Choosing the dance (dancingCharacterDirector.ts) ----
+
+// One retarget of a motion-capture dance. Every loop is a whole number of 4/4 bars, so any bar line is a point where
+// one dance can hand over to another without breaking the step.
+export interface DanceDefinition {
+    id: string;
+    label: string;
+    beats: 4 | 8;
+}
+// The dances in assets/MakeHumanDances.glb, named as the clips are. The order is the Auto rotation order, and the first
+// loaded one is the fallback when a chosen dance did not load.
+export const DANCES = [
+    { id: 'lambada', label: 'Lambada', beats: 8 },
+    { id: 'twist', label: 'Twist', beats: 8 },
+    { id: 'cabbage-patch', label: 'Cabbage Patch', beats: 4 },
+    { id: 'salsa', label: 'Salsa', beats: 4 },
+] as const satisfies readonly DanceDefinition[];
+export type DanceId = (typeof DANCES)[number]['id'];
+// The slowest, calmest dance: it plays first and whenever the visitor asked for reduced motion.
+export const CALM_DANCE_ID: DanceId = 'lambada';
+// Length of the shared dance clock in seconds: the longest clip, which every other clip length divides, so one clock
+// can drive every clip and all their bar lines coincide.
+export const DANCE_CLOCK_SECONDS = (Math.max(...DANCES.map((dance) => dance.beats)) * 60) / NATIVE_BPM;
+// A cross-fade between two dances lasts one beat of clip time (so it follows the tempo), but never longer than this
+// many seconds on the wall clock, however slowly the dance runs.
+export const DANCE_FADE_BEATS = 1;
+export const DANCE_FADE_MAX_SECONDS = 1;
+// Largest foot slide a clip may have, in meters, as measured by the build script (scripts/): a proxy for visible
+// sliding that sits just above the approved clips.
+export const FOOT_SKATE_MAX_METERS = 0.16;
+// The Dance setting's value that lets the dancer change dance by herself.
+export const AUTO_DANCE = 'auto';
+// In Auto, the dance changes after this many bars (or on a song change), so a long song does not wear one loop out.
+export const AUTO_ROTATE_BARS = 8;
+// Beats per bar used to find a bar line while the meter is not locked: 4/4 is by far the most common meter.
+export const FALLBACK_BEATS_PER_BAR = 4;
 
 // ---- Dance timing (dancingCharacterSync.ts) ----
 
@@ -77,7 +112,8 @@ export const MAX_PHASE_NUDGE_PER_SECOND = 0.06;
 
 // Clip speed while the tempo is unknown, before the danceSpeed setting: the clip's own native rate.
 export const CALM_TIME_SCALE = 1;
-// How much of the dance shows while the tempo is unknown (1 is the full dance while locked): a relaxed sway.
+// How much the club follows the dance while the tempo is unknown (1 is the full dance while locked). The dancer's own
+// pose is never blended toward the rest pose: a motion-capture dance always plays at full weight.
 export const CALM_DANCE_WEIGHT = 0.35;
 // How fast the dance weight approaches its target, in 1/seconds (exponential). A time constant of 0.2 s, so about
 // 0.6 s to settle.
@@ -105,9 +141,9 @@ export const FRAMING_MARGIN = 1.15;
 // ripple are visible.
 export const CAMERA_ELEVATION = 0.12;
 // The space the dancer takes up (width, height, depth in meters) at scale 1, measured from the dance's skinned poses
-// with both layers at full weight (dancingCharacterScene.test.ts pins it to the real model); used to place the camera
+// over every dance (dancingCharacterScene.test.ts pins it to the real model); used to place the camera
 // before the model has loaded.
-export const NOMINAL_CHARACTER_SIZE = { width: 1.14, height: 1.68, depth: 0.34 } as const;
+export const NOMINAL_CHARACTER_SIZE = { width: 1.03, height: 1.78, depth: 1.01 } as const;
 
 // ---- Bass reaction ----
 
