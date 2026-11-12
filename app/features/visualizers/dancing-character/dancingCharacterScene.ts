@@ -27,6 +27,7 @@ import {
 import { fadeSeconds } from './dancingCharacterFade';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { computeFraming } from './dancingCharacterFraming';
+import { applyRelaxedHands } from './dancingCharacterHands';
 import { stepCameraDolly } from './dancingCharacterCamera';
 import { createBassGateState, forgetBassline, stepBassGate } from '~/features/rhythm/bassGate';
 import { orbitAngularSpeed } from './dancingCharacterOrbit';
@@ -210,6 +211,10 @@ export class DancingCharacterScene {
 
         this.model = model;
         this.scene.add(model);
+
+        // The capture has no finger data, so the hands are relaxed once here (also with no dances loaded, for the rest
+        // pose) and before the measuring below, which then includes them.
+        applyRelaxedHands(model);
 
         // The model has no animation of its own: the dances come from the loader, one action each, all on one mixer.
         this.buildDances(model, dances);

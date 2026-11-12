@@ -306,6 +306,20 @@ describe('setCharacter', () => {
         expect(main.color.r).toBeCloseTo(0);
     });
 
+    it('curls the hands once per load, with or without dances', () => {
+        const bones = ['root', 'finger2-1L'];
+        for (const dances of [makeDances(), undefined]) {
+            const { dancing } = setup();
+            const { model } = makeModel(bones);
+            const finger = model.getObjectByName('finger2-1L')!;
+            dancing.setCharacter(model, dances);
+            const curled = finger.quaternion.clone();
+            expect(curled.angleTo(new THREE.Quaternion())).toBeGreaterThan(0.1);
+            run(dancing, 5, () => makeFrame({ dt: 0.1 }));
+            expect(finger.quaternion.equals(curled)).toBe(true);
+        }
+    });
+
     it('keeps the rest pose, without a mixer, when no dance loaded', () => {
         const { dancing } = setup();
         const still = makeModel();
