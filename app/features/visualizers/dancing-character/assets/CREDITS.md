@@ -119,3 +119,22 @@ hashed under `/assets/` with immutable caching.
 - Result: 196968 bytes, sha256 `cfed5c9bce3dc7ae76d2776ca2cb7577f89acfc0f5f6dbbe2df3cd53564f1c23`. Clips (30 keys per
   second, closed loops): lambada 8 beats (4 s, 121 keys), twist 8 beats (4 s, 121 keys), cabbage-patch 4 beats (2 s,
   61 keys), salsa 4 beats (2 s, 61 keys).
+
+## Characters/mr-incredible (Mr Incredible)
+
+- Files: `characters/mr-incredible/model.glb`, `dances.glb`, `bone-map.json`, `tuning.json`.
+- Source: "Mr Incredible - The Incredibles" by Crias, https://blendswap.com/blend/11590, file
+  `Mr Incredible - Rigged.blend` (saved with Blender 2.69), snapshot 2026-11-12, sha256
+  `d2e4db89793ed9b73fe61d25af4b503d0e0beae2e63a3352a7e12c904e277db6`.
+- License: CC-BY 3.0, as declared by the uploader (BlendSwap does not verify it). The file's license note says it is
+  fan art and may not be used commercially.
+- Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton (`scripts/blender-characters/convert.py` with
+  `bone-map.json`), materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above,
+  retargeted to this skeleton with `tuning.json` (arm and leg amplitude, ground lock, mirrored elbow cap).
+- Trademark: Mr Incredible is a character of Disney/Pixar. This is unofficial fan art; the CC license cannot clear the
+  underlying character rights, and the entry is removed on request.
+- Results: `model.glb` 2459856 bytes sha256 `d5e0ab5debcb54d70e1b95992b2bedc547aa025320d0dde598c7a82bd0cc86b8`; `dances.glb`
+  196968 bytes sha256 `5e89d0caf56655ed13734a053f8660b4c27731960a83a24da386a6e7ca2943a9`.
+- Rebuild: `blender --factory-startup --disable-autoexec --background <file.blend> --python
+  scripts/blender-characters/convert.py -- --map <bone-map.json> --out <model.glb> --max-mb 3`, then the dance build with
+  `--model <model.glb>` (see its header comment).

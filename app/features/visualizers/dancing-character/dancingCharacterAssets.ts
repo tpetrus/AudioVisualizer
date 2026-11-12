@@ -2,8 +2,7 @@ import type * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { disposeScene } from '~/lib/three/disposeScene';
 import { DANCE_REQUIRED_BONES, DANCES, NATIVE_BPM, type DanceId } from './dancingCharacterConfig';
-import dancesUrl from './assets/MakeHumanDances.glb?url';
-import modelUrl from './assets/MakeHumanDancer.glb?url';
+import { CHARACTER_REGISTRY } from './characterRegistry';
 
 export interface DancingCharacterAssets {
     model: THREE.Group;
@@ -54,7 +53,7 @@ export function pickDances(animations: readonly THREE.AnimationClip[]): Map<Danc
 // otherwise leak the GPU-bound objects.
 export async function loadDancingCharacterAssets(
     signal: AbortSignal,
-    urls: { model: string; dances: string } = { model: modelUrl, dances: dancesUrl },
+    urls: { model: string; dances: string } = CHARACTER_REGISTRY[0].urls,
 ): Promise<DancingCharacterAssets> {
     if (signal.aborted) throw createAbortError();
 
