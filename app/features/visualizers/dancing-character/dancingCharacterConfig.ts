@@ -73,10 +73,12 @@ export const STEP_MULTIPLES = [0.5, 1] as const;
 export const NORMALIZED_BPM_MIN = 80;
 // There is only so fast a person dances, and no setting exceeds this. Above it the steps fall on every second beat (or
 // fewer), which stays on the music, where clamping the speed would drift off it. Half time only ends below
-// MAX_DANCE_BPM * this share, so a tempo sitting right at the limit does not flip between the two. While the tempo is
+// MAX_DANCE_BPM * this share (139.72 BPM). The band is only about 0.3 BPM wide: a wider one kept half time for good on a
+// play whose first estimate overshot (141.1) and then settled at 139.5, so that play danced at half the speed of one
+// that started at 139.5. Held-tempo jitter of a tenth of a BPM around the limit still does not flip it. While the tempo is
 // unknown the calm rate is capped at MAX_DANCE_BPM / NATIVE_BPM instead.
 export const MAX_DANCE_BPM = 140;
-export const MAX_DANCE_BPM_RELEASE = 0.97;
+export const MAX_DANCE_BPM_RELEASE = 0.998;
 // How fast timeScale approaches its target, in 1/seconds (exponential). About 0.3 s to settle, so locking looks smooth.
 export const TIME_SCALE_SLEW_RATE = 3;
 // Hard limit on how fast timeScale may change, in timeScale units per second, so a tempo jump never snaps the dance.

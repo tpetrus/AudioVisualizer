@@ -112,6 +112,69 @@ describe('BeatTracker', () => {
         expect(tracker.gridEpoch).toBe(epoch + 1);
     });
 
+    // Continues the pulse train of `drive` (started at 0 with `bpm`) from `fromTime` for `seconds`, returning the beats.
+    function continuePulses(tracker: BeatTracker, bpm: number, fromTime: number, seconds: number) {
+        const beats: { time: number; count: number }[] = [];
+        const period = 60 / bpm;
+        for (let i = 0; i < seconds * FRAME_RATE; i++) {
+            const time = fromTime + i / FRAME_RATE;
+            const phase = (time / period) % 1;
+            const onset = phase < 0.5 / FRAME_RATE / period || phase > 1 - 0.5 / FRAME_RATE / period ? 1 : 0.05;
+            if (tracker.push(time, onset)) beats.push({ time: tracker.lastBeatTime, count: tracker.beatCount });
+        }
+        return beats;
+    }
+
+    it('keeps the grid across a halved tempo and keeps every second beat', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 196, 15);
+        expect(tracker.locked).toBe(true);
+        const epoch = tracker.gridEpoch;
+        const countBefore = tracker.beatCount;
+        tracker.setTempo(98);
+        expect(tracker.locked).toBe(true);
+        expect(tracker.gridEpoch).toBe(epoch);
+        expect(tracker.periodSeconds).toBeCloseTo(2 * (60 / 196), 1);
+        const beats = continuePulses(tracker, 196, 15, 8);
+        // Beats land on pulses of the old grid, two old periods apart, and are numbered on from the old count.
+        for (let i = 1; i < beats.length; i++) {
+            expect(beats[i].time - beats[i - 1].time).toBeCloseTo(120 / 196, 1);
+            expect(beats[i].count).toBe(beats[i - 1].count + 1);
+        }
+        expect(beats[0].count).toBe(countBefore + 1);
+        expect(tracker.gridEpoch).toBe(epoch);
+    });
+
+    it('keeps the grid across a doubled tempo and adds a beat between the old ones', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 98, 15);
+        const epoch = tracker.gridEpoch;
+        const before = tracker.lastBeatTime;
+        tracker.setTempo(196);
+        expect(tracker.locked).toBe(true);
+        expect(tracker.gridEpoch).toBe(epoch);
+        expect(tracker.periodSeconds).toBeCloseTo(30 / 98, 1);
+        const beats = continuePulses(tracker, 98, 15, 8);
+        // The first new beat falls half an old period after the latest old one, between two old beats.
+        expect(beats[0].time - before).toBeCloseTo(30 / 98, 1);
+        for (let i = 1; i < beats.length; i++) {
+            expect(beats[i].time - beats[i - 1].time).toBeCloseTo(30 / 98, 1);
+            expect(beats[i].count).toBe(beats[i - 1].count + 1);
+        }
+    });
+
+    it('treats a move of 195.7 to 98.0 as an octave but 100 to 130 as a real change', () => {
+        const octave = new BeatTracker(FRAME_RATE);
+        drive(octave, 195.7, 15);
+        const epoch = octave.gridEpoch;
+        octave.setTempo(98);
+        expect(octave.gridEpoch).toBe(epoch);
+        const real = new BeatTracker(FRAME_RATE);
+        drive(real, 100, 15);
+        real.setTempo(130);
+        expect(real.gridEpoch).toBe(1);
+    });
+
     it('keeps the grid for a small tempo change', () => {
         const tracker = new BeatTracker(FRAME_RATE);
         drive(tracker, 100, 15);

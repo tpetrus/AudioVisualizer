@@ -25,6 +25,12 @@ import {
     TEMPO_SYNCOPATION_RATIOS,
     TEMPO_SYNCOPATION_SWITCH_ESTIMATES,
     TEMPO_SYNCOPATION_TOLERANCE,
+    TEMPO_TIE_MAX_DEFER_S,
+    TEMPO_TIE_MIN_RATIO,
+    TEMPO_TIE_MULTIPLES,
+    TEMPO_TIE_PEAK_TOLERANCE,
+    TEMPO_TIE_RIVAL_LAG_FACTORS,
+    TEMPO_TIE_SWITCH_FACTOR,
 } from './rhythmConfig';
 
 // True when `bpm` is a pulse that dotted notes make against `reference`, rather than a different tempo.
@@ -63,6 +69,11 @@ export class TempoTracker {
     private readonly minFrames: number;
     private head = 0;
     private count = 0;
+    // Frames pushed since reset, and the one at which the open first-lock tie began (-1 when none is open).
+    private pushed = 0;
+    private tieStart = -1;
+    // The refined lag of the peak `peakHeight` found last.
+    private peakAt = 0;
 
     private held = 0;
     private raw = 0;
@@ -101,6 +112,11 @@ export class TempoTracker {
         return this.rivalLag > 0 ? (60 * this.frameRate) / this.rivalLag : 0;
     }
 
+    // True while a first lock is held back because a dotted rival ties with the winner (`bpm` stays 0 meanwhile).
+    get deferring(): boolean {
+        return this.tieStart >= 0;
+    }
+
     // 0..1 trust in the latest estimate.
     get confidence(): number {
         return this.confidenceValue;
@@ -110,6 +126,7 @@ export class TempoTracker {
     push(value: number): void {
         this.ring[this.head] = value;
         this.head = (this.head + 1) % this.capacity;
+        this.pushed++;
         if (this.count < this.capacity) {
             this.count++;
         }
@@ -228,7 +245,20 @@ export class TempoTracker {
         const peak = Math.min(1, correlation[bestLag] / TEMPO_FULL_CONFIDENCE_PEAK);
         const confidence = peak * (0.5 + 0.5 * margin);
 
-        const refinedLag = this.refine(bestLag, lagLimit);
+        let refinedLag = this.refine(bestLag, lagLimit);
+        if (this.held === 0 && confidence >= TEMPO_LOCK_CONFIDENCE) {
+            const settled = this.settleFirstLock(bestLag, lagLimit);
+            if (settled === 0) {
+                // The tie is still open: keep publishing the estimate, but not a tempo.
+                this.raw = (60 * this.frameRate) / refinedLag;
+                this.confidenceValue = confidence;
+                this.lowConfidenceRun = 0;
+                return true;
+            }
+            if (settled > 0) {
+                refinedLag = this.refine(settled, lagLimit);
+            }
+        }
         this.finishEstimate((60 * this.frameRate) / refinedLag, confidence);
         return true;
     }
@@ -237,9 +267,12 @@ export class TempoTracker {
     keepRecent(seconds: number): void {
         this.count = Math.min(this.count, Math.round(seconds * this.frameRate));
         this.challengerWins = 0;
+        this.tieStart = -1;
     }
 
     reset(): void {
+        this.pushed = 0;
+        this.tieStart = -1;
         this.head = 0;
         this.count = 0;
         this.held = 0;
@@ -262,6 +295,80 @@ export class TempoTracker {
             }
         }
         return best;
+    }
+
+    // Interpolated autocorrelation peak near `lag` (highest whole lag within TEMPO_TIE_PEAK_TOLERANCE, refined by a
+    // parabola), or NaN when the search reaches past the trusted lags. The refined lag is left in `peakAt`.
+    private peakHeight(lag: number, lagLimit: number): number {
+        const reach = Math.max(1, Math.ceil(lag * TEMPO_TIE_PEAK_TOLERANCE));
+        const from = Math.max(1, Math.floor(lag) - reach);
+        const to = Math.ceil(lag) + reach;
+        if (to > lagLimit - 1) {
+            return NaN;
+        }
+        const c = this.correlation;
+        let best = from;
+        for (let i = from; i <= to; i++) {
+            if (c[i] > c[best]) {
+                best = i;
+            }
+        }
+        const curvature = c[best - 1] - 2 * c[best] + c[best + 1];
+        if (curvature >= 0) {
+            this.peakAt = best;
+            return c[best];
+        }
+        const shift = Math.max(-0.5, Math.min(0.5, (0.5 * (c[best - 1] - c[best + 1])) / curvature));
+        this.peakAt = best + shift;
+        return c[best] - 0.25 * (c[best - 1] - c[best + 1]) * shift;
+    }
+
+    // Decides a first lock. Returns 0 to hold the lock back, the rival's coarse lag when the rival takes the lock, and -1
+    // to lock on the winner. The winner can be a dotted pulse (4/3 or 3/2 of the beat) that scores nearly as high as the
+    // beat, and the first seconds cannot tell them apart: the pulse the music really has repeats every bar, so each side
+    // is scored at its own 4x and 8x lag once those are in reach.
+    private settleFirstLock(winner: number, lagLimit: number): number {
+        const winnerHeight = this.peakHeight(winner, lagLimit);
+        // The rival is the stronger of the two dotted neighbors (4/3 and 3/4 of the winning lag), snapped to its peak.
+        let rival = 0;
+        let rivalHeight = -Infinity;
+        for (const factor of TEMPO_TIE_RIVAL_LAG_FACTORS) {
+            const candidate = winner * factor;
+            const height =
+                candidate >= this.minLag && candidate <= this.maxLag ? this.peakHeight(candidate, lagLimit) : NaN;
+            if (height > rivalHeight) {
+                rivalHeight = height;
+                rival = this.peakAt;
+            }
+        }
+        // No rival, or a peak out of reach (NaN), fails the comparison and means no tie. A tie that is already open stays
+        // open while the ratio wobbles around the threshold, so the decision is made once, on the evidence below.
+        const close = Math.min(winnerHeight, rivalHeight) >= TEMPO_TIE_MIN_RATIO * Math.max(winnerHeight, rivalHeight);
+        if (rival === 0 || !(close || this.tieStart >= 0)) {
+            this.tieStart = -1;
+            return -1;
+        }
+        if (this.tieStart < 0) {
+            this.tieStart = this.pushed;
+        }
+        let winnerSum = 0;
+        let rivalSum = 0;
+        let reached = 0;
+        for (const multiple of TEMPO_TIE_MULTIPLES) {
+            const w = this.peakHeight(winner * multiple, lagLimit);
+            const r = this.peakHeight(rival * multiple, lagLimit);
+            if (!Number.isNaN(w + r)) {
+                winnerSum += w;
+                rivalSum += r;
+                reached++;
+            }
+        }
+        const full = reached === TEMPO_TIE_MULTIPLES.length && this.count >= this.capacity;
+        if (!full && this.pushed - this.tieStart < TEMPO_TIE_MAX_DEFER_S * this.frameRate) {
+            return 0;
+        }
+        this.tieStart = -1;
+        return reached > 0 && rivalSum > TEMPO_TIE_SWITCH_FACTOR * winnerSum ? rival : -1;
     }
 
     // Log-Gaussian weight around the prior tempo, 1.0 at the prior.
@@ -302,6 +409,9 @@ export class TempoTracker {
     private finishEstimate(bpm: number, confidence: number): void {
         this.raw = bpm;
         this.confidenceValue = confidence;
+        // An estimate that gets here is not a pending tie (a tie that stays open returns before this), so a confidence drop
+        // under the lock threshold closes it: "deferring" means a decision is pending on a usable estimate.
+        this.tieStart = -1;
 
         if (bpm === 0 || confidence < TEMPO_LOSE_CONFIDENCE) {
             this.lowConfidenceRun++;
