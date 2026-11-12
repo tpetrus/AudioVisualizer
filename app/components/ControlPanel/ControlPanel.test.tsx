@@ -240,3 +240,54 @@ describe('ControlPanel', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 });
+
+const selectDefinitions = [
+    {
+        section: 'Motion',
+        key: 'mode',
+        label: 'Dance mode',
+        type: 'select',
+        options: [
+            { value: 'calm', label: 'Calm' },
+            { value: 'wild', label: 'Wild' },
+        ],
+        default: 'calm',
+    },
+] as const satisfies readonly ControlDefinition[];
+
+function SelectHarness() {
+    const { values, setValue, resetAll } = useControlValues(selectDefinitions);
+    return (
+        <ControlPanel
+            definitions={selectDefinitions}
+            values={values}
+            onChange={setValue}
+            onResetAll={resetAll}
+            cameraLocked
+            onCameraLockedChange={() => {}}
+            viewChanged={false}
+            onResetView={() => {}}
+        />
+    );
+}
+
+describe('ControlPanel select control', () => {
+    it('labels the select, marks it modified and resets it to the default', async () => {
+        const { user } = renderWithProviders(<SelectHarness />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        const box = screen.getByLabelText('Dance mode');
+        expect(box).toHaveValue('calm');
+        expect(screen.queryByText(/changed/)).not.toBeInTheDocument();
+        expect(screen.getByLabelText('Reset Dance mode to default')).toHaveStyle({ visibility: 'hidden' });
+
+        await user.selectOptions(box, 'wild');
+        expect(box).toHaveValue('wild');
+        expect(screen.getByText('1 changed')).toBeInTheDocument();
+        expect(screen.getByLabelText('Reset Dance mode to default')).toHaveStyle({ visibility: 'visible' });
+
+        await user.click(screen.getByLabelText('Reset Dance mode to default'));
+        expect(box).toHaveValue('calm');
+        expect(screen.queryByText(/changed/)).not.toBeInTheDocument();
+    });
+});

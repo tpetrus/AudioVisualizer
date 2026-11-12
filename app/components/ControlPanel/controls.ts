@@ -24,7 +24,18 @@ export interface ColorControl extends ControlBase {
     default: string; // hex value
 }
 
-export type ControlDefinition = RangeControl | CheckboxControl | ColorControl;
+export interface SelectOption {
+    value: string;
+    label: string;
+}
+
+export interface SelectControl extends ControlBase {
+    type: 'select';
+    options: readonly SelectOption[];
+    default: string; // one of options[].value
+}
+
+export type ControlDefinition = RangeControl | CheckboxControl | ColorControl | SelectControl;
 export type ControlValue = ControlDefinition['default'];
 
 type ValueOf<C extends ControlDefinition> = C extends RangeControl

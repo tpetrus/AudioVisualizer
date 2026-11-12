@@ -1,7 +1,9 @@
 # Dancing character assets
 
-The file here is CC0 1.0 (body and outfit alike) (public domain dedication): no attribution is required, but its source is recorded here so it
-can be checked. It is imported with `?url`, so the build emits it hashed under `/assets/` with immutable caching.
+MakeHumanDancer.glb is CC0 1.0 (body and outfit alike) (public domain dedication): no attribution is required, but its
+source is recorded here so it can be checked. MakeHumanDances.glb is built from the CMU Graphics Lab Motion Capture
+Database and is under the CMU terms recorded below, not CC0. Both are imported with `?url`, so the build emits them
+hashed under `/assets/` with immutable caching.
 
 ## MakeHumanDancer.glb
 
@@ -76,3 +78,44 @@ can be checked. It is imported with `?url`, so the build emits it hashed under `
   body's weights blended over those references. The body faces each garment lists under `delete_verts` are removed so
   skin cannot show through. Normal and ambient-occlusion maps are not used; the diffuse textures are downscaled with
   sharp (outfit 1024 px JPEG, shoes 512 px JPEG, hair 512 px PNG with alpha as a cutout, eyes 256 px JPEG).
+
+## MakeHumanDances.glb
+
+- Source: the CMU Graphics Lab Motion Capture Database, http://mocap.cs.cmu.edu. The files used (each is verified
+  against its sha256 before every build):
+  - `55.asf` (subject 55 skeleton), http://mocap.cs.cmu.edu/subjects/55/55.asf, sha256
+    `fd9bc721979964c2ab0723437bc881e5cabf4b0a1f1eef001f91a21c11600a32`
+  - `55_02.amc`, http://mocap.cs.cmu.edu/subjects/55/55_02.amc, sha256
+    `8c5267b81b22ea3511eafdcfe2e277f3b754a97038ec0e86ff70c3a905ff2f4c`
+  - `60.asf` (subject 60 skeleton), http://mocap.cs.cmu.edu/subjects/60/60.asf, sha256
+    `bf20990ec1b9ed0adcb8227f3ebc2f502d0955cbf7499623a07d099d7b104c6c`
+  - `60_01.amc`, http://mocap.cs.cmu.edu/subjects/60/60_01.amc, sha256
+    `d06e823aeb985cfa9382ac54c09a0ed4cd716e34e68a90f535065974dfc7201f`
+  - `60_02.amc`, http://mocap.cs.cmu.edu/subjects/60/60_02.amc, sha256
+    `6a7b6b0d0a420cce041bda648255082370aad72185917a678af9c1bcc0929199`
+  - `15.asf` (subject 15 skeleton), http://mocap.cs.cmu.edu/subjects/15/15.asf, sha256
+    `70693bac5f31e3b0892c398fb08b52da7b4c00003f55ce57e36ab58e63d93960`
+  - `15_04.amc`, http://mocap.cs.cmu.edu/subjects/15/15_04.amc, sha256
+    `b32fa0654dce9db467aecfdd3bb730f33e6cc0c60b3ac5aa14da90ed576ca05e`
+- Trials (CMU descriptions): 55_02 "lambada dance"; 60_01 and 60_02 "salsa dance"; 15_04 "wash windows, paint; hand
+  signals; dance - Egyptian walk, the Dive, the Twist, the Cabbage Patch; boxing".
+- Source frames per dance (frames of the AMC file, 120 per second for subjects 55 and 15, 60 per second for subject 60):
+  - lambada: 55_02 frames 1680-2116
+  - twist: 15_04 frames 16204-16580
+  - cabbage-patch: 15_04 frames 14160-14460
+  - salsa: legs and hips from 60_02 frames 254-366, upper body from 60_01 frames 1976-2098
+- License: "The motion capture data may be copied, modified, or redistributed without permission."
+  (http://mocap.cs.cmu.edu/faqs.php, read 2026-11-11)
+- Acknowledgment: "The data used in this project was obtained from mocap.cs.cmu.edu. The database was created with
+  funding from NSF EIA-0196217."
+- Changes: each stretch is retargeted to the MakeHuman rig of MakeHumanDancer.glb, its root travel is removed, its
+  loop is warped to half a second per beat and closed, the hips are locked to the lowest foot (twist, cabbage-patch and
+  salsa), and the arms are pushed clear of the torso. The twist's arm and spine movement is scaled down and its head
+  turned forward. The salsa's upper body comes from 60_01, with the right arm mirrored from the left two beats later.
+- Rebuild: `node node_modules/.cache/build-dances.mjs`, bundled as described in the header comment of
+  `scripts/dancing-character-dances/build.ts`. It downloads the inputs above into memory (they are never written to disk)
+  or reads them from a local directory given as its argument, and checks each against its sha256 before use. The output
+  is deterministic.
+- Result: 196968 bytes, sha256 `cfed5c9bce3dc7ae76d2776ca2cb7577f89acfc0f5f6dbbe2df3cd53564f1c23`. Clips (30 keys per
+  second, closed loops): lambada 8 beats (4 s, 121 keys), twist 8 beats (4 s, 121 keys), cabbage-patch 4 beats (2 s,
+  61 keys), salsa 4 beats (2 s, 61 keys).
