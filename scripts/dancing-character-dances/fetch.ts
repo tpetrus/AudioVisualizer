@@ -6,10 +6,20 @@
 // https certificate is broken, so the download is plain http: the pinned hash is the integrity check, and a file that
 // does not match is never written. Exits non-zero on any mismatch or failed download.
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { DEFAULT_INPUT_DIR, sha256Of, verifyBytes } from './inputs';
 import { CMU_FILES, cmuUrl } from './manifests';
+
+// Reads the cached copy in one step instead of checking that it exists first, so nothing can change between a check and
+// the read. A missing or unreadable file simply counts as not cached.
+function cachedMatches(path: string, sha256: string): boolean {
+    try {
+        return sha256Of(readFileSync(path)) === sha256;
+    } catch {
+        return false;
+    }
+}
 
 async function main(): Promise<void> {
     const dir = process.argv[2] ? resolve(process.argv[2]) : DEFAULT_INPUT_DIR;
@@ -17,7 +27,7 @@ async function main(): Promise<void> {
     const failures: string[] = [];
     for (const [name, { sha256 }] of Object.entries(CMU_FILES)) {
         const path = join(dir, name);
-        if (existsSync(path) && sha256Of(readFileSync(path)) === sha256) {
+        if (cachedMatches(path, sha256)) {
             console.log(`ok (cached) ${name}`);
             continue;
         }
@@ -25,6 +35,7 @@ async function main(): Promise<void> {
             const response = await fetch(cmuUrl(name));
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const bytes = new Uint8Array(await response.arrayBuffer());
+            // Only bytes that match the pinned hash are written, so the file on disk is exactly the reviewed input.
             verifyBytes(name, bytes, sha256);
             writeFileSync(path, bytes);
             console.log(`ok (downloaded, ${bytes.length} bytes) ${name}`);

@@ -2,7 +2,7 @@
 // file (the build, the fetch) checks it against the sha256 pinned in manifests.ts.
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { CMU_FILES } from './manifests';
 
@@ -25,8 +25,16 @@ export function pinnedHash(name: string): string {
 // Reads a file of the input directory and verifies it; a missing file says how to fetch it.
 export function readVerified(dir: string, name: string): Buffer {
     const path = join(dir, name);
-    if (!existsSync(path)) throw new Error(`${path} is missing; run the fetch script first (see fetch.ts)`);
-    const bytes = readFileSync(path);
+    // Read in one step (no exists check first, which could race with the read) and explain a missing file.
+    let bytes: Buffer;
+    try {
+        bytes = readFileSync(path);
+    } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+            throw new Error(`${path} is missing; run the fetch script first (see fetch.ts)`, { cause: error });
+        }
+        throw error;
+    }
     verifyBytes(name, bytes, pinnedHash(name));
     return bytes;
 }
