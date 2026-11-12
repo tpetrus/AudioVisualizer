@@ -3,9 +3,9 @@ import { resolve } from 'node:path';
 import { DEFAULT_MODEL, DEFAULT_OUTPUT, REQUIRED_BONES, missingBones, parseBuildArgs } from './build-args';
 
 describe('REQUIRED_BONES', () => {
-    it('lists the 42 contract bones once each', () => {
-        expect(REQUIRED_BONES).toHaveLength(42);
-        expect(new Set(REQUIRED_BONES).size).toBe(42);
+    it('lists the 44 contract bones once each', () => {
+        expect(REQUIRED_BONES).toHaveLength(44);
+        expect(new Set(REQUIRED_BONES).size).toBe(44);
         expect(REQUIRED_BONES).toContain('toe1-1R');
         expect(REQUIRED_BONES).toContain('finger5-1L');
     });

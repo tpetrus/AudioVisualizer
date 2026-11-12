@@ -1,0 +1,14 @@
+{
+  "lambada": {
+    "groundLock": { "tolerance": 0.028 },
+    "amplitude": [{ "group": "arms", "scale": 0.6, "restBlend": 0.3 }]
+  },
+  "twist": {
+    "amplitude": [
+      { "group": "arms", "scale": 0.6 },
+      { "group": "legs", "scale": 0.92 }
+    ]
+  },
+  "cabbage-patch": { "amplitude": [{ "group": "arms", "scale": 0.5, "restBlend": 0.4 }] },
+  "salsa": { "elbowCapMeters": 0.26, "amplitude": [{ "group": "arms", "scale": 0.6 }] }
+}

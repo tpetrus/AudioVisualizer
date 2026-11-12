@@ -18,13 +18,13 @@ root
     spine01 > clavicleS > shoulder01S > upperarm01S > upperarm02S > lowerarm01S > lowerarm02S > wristS
       wristS > finger2-1S, finger3-1S, finger5-1S      (index, middle, pinky first joints)
     spine01 > neck01 > neck02 > neck03 > head
-  root > upperleg01S > upperleg02S > lowerleg01S > lowerleg02S > footS > toe1-1S
+  root > pelvisS > upperleg01S > upperleg02S > lowerleg01S > lowerleg02S > footS > toe1-1S
 ```
 
 - The retarget reads each bone's rest world rotation and position, so bone roll does not matter, but the rest pose must
   stand upright facing +Z with Y up, feet on y = 0, and the root bone sitting directly under an identity-transform parent.
 - Bones that have no counterpart in the source rig are zero-weight dummies placed on the line between their mapped
-  neighbors (`spine*`, `neck01-03`, `shoulder01*`, `*02` twist bones, `toe1-1*`). Clavicles, upper/lower arms, wrists,
+  neighbors (`spine*`, `neck01-03`, `shoulder01*`, `*02` twist bones, `toe1-1*`, `pelvis*`). Clavicles, upper/lower arms, wrists,
   upper/lower legs, feet, the three finger joints and `head` must be real, weighted bones.
 - Height: the character is scaled so its height from the floor to the top of the head is `1.68` m (the MakeHuman
   figure, `NOMINAL_CHARACTER_SIZE` in `dancingCharacterConfig.ts`), within 10%.

@@ -14,8 +14,8 @@
 // --approved is skipped (the approved clips were cut for MakeHuman only).
 // Exits non-zero on any hard failure or when a clip differs from its approved one.
 
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { Matrix4 } from 'three';
 import { missingBones, parseBuildArgs } from './build-args';
 import { scaleAmplitude } from './amplitude';
@@ -28,7 +28,8 @@ import { capUpperArms, faceHeadForward, groundLock, mirrorArm } from './edits';
 import { writeAnimationGlb } from './glb';
 import { directorySource, fetchVerified, loadInputs } from './inputs';
 import { KEYS_PER_BEAT, beatKeys, combineLoops, makeLoop } from './loop';
-import { MANIFESTS } from './manifests';
+import { MANIFESTS as RECIPES } from './manifests';
+import { applyTuning, parseTuning } from './tuning';
 import type { DanceManifest, TakeSpec } from './manifests';
 import { retarget } from './retarget';
 import { loadGlb, loadTargetRig } from './rig';
@@ -109,6 +110,16 @@ async function main(): Promise<void> {
     if (!root?.parent || !root.parent.matrixWorld.equals(new Matrix4())) {
         throw new Error(`${model}: the root bone must sit directly under a parent with an identity transform`);
     }
+    // A character's own tuning.json (next to its model) adjusts the recipes for its proportions; MakeHuman has none.
+    const tuningPath = join(dirname(model), 'tuning.json');
+    const tuning =
+        !defaultModel && existsSync(tuningPath)
+            ? parseTuning(
+                  readFileSync(tuningPath, 'utf8'),
+                  RECIPES.map((m) => m.id),
+              )
+            : {};
+    const MANIFESTS = RECIPES.map((recipe) => applyTuning(recipe, tuning));
     const torso = buildTorso(rig);
     const inputNames = MANIFESTS.flatMap((m) => [m.take, m.upper]).flatMap((take) =>
         take ? [take.skeleton, take.motion] : [],

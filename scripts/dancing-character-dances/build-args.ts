@@ -21,6 +21,8 @@ export const REQUIRED_BONES: readonly string[] = [
     'neck02',
     'neck03',
     'head',
+    'pelvisL',
+    'pelvisR',
     ...SIDES.flatMap((s) => [
         `clavicle${s}`,
         `shoulder01${s}`,
