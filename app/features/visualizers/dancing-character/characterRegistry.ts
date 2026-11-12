@@ -1,6 +1,8 @@
 import { BODY_MATERIAL_NAMES } from './dancingCharacterConfig';
 import dancesUrl from './assets/MakeHumanDances.glb?url';
 import modelUrl from './assets/MakeHumanDancer.glb?url';
+import warioDancesUrl from './assets/characters/wario/dances.glb?url';
+import warioModelUrl from './assets/characters/wario/model.glb?url';
 import mrIncredibleDancesUrl from './assets/characters/mr-incredible/dances.glb?url';
 import mrIncredibleModelUrl from './assets/characters/mr-incredible/model.glb?url';
 
@@ -49,6 +51,19 @@ export const CHARACTER_REGISTRY: readonly CharacterEntry[] = [
         trademarkNote: 'Mr Incredible is a character of Disney/Pixar; this is unofficial fan art.',
         urls: { model: mrIncredibleModelUrl, dances: mrIncredibleDancesUrl },
         // The only skin-colored part of the model is the face; the rest is his costume.
+        bodyMaterialNames: BODY_MATERIAL_NAMES,
+    },
+    {
+        id: 'wario',
+        title: 'Wario',
+        author: 'Bagiryu',
+        license: 'CC0',
+        licenseVersion: '1.0',
+        sourceUrl: 'https://blendswap.com/blend/10017',
+        modifiedNote:
+            'Converted to glTF, rig rebuilt on the MakeHuman skeleton, materials rebuilt. Dances retargeted from CMU motion capture.',
+        trademarkNote: 'Wario is a character of Nintendo; this is unofficial fan art.',
+        urls: { model: warioModelUrl, dances: warioDancesUrl },
         bodyMaterialNames: BODY_MATERIAL_NAMES,
     },
 ];

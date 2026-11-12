@@ -138,3 +138,19 @@ hashed under `/assets/` with immutable caching.
 - Rebuild: `blender --factory-startup --disable-autoexec --background <file.blend> --python
   scripts/blender-characters/convert.py -- --map <bone-map.json> --out <model.glb> --max-mb 3`, then the dance build with
   `--model <model.glb>` (see its header comment).
+
+## Characters/wario (Wario)
+
+- Files: `characters/wario/model.glb`, `dances.glb`, `bone-map.json`, `tuning.json`.
+- Source: "Wario Character" by Bagiryu, https://blendswap.com/blend/10017, file `wario.blend` (saved with Blender
+  2.66), snapshot 2026-11-12, sha256 `6e813e8b68eab7b7126ae9d7d3a8e6557f74e09c6438375d23ef29c2989e9da9`.
+- License: CC0, as declared by the uploader (BlendSwap does not verify it). The archive's license note says the file is
+  fan art and may not be used commercially, which conflicts with the plain CC0 label.
+- Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton (`scripts/blender-characters/convert.py` with
+  `bone-map.json`), materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above,
+  retargeted to this skeleton with `tuning.json`.
+- Trademark: Wario is a character of Nintendo. This is unofficial fan art; the CC0 label cannot clear the underlying
+  character rights, and the entry is removed on request.
+- Results: `model.glb` 2077164 bytes sha256 `0abba69c724dcb6dd7d08a769df3c0af966f461d700b0a53684032c8f7247afe`; `dances.glb`
+  196968 bytes sha256 `840dac7bc57f9af426612697b399a743140e8f1fbfcb6f45c2499f9e461c84ba`.
+- Rebuild: as for Mr Incredible.

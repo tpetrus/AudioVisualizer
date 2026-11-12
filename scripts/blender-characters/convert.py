@@ -270,6 +270,15 @@ def bake_mesh(obj, levels):
                 continue
             with bpy.context.temp_override(object=obj, active_object=obj):
                 bpy.ops.object.modifier_apply(modifier=modifier.name)
+        elif modifier.type == "MULTIRES":
+            # A Multires modifier stores its own subdivision levels; apply it at the requested level, capped by what exists.
+            modifier.show_viewport = True
+            modifier.levels = min(levels, modifier.total_levels)
+            if modifier.total_levels == 0:
+                obj.modifiers.remove(modifier)
+                continue
+            with bpy.context.temp_override(object=obj, active_object=obj):
+                bpy.ops.object.modifier_apply(modifier=modifier.name)
         else:
             fail(f"{obj.name} has an unsupported modifier {modifier.type}")
     for polygon in obj.data.polygons:
@@ -325,6 +334,9 @@ def rebuild_materials(obj):
         if material is None:
             fail(f"{obj.name} has an empty material slot")
         color = tuple(material.diffuse_color)
+        # The app's body color control tints the material named "Skin", so a source's "skin" becomes that name.
+        if material.name.lower() == "skin" and material.name != "Skin" and "Skin" not in bpy.data.materials:
+            material.name = "Skin"
         material.use_nodes = True
         tree = material.node_tree
         tree.nodes.clear()
