@@ -112,9 +112,10 @@ hashed under `/assets/` with immutable caching.
   loop is warped to half a second per beat and closed, the hips are locked to the lowest foot (twist, cabbage-patch and
   salsa), and the arms are pushed clear of the torso. The twist's arm and spine movement is scaled down and its head
   turned forward. The salsa's upper body comes from 60_01, with the right arm mirrored from the left two beats later.
-- Rebuild: `node node_modules/.cache/fetch-dances.mjs` and `node node_modules/.cache/build-dances.mjs`, bundled as
-  described in the header comments of `scripts/dancing-character-dances/fetch.ts` and `build.ts`. The output is
-  deterministic.
+- Rebuild: `node node_modules/.cache/build-dances.mjs`, bundled as described in the header comment of
+  `scripts/dancing-character-dances/build.ts`. It downloads the inputs above into memory (they are never written to disk)
+  or reads them from a local directory given as its argument, and checks each against its sha256 before use. The output
+  is deterministic.
 - Result: 196968 bytes, sha256 `cfed5c9bce3dc7ae76d2776ca2cb7577f89acfc0f5f6dbbe2df3cd53564f1c23`. Clips (30 keys per
   second, closed loops): lambada 8 beats (4 s, 121 keys), twist 8 beats (4 s, 121 keys), cabbage-patch 4 beats (2 s,
   61 keys), salsa 4 beats (2 s, 61 keys).

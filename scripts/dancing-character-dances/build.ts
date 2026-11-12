@@ -1,10 +1,11 @@
 // Builds the four dance clips from the CMU motion-capture files and writes
 // app/features/visualizers/dancing-character/assets/MakeHumanDances.glb (clips lambada, twist, cabbage-patch, salsa).
-// Run (from the repository root; fetch the inputs first, see fetch.ts):
+// Run (from the repository root):
 //   npx esbuild scripts/dancing-character-dances/build.ts --bundle --platform=node --format=esm --packages=external
-//     --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs <input-dir> [--out <file>] [--approved <SpikeDances.glb>]
-// <input-dir> is where fetch.ts put the files (node_modules/.cache/cmu-mocap by default). Every input is verified against
-// its pinned sha256 first. The output is deterministic (two runs are byte-identical). The built file is loaded back with
+//     --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs [<input-dir>] [--out <file>] [--approved <SpikeDances.glb>]
+// Without <input-dir> the CMU inputs (about 25 MB) are downloaded into memory on every run and never written to disk; with
+// it they are read from that local directory instead. Either way every input is verified against its pinned sha256
+// before it is parsed. The output is deterministic (two runs are byte-identical). The built file is loaded back with
 // GLTFLoader and checked against the hard rules of docs/plans/natural-dance/contracts.md (C2, Amendments 3 and 4); the 40 ms
 // contact rule is printed as warnings. With --approved the clips are also compared with the clips approved in the S0g
 // spike (lambada=55_02_loop, twist=15_04_twist_soft_loop, cabbage-patch=15_04_cabbage_loop, salsa=60_02_grounded_loop).
@@ -21,7 +22,7 @@ import { buildClip } from './clip';
 import type { Clip } from './clip';
 import { capUpperArms, faceHeadForward, groundLock, mirrorArm } from './edits';
 import { writeAnimationGlb } from './glb';
-import { DEFAULT_INPUT_DIR, readVerified } from './inputs';
+import { directorySource, fetchVerified, loadInputs } from './inputs';
 import { KEYS_PER_BEAT, beatKeys, combineLoops, makeLoop } from './loop';
 import { MANIFESTS } from './manifests';
 import type { DanceManifest, TakeSpec } from './manifests';
@@ -42,9 +43,19 @@ const APPROVED_CLIP: Record<string, string> = {
 };
 
 // Retargets one take and cuts its loop out by the take's beat table.
-function loopOf(dir: string, take: TakeSpec, rig: TargetRig, id: string): { clip: Clip; seamBefore: number } {
-    const skeleton = parseAsf(readVerified(dir, take.skeleton).toString('utf8'));
-    const motion = parseAmc(readVerified(dir, take.motion).toString('utf8'));
+function loopOf(
+    inputs: ReadonlyMap<string, Buffer>,
+    take: TakeSpec,
+    rig: TargetRig,
+    id: string,
+): { clip: Clip; seamBefore: number } {
+    const input = (name: string): string => {
+        const bytes = inputs.get(name);
+        if (!bytes) throw new Error(`${id}: input ${name} was not loaded`);
+        return bytes.toString('utf8');
+    };
+    const skeleton = parseAsf(input(take.skeleton));
+    const motion = parseAmc(input(take.motion));
     const [from, to] = take.window ?? [0, motion.frames.length - 1];
     const retargeted = retarget(skeleton, { frames: motion.frames.slice(from, to + 1) }, take.fps, rig);
     const source = buildClip(id, retargeted, rig);
@@ -52,17 +63,17 @@ function loopOf(dir: string, take: TakeSpec, rig: TargetRig, id: string): { clip
     return { clip, seamBefore: report.seamBefore };
 }
 
-function danceClip(dir: string, manifest: DanceManifest, rig: TargetRig, torso: Torso): Clip {
+function danceClip(inputs: ReadonlyMap<string, Buffer>, manifest: DanceManifest, rig: TargetRig, torso: Torso): Clip {
     const { id } = manifest;
     for (const take of [manifest.take, manifest.upper]) {
         if (take && take.beatFrames.length !== manifest.beats + 1)
             throw new Error(`${id}: the beat table needs beats + 1 frames`);
     }
-    const main = loopOf(dir, manifest.take, rig, id);
+    const main = loopOf(inputs, manifest.take, rig, id);
     let clip = main.clip;
     let seamBefore = `${main.seamBefore.toFixed(2)}`;
     if (manifest.upper) {
-        const upper = loopOf(dir, manifest.upper, rig, id);
+        const upper = loopOf(inputs, manifest.upper, rig, id);
         clip = combineLoops(clip, upper.clip, id);
         seamBefore += ` / ${upper.seamBefore.toFixed(2)} (upper body)`;
     }
@@ -91,7 +102,7 @@ async function main(): Promise<void> {
         return at < 0 ? undefined : args[at + 1];
     };
     const flagged = new Set(['--out', '--approved'].flatMap((name) => [name, option(name)]));
-    const dir = resolve(args.find((a) => !flagged.has(a)) ?? DEFAULT_INPUT_DIR);
+    const dir = args.find((a) => !flagged.has(a));
     const out = resolve(option('--out') ?? OUTPUT);
     const approvedPath = option('--approved');
 
@@ -101,7 +112,14 @@ async function main(): Promise<void> {
         throw new Error('the root bone is expected to sit directly under an identity parent');
     }
     const torso = buildTorso(rig);
-    const clips = MANIFESTS.map((manifest) => danceClip(dir, manifest, rig, torso));
+    const inputNames = MANIFESTS.flatMap((m) => [m.take, m.upper]).flatMap((take) =>
+        take ? [take.skeleton, take.motion] : [],
+    );
+    const inputs = await loadInputs(inputNames, dir ? directorySource(resolve(dir)) : (name) => fetchVerified(name));
+    console.log(
+        `inputs verified (${dir ? `read from ${resolve(dir)}` : 'downloaded into memory'}): ${[...inputs.keys()].join(', ')}`,
+    );
+    const clips = MANIFESTS.map((manifest) => danceClip(inputs, manifest, rig, torso));
     const nodeNames = [...new Set(clips.flatMap((clip) => [...clip.quaternions.keys()]))];
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, writeAnimationGlb(clips, nodeNames));

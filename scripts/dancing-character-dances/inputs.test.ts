@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { pinnedHash, readVerified, sha256Of, verifyBytes } from './inputs';
+import { directorySource, fetchVerified, loadInputs, pinnedHash, readVerified, sha256Of, verifyBytes } from './inputs';
 import { CMU_FILES, cmuUrl, evenBeats } from './manifests';
 
 const bytes = new TextEncoder().encode('abc');
@@ -24,9 +24,46 @@ describe('input verification', () => {
     it('refuses a file whose content is not the pinned one and one that is missing', () => {
         const dir = mkdtempSync(join(tmpdir(), 'cmu-test-'));
         try {
-            expect(() => readVerified(dir, '55.asf')).toThrow(/is missing; run the fetch script/);
+            expect(() => readVerified(dir, '55.asf')).toThrow(/is missing; run the build without an input directory/);
             writeFileSync(join(dir, '55.asf'), 'not the real file');
             expect(() => readVerified(dir, '55.asf')).toThrow(/sha256 is/);
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('downloads into memory, rejects bytes that do not match the pin and reports a failed request', async () => {
+        const requested: string[] = [];
+        const serve = (body: string, status = 200): typeof fetch =>
+            ((url: string) => {
+                requested.push(url);
+                return Promise.resolve(new Response(body, { status }));
+            }) as unknown as typeof fetch;
+        const pins = CMU_FILES as Record<string, { sha256: string }>;
+        const original = pins['55.asf'].sha256;
+        pins['55.asf'].sha256 = ABC;
+        try {
+            await expect(fetchVerified('55.asf', serve('abc'))).resolves.toEqual(Buffer.from('abc'));
+            await expect(fetchVerified('55.asf', serve('tampered'))).rejects.toThrow(/sha256 is/);
+            await expect(fetchVerified('55.asf', serve('', 404))).rejects.toThrow(/55\.asf: HTTP 404/);
+        } finally {
+            pins['55.asf'].sha256 = original;
+        }
+        expect(requested).toEqual(Array(3).fill('http://mocap.cs.cmu.edu/subjects/55/55.asf'));
+    });
+
+    it('loads each input once and reads a local directory through the same verification', async () => {
+        const calls: string[] = [];
+        const inputs = await loadInputs(['a', 'b', 'a'], (name) => {
+            calls.push(name);
+            return Promise.resolve(Buffer.from(name));
+        });
+        expect(calls).toEqual(['a', 'b']);
+        expect([...inputs.keys()]).toEqual(['a', 'b']);
+        const dir = mkdtempSync(join(tmpdir(), 'cmu-test-'));
+        try {
+            writeFileSync(join(dir, '55.asf'), 'not the real file');
+            await expect(directorySource(dir)('55.asf')).rejects.toThrow(/sha256 is/);
         } finally {
             rmSync(dir, { recursive: true, force: true });
         }
