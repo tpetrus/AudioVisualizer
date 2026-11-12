@@ -1,19 +1,23 @@
 // Builds the four dance clips from the CMU motion-capture files and writes
-// app/features/visualizers/dancing-character/assets/MakeHumanDances.glb (clips lambada, twist, cabbage-patch, salsa).
+// app/features/visualizers/dancing-character/assets/MakeHumanDances.glb (clips lambada, twist, cabbage-patch, salsa), or
+// the same clips retargeted onto any character GLB that follows contract C-BONES (see build-args.ts) with --model.
 // Run (from the repository root):
 //   npx esbuild scripts/dancing-character-dances/build.ts --bundle --platform=node --format=esm --packages=external
-//     --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs [<input-dir>] [--out <file>] [--approved <SpikeDances.glb>]
+//     --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs [<input-dir>] [--model <character.glb>] [--out <file>] [--approved <SpikeDances.glb>]
 // Without <input-dir> the CMU inputs (about 25 MB) are downloaded into memory on every run and never written to disk; with
 // it they are read from that local directory instead. Either way every input is verified against its pinned sha256
 // before it is parsed. The output is deterministic (two runs are byte-identical). The built file is loaded back with
 // GLTFLoader and checked against the hard rules of docs/plans/natural-dance/contracts.md (C2, Amendments 3 and 4); the 40 ms
 // contact rule is printed as warnings. With --approved the clips are also compared with the clips approved in the S0g
 // spike (lambada=55_02_loop, twist=15_04_twist_soft_loop, cabbage-patch=15_04_cabbage_loop, salsa=60_02_grounded_loop).
+// --model defaults to the MakeHuman model; for another character the output defaults to dances.glb beside it, and
+// --approved is skipped (the approved clips were cut for MakeHuman only).
 // Exits non-zero on any hard failure or when a clip differs from its approved one.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { Matrix4 } from 'three';
+import { missingBones, parseBuildArgs } from './build-args';
 import { scaleAmplitude } from './amplitude';
 import { parseAmc, parseAsf } from './acclaim';
 import { buildTorso, clearArms } from './clearance';
@@ -30,9 +34,6 @@ import { retarget } from './retarget';
 import { loadGlb, loadTargetRig } from './rig';
 import type { TargetRig } from './rig';
 import { REPRODUCTION_MAX_DEGREES, REPRODUCTION_MAX_METERS, compareClips, validateClip } from './validate';
-
-const MODEL = resolve('app/features/visualizers/dancing-character/assets/MakeHumanDancer.glb');
-const OUTPUT = resolve('app/features/visualizers/dancing-character/assets/MakeHumanDances.glb');
 
 // The approved spike clip each dance has to reproduce.
 const APPROVED_CLIP: Record<string, string> = {
@@ -96,20 +97,17 @@ function danceClip(inputs: ReadonlyMap<string, Buffer>, manifest: DanceManifest,
 }
 
 async function main(): Promise<void> {
-    const args = process.argv.slice(2);
-    const option = (name: string): string | undefined => {
-        const at = args.indexOf(name);
-        return at < 0 ? undefined : args[at + 1];
-    };
-    const flagged = new Set(['--out', '--approved'].flatMap((name) => [name, option(name)]));
-    const dir = args.find((a) => !flagged.has(a));
-    const out = resolve(option('--out') ?? OUTPUT);
-    const approvedPath = option('--approved');
+    const { dir, model, out, defaultModel, approved: requested } = parseBuildArgs(process.argv.slice(2));
+    // The approved clips were cut for MakeHuman, so comparing another character with them would only report noise.
+    const approvedPath = defaultModel ? requested : undefined;
+    if (requested && !defaultModel) console.log('--approved skipped: it only applies to the default MakeHuman model');
 
-    const rig = await loadTargetRig(MODEL);
+    const rig = await loadTargetRig(model);
+    const missing = missingBones(rig.byName.keys());
+    if (missing.length > 0) throw new Error(`${model} lacks the C-BONES bones: ${missing.join(', ')}`);
     const root = rig.byName.get('root');
     if (!root?.parent || !root.parent.matrixWorld.equals(new Matrix4())) {
-        throw new Error('the root bone is expected to sit directly under an identity parent');
+        throw new Error(`${model}: the root bone must sit directly under a parent with an identity transform`);
     }
     const torso = buildTorso(rig);
     const inputNames = MANIFESTS.flatMap((m) => [m.take, m.upper]).flatMap((take) =>
