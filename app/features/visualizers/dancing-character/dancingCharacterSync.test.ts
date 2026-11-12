@@ -90,7 +90,11 @@ function simulate(options: {
     out?: DanceTimingResult;
     clipPhase?: number;
     time?: number;
+    clipBeats?: number;
 }) {
+    const clipBeats = options.clipBeats ?? CLIP_BEATS;
+    // A clip lasts its beats at the native tempo; the scene advances it by timeScale and the nudge in loop fractions.
+    const clipDuration = (clipBeats * 60) / NATIVE_BPM;
     const state = options.state ?? createDanceTimingState();
     const out = options.out ?? createDanceTimingResult();
     let clipPhase = options.clipPhase ?? options.startClipPhase ?? 0;
@@ -104,15 +108,62 @@ function simulate(options: {
         const beats = time * (options.bpm / 60) + (options.startBeat ?? 0);
         if (keepBeat) rhythm.beatPhase = beats - Math.floor(beats);
         if (keepBar) rhythm.barPhase = beats / 4 - Math.floor(beats / 4);
-        step(rhythm, state, out, { clipPhase, danceSpeed: options.danceSpeed });
+        step(rhythm, state, out, { clipPhase, danceSpeed: options.danceSpeed, clipBeats });
         maxNudgeRatio = Math.max(maxNudgeRatio, Math.abs(out.phaseNudge) / (MAX_PHASE_NUDGE_PER_SECOND * DT));
-        const delta = (out.timeScale * DT) / DANCE_CLIP_DURATION + out.phaseNudge;
+        const delta = (out.timeScale * DT) / clipDuration + out.phaseNudge;
         clipPhase = (clipPhase + delta + 1) % 1;
         advanced = delta;
         time += DT;
     }
     return { state, out, clipPhase, time, maxNudgeRatio, rhythm, advanced };
 }
+
+// The eight-beat dances (lambada, twist) run on the same timing as the four-beat ones: the clip is two bars long, so the
+// bar position is compared modulo a bar and one loop takes twice as long.
+describe('computeDanceTiming with an eight-beat clip', () => {
+    const EIGHT = 8;
+
+    // (160 BPM folds to 80 and runs at half time, where the real bars cannot hold a loop on one position, as the 174 BPM case above.)
+    it.each([80, 100, 120, 140, 150])('converges the loop start to the bar line at %s BPM', (bpm) => {
+        const { out, clipPhase, time, maxNudgeRatio } = simulate({
+            bpm,
+            seconds: 40,
+            startClipPhase: 0.37,
+            clipBeats: EIGHT,
+        });
+        expect(out.barLocked).toBe(true);
+        // Above 140 BPM the steps halve (the dancer never dances faster than MAX_DANCE_BPM), so a loop spans two bars.
+        const multiple = bpm > MAX_DANCE_BPM ? 0.5 : 1;
+        const barsPerLoop = EIGHT / (4 * multiple);
+        const beats = time * (bpm / 60);
+        const barPhase = beats / 4 - Math.floor(beats / 4);
+        const position = clipPhase * barsPerLoop;
+        expect(Math.abs(wrapSigned(barPhase - (position - Math.floor(position))))).toBeLessThan(0.02);
+        expect(maxNudgeRatio).toBeLessThanOrEqual(1 + 1e-9);
+    });
+
+    it.each([80, 100, 120, 140, 160])('scales the speed with the tempo at %s BPM: a loop takes 8 beats', (bpm) => {
+        const { out } = simulate({ bpm, seconds: 12, clipBeats: EIGHT });
+        const multiple = bpm > MAX_DANCE_BPM ? 0.5 : 1;
+        expect(out.timeScale).toBeCloseTo((bpm / NATIVE_BPM) * multiple, 2);
+        // One native loop of 8 beats lasts 4 s; at this time scale it lasts 8 beats at the music's pace.
+        const loopSeconds = (EIGHT * 60) / NATIVE_BPM / out.timeScale;
+        expect(loopSeconds).toBeCloseTo((EIGHT * 60) / bpm / multiple, 1);
+    });
+
+    it('keeps the loop-fraction nudge per second limited as for four beats', () => {
+        const out = createDanceTimingResult();
+        step(makeRhythm({ barPhase: 0.5 }), createDanceTimingState(), out, { dt: 0.1, clipBeats: EIGHT });
+        expect(out.phaseNudge).toBeCloseTo(MAX_PHASE_NUDGE_PER_SECOND * 0.1, 12);
+    });
+
+    it('compares the bar position, not the loop position, so the second bar of the loop is on the bar line too', () => {
+        const out = createDanceTimingResult();
+        // Clip phase 0.5 is the start of bar two of two; the music is at the start of a bar: no error.
+        step(makeRhythm({ barPhase: 0 }), createDanceTimingState(), out, { clipPhase: 0.5, clipBeats: EIGHT });
+        expect(out.phaseNudge).toBeCloseTo(0, 12);
+    });
+});
 
 describe('snapStepMultiple', () => {
     it('snaps to the nearest of 0.5 and 1', () => {

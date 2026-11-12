@@ -6,19 +6,22 @@ import { createRhythmState } from '~/features/rhythm/types';
 import type { RhythmState } from '~/features/rhythm/types';
 import { dancingCharacterControls, type DancingCharacterSettings } from './dancingCharacterControls';
 import {
-    ACCENT_EASE_SECONDS,
+    AUTO_DANCE,
+    CALM_DANCE_ID,
     CALM_DANCE_WEIGHT,
     CALM_TIME_SCALE,
     CAMERA_ELEVATION,
-    DANCE_CLIP_BEATS,
-    DANCE_CLIP_DURATION,
+    DANCE_CLOCK_SECONDS,
     DANCE_REQUIRED_BONES,
+    DANCES,
+    type DanceId,
     FADE_IN_SECONDS,
     CLUB_BACKGROUND,
     CLUB_REDUCED_MOTION_FLASH_STRENGTH,
     DOLLY_MAX_FRACTION,
     NOMINAL_CHARACTER_SIZE,
 } from './dancingCharacterConfig';
+import { pickDances } from './dancingCharacterAssets';
 import { ClubSet } from './dancingCharacterClub';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
 
@@ -84,15 +87,41 @@ function makeModel(boneNames: readonly string[] = DANCE_REQUIRED_BONES): {
     return { model, materials };
 }
 
-// The base action's loop position (0..1), read from the scene so the tests need not decode a pose.
-function actions(dancing: DancingCharacterScene): {
-    baseAction: THREE.AnimationAction | null;
-    accentAction: THREE.AnimationAction | null;
-} {
-    return dancing as unknown as {
-        baseAction: THREE.AnimationAction | null;
-        accentAction: THREE.AnimationAction | null;
-    };
+// Synthetic dances: one clip per registered dance, as long as the dance says, moving the root bone up by a distinct
+// height, so no GLB is needed to tell which clip is playing. `ids` leaves the others out.
+function makeDances(ids: readonly DanceId[] = DANCES.map((dance) => dance.id)): Map<DanceId, THREE.AnimationClip> {
+    const dances = new Map<DanceId, THREE.AnimationClip>();
+    for (const dance of DANCES) {
+        if (!ids.includes(dance.id)) continue;
+        const height = 0.01 * (DANCES.indexOf(dance) + 1);
+        const track = new THREE.VectorKeyframeTrack(
+            'root.position',
+            [0, (dance.beats * 0.5) / 2, dance.beats * 0.5],
+            [0, 0, 0, 0, height, 0, 0, 0, 0],
+        );
+        dances.set(dance.id, new THREE.AnimationClip(dance.id, dance.beats * 0.5, [track]));
+    }
+    return dances;
+}
+
+// The scene's private dance state, read so the tests need not decode a pose.
+interface DanceInternals {
+    danceActions: THREE.AnimationAction[];
+    danceIds: DanceId[];
+    danceTime: number;
+    activeIndex: number;
+}
+function inner(dancing: DancingCharacterScene): DanceInternals {
+    return dancing as unknown as DanceInternals;
+}
+// The action of a dance, by id.
+function actionOf(dancing: DancingCharacterScene, id: DanceId): THREE.AnimationAction {
+    const i = inner(dancing).danceIds.indexOf(id);
+    return inner(dancing).danceActions[i];
+}
+function weightsOf(dancing: DancingCharacterScene): Record<string, number> {
+    const { danceIds, danceActions } = inner(dancing);
+    return Object.fromEntries(danceIds.map((id, i) => [id, danceActions[i].weight]));
 }
 
 // A rhythm the dance locks to: 120 BPM with a confident 4/4 meter at the given bar position.
@@ -107,8 +136,9 @@ function lockedRhythm(barPhase: number): RhythmState {
     return rhythm;
 }
 
+// Where the shared clock is within its longest clip (0..1): the 8-beat dance's loop position.
 function clipPhase(dancing: DancingCharacterScene): number {
-    return actions(dancing).baseAction!.time / DANCE_CLIP_DURATION;
+    return inner(dancing).danceTime / DANCE_CLOCK_SECONDS;
 }
 
 function wrapSigned(delta: number): number {
@@ -200,7 +230,7 @@ describe('setCharacter', () => {
     it.each([16 / 9, 9 / 16])('centers the model at the origin and frames it fully at aspect %f', (aspect) => {
         const { scene, camera, dancing } = setup({ autoOrbit: false }, aspect);
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         expect(scene.children).toContain(model);
         // Run past the fade-in so the model is full size.
         run(dancing, 12, () => makeFrame({ dt: 0.1, settings: settings({ autoOrbit: false }) }));
@@ -213,7 +243,7 @@ describe('setCharacter', () => {
     it('frames the model at every orbit angle with the real camera pose from update', () => {
         const { camera, dancing } = setup({ autoOrbit: true, orbitSpeed: 2 });
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         for (let i = 0; i < 200; i++) {
             dancing.update(makeFrame({ dt: 0.05, settings: settings({ autoOrbit: true, orbitSpeed: 2 }) }));
             if (i > 15) expectBoxInView(modelBox(model), camera);
@@ -225,7 +255,7 @@ describe('setCharacter', () => {
         const { model } = makeModel();
         const floor = scene.children.find((child) => (child as THREE.InstancedMesh).isInstancedMesh)!;
         const before = floor.position.y;
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         // The makeModel rig is 3 m tall, taller than the nominal dancer, so the feet move down.
         expect(floor.position.y).toBeLessThan(before);
         expect(floor.position.y).toBeGreaterThan(-3);
@@ -235,7 +265,7 @@ describe('setCharacter', () => {
     it('clones the materials, so the input model keeps its colors, and tints Skin only', () => {
         const { dancing } = setup({ bodyColor: '#ff0000' });
         const { model, materials } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#ff0000' }) }));
 
         const used = new Map<string, THREE.MeshStandardMaterial>();
@@ -259,7 +289,7 @@ describe('setCharacter', () => {
     it('does not compound the body color and returns to the original when set back to white', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#808080' }) }));
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#ffffff' }) }));
         const main = (model.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
@@ -270,18 +300,17 @@ describe('setCharacter', () => {
         const { dancing } = setup();
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#00ff00' }) }));
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#00ff00' }) }));
         const main = (model.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial;
         expect(main.color.r).toBeCloseTo(0);
     });
 
-    it('keeps the rest pose, without a mixer, when the rig lacks a bone the dance drives', () => {
+    it('keeps the rest pose, without a mixer, when no dance loaded', () => {
         const { dancing } = setup();
-        const still = makeModel(DANCE_REQUIRED_BONES.filter((name) => name !== 'head'));
+        const still = makeModel();
         dancing.setCharacter(still.model);
-        expect(actions(dancing).baseAction).toBeNull();
-        expect(actions(dancing).accentAction).toBeNull();
+        expect(inner(dancing).danceActions).toHaveLength(0);
         const root = still.model.getObjectByName('root')!;
         const rest = root.position.clone();
         run(dancing, 30, () => makeFrame({ rhythm: lockedRhythm(0.3) }));
@@ -296,14 +325,14 @@ describe('setCharacter', () => {
         const model = new THREE.Group();
         const basic = new THREE.MeshBasicMaterial({ name: 'Skin' });
         model.add(new THREE.Mesh(new THREE.BoxGeometry(), basic), new THREE.Group());
-        expect(() => dancing.setCharacter(model)).not.toThrow();
+        expect(() => dancing.setCharacter(model, makeDances())).not.toThrow();
         dancing.update(makeFrame({ settings: settings({ bodyColor: '#ff0000' }) }));
     });
 
     it('fades the model in over FADE_IN_SECONDS', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         expect(model.scale.y).toBeLessThan(0.01);
         run(dancing, 3, () => makeFrame({ dt: FADE_IN_SECONDS / 6 }));
         expect(model.scale.y).toBeGreaterThan(0.01);
@@ -317,12 +346,12 @@ describe('setCharacter', () => {
         const first = makeModel();
         const bodyGeometry = (first.model.children[0] as THREE.Mesh).geometry;
         const disposeGeometry = vi.spyOn(bodyGeometry, 'dispose');
-        dancing.setCharacter(first.model);
+        dancing.setCharacter(first.model, makeDances());
         const clonedMaterial = (first.model.children[0] as THREE.Mesh).material as THREE.Material;
         const disposeMaterial = vi.spyOn(clonedMaterial, 'dispose');
 
         const second = makeModel();
-        dancing.setCharacter(second.model);
+        dancing.setCharacter(second.model, makeDances());
         expect(disposeGeometry).toHaveBeenCalled();
         expect(disposeMaterial).toHaveBeenCalled();
         expect(scene.children).not.toContain(first.model);
@@ -387,7 +416,7 @@ describe('dance', () => {
     it('advances the clip with an unknown tempo (no freeze)', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         const before = clipPhase(dancing);
         run(dancing, 30, () => makeFrame());
         expect(clipPhase(dancing)).not.toBe(before);
@@ -396,7 +425,7 @@ describe('dance', () => {
     it('converges the beat slot to the beat phase with a confident locked rhythm', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         const rhythm: RhythmState = createRhythmState();
         rhythm.bpm = 120;
         rhythm.tempoConfidence = 0.5;
@@ -408,8 +437,8 @@ describe('dance', () => {
             rhythm.beatPhase = (time * 2 + 0.37) % 1;
             dancing.update(makeFrame({ rhythm, dt, settings: settings({ autoOrbit: false }) }));
         }
-        // 120 BPM normalizes to itself and is the native tempo; one loop is four beats.
-        const slot = (clipPhase(dancing) * DANCE_CLIP_BEATS) % 1;
+        // 120 BPM normalizes to itself and is the native tempo; the calm dance's loop is eight beats.
+        const slot = (clipPhase(dancing) * 8) % 1;
         expect(Math.abs(wrapSigned(slot - (rhythm.beatPhase ?? 0)))).toBeLessThan(0.05);
     });
 
@@ -422,7 +451,7 @@ describe('dance', () => {
         rhythm.tempoConfidence = 0.5;
         rhythm.beatPhase = 0.5;
         const { model } = makeModel();
-        fast.dancing.setCharacter(model);
+        fast.dancing.setCharacter(model, makeDances());
         run(fast.dancing, 600, () => makeFrame({ rhythm }));
         const unwrapped = (camera: THREE.PerspectiveCamera) => Math.abs(azimuthOf(camera));
         expect(unwrapped(fast.camera)).not.toBeCloseTo(unwrapped(unknown.camera), 3);
@@ -431,124 +460,234 @@ describe('dance', () => {
     it('clamps huge frame steps', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         dancing.update(makeFrame({ dt: 100 }));
         expect(clipPhase(dancing)).toBeLessThan(0.1);
         dancing.update(makeFrame({ dt: -1 }));
     });
 });
 
-describe('dance layers', () => {
+describe('dances', () => {
     const lockedButNoBar = (): RhythmState => {
         const rhythm = lockedRhythm(0.3);
         rhythm.meterConfidence = 0;
         return rhythm;
     };
+    const noOrbit = () => settings({ autoOrbit: false });
 
-    function loaded(rhythm: () => RhythmState, frames: number) {
+    function loaded(ids?: readonly DanceId[]) {
         const rig = setup({ autoOrbit: false });
         const { model } = makeModel();
-        rig.dancing.setCharacter(model);
-        const layers = actions(rig.dancing);
-        run(rig.dancing, frames, () => makeFrame({ rhythm: rhythm(), settings: settings({ autoOrbit: false }) }));
-        return { ...rig, base: layers.baseAction!, accent: layers.accentAction! };
+        rig.dancing.setCharacter(model, makeDances(ids));
+        return { ...rig, model };
     }
 
-    it('plays both actions together, looping', () => {
-        const { dancing } = setup();
-        const { model } = makeModel();
-        dancing.setCharacter(model);
-        const { baseAction, accentAction } = actions(dancing);
-        for (const action of [baseAction!, accentAction!]) {
+    // An unlocked 120 BPM rhythm whose beat count follows `frame` (a beat every 30 frames): every fourth beat is a bar
+    // line for the director.
+    function ticking(frame: number, songChangeCount = 0): RhythmState {
+        const rhythm = createRhythmState();
+        rhythm.beatCount = Math.floor(frame / 30);
+        rhythm.songChangeCount = songChangeCount;
+        return rhythm;
+    }
+
+    function step(dancing: DancingCharacterScene, frame: number, selection?: string, songs = 0): void {
+        dancing.update(makeFrame({ rhythm: ticking(frame, songs), settings: noOrbit(), danceSelection: selection }));
+    }
+
+    it('plays every loaded dance as a looping action, the calm one at full weight', () => {
+        const { dancing } = loaded();
+        expect(inner(dancing).danceActions).toHaveLength(DANCES.length);
+        for (const action of inner(dancing).danceActions) {
             expect(action.loop).toBe(THREE.LoopRepeat);
             expect(action.isRunning()).toBe(true);
         }
-        expect(accentAction!.getClip().blendMode).toBe(THREE.AdditiveAnimationBlendMode);
-        expect(baseAction!.weight).toBe(CALM_DANCE_WEIGHT);
-        expect(accentAction!.weight).toBe(0);
+        expect(inner(dancing).danceIds).toEqual(DANCES.map((dance) => dance.id));
+        expect(weightsOf(dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
+        expect(CALM_DANCE_ID).toBe('lambada');
     });
 
-    it('follows the dance weight on the base: a gentle bounce while the tempo is unknown, full while locked', () => {
-        const calm = loaded(() => createRhythmState(), 300);
-        expect(calm.base.weight).toBeCloseTo(CALM_DANCE_WEIGHT, 2);
-        const locked = loaded(lockedButNoBar, 300);
-        expect(locked.base.weight).toBeCloseTo(1, 2);
+    it('starts on the first loaded dance when the calm one is missing', () => {
+        const { dancing } = loaded(['salsa', 'twist']);
+        expect(inner(dancing).danceIds).toEqual(['twist', 'salsa']);
+        expect(weightsOf(dancing)).toEqual({ twist: 1, salsa: 0 });
     });
 
-    it('shows no accents unless the bar is locked', () => {
-        expect(loaded(() => createRhythmState(), 300).accent.weight).toBe(0);
-        expect(loaded(lockedButNoBar, 300).accent.weight).toBe(0);
+    it('keeps the full pose weight in the calm state: the dance never blends toward the rest pose', () => {
+        const { dancing } = loaded();
+        run(dancing, 300, () => makeFrame({ settings: noOrbit() }));
+        expect(weightsOf(dancing).lambada).toBe(1);
+        // The club still follows the dance weight, which eases toward its calm value.
+        expect(dancing.timingState.danceWeight).toBeCloseTo(CALM_DANCE_WEIGHT, 2);
+        run(dancing, 300, () => makeFrame({ rhythm: lockedButNoBar(), settings: noOrbit() }));
+        expect(weightsOf(dancing).lambada).toBe(1);
+        expect(dancing.timingState.danceWeight).toBeCloseTo(1, 2);
     });
 
-    it('eases the accents in toward the dance weight once the bar is locked, and back out when it is lost', () => {
-        const rig = setup({ autoOrbit: false });
-        const { model } = makeModel();
-        rig.dancing.setCharacter(model);
-        const { baseAction, accentAction } = actions(rig.dancing);
-        const frame = (rhythm: RhythmState) => makeFrame({ rhythm, settings: settings({ autoOrbit: false }) });
-
-        // Lock the tempo first so the dance weight is already 1.
-        run(rig.dancing, 300, () => frame(lockedButNoBar()));
-        expect(baseAction!.weight).toBeCloseTo(1, 2);
-
-        // One time constant gets about 63 percent of the way, never a jump.
-        run(rig.dancing, Math.round(ACCENT_EASE_SECONDS * 60), () => frame(lockedRhythm(0.3)));
-        expect(accentAction!.weight).toBeGreaterThan(0.5);
-        expect(accentAction!.weight).toBeLessThan(0.75);
-        let previous = accentAction!.weight;
-        for (let i = 0; i < 300; i++) {
-            rig.dancing.update(frame(lockedRhythm(0.3)));
-            expect(accentAction!.weight).toBeGreaterThanOrEqual(previous);
-            expect(accentAction!.weight).toBeLessThanOrEqual(baseAction!.weight + 1e-9);
-            previous = accentAction!.weight;
+    it('reads every action from one clock: time modulo the clip length, wrapping at the longest clip', () => {
+        const { dancing } = loaded();
+        for (let frame = 0; frame < 600; frame++) {
+            dancing.update(makeFrame({ rhythm: lockedRhythm(((frame / 60) * 0.7 + 0.3) % 1), settings: noOrbit() }));
+            const clock = inner(dancing).danceTime;
+            expect(clock).toBeGreaterThanOrEqual(0);
+            expect(clock).toBeLessThan(DANCE_CLOCK_SECONDS);
+            for (const dance of DANCES) {
+                const length = dance.beats * 0.5;
+                expect(actionOf(dancing, dance.id).time).toBeCloseTo(clock % length, 9);
+            }
         }
-        expect(accentAction!.weight).toBeCloseTo(baseAction!.weight, 2);
-
-        // Losing the bar fades them out without leaving the tempo lock.
-        run(rig.dancing, 300, () => frame(lockedButNoBar()));
-        expect(accentAction!.weight).toBeLessThan(0.01);
-        expect(baseAction!.weight).toBeCloseTo(1, 2);
     });
 
-    it('restartDance puts both actions back at the start and forgets the locks, keeping the weight', () => {
-        const { dancing, base, accent } = loaded(() => lockedRhythm(0.3), 90);
+    it('switches to a chosen dance only on the next bar line, and fades over one beat', () => {
+        const { dancing } = loaded();
+        // Four beats (120 frames) of the first bar: nothing switches before the bar line, wherever the choice comes in.
+        for (let frame = 0; frame < 119; frame++) step(dancing, frame, frame < 10 ? CALM_DANCE_ID : 'salsa');
+        expect(weightsOf(dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
+
+        // The fade begins on the fourth beat, and weights always sum to 1, rising and falling steadily over 30 frames.
+        let previous = 0;
+        let frame = 119;
+        for (let i = 0; i < 40; i++, frame++) {
+            step(dancing, frame, 'salsa');
+            const weights = weightsOf(dancing);
+            expect(weights.lambada + weights.salsa).toBeCloseTo(1, 9);
+            expect(weights.twist + weights['cabbage-patch']).toBe(0);
+            expect(weights.salsa).toBeGreaterThanOrEqual(previous);
+            previous = weights.salsa;
+            // Finished within a beat (30 frames of 1/60 s at time scale 1), not before.
+            if (i === 10) expect(weights.salsa).toBeGreaterThan(0.2);
+            if (i === 10) expect(weights.salsa).toBeLessThan(0.5);
+        }
+        expect(weightsOf(dancing)).toEqual({ lambada: 0, twist: 0, 'cabbage-patch': 0, salsa: 1 });
+    });
+
+    it('fades over 0.5 s of clip time: 30 frames at time scale 1, the 1 s cap at the slowest speed', () => {
+        const fadeFrames = (danceSpeed: number) => {
+            const rig = setup({ autoOrbit: false, danceSpeed });
+            rig.dancing.setCharacter(makeModel().model, makeDances());
+            const values = settings({ autoOrbit: false, danceSpeed });
+            let count = 0;
+            for (let frame = 0; frame < 400; frame++) {
+                rig.dancing.update(makeFrame({ rhythm: ticking(frame), settings: values, danceSelection: 'salsa' }));
+                const weight = weightsOf(rig.dancing).salsa;
+                if (weight > 0 && weight < 1) count++;
+            }
+            return count;
+        };
+        expect(Math.abs(fadeFrames(1) - 30)).toBeLessThanOrEqual(1);
+        expect(Math.abs(fadeFrames(0.5) - 60)).toBeLessThanOrEqual(2);
+    });
+
+    it('keeps the phase continuous across a switch between a 4-beat and an 8-beat dance, and back', () => {
+        const { dancing } = loaded();
+        const times: number[] = [];
+        const record = (): void => {
+            // Position inside the bar (2 s) read from whichever clip is at full weight (a fade reads both).
+            const { danceIds, danceActions } = inner(dancing);
+            for (let i = 0; i < danceIds.length; i++) {
+                if (danceActions[i].weight > 0) {
+                    expect(danceActions[i].time % 2).toBeCloseTo(inner(dancing).danceTime % 2, 9);
+                }
+            }
+            times.push(inner(dancing).danceTime);
+        };
+        let frame = 0;
+        // 8 -> 4 beats (lambada to salsa), then back (salsa to lambada), each on a bar line.
+        for (; frame < 125; frame++) {
+            step(dancing, frame, 'salsa');
+            record();
+        }
+        expect(weightsOf(dancing).lambada).toBeLessThan(1);
+        for (; frame < 245; frame++) {
+            step(dancing, frame, CALM_DANCE_ID);
+            record();
+        }
+        expect(weightsOf(dancing).lambada).toBeGreaterThan(0);
+        for (; frame < 300; frame++) {
+            step(dancing, frame, CALM_DANCE_ID);
+            record();
+        }
+        expect(weightsOf(dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
+        // At time scale 1 the clock advanced by exactly one frame every frame, switches included, wrapping at 4 s.
+        for (let i = 1; i < times.length; i++) {
+            const delta = (times[i] - times[i - 1] + DANCE_CLOCK_SECONDS) % DANCE_CLOCK_SECONDS;
+            expect(delta).toBeCloseTo(1 / 60, 9);
+        }
+    });
+
+    it('rotates to the next dance in Auto after a song change, on the next bar line', () => {
+        const { dancing } = loaded();
+        for (let frame = 0; frame < 60; frame++) step(dancing, frame, AUTO_DANCE);
+        // The song changes mid-bar: nothing moves until the bar line at frame 120.
+        for (let frame = 60; frame < 119; frame++) step(dancing, frame, undefined, 1);
+        expect(weightsOf(dancing).lambada).toBe(1);
+        for (let frame = 119; frame < 160; frame++) step(dancing, frame, undefined, 1);
+        expect(weightsOf(dancing)).toEqual({ lambada: 0, twist: 1, 'cabbage-patch': 0, salsa: 0 });
+    });
+
+    it('counts a locked meter by downbeats', () => {
+        const { dancing } = loaded();
+        const frameAt = (downbeats: number) => {
+            const rhythm = lockedRhythm(0.5);
+            rhythm.downbeatCount = downbeats;
+            dancing.update(makeFrame({ rhythm, settings: noOrbit(), danceSelection: 'twist' }));
+        };
+        frameAt(0);
+        frameAt(0);
+        expect(weightsOf(dancing).twist).toBe(0);
+        frameAt(1);
+        frameAt(1);
+        expect(weightsOf(dancing).twist).toBeGreaterThan(0);
+    });
+
+    it('restartDance rewinds the clock and the director, keeping the dance, the weights and the dance weight', () => {
+        const { dancing } = loaded();
+        run(dancing, 90, () => makeFrame({ rhythm: lockedRhythm(0.3), settings: noOrbit(), danceSelection: 'salsa' }));
         const weight = dancing.timingState.danceWeight;
-        expect(base.time).toBeGreaterThan(0);
+        const weights = weightsOf(dancing);
+        expect(inner(dancing).danceTime).toBeGreaterThan(0);
         expect(dancing.timingState.locked).toBe(true);
 
         dancing.restartDance();
 
-        expect(base.time).toBe(0);
-        expect(accent.time).toBe(0);
+        expect(inner(dancing).danceTime).toBe(0);
+        for (const action of inner(dancing).danceActions) expect(action.time).toBe(0);
+        expect(weightsOf(dancing)).toEqual(weights);
         expect(dancing.timingState.locked).toBe(false);
         expect(dancing.timingState.timeScale).toBe(CALM_TIME_SCALE);
         expect(dancing.timingState.danceWeight).toBe(weight);
     });
 
-    it('restartDance does nothing to a scene without a rig', () => {
+    it('restartDance does nothing to a scene without dances', () => {
         const { dancing } = setup();
         expect(() => dancing.restartDance()).not.toThrow();
+        const bare = setup();
+        bare.dancing.setCharacter(makeModel().model, new Map());
+        expect(() => bare.dancing.restartDance()).not.toThrow();
     });
 
-    it('keeps both actions at the same time through phase nudges and wraps', () => {
+    it('renders and frames a model with an empty dance map, in its rest pose, ignoring the selection', () => {
         const rig = setup({ autoOrbit: false });
         const { model } = makeModel();
-        rig.dancing.setCharacter(model);
-        const { baseAction, accentAction } = actions(rig.dancing);
-        let time = 0;
-        for (let i = 0; i < 600; i++) {
-            time += 1 / 60;
-            // A bar that runs at a different pace than the clip, so nudges of both signs happen.
-            const rhythm = lockedRhythm((time * 0.7 + 0.3) % 1);
-            rig.dancing.update(makeFrame({ rhythm, settings: settings({ autoOrbit: false }) }));
-            expect(accentAction!.time).toBe(baseAction!.time);
-            expect(baseAction!.time).toBeGreaterThanOrEqual(0);
-            expect(baseAction!.time).toBeLessThan(DANCE_CLIP_DURATION);
-        }
+        const root = model.getObjectByName('root')!;
+        const rest = root.position.toArray();
+        rig.dancing.setCharacter(model, new Map());
+        run(rig.dancing, 120, () =>
+            makeFrame({ rhythm: lockedRhythm(0.3), settings: noOrbit(), danceSelection: 'salsa' }),
+        );
+        expect(root.position.toArray()).toEqual(rest);
+        expect(model.scale.y).toBeGreaterThan(0.5);
+        expect(() => rig.dancing.dispose()).not.toThrow();
     });
 
-    it('re-samples the framing box from the dance with both layers at full weight, then restores the weights', () => {
-        const seen: { base: number; accent: number }[] = [];
+    it('takes the first dance of a partial map and never fades to one that did not load', () => {
+        const { dancing } = loaded(['cabbage-patch']);
+        for (let frame = 0; frame < 300; frame++) step(dancing, frame, 'twist');
+        expect(weightsOf(dancing)).toEqual({ 'cabbage-patch': 1 });
+    });
+
+    it('measures the framing box over every clip, each alone at full weight, then restores the active dance', () => {
+        const seen: number[][] = [];
         const rig = setup();
         const { model } = makeModel();
         const original = THREE.AnimationMixer.prototype.setTime;
@@ -556,28 +695,33 @@ describe('dance layers', () => {
             this: THREE.AnimationMixer,
             time: number,
         ) {
-            const layers = actions(rig.dancing);
-            if (layers.baseAction && layers.accentAction) {
-                seen.push({ base: layers.baseAction.weight, accent: layers.accentAction.weight });
-            }
+            seen.push(inner(rig.dancing).danceActions.map((action) => action.weight));
             return original.call(this, time);
         });
-        rig.dancing.setCharacter(model);
-        const sampled = seen.filter((weights) => weights.base === 1 && weights.accent === 1);
-        expect(sampled.length).toBeGreaterThanOrEqual(32);
-        const layers = actions(rig.dancing);
-        expect(layers.baseAction!.weight).toBe(CALM_DANCE_WEIGHT);
-        expect(layers.accentAction!.weight).toBe(0);
-        expect(layers.baseAction!.time).toBe(0);
+        rig.dancing.setCharacter(model, makeDances());
+        // Four samples per beat of each clip: 8 + 8 + 4 + 4 beats.
+        expect(seen).toHaveLength(24 * 4);
+        for (const weights of seen) expect(weights.filter((weight) => weight === 1)).toHaveLength(1);
+        for (let clip = 0; clip < 4; clip++) {
+            const count = seen.filter((weights) => weights[clip] === 1).length;
+            expect(count).toBe(DANCES[clip].beats * 4);
+        }
+        expect(weightsOf(rig.dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
+        expect(inner(rig.dancing).danceTime).toBe(0);
+        expect(actionOf(rig.dancing, 'lambada').time).toBe(0);
     });
 
-    it('frees the mixer and the actions on dispose', () => {
-        const { dancing } = setup();
-        const { model } = makeModel();
-        dancing.setCharacter(model);
+    it('frees the mixer and the actions on dispose, and again when a new character replaces the first', () => {
+        const { dancing } = loaded();
         dancing.dispose();
-        expect(actions(dancing).baseAction).toBeNull();
-        expect(actions(dancing).accentAction).toBeNull();
+        expect(inner(dancing).danceActions).toHaveLength(0);
+
+        const second = setup();
+        second.dancing.setCharacter(makeModel().model, makeDances());
+        const uncache = vi.spyOn(THREE.AnimationMixer.prototype, 'uncacheRoot');
+        second.dancing.setCharacter(makeModel().model, makeDances(['salsa']));
+        expect(uncache).toHaveBeenCalledTimes(1);
+        expect(inner(second.dancing).danceIds).toEqual(['salsa']);
     });
 });
 
@@ -620,11 +764,11 @@ describe('bass', () => {
     function pulsing(overrides: Partial<DancingCharacterSettings> = {}, into = 3) {
         const rig = setup(overrides);
         const { model } = makeModel();
-        rig.dancing.setCharacter(model);
+        rig.dancing.setCharacter(model, makeDances());
         play(rig.dancing, 0, 30 * WARM_UP_BEATS + into, kickAt, overrides);
         // The same run with no kicks gives the fitted distance the camera would be at without the bass.
         const quiet = setup(overrides);
-        quiet.dancing.setCharacter(makeModel().model);
+        quiet.dancing.setCharacter(makeModel().model, makeDances());
         play(quiet.dancing, 0, 30 * WARM_UP_BEATS + into, () => 0, overrides);
         return { ...rig, model, rim: rimOf(rig.scene), rest: distanceOf(quiet.camera) };
     }
@@ -632,7 +776,7 @@ describe('bass', () => {
     it('does nothing without kicks', () => {
         const rig = setup({ autoOrbit: false });
         const { model } = makeModel();
-        rig.dancing.setCharacter(model);
+        rig.dancing.setCharacter(model, makeDances());
         play(rig.dancing, 0, 30 * WARM_UP_BEATS, () => 0, { autoOrbit: false });
         expect(model.scale.toArray()).toEqual([1, 1, 1]);
         expect(rimOf(rig.scene).intensity).toBe(rimRest());
@@ -672,7 +816,7 @@ describe('bass', () => {
 
     it('ignores a stray bass bump while no tempo is locked', () => {
         const { camera, scene, dancing } = setup({ autoOrbit: false });
-        dancing.setCharacter(makeModel().model);
+        dancing.setCharacter(makeModel().model, makeDances());
         const rim = rimOf(scene);
         run(dancing, 60, () => makeFrame({ settings: settings({ autoOrbit: false }) }));
         const rest = distanceOf(camera);
@@ -728,7 +872,7 @@ describe('dance telemetry', () => {
     it('passes its clip position to the timing and exposes the result and meter lock', () => {
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         run(dancing, 30, () => makeFrame());
         // The value given to the timing is the clip position read just before the update advanced it.
         expect(dancing.clipPhase).toBeGreaterThan(0);
@@ -803,7 +947,7 @@ describe('club', () => {
         const update = vi.spyOn(ClubSet.prototype, 'update');
         const { dancing } = setup();
         const { model } = makeModel();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         update.mockClear();
 
         dancing.update(makeFrame({ rhythm: lockedRhythm(0.3), bass: 0.8 }));
@@ -821,7 +965,7 @@ describe('club', () => {
         const update = vi.spyOn(ClubSet.prototype, 'update');
         const { dancing } = setup();
         // A model whose rig lacks the dance bones keeps its rest pose and has no mixer.
-        dancing.setCharacter(makeModel(['root']).model);
+        dancing.setCharacter(makeModel(['root']).model, new Map());
         update.mockClear();
 
         dancing.update(makeFrame({ bass: 0.2 }));
@@ -862,7 +1006,7 @@ describe('dispose', () => {
         const disposeSkeleton = vi.spyOn(skeleton, 'dispose');
         const geometries = [] as THREE.BufferGeometry[];
         const materialSpies = [] as ReturnType<typeof vi.spyOn>[];
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, makeDances());
         model.traverse((object) => {
             const mesh = object as THREE.Mesh;
             if (!mesh.isMesh) return;
@@ -923,6 +1067,13 @@ describe('real MakeHumanDancer.glb', () => {
         } finally {
             vi.unstubAllGlobals();
         }
+    }
+
+    // The real dance clips, parsed from the dances file and kept only if the loader's checks accept them.
+    async function parseDances() {
+        const file = readFileSync(new URL('./assets/MakeHumanDances.glb', import.meta.url));
+        const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
+        return pickDances((await new GLTFLoader().parseAsync(bytes, '')).animations);
     }
 
     function meshesOf(model: THREE.Group): THREE.SkinnedMesh[] {
@@ -986,15 +1137,15 @@ describe('real MakeHumanDancer.glb', () => {
         for (const spy of spies) expect(spy).toHaveBeenCalled();
     });
 
-    it('loads, dances with every layer, frames fully at both aspects and disposes', async () => {
+    it('loads, dances, frames fully at both aspects and disposes', async () => {
         for (const aspect of [16 / 9, 9 / 16]) {
             const scene = new THREE.Scene();
             const camera = makeCamera(aspect);
             const dancing = new DancingCharacterScene(scene, camera, settings());
             const model = await parse();
-            dancing.setCharacter(model);
-            expect(actions(dancing).baseAction).not.toBeNull();
-            // Past the fade-in, locked to a bar so the accents show.
+            dancing.setCharacter(model, await parseDances());
+            expect(inner(dancing).danceActions).toHaveLength(4);
+            // Past the fade-in, locked to a bar.
             run(dancing, 12, () => makeFrame({ dt: 0.1, rhythm: lockedRhythm(0.3) }));
             expect(modelBox(model).getCenter(new THREE.Vector3()).length()).toBeLessThan(0.2);
             for (let i = 0; i < 100; i++) {
@@ -1002,7 +1153,7 @@ describe('real MakeHumanDancer.glb', () => {
                 dancing.update(makeFrame({ dt: 0.05, rhythm, settings: settings({ orbitSpeed: 2 }) }));
                 expectBoxInView(modelBox(model), camera);
             }
-            expect(actions(dancing).accentAction!.weight).toBeGreaterThan(0.5);
+            expect(weightsOf(dancing)[CALM_DANCE_ID]).toBe(1);
             const names = new Set<string>();
             model.traverse((object) => {
                 const mesh = object as THREE.Mesh;
@@ -1014,10 +1165,14 @@ describe('real MakeHumanDancer.glb', () => {
         }
     });
 
-    it('has a dance that fits NOMINAL_CHARACTER_SIZE with both layers at full weight', async () => {
+    it('accepts all four real clips with the loader checks', async () => {
+        expect([...(await parseDances()).keys()]).toEqual(DANCES.map((dance) => dance.id));
+    });
+
+    it('has dances that fit NOMINAL_CHARACTER_SIZE, the box over every clip', async () => {
         const model = await parse();
         const { dancing } = setup();
-        dancing.setCharacter(model);
+        dancing.setCharacter(model, await parseDances());
         // The scene keeps the box it measured; read it back rather than re-deriving the sampling.
         const box = (dancing as unknown as { framingBox: THREE.Box3 }).framingBox;
         const size = box.getSize(new THREE.Vector3());
