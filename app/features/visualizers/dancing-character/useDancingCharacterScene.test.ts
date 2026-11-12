@@ -107,7 +107,7 @@ interface Deferred {
 const loads: Deferred[] = [];
 
 function makeAssets(): DancingCharacterAssets {
-    return { model: { name: 'model' } as unknown as Group };
+    return { model: { name: 'model' } as unknown as Group, dances: new Map() };
 }
 
 interface Props {
@@ -179,7 +179,7 @@ describe('useDancingCharacterScene', () => {
             loads[0].resolve(assets);
             await flush();
 
-            expect(character().setCharacter).toHaveBeenCalledWith(assets.model);
+            expect(character().setCharacter).toHaveBeenCalledWith(assets.model, assets.dances);
             expect(statuses).toEqual(['loading', 'ready']);
         });
 
@@ -260,6 +260,16 @@ describe('useDancingCharacterScene', () => {
             expect(first.frames[1].settings.danceSpeed).toBe(2);
             expect(first.frames[1].rhythm).toBe(tracker.state);
             expect(first.frames[1].dt).toBeCloseTo(0.016);
+        });
+
+        it('passes the Dance selection to the frames and follows a change on the next frame', () => {
+            const { renderer, valuesRef } = mountScene();
+
+            renderer.renderFrame(0);
+            valuesRef.current = { ...valuesRef.current, dance: 'salsa' };
+            renderer.renderFrame(16);
+
+            expect(character().frames.map((frame) => frame.danceSelection)).toEqual(['auto', 'salsa']);
         });
 
         it('reuses one frame object and clamps long gaps between frames', () => {

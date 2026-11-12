@@ -70,7 +70,7 @@ export function useDancingCharacterScene(
                     disposeDancingCharacterAssets(assets);
                     return;
                 }
-                character.setCharacter(assets.model);
+                character.setCharacter(assets.model, assets.dances);
                 onStatusRef.current('ready');
             })
             .catch((error: unknown) => {
@@ -87,6 +87,7 @@ export function useDancingCharacterScene(
             bass: 0,
             settings: valuesRef.current,
             cameraLocked: true,
+            danceSelection: valuesRef.current.dance,
         };
 
         // DEV only: the gate's input is the frame's raw bass; the rest is read from the scene after its update.
@@ -174,6 +175,7 @@ export function useDancingCharacterScene(
                 frame.rhythm = rhythm.state;
                 frame.bass = bass?.update() ?? 0;
                 frame.settings = valuesRef.current;
+                frame.danceSelection = valuesRef.current.dance;
                 frame.cameraLocked = cameraLockedRef.current;
                 character.update(frame);
 
