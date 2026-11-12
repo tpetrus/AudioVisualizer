@@ -1,7 +1,16 @@
 import type { ControlDefinition, ControlValues } from '~/components/ControlPanel/controls';
+import { AUTO_DANCE, CALM_DANCE_ID, DANCES } from './dancingCharacterConfig';
+
+// Auto first, then every dance in the order the Auto rotation plays them.
+const danceOptions = [
+    { value: AUTO_DANCE, label: 'Auto' },
+    ...DANCES.map((dance) => ({ value: dance.id, label: dance.label })),
+];
 
 // Ordered dance, camera, bass, colors, so the panel reads from what moves the most to what only changes the look.
 export const dancingCharacterControls = [
+    // Auto lets the dancer change dance by herself; any other value keeps that one dance.
+    { section: 'Dance', key: 'dance', label: 'Dance', type: 'select', options: danceOptions, default: AUTO_DANCE },
     // While the tempo is locked the dance speed snaps to half time (0.5) or on the beat (1), so the steps stay on
     // the beat; a tempo over the dance speed limit is halved further. While the tempo is unknown it scales the calm
     // default rate, capped at the same limit.
@@ -83,6 +92,9 @@ export const dancingCharacterControls = [
 // module-level table rather than changed defaults at runtime, because useControlValues needs a constant table.
 export const dancingCharacterReducedMotionControls = dancingCharacterControls.map((control) => {
     switch (control.key) {
+        // Reduced motion starts on the calm dance and does not rotate; the visitor may still choose another.
+        case 'dance':
+            return { ...control, default: CALM_DANCE_ID as string };
         case 'orbitSpeed':
             return { ...control, default: 0.5 };
         case 'bassStrength':

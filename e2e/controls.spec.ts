@@ -103,3 +103,25 @@ for (const visualizer of VISUALIZERS_UNDER_TEST) {
         });
     });
 }
+
+// The Dance select exists only on the dancing character, so this finds it by its label rather than looping over every
+// visualizer.
+test.describe('Dancing character dance select', () => {
+    const dancer = VISUALIZERS_UNDER_TEST.find(({ path }) => path === '/dancing-character')!;
+
+    test('offers Auto and the four dances, and every choice keeps the scene rendering', async ({ page }) => {
+        await startVisualizer(page, dancer);
+        await openSettings(page);
+
+        const select = page.getByLabel('Dance', { exact: true });
+        await expect(select).toHaveValue('auto');
+        await expect(select.getByRole('option')).toHaveText(['Auto', 'Lambada', 'Twist', 'Cabbage Patch', 'Salsa']);
+
+        for (const label of ['Twist', 'Cabbage Patch', 'Salsa', 'Lambada', 'Auto']) {
+            await select.selectOption({ label });
+            await expect(select.locator('option:checked')).toHaveText(label);
+            await page.waitForTimeout(300);
+            await expect(page.locator('canvas')).toHaveCount(1);
+        }
+    });
+});

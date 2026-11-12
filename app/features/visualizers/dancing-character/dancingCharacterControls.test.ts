@@ -4,11 +4,13 @@ import {
     dancingCharacterControls,
     dancingCharacterReducedMotionControls,
 } from './dancingCharacterControls';
+import { CALM_DANCE_ID, DANCES } from './dancingCharacterConfig';
 import { defaultValues, isShown } from '~/components/ControlPanel/controls';
 
 describe('dancingCharacterControls', () => {
     it('has the settings the plan freezes, with their defaults', () => {
         expect(defaultValues(dancingCharacterControls)).toEqual({
+            dance: 'auto',
             danceSpeed: 1,
             autoOrbit: true,
             orbitSpeed: 1,
@@ -21,6 +23,15 @@ describe('dancingCharacterControls', () => {
             accentColor: '#ff7ab6',
             floorColor: '#2b3a55',
         });
+    });
+
+    it('starts the panel with a Dance select: Auto first, then every dance', () => {
+        expect(dancingCharacterControls[0]).toMatchObject({ section: 'Dance', key: 'dance', type: 'select' });
+        const options = (dancingCharacterControls[0] as { options: { value: string; label: string }[] }).options;
+        expect(options).toEqual([
+            { value: 'auto', label: 'Auto' },
+            ...DANCES.map((dance) => ({ value: dance.id, label: dance.label })),
+        ]);
     });
 
     it('steps the dance speed through half time and on the beat', () => {
@@ -38,9 +49,10 @@ describe('dancingCharacterControls', () => {
         expect(control).toMatchObject({ section: 'Bass', label: 'Camera bump', min: 0, max: 1, step: 0.05 });
     });
 
-    it('lowers only the orbit speed, bass glow, camera bump and rainbow speed defaults for reduced motion', () => {
+    it('lowers only the dance, orbit speed, bass glow, camera bump and rainbow speed defaults for reduced motion', () => {
         expect(defaultValues(dancingCharacterReducedMotionControls)).toEqual({
             ...defaultValues(dancingCharacterControls),
+            dance: CALM_DANCE_ID,
             orbitSpeed: 0.5,
             bassStrength: 0.5,
             bassCameraStrength: 0.2,

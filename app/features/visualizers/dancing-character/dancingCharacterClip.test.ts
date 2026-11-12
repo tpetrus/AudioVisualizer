@@ -2,7 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { BODY_MATERIAL_NAMES, DANCE_CLIP_DURATION, DANCE_REQUIRED_BONES, NATIVE_BPM } from './dancingCharacterConfig';
+import {
+    BODY_MATERIAL_NAMES,
+    DANCE_CLIP_DURATION,
+    DANCE_CLOCK_SECONDS,
+    DANCE_REQUIRED_BONES,
+    DANCES,
+    NATIVE_BPM,
+} from './dancingCharacterConfig';
 
 // Parses the vendored GLB with GLTFLoader (the garment textures are decoded by a stand-in image element), so the config
 // constants that describe the asset are checked against the real file.
@@ -64,8 +71,18 @@ describe('vendored MakeHumanDancer.glb', () => {
         for (const name of BODY_MATERIAL_NAMES) expect(materials.has(name)).toBe(true);
     });
 
-    it('has a native tempo and loop length that agree: four beats at 120 BPM take two seconds', () => {
+    it('has a native tempo and bar length that agree: four beats at 120 BPM take two seconds', () => {
         expect(DANCE_CLIP_DURATION).toBe(2);
         expect(NATIVE_BPM).toBe(120);
+    });
+
+    it('has a shared dance clock that every clip length divides, so every bar line coincides', () => {
+        expect(DANCE_CLOCK_SECONDS).toBe(4);
+        for (const dance of DANCES) {
+            const length = (dance.beats * 60) / NATIVE_BPM;
+            expect(DANCE_CLOCK_SECONDS % length, dance.id).toBe(0);
+            // A switch is possible on any bar line of the shortest clip, and every clip is whole bars.
+            expect(length % DANCE_CLIP_DURATION, dance.id).toBe(0);
+        }
     });
 });

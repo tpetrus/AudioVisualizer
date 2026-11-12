@@ -38,5 +38,19 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
                     onChange={(event) => onChange(event.currentTarget.value)}
                 />
             );
+        case 'select':
+            return (
+                <select
+                    id={definition.key}
+                    value={String(value)}
+                    onChange={(event) => onChange(event.currentTarget.value)}
+                >
+                    {definition.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                            {option.label}
+                        </option>
+                    ))}
+                </select>
+            );
     }
 }
