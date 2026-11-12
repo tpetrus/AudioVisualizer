@@ -5,7 +5,7 @@
 //     --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs <input-dir> [--out <file>] [--approved <SpikeDances.glb>]
 // <input-dir> is where fetch.ts put the files (node_modules/.cache/cmu-mocap by default). Every input is verified against
 // its pinned sha256 first. The output is deterministic (two runs are byte-identical). The built file is loaded back with
-// GLTFLoader and checked against the hard rules of docs/plans/natural-dance/contracts.md (C2, Amendment 3); the 40 ms
+// GLTFLoader and checked against the hard rules of docs/plans/natural-dance/contracts.md (C2, Amendments 3 and 4); the 40 ms
 // contact rule is printed as warnings. With --approved the clips are also compared with the clips approved in the S0g
 // spike (lambada=55_02_loop, twist=15_04_twist_soft_loop, cabbage-patch=15_04_cabbage_loop, salsa=60_02_grounded_loop).
 // Exits non-zero on any hard failure or when a clip differs from its approved one.
@@ -126,7 +126,7 @@ async function main(): Promise<void> {
                 `${manifest.id}: ${m.keys} keys, ${m.duration} s, seam ${m.seamDegrees.toFixed(3)} deg, foot skate ${(m.skateMeters * 100).toFixed(1)} cm, ` +
                     `floor float ${(m.floorMeters * 100).toFixed(2)} cm, arm clearance ${(m.clearanceMeters * 100).toFixed(2)} cm, ` +
                     `behind chest L ${(m.behindChestMeters.L * 100).toFixed(1)} / R ${(m.behindChestMeters.R * 100).toFixed(1)} cm, ` +
-                    `root X/Z ${m.rootXZMeters} m, contact ${m.contactMs.map((ms) => ms.toFixed(0)).join('/')} ms`,
+                    `root X/Z travel ${(m.rootXZMeters * 1000).toFixed(1)} mm, contact ${m.contactMs.map((ms) => ms.toFixed(0)).join('/')} ms`,
             );
         }
     }

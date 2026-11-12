@@ -1,4 +1,4 @@
-// The checks every shipped dance clip must pass (docs/plans/natural-dance/contracts.md, C2 and Amendment 3), run against
+// The checks every shipped dance clip must pass (docs/plans/natural-dance/contracts.md, C2 and Amendments 3 and 4), run against
 // the clips as GLTFLoader loads them back from the GLB, and the reproduction check against the approved spike clips.
 // Hard rules come back as `failures`; the 40 ms contact rule comes back as `warnings`.
 
@@ -14,8 +14,14 @@ import { KEYS_PER_BEAT, quatAngleDegrees } from './loop';
 import { createFk } from './retarget';
 import type { TargetRig } from './rig';
 
-// Mirrors FOOT_SKATE_MAX_METERS in dancingCharacterConfig.ts (added there with the dance registry, decided in S0).
-export const FOOT_SKATE_MAX_METERS = 0.15;
+// Mirrors FOOT_SKATE_MAX_METERS in dancingCharacterConfig.ts (added there with the dance registry). It is a proxy for
+// visible sliding, set just above the approved clips (the approved twist measures 0.153 m) instead of tuning a clip the
+// human already approved (Amendment 4).
+export const FOOT_SKATE_MAX_METERS = 0.16;
+// The root bone keeps the pelvis centered over the rig, so its X/Z swing with the hips' rotation; "no travel" means every
+// key stays within this distance (meters) of the root's rest X/Z, and the loop's first and last keys match within 1 mm.
+const ROOT_XZ_MAX_METERS = 0.1;
+const LOOP_ROOT_METERS = 1e-3;
 const SEAM_MAX_DEGREES = 10;
 // The lowest foot joint may be this far (meters) above or below its rest height at any key.
 const FLOOR_TOLERANCE = 0.03;
@@ -43,6 +49,7 @@ export interface ClipMetrics {
     floorMeters: number;
     clearanceMeters: number;
     behindChestMeters: { L: number; R: number };
+    // Largest horizontal distance of the root from its rest X/Z.
     rootXZMeters: number;
     // Per beat, the distance (ms) from the beat marker to the nearest contact signal.
     contactMs: number[];
@@ -196,16 +203,22 @@ export function validateClip(rig: TargetRig, torso: Torso, clip: AnimationClip, 
     if (seamDegrees >= SEAM_MAX_DEGREES)
         fail(`loop seam ${seamDegrees.toFixed(2)} deg is not under ${SEAM_MAX_DEGREES}`);
     if (Math.abs(pose.rootPosition[1] - pose.rootPosition[last * 3 + 1]) > 1e-3) fail('hips height first != last');
+    const restRoot = rig.restHead.get('root') as Vector3;
     let rootXZMeters = 0;
     for (let k = 0; k < pose.keys; k++) {
         rootXZMeters = Math.max(
             rootXZMeters,
-            Math.abs(pose.rootPosition[k * 3]),
-            Math.abs(pose.rootPosition[k * 3 + 2]),
+            Math.hypot(pose.rootPosition[k * 3] - restRoot.x, pose.rootPosition[k * 3 + 2] - restRoot.z),
         );
     }
-    // The clip carries hips height only: X and Z do not move.
-    if (rootXZMeters > 1e-6) fail(`root X/Z is ${rootXZMeters} m, expected 0`);
+    if (rootXZMeters > ROOT_XZ_MAX_METERS) {
+        fail(`root X/Z travels ${rootXZMeters.toFixed(3)} m from its rest position, over ${ROOT_XZ_MAX_METERS}`);
+    }
+    const closing = Math.hypot(
+        pose.rootPosition[0] - pose.rootPosition[last * 3],
+        pose.rootPosition[2] - pose.rootPosition[last * 3 + 2],
+    );
+    if (closing > LOOP_ROOT_METERS) fail(`root X/Z first != last (${closing} m)`);
 
     const floorY = restAnkleY(rig);
     const ankles = ankleTrack(rig, pose);
