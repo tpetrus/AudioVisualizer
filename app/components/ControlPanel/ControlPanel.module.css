@@ -68,6 +68,20 @@
 .controlRow select {
     flex: 1;
     min-width: 0;
+    background: #333;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 2px 4px;
+    /* The panel is always dark, but a light system theme would draw the native option list white while the options
+       inherit the panel's white text. A dark color scheme makes the browser draw that list dark too. */
+    color-scheme: dark;
+}
+
+/* Some browsers style the open list from the options themselves, so they get the same colors explicitly. */
+.controlRow select option {
+    background: #333;
+    color: #fff;
 }
 
 .value {
