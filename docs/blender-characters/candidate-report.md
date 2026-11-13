@@ -34,5 +34,8 @@ spine and neck gaps. Clavicles, limbs, feet and head cannot be dummies.
 - Mario (16234) was converted with a hand-made bone map and passed every dance rule, but his proportions (stubby body,
   long arms, big gloves) looked wrong while dancing, so he was removed. `convert.py` keeps what the work added
   (Solidify and Multires modifiers, `arm_scale`, `skin_material`, the straight-elbow nudge).
-- Not attempted: Gallade (needs a hand and wrist built), Plankton and C-3PO (fail the relaxed check), and the five files
+- Skipped: Gallade passed the relaxed bone check but is one flat gray mesh (no colors or textures), has no hand or
+  wrist bones, loose horn and eye pieces parented to bones, and a thin torso on a huge hip blob with long thin legs, so
+  he would dance as an awkward gray mannequin.
+- Not attempted: Plankton and C-3PO (fail the relaxed check), and the five files
   that were never downloaded (8995, 6164, 30743, 27251, 6360).
