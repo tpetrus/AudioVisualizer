@@ -47,8 +47,27 @@ export class FakeAudioNode {
 export class FakeAnalyserNode extends FakeAudioNode {
     fftSize = 2048;
     smoothingTimeConstant = 0.8;
-    minDecibels = -100;
-    maxDecibels = -30;
+    // Like a real node, a decibel assignment that would leave the range empty or inverted throws.
+    private minDb = -100;
+    private maxDb = -30;
+    get minDecibels(): number {
+        return this.minDb;
+    }
+    set minDecibels(value: number) {
+        if (value >= this.maxDb) {
+            throw new DOMException('minDecibels must be less than maxDecibels', 'IndexSizeError');
+        }
+        this.minDb = value;
+    }
+    get maxDecibels(): number {
+        return this.maxDb;
+    }
+    set maxDecibels(value: number) {
+        if (value <= this.minDb) {
+            throw new DOMException('maxDecibels must be greater than minDecibels', 'IndexSizeError');
+        }
+        this.maxDb = value;
+    }
     get frequencyBinCount(): number {
         return this.fftSize / 2;
     }

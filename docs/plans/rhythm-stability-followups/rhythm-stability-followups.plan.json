@@ -1,0 +1,1516 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "rhythm-stability-followups-20261106t185218z-fa4f7528",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-06T18:52:18.770Z",
+  "updated": "2026-11-06T19:13:35.200Z",
+  "feature": {
+    "slug": "rhythm-stability-followups",
+    "title": "Rhythm stability outstanding outcomes",
+    "request": "I want to plan out further research/implementation of the last claude session.  The last agent made an outcomes list and I want to plan out the work for the outstanding items/outcomes"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7"
+  },
+  "problem": {
+    "statement": "The rhythm stability work shipped with AC4, AC5 and AC10 only partly met and with known costs. Three of six reference tracks still lock or hold a tempo at the dotted 4/3 ratio, which also causes per-play dance speed differences; grid rebuilds remain on some tracks; the bass gate opens late on loosely placed bass and has lost its protection against scattered bass; clip position differs between plays; a real song change at a dotted ratio can go unnoticed; and double time ignores the dance speed limit.",
+    "users": [
+      "Visitors watching a visualizer react to constant-tempo music, who expect no apparent speed changes and the same dance every play",
+      "Trevor, tuning the tracker with the debug harness and judging results by ear",
+      "Future visualizers that build on the shared rhythm surface (BassPulse, bass gate, tracker state)"
+    ],
+    "evidence": [
+      "docs/agents/rhythm-stability-results.md: per-track table, acceptance status, known costs, refine-next list",
+      "lonley locks 187.5 instead of 140 in 2 of 3 plays; syncopationbass locks 196 and sees a rival at 130.7; syncopation-no-kick holds 180 instead of 135 for the whole track",
+      "boundary.ts:131-135 skips dotted ratios with no time limit; boundary.test.ts:211-213 asserts that behavior",
+      "bassGate.test.ts:154 records scattered bass opening the gate with it.fails",
+      "Clip spread p95 fails on 3 of 4 repeat runs (0.199 to 0.533 against a 0.05 target)"
+    ]
+  },
+  "goals": [
+    "Publish the true tempo from the first lock on tracks with a kick, without weakening the steadiness already won",
+    "Make dance speed and bar position repeat between plays of one clip",
+    "Close the partly-met outcomes AC4, AC5 and AC10 from the previous plan, or record measured evidence for why one cannot be closed",
+    "Pay down the known costs: dotted-ratio song change, unpinned state.bpm, scattered bass opening the gate, uncapped double time",
+    "Give syncopation-no-kick a ranked list of testable causes that a builder can try, as a stretch goal",
+    "Keep every change measurable: repeatable offline and live tooling, committed rather than temporary"
+  ],
+  "non_goals": [
+    "Faster first response: tempo lock near 5 s and meter lock at 11 to 13 s may stay, or lengthen slightly, because steadiness wins over speed",
+    "Rewriting the tempo tracker around a new algorithm or a machine-learned model",
+    "General meter accuracy work beyond what clip spread on the reference tracks needs",
+    "Building a labeled public dataset; the six reference tracks stay the measure",
+    "Reviewing how visualizers other than dancing-character look",
+    "Upgrading three.js or changing the audio capture path"
+  ],
+  "success_metrics": [
+    "Tempo within 1% of reference, or its octave, from first lock on 8 of 8 fresh plays of lonley and syncopationbass, and 100% within 1% on imyourgirl, syncopationbass2 and summer2000 (syncopation-no-kick is stretch)",
+    "First tempo publish within 10 s of sound on tie tracks and within 0.5 s of today on tracks without a tie; meter lock later by no more than the deferral",
+    "0 grid rebuilds on all 5 kick-bearing tracks, unless the rebuild follows a real song change",
+    "Mandatory: the scattered-bass seeds never open the gate. Target: it opens within 4 s of lock on all 5 kick-bearing tracks, recorded as met or open per track",
+    "debug:repeat clip spread p95 at or below 0.05 on imyourgirl and summer2000, fresh and re-select, measured from 1 s after the latest first meter lock among the compared plays",
+    "False song changes per file stay at 0.00 in eval:rhythm"
+  ],
+  "constraints": [
+    "Rhythm DSP stays framework-free, pure, allocation-free per frame, with tuning constants in rhythmConfig.ts or bassGateConfig.ts (AGENTS.md rules 2 and 5)",
+    "95% coverage; every spec beside its file; it.fails records known weaknesses and must be removed when fixed",
+    "Compare any rhythm change on all six tracks live; offline results misled more than once (rhythm-stability-results.md)",
+    "Reference audio is not in the repository, so live-audio checks can only run on Trevor's machine and CI can only run spec-level checks",
+    "Bundle is 312.26 kB against a 312.5 kB limit; growth needs a stated reason in the same PR",
+    "Each change ships as its own Conventional Commit PR; every push to main is a production deploy"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "the offline ablation and gate replay techniques and the known tooling bugs",
+      "when": "a builder runs the committed scripts on a WAV or a recording",
+      "then": "ablation overrides one rhythmConfig constant deterministically through a scripts-only esbuild plugin, with no app bundle change; gate replay reproduces recorded opening times; eval:rhythm prints a stability metric; verdicts no longer fail on rounding (0.99 < 0.99); CSVs write Infinity as Infinity"
+    },
+    {
+      "id": "AC2",
+      "given": "lonley and syncopationbass, played fresh 8 times each with debug:viz",
+      "when": "the tempo first locks",
+      "then": "the published bpm is within 1% of reference, or its octave, from the first lock on 8 of 8 plays, first publish meets the deferral ceiling, and imyourgirl, syncopationbass2 and summer2000 stay at 100% within 1%; if the S4 probe is negative this is recorded open instead"
+    },
+    {
+      "id": "AC3",
+      "given": "the ranked causes for syncopation-no-kick",
+      "when": "each is tested with rawBpm telemetry or ablation",
+      "then": "the outcome of each is recorded in rhythm-stability-results.md; reaching 135 within 1% is a stretch outcome that does not block the plan, and no other track regresses from any change kept"
+    },
+    {
+      "id": "AC4",
+      "given": "a tracker that corrects a wrong lock of 187.5 to 140",
+      "when": "normalizeOctave folds the corrected tempo",
+      "then": "the dance runs at the same timeScale as a play that locked on 140 first, shown by a spec in dancingCharacterSync.test.ts and by lonley's timeScale across plays"
+    },
+    {
+      "id": "AC5",
+      "given": "syncopationbass and lonley",
+      "when": "the tempo moves by exactly an octave, or a track plays through with no song change",
+      "then": "the grid is kept across the octave move (spec in beatTracker.test.ts), recorded grid rebuilds are 0, and the rebuild near 9 s is explained in the results doc"
+    },
+    {
+      "id": "AC6",
+      "given": "a real song change at a dotted ratio such as 90 to 120 or 100 to 150",
+      "when": "the new tempo holds at confidence 0.5 or above for the longer jump time",
+      "then": "the boundary detector reports a soft boundary and songChangeCount rises when the old pulse's support has collapsed, while a dotted passage, or the held tempo correcting from 187.5 to 140 at 30 s with the old pulse still present, raises nothing, and eval:rhythm false song changes stay 0.00; if the probe shows these cannot be separated, nothing is raised and AC6 is recorded open"
+    },
+    {
+      "id": "AC7",
+      "given": "the state.bpm change in rhythmAnalyzer.ts",
+      "when": "it is reverted to publish the beat period",
+      "then": "a dedicated spec fails"
+    },
+    {
+      "id": "AC8",
+      "given": "the bass gate on real and random bass",
+      "when": "the scattered-bass seeds run in bassGate.test.ts, and all 5 kick-bearing tracks play",
+      "then": "mandatory: the seeds no longer open the gate and the it.fails marker is removed, with no track losing its gate; target: it opens within 4 s of lock and stays open, recorded as met or open per track, starting with lonley"
+    },
+    {
+      "id": "AC9",
+      "given": "imyourgirl and summer2000, 4 plays each, fresh and re-select",
+      "when": "debug:repeat compares them from 1 s after the latest first meter lock among the compared plays",
+      "then": "clip spread p95 is at or below 0.05, or for summer2000 the row is recorded as open with the meter measurement; errors of 0.5 beat or more resolve by one crossfade with no sustained speed change, and a spec covers meterLocked toggling and re-lock"
+    },
+    {
+      "id": "AC10",
+      "given": "the slider's half time and on the beat steps and any tempo, locked or unknown",
+      "when": "computeDanceTiming chooses the speed",
+      "then": "the implied dance rate never exceeds MAX_DANCE_BPM (with the release share), the steps stay on the beat, the 2x step and double-time branch are gone, a spec covers both steps and calm at the extremes, and the settings-panel baseline is regenerated"
+    },
+    {
+      "id": "AC11",
+      "given": "each slice",
+      "when": "its PR is opened",
+      "then": "format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+    },
+    {
+      "id": "AC12",
+      "given": "the plan's end",
+      "when": "the last slice merges or is dropped",
+      "then": "rhythm-stability-results.md shows each outcome's final state, measured values and anything left open"
+    },
+    {
+      "id": "AC13",
+      "given": "committed derived fixtures from the reference tracks",
+      "when": "CI runs the unit tests",
+      "then": "the tie-break and gate rule replay on them deterministically, and reverting either rule fails a spec; no audio is committed and each fixture passes the repository's max-file-size check"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "What does the plan cover?",
+      "answer": "All outstanding items, ordered in phases, each independently shippable and droppable.",
+      "decided_by": "user",
+      "rationale": "Nothing is lost and later slices can be dropped."
+    },
+    {
+      "id": "D2",
+      "question": "Which wins when they conflict?",
+      "answer": "Steady over quick: no apparent tempo change and a repeatable dance, even with a slower lock or song-change response.",
+      "decided_by": "user",
+      "rationale": "Matches the goal of the previous session."
+    },
+    {
+      "id": "D3",
+      "question": "How is syncopation-no-kick treated?",
+      "answer": "Stretch goal. The planner researches potential causes that the builder can attempt; it does not block other slices or the acceptance of AC4.",
+      "decided_by": "user",
+      "rationale": "The track is loosely structured and has no kick."
+    },
+    {
+      "id": "D4",
+      "question": "Does double time respect the speed limit?",
+      "answer": "Cap it.",
+      "decided_by": "user",
+      "rationale": "There is only so fast a person dances."
+    },
+    {
+      "id": "D5",
+      "question": "What does capping do to the double time option?",
+      "answer": "normalizeOctave folds to 80..160, so 2x is always at least 160 and always over the 140 limit; a capped double time can never run while locked.",
+      "decided_by": "repo-fact",
+      "rationale": "dancingCharacterConfig.ts:54-62, dancingCharacterSync.ts:101-105"
+    },
+    {
+      "id": "D6",
+      "question": "How does the dance speed cap apply?",
+      "answer": "The goal is that the character never dances faster than a person would. No setting, locked or not, exceeds MAX_DANCE_BPM: on the beat falls to half time over the limit, with the existing release hysteresis. The tempo-unknown rate is capped at MAX_DANCE_BPM / NATIVE_BPM, about 0.97 of the clip's native 144 BPM, so the default calm rate slows slightly.",
+      "decided_by": "user",
+      "rationale": "User: limit the speed to how fast a human would dance; if double time causes weirdness, keep it within the same limits."
+    },
+    {
+      "id": "D7",
+      "question": "What happens to the top step of the Dance speed slider?",
+      "answer": "Remove the 2x step: the slider offers half time and on the beat, and the double-time branch of the sync code goes with it. A new settings-panel visual baseline is needed.",
+      "decided_by": "user",
+      "rationale": "With the cap, 2x would be identical to 1x while locked."
+    },
+    {
+      "id": "D8",
+      "question": "How does the clip reach the right beat at meter lock?",
+      "answer": "A short crossfade to the correct beat replaces the long capped nudge for errors of 0.5 beat or more. It fires at the first meter lock of a song (per songChangeCount) and again on a meter re-lock if the error is still at least 0.5 beat. Smaller errors keep the nudge.",
+      "decided_by": "user",
+      "rationale": "Removes the 11% apparent speed change; fits steady over quick."
+    },
+    {
+      "id": "D9",
+      "question": "How strict are the success targets?",
+      "answer": "Pass or fail as stated in success_metrics. Meter work stays out of scope; if summer2000 clip spread cannot pass without it, record the measurement and leave that row open.",
+      "decided_by": "user",
+      "rationale": "User confirmed the framing with its numbers and non-goals."
+    },
+    {
+      "id": "D10",
+      "question": "What are the candidate causes for syncopation-no-kick holding 180 instead of 135?",
+      "answer": "Untested, ranked. Already ruled out by ablation: faster-pulse takeover, TEMPO_SWITCH_ESTIMATES, history length, double-lag weight, comb partials. Step zero: read rawBpm and tempoConfidence per estimate, because everything below depends on which case applies. (A) Self-locking hold: isSyncopationRatio(135, 180) is true, so a true 135 needs confidence 0.5 and 32 straight estimates (tempo.ts:315-331), and a close rival lowers its own confidence through the margin term. TEMPO_SYNCOPATION_* was not among the ablated constants. (B) No subdivision test: 180 and 135 both sit on the same 16th grid at about 11.1 frames, 180 as 3 of them and 135 as 4. correlation[] already covers lags under minLag, but peakNear clamps to minLag (30 frames), so straight 8ths at 22.2 frames are never consulted. Comparing L/2 against L/3 support could reject a ternary-looking 180. (C) No bar-repeat test: a 3-3-3-3-4 pattern repeats at 16 sixteenths, 177.8 frames, which is 4 x 44.4 but 5.33 x 33.3. Comparing correlation at 4L for the two rivals could break the tie, and it needs no kick. (D) Band mix: ONSET_BAND_WEIGHTS was never ablated; per-band sums let a dotted bass outweigh straight hats. Per-band autocorrelation would test it. (E) Frame-grid bias: 44.44 frames splits its peak across two lags more than 33.33 does (tempo.ts:125 records this effect), eating into the 17% prior advantage 135 has. Interpolated peak height would test it. (F) Early decision: first lock at confidence 0.2 from 3 s of history, too short to see a bar; deferring a first lock while a dotted rival is close fits steady over quick and also serves lonley.",
+      "decided_by": "planner-assumption",
+      "rationale": "From reading tempo.ts, rhythmConfig.ts and rhythmAnalyzer.ts, no run. Published work supports tracking several metrical levels with periods that are multiples of one another (Lartillot and Grandjean, SMC 2019) and tatum-based comb scoring (Audacity MIR docs, ISMIR 2006 and 2013); no source covered the 4/3 error directly."
+    },
+    {
+      "id": "D11",
+      "question": "If no gate rule meets both the 4 s target and scatter rejection, which wins?",
+      "answer": "Scatter rejection; lonley's opening time is recorded as open.",
+      "decided_by": "planner-assumption",
+      "rationale": "Follows from steady over quick (D2); stray pulses are more visible than a late gate."
+    },
+    {
+      "id": "D12",
+      "question": "How does the boundary detector tell a real dotted-ratio song change from the tracker correcting itself?",
+      "answer": "By whether the old pulse is still there. In a correction both pulses stay in the music, so the autocorrelation at the old lag keeps its support and the detector re-seeds its reference with no boundary. In a song change the old lag's support collapses, and a boundary is raised. If the probe shows this cannot separate them, no boundary wins and AC6 is recorded open.",
+      "decided_by": "planner-assumption",
+      "rationale": "Re-seeding on every adoption, as the critic suggested, would hide the real changes AC6 asks for. A false song change resets the dance locks, so steady over quick (D2) decides the fallback."
+    },
+    {
+      "id": "D13",
+      "question": "What does dropping a slice mean for what depends on it?",
+      "answer": "A dropped dependency counts as satisfied and its outcome is recorded as open in the results doc. If the probe in S4 is negative, S11 is dropped or re-scoped with Trevor, and S6, S8 and S7 proceed.",
+      "decided_by": "planner-assumption",
+      "rationale": "Keeps D1: every slice is droppable."
+    },
+    {
+      "id": "D14",
+      "question": "What is lonley's true tempo?",
+      "answer": "140 BPM, confirmed by Trevor.",
+      "decided_by": "user",
+      "rationale": "Removes the risk of tuning the tie-break to a wrong target."
+    },
+    {
+      "id": "D15",
+      "question": "Is derived data from the reference tracks committed?",
+      "answer": "Yes: small telemetry CSVs and onset envelopes, no audio, as fixtures for deterministic regression specs in CI.",
+      "decided_by": "user",
+      "rationale": "The audio is not in the repository, so CI otherwise cannot catch a wrong-lock regression."
+    },
+    {
+      "id": "D16",
+      "question": "How long may a first lock be deferred?",
+      "answer": "TEMPO_TIE_MAX_DEFER_S starts at 5 s, so first publish is within about 10 s of sound; expiry publishes the current winner. The probe may lower it.",
+      "decided_by": "planner-assumption",
+      "rationale": "Long enough for 4L of most tempos to fit in the history; bounded so steady over quick cannot erode the first response unnoticed."
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Break the 4/3 tie inside TempoTracker by deferring first lock until a bar-repeat comparison picks one of the two dotted rivals, and make the bass gate count on-place hit rate over a window, so loose real bass opens it and random bass does not.",
+      "approach": [
+        "Tie-break (tempo.ts finishEstimate): at first lock only, if the runner-up is a dotted ratio (isSyncopationRatio) within the rival margin, defer lock up to TEMPO_FIRST_LOCK_MAX_DEFER_S (about 3 s extra, config). Then compare autocorrelation at the shared bar lag (3x the longer beat lag equals 4x the shorter) with interpolated peak height. Higher bar-repeat support wins; a tie falls to the existing prior. No new inputs, no kick-only envelope, no allocation (reuse correlation[]).",
+        "If the deferral expires with no clear winner, lock the existing winner (no change from today).",
+        "Bass gate (bassGate.ts): replace the evidence-spend rule with a rolling on-place hit rate. Keep a fixed ring of the last N bass onsets as on/off-place bits (window plus or minus BASS_PLACE_WINDOW_BEATS, widened from today for loose bass). Gate opens when the rate is at or above BASS_MIN_ON_PLACE_RATE and stays open until it falls below a lower close threshold. Chance rate of random bass is about 2x the window, set the threshold well above it.",
+        "Tune the window and threshold with the seed specs: seeds 1, 7, 99, 2024 must stay closed; remove the it.fails marker. Check lonley and the other kick tracks open within 4 s via the gate replay script.",
+        "Octave and grid (AC4, AC5): with a correct first lock, the 187.5 to 140 fold no longer happens. Also reset or re-seed lastNormalizedBpm when a tracker correction occurs (dancingCharacterSync.ts:144) and make beatTracker.setTempo keep the grid on an exact octave move. Add specs in dancingCharacterSync.test.ts and beatTracker.test.ts.",
+        "Small items: boundary.ts dotted skip gets a time limit (longer jump time, confidence 0.5) and boundary.test.ts:211 is updated; add a state.bpm pin spec; computeDanceTiming halves the multiple until it fits MAX_DANCE_BPM, with extreme specs; committed ablation, gate replay and eval fixes from AC1.",
+        "Clip spread (AC9) and syncopation-no-kick (AC3) follow as separate slices, the latter recording each cause (C is covered by step 1) in the results doc."
+      ],
+      "components": [
+        {
+          "name": "First-lock bar-repeat tie-break",
+          "responsibility": "Defer and decide between dotted rivals",
+          "location": "app/features/rhythm/tempo.ts, rhythmConfig.ts"
+        },
+        {
+          "name": "On-place rate gate",
+          "responsibility": "Open on real bass, stay closed on random bass",
+          "location": "app/features/rhythm/bassGate.ts, bassGateConfig.ts"
+        },
+        {
+          "name": "Dance speed cap",
+          "responsibility": "Halve multiple to fit MAX_DANCE_BPM",
+          "location": "dancingCharacterSync.ts"
+        },
+        {
+          "name": "Dotted boundary timer",
+          "responsibility": "Soft boundary after long hold",
+          "location": "boundary.ts"
+        }
+      ],
+      "contracts": [
+        "TempoTracker: first published tempo may arrive up to the defer limit later; the estimate stays unknown until then",
+        "bassGateConfig: BASS_PLACE_WINDOW_BEATS, BASS_MIN_ON_PLACE_RATE, BASS_CLOSE_RATE, BASS_RATE_WINDOW_ONSETS",
+        "rhythmConfig: TEMPO_FIRST_LOCK_MAX_DEFER_S, dotted jump time"
+      ],
+      "pros": [
+        "No new data path: the tracker still sees only the onset sum",
+        "Fixes the root of AC2, AC4 and AC5 at once",
+        "Rate test is statistically separable and allocation-free",
+        "Fits steady over quick"
+      ],
+      "cons": [
+        "Bar-repeat comparison may not break 3-3-3-3-4 style ties on every track",
+        "First lock slightly later, which the non-goals allow",
+        "Kick-bearing tracks do not use the kick signal that is available"
+      ],
+      "risks": [
+        "Offline results may not match live; six-track live check is needed",
+        "Wider place window may let dense random bass reach the threshold",
+        "Deferral can interact with boundary detection at song start"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 3,
+        "effort": 3,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 3.7
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Defer first publish while a dotted rival is close and settle it with a two-evidence vote (bar-repeat at 4L plus a kick-only autocorrelation), and replace the gate's fixed on-place window with a Rayleigh phase-concentration test so loose real bass opens it and scattered bass cannot.",
+      "approach": [
+        "Tooling first (AC1): commit scripts/rhythm-ablate.ts (constant override via env map, seeded), gate replay, stability metric in eval:rhythm, fix verdict rounding and Infinity CSV, so each later slice is measured.",
+        "Tie-break at first lock: in finishEstimate, if a rival at ratio 4/3 or 3/4 scores within TEMPO_TIE_MARGIN, withhold the first lock (hold 'unknown', up to TEMPO_TIE_MAX_DEFER_S = 8 s), then decide by vote: (a) bar-repeat support, correlation at 4L of each rival normalised by its lag count; (b) kick-only autocorrelation at both lags from a preallocated kick history fed by pushFrame. Publish a rival only if both agree or one is decisive; on a split, the lower tempo within 80..160 wins (135/140 over 180/187.5). Deadline expiry publishes the prior winner, never blocks.",
+        "Once chosen, relax the dotted hold: a decided winner needs only the normal 0.5 confidence, not 32 estimates, to be replaced, so a wrong early lock self-corrects instead of persisting (syncopation-no-kick).",
+        "Gate: add off-place counting plus a Rayleigh test on bass onsets modulo the beat period: R from sin/cos running sums over a decaying window; open when 2*n*R^2 exceeds BASS_RAYLEIGH_CRIT and R exceeds a floor; close on hysteresis. Loose but consistent bass has high R at modest n; uniform scatter fails at any n. Remove the it.fails.",
+        "Octave and grid (AC4, AC5): reset lastNormalizedBpm when the tempo corrects by a dotted fold; beatTracker.setTempo keeps the grid on exact octave moves; explain the 9 s rebuild in the results doc.",
+        "Boundary (AC6): dotted pairs count after TEMPO_DOTTED_JUMP_S at confidence 0.5; update boundary.test.ts:211. Pin state.bpm with a dedicated spec (AC7); cap computeDanceTiming by halving the multiple to fit MAX_DANCE_BPM (AC10); crossfade whole-beat clip errors (AC9).",
+        "Ship as separate PRs: tooling, tie-break, gate, small fixes, clip; record each in the results doc (AC12)."
+      ],
+      "components": [
+        {
+          "name": "tieBreak",
+          "responsibility": "Pure bar-repeat and kick vote for dotted rivals",
+          "location": "app/features/rhythm/tempoTieBreak.ts"
+        },
+        {
+          "name": "TempoTracker changes",
+          "responsibility": "Deferred first lock, kick history, decided-winner hold",
+          "location": "app/features/rhythm/tempo.ts"
+        },
+        {
+          "name": "phase concentration",
+          "responsibility": "Rayleigh sums and open/close decision",
+          "location": "app/features/rhythm/bassGate.ts, bassGateConfig.ts"
+        },
+        {
+          "name": "ablation and replay tools",
+          "responsibility": "Deterministic constant override, gate replay",
+          "location": "scripts/"
+        }
+      ],
+      "contracts": [
+        "TempoTracker.pushFrame(onset, kickFlux) gains a kick argument; internal Float32Array allocated once",
+        "rhythmConfig: TEMPO_TIE_MARGIN, TEMPO_TIE_MAX_DEFER_S, TEMPO_DOTTED_JUMP_S",
+        "bassGateConfig: BASS_RAYLEIGH_CRIT, BASS_CONCENTRATION_FLOOR",
+        "computeDanceTiming effective multiple never implies a rate above MAX_DANCE_BPM"
+      ],
+      "pros": [
+        "Two independent evidence sources: lonley does not hinge on one tell, and kickless tracks still get bar-repeat",
+        "Gate rule is statistical, so it scales with sample count and has a principled scatter rejection",
+        "Deferral fits D2 steady over quick; deadline prevents a stuck unknown state"
+      ],
+      "cons": [
+        "Largest change: touches tempo.ts hot path, the pushFrame signature and adds kick history memory",
+        "Delays first lock by up to 8 s on tie tracks",
+        "Bundle headroom is 0.24 kB; likely needs a stated budget raise"
+      ],
+      "risks": [
+        "Vote thresholds tuned on six tracks may overfit; offline results have misled before, so six-track live checks are mandatory",
+        "Rayleigh open time could exceed 4 s on very loose bass",
+        "Deferral on a genuine dotted tempo could delay a correct lock"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 3,
+        "risk": 3,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 3
+      },
+      "total": 2.95
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Stop trying to make the tempo tracker pick between 4/3 rivals: hold the first publish until a kick-only onset interval test (a separate side-channel in the analyzer) names the pulse, and replace the gate's evidence counting with a phase-concentration test that random bass cannot pass.",
+      "approach": [
+        "Break assumption: the single summed-onset autocorrelation must decide the 4/3 tie. Add a kick-only onset envelope (kick flux already computed at rhythmAnalyzer.ts:139) with its own small interval histogram; the tracker keeps its summed estimate but its first publish is gated on agreement.",
+        "Tie rule at first lock: if the summed estimate has a dotted rival (isSyncopationRatio) within the margin, publish nothing (tempo unknown, calm dance rate, per D2) until the kick-interval histogram has a clear mode at one of the two rivals, then lock to that one. Kickless tracks fall back to the current path after a bounded wait, leaving syncopation-no-kick as ranked-cause research (D10 A to F).",
+        "Bass gate: replace per-hit evidence with a Rayleigh-style concentration R of bass onset phases against the beat clock over the last N bars. Open when R exceeds a threshold within 4 s of lock; scattered bass gives uniform phase, R near 0, so the it.fails seeds pass and the marker is removed. Loose but real bass still concentrates, so it opens earlier.",
+        "Octave and grid: fold using the first publish only, since the first publish is now right; keep a corrected-lock spec (AC4) and a beatTracker octave-keep path (AC5).",
+        "Dotted boundary: add a longer hold time (for example 3x the normal jump time) at confidence 0.5 or more instead of a blanket skip; update boundary.test.ts:211-213.",
+        "Pin state.bpm with a dedicated spec; cap computeDanceTiming by halving the multiple until it fits MAX_DANCE_BPM.",
+        "Commit ablation, gate replay and eval fixes as scripts first (AC1) so the histogram test is measured offline, then confirm live on all six tracks."
+      ],
+      "components": [
+        {
+          "name": "KickIntervalVote",
+          "responsibility": "Kick-only onset interval histogram that names a pulse among dotted rivals",
+          "location": "app/features/rhythm/kickIntervals.ts (+ config in rhythmConfig.ts)"
+        },
+        {
+          "name": "Deferred first publish",
+          "responsibility": "Hold tempo unknown while a dotted rival is close and the vote is undecided",
+          "location": "app/features/rhythm/tempo.ts, rhythmAnalyzer.ts"
+        },
+        {
+          "name": "Phase concentration gate",
+          "responsibility": "Decide open or closed from bass phase concentration R",
+          "location": "app/features/rhythm/bassGate.ts, bassGateConfig.ts"
+        },
+        {
+          "name": "Dotted soft boundary",
+          "responsibility": "Report song change at a dotted ratio after a longer hold",
+          "location": "app/features/rhythm/boundary.ts"
+        }
+      ],
+      "contracts": [
+        "TempoTracker accepts an optional kick-only value per frame; published bpm may stay unknown longer",
+        "stepBassGate state carries running phase sums (cos, sin, count) instead of the evidence counter",
+        "boundary DOTTED_JUMP_SECONDS constant added to rhythmConfig.ts"
+      ],
+      "pros": [
+        "Removes the cause of the 4/3 error instead of nudging a prior that is already near a tie",
+        "Kick evidence is independent of the summed spectrum that creates the ambiguity",
+        "R is a principled randomness test, so the scattered seeds fail by construction",
+        "Matches D2: steady over quick"
+      ],
+      "cons": [
+        "Lock arrives later when ambiguous; the calm rate shows longer",
+        "Adds a second onset path and per-frame state (must stay allocation-free)",
+        "Kickless tracks get no benefit",
+        "Replaces the gate model, so more rework than a tweak"
+      ],
+      "risks": [
+        "Kick histogram may be as ambiguous as the sum on syncopated kicks; check offline first",
+        "Bundle limit has 0.24 kB of headroom, so budget growth likely needs a stated reason",
+        "R threshold may delay the gate on loosely placed bass; tune against lonley live"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "low",
+      "scores": {
+        "fit": 2,
+        "risk": 2,
+        "effort": 2,
+        "ux": 3,
+        "reversibility": 3
+      },
+      "total": 2.25
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "Measure before building. Commit the tools, probe which evidence really separates the rivals on all six tracks, then ship the smallest rule that passes: a bounded deferred first lock settled by bar repeat (from O1 and O2), adding a kick-only vote (from O2 and O3) only if the probe shows bar repeat is not enough. The gate rule is chosen the same way, by replay over recordings among on-place rate (O1), phase concentration (O2, O3) and bar-to-bar comparison.",
+      "approach": [
+        "Tooling first: ablation, gate replay, stability metric, verdict and CSV fixes, plus raw tempo and rival columns in telemetry",
+        "Probe, in a results table: per track, correlation at 4L and 8L of each rival, kick-only autocorrelation at each rival, per-band sums, and raw tempo over time",
+        "Bar-repeat tie-break with deferred first lock inside TempoTracker, compared at each rival's own 4L and 8L rather than at the lag they share (3 x 44.4 equals 4 x 33.3 frames, which cannot separate them)",
+        "Kick-only evidence is added only if the probe shows bar repeat misses lonley, because it changes a data path and spends bundle budget",
+        "Gate candidates compete in replay; the winner replaces the evidence rule, keeping the clock-driven bump",
+        "Remaining slices are small and independent: octave fold, grid keep, dotted boundary, state.bpm pin, speed cap, crossfade"
+      ],
+      "components": [
+        {
+          "name": "Probe and tools",
+          "responsibility": "Deterministic ablation, gate replay, evidence table, stability metric",
+          "location": "scripts/"
+        },
+        {
+          "name": "First-lock tie-break",
+          "responsibility": "Defer and decide between dotted rivals",
+          "location": "app/features/rhythm/tempo.ts, rhythmConfig.ts"
+        },
+        {
+          "name": "Gate place rule",
+          "responsibility": "Open on real bass, stay closed on scattered bass",
+          "location": "app/features/rhythm/bassGate.ts, bassGateConfig.ts"
+        },
+        {
+          "name": "Dance timing",
+          "responsibility": "Universal speed cap, octave re-seed after correction, crossfade request at meter lock",
+          "location": "app/features/visualizers/dancing-character/"
+        }
+      ],
+      "contracts": [
+        "TempoTracker: first published tempo may arrive up to the defer limit later; bpm reads 0 until then",
+        "stepBassGate state fields change, its signature does not",
+        "computeDanceTiming result gains a one-shot crossfade request"
+      ],
+      "pros": [
+        "Each rule choice rests on measurement across six tracks, so offline tuning cannot mislead silently",
+        "Smallest shipped code if bar repeat is enough, with a named escalation if it is not",
+        "Tools stay in the repository, unlike last time",
+        "Every slice ships and drops on its own"
+      ],
+      "cons": [
+        "A probe slice ships no user-visible change",
+        "Depends on Trevor's machine for live audio, since the tracks are not in the repository",
+        "Bar repeat may not be decisive on a loosely structured track"
+      ],
+      "risks": [
+        "Tuning on six tracks may overfit",
+        "4 s after lock may hold too few kicks to separate loose real bass from scatter, whatever the rule"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.8
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O1 has the right size, but its tie-break compares the lag both rivals share, and its on-place rate is the family the results doc found too near chance. O2 and O3 commit to a new kick path and a gate model before anything is measured, and offline results already misled this work. O4 keeps O1's size where the data allows and escalates to O2's evidence only on a measured need.",
+  "design": {
+    "overview": "Ten independently shippable slices. Tools and a probe come first, so each rhythm rule is chosen on evidence from all six tracks. The tie-break comes next because it removes the trigger for the octave fold bug and most rebuilds, and because the dotted boundary timer would otherwise report a corrected wrong lock as a song change. Every rule stays a pure function with constants in the config files.",
+    "components": [
+      {
+        "name": "rhythm-ablate, gate-replay, probe",
+        "responsibility": "Committed offline tools; telemetry gains raw tempo and top rival; derived fixtures",
+        "location": "scripts/"
+      },
+      {
+        "name": "TempoTracker first-lock tie-break",
+        "responsibility": "While a dotted rival is within TEMPO_TIE_MARGIN and no tempo is held, hold unknown up to TEMPO_TIE_MAX_DEFER_S, then pick by bar repeat at each rival's own 4L and 8L using interpolated peak height (8L matters for a tracker on the double octave, such as 196 against 130.7). Expiry locks the current winner. Reset on keepRecent and reset.",
+        "location": "app/features/rhythm/tempo.ts"
+      },
+      {
+        "name": "BeatTracker octave keep",
+        "responsibility": "setTempo keeps the grid when the new period is an exact octave of the old one, halving or doubling instead of rebuilding",
+        "location": "app/features/rhythm/beatTracker.ts"
+      },
+      {
+        "name": "BoundaryDetector dotted timer",
+        "responsibility": "Per D12: at a dotted rival held TEMPO_DOTTED_JUMP_SECONDS at confidence 0.5 or above, raise a soft boundary only when the old pulse's support collapsed; otherwise re-seed the reference with no boundary",
+        "location": "app/features/rhythm/boundary.ts"
+      },
+      {
+        "name": "Gate place rule",
+        "responsibility": "Winner from replay, bar-to-bar repeat tried first; bump stays driven by the beat clock",
+        "location": "app/features/rhythm/bassGate.ts"
+      },
+      {
+        "name": "computeDanceTiming",
+        "responsibility": "Universal speed cap, double-time branch removed, octave re-seed after a dotted correction, crossfade request per D8",
+        "location": "app/features/visualizers/dancing-character/dancingCharacterSync.ts"
+      },
+      {
+        "name": "Scene crossfade",
+        "responsibility": "Runs the requested crossfade on the AnimationMixer in the same frame as computeDanceTiming, reusing preallocated actions",
+        "location": "app/features/visualizers/dancing-character/dancingCharacterScene.ts"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "Deferred first lock",
+        "kind": "behavior",
+        "definition": "TempoTracker.bpm stays 0 while a first-lock tie is open, at most TEMPO_TIE_MAX_DEFER_S (D16); rawBpm and confidence keep updating; state.bpm reads 0 and visualizers show the calm state. BoundaryDetector.pushTempo is not fed during the deferral, so its reference is seeded from the decided tempo."
+      },
+      {
+        "id": "C2",
+        "name": "Rhythm tool CLIs",
+        "kind": "cli",
+        "definition": "npm run ablate:rhythm -- <wav> --set NAME=VALUE (esbuild onLoad plugin in scripts/, no change in app/), npm run replay:gate -- <telemetry.csv> --rule NAME, and npm run probe:rhythm -- <dir>; telemetry CSV gains rawBpm and rivalBpm columns; dev only, nothing ships, and npm run size shows no change."
+      },
+      {
+        "id": "C3",
+        "name": "Dotted soft boundary",
+        "kind": "behavior",
+        "definition": "Per D12, pushTempo reports BOUNDARY_SOFT for a dotted-ratio tempo held TEMPO_DOTTED_JUMP_SECONDS at confidence 0.5 or above only when the old pulse's support collapsed; it replaces the assertion at boundary.test.ts:211-213. TempoTracker exposes the support at the held lag as a read-only value."
+      },
+      {
+        "id": "C4",
+        "name": "Bass gate state",
+        "kind": "module",
+        "definition": "BassGateState fields change with the chosen rule; stepBassGate's signature and return value, and the BassPulse surface in architecture.md section 6, do not."
+      },
+      {
+        "id": "C5",
+        "name": "Dance timing result",
+        "kind": "module",
+        "definition": "The implied rate never exceeds MAX_DANCE_BPM; STEP_MULTIPLES becomes half and one, and the danceSpeed control's max becomes 1; DanceTimingResult gains a crossfadeToPhase value, negative when there is none, recomputed every call and consumed in the same frame, so nothing is left pending while the page is hidden; no allocation."
+      }
+    ],
+    "data": "No persistent data. Reference tempos and audio stay in git-ignored .debug-in.",
+    "ux": "The Dance speed slider loses its 2x step (half time and on the beat remain). Ambiguous tracks show the calm sway slightly longer before locking. At meter lock the dancer may blend once to the right beat instead of running 11% off for up to 8 s.",
+    "accessibility": "No new controls. The crossfade is a brief blend and adds no flash; reduced-motion defaults are unaffected.",
+    "security_privacy": "All client side; no new data leaves the browser. Tools read local files only.",
+    "observability": "Telemetry raw tempo and rival columns, debug:summary and debug:repeat; results doc updated per slice.",
+    "rollout": "One PR per slice with a Conventional Commit title; check on the Cloudflare preview. Clock-changing slices post six-track live results in the PR before merge. New rules stay constant-tunable. Roll back by reverting the PR or with wrangler rollback: a failing smoke run after merge, or any six-track regression found after deploy, triggers it. A dropped dependency counts as satisfied (D13)."
+  },
+  "test_strategy": {
+    "unit": "Specs beside each file: synthetic dotted rivals for the tie-break including deadline and reset; octave grid keep; dotted boundary times, including a correction at 30 s raising nothing; state.bpm pin that fails when reverted; speed cap at extreme tempos for each step and calm; scattered seeds without it.fails; meterLocked toggling and re-lock for the crossfade; deterministic regressions over the derived fixtures (AC13).",
+    "integration": "rhythmAnalyzer.test.ts feeds synthetic envelopes through tie-break, beat tracker and boundary together, including a corrected first lock raising no song change.",
+    "e2e": "npm run test:e2e after each rendering slice; existing fixtures catch errors, context leaks and console warnings.",
+    "manual": "debug:viz on all six tracks for clock-changing slices, 8 fresh plays of lonley and syncopationbass for AC2, 4 plays fresh and re-select for AC9; look at the crossfade and calm wait in npm run dev. Live plays remain a smoke check, since unexplained differences between plays exist; fixtures carry the regression duty, without the AGC and block timing.",
+    "non_functional": "npm run size against the 312.5 kB limit, reduced first by dropping dead code; 60 fps check on cubes and trio-color-wave; no per-frame allocation in the new code."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Bar repeat does not separate the rivals on lonley",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "The probe shows this before any rule ships; escalate to a kick-only vote, which has a bundle cost."
+    },
+    {
+      "id": "K2",
+      "description": "Six reference tracks overfit the thresholds",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Prefer ratio comparisons between rivals over absolute constants; keep eval:rhythm and synthetic specs as guards; a deadline always falls back to today's behavior."
+    },
+    {
+      "id": "K3",
+      "description": "4 s after lock holds about 9 kicks, too few for any beat-level statistic to separate 32-41% on-place from the 20% chance rate",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "S8 starts with a feasibility check in replay and tries bar-to-bar repeat first, which uses different information. Scatter rejection is mandatory; lonley's opening time stays recorded as open if needed (D11, Q2)."
+    },
+    {
+      "id": "K4",
+      "description": "The dotted timer reports a tracker correction or a long dotted passage as a song change",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "D12 requires the old pulse's support to collapse; S7 ships after the tie-break and S5, with a six-track false-boundary check; eval:rhythm must stay at 0.00; fallback is no boundary."
+    },
+    {
+      "id": "K5",
+      "description": "summer2000's reference is 127.5 by comb and 129 by metronome, 1.2% apart, more than the 1% test",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "lonley is confirmed (D14). summer2000 is not a tie track, so it does not drive tuning; Trevor settles it before its AC2 row is judged (Q1)."
+    },
+    {
+      "id": "K6",
+      "description": "Bundle budget has 0.24 kB of headroom",
+      "likelihood": "high",
+      "impact": "low",
+      "mitigation": "Measure per slice; a raise goes in the same PR with its reason, as AGENTS.md requires."
+    },
+    {
+      "id": "K7",
+      "description": "The crossfade reads as a jump on the dancer",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Blend time is a constant; judged by eye in npm run dev; the capped nudge stays for small errors."
+    },
+    {
+      "id": "K8",
+      "description": "Fixtures omit the AGC and block timing, so they may pass where live fails",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Fixtures guard regressions only; acceptance stays live on all six tracks."
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Commit telemetry columns, probe, ablation and fixtures",
+      "objective": "Raw tempo and rival telemetry, ablation by scripts-only plugin, the probe tool and derived fixtures from the six tracks.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1",
+        "AC11",
+        "AC13"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "scripts/debug-visualizer/",
+        "scripts/rhythm-ablate.ts",
+        "scripts/rhythm-probe.ts",
+        "scripts/fixtures/rhythm/",
+        "package.json"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Pin state.bpm with a dedicated spec",
+      "objective": "A spec that fails if state.bpm publishes the beat period again.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC7",
+        "AC11"
+      ],
+      "contracts": [],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "app/features/rhythm/rhythmAnalyzer.test.ts"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Cap every dance speed and remove the 2x step",
+      "objective": "Apply the limit to every setting and the calm rate, remove the 2x step and the double-time branch and its specs, regenerate the panel baseline.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC10",
+        "AC11"
+      ],
+      "contracts": [
+        "C5"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterConfig.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterControls.test.ts",
+        "e2e/visual.spec.ts-snapshots/"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Run the evidence probe and hold a stop or go",
+      "objective": "Write the evidence table for all six tracks to the results doc, including which case of D10 applies on syncopation-no-kick and old-pulse support for D12, then decide S11's rule with Trevor.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC11"
+      ],
+      "contracts": [],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "docs/agents/rhythm-stability-results.md"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Test the syncopation-no-kick causes (stretch)",
+      "objective": "Work through causes A to F of D10 with raw tempo telemetry and ablation; keep a fix only if no track regresses; record each outcome.",
+      "depends_on": [
+        "S11"
+      ],
+      "acceptance_refs": [
+        "AC3",
+        "AC11"
+      ],
+      "contracts": [],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/tempo.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "docs/agents/rhythm-stability-results.md"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Keep the octave and the grid across corrections",
+      "objective": "Re-seed the octave after a dotted correction, keep the grid on an exact octave move, and explain the rebuild near 9 s.",
+      "depends_on": [
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC4",
+        "AC5",
+        "AC11"
+      ],
+      "contracts": [],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/beatTracker.ts",
+        "app/features/rhythm/beatTracker.test.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "Report song changes at dotted ratios",
+      "objective": "Give dotted ratios a longer, confidence-gated jump time, with the old-pulse test of D12, then re-run the six-track false-boundary check.",
+      "depends_on": [
+        "S4",
+        "S5",
+        "S11"
+      ],
+      "acceptance_refs": [
+        "AC6",
+        "AC11"
+      ],
+      "contracts": [
+        "C3"
+      ],
+      "risk": "R2",
+      "size": "S",
+      "draft_paths": [
+        "app/features/rhythm/boundary.ts",
+        "app/features/rhythm/boundary.test.ts",
+        "app/features/rhythm/rhythmConfig.ts"
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "Choose and ship the bass gate place rule",
+      "objective": "Check feasibility in replay on lonley first; compare bar-to-bar repeat, then phase concentration and on-place rate; ship the winner and remove it.fails.",
+      "depends_on": [
+        "S4",
+        "S12"
+      ],
+      "acceptance_refs": [
+        "AC8",
+        "AC11",
+        "AC13"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/bassGate.ts",
+        "app/features/rhythm/bassGate.test.ts",
+        "app/features/rhythm/bassGateConfig.ts"
+      ]
+    },
+    {
+      "id": "S9",
+      "title": "Crossfade whole-beat clip errors at meter lock",
+      "objective": "Blend once to the right beat, keeping the nudge for small errors, then measure clip spread.",
+      "depends_on": [
+        "S3",
+        "S6"
+      ],
+      "acceptance_refs": [
+        "AC9",
+        "AC11"
+      ],
+      "contracts": [
+        "C5"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts"
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Record the final results",
+      "objective": "Update rhythm-stability-results.md and rhythm-findings.md with final states, measurements and what stays open, including any dropped slice.",
+      "depends_on": [
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S11",
+        "S12"
+      ],
+      "acceptance_refs": [
+        "AC12"
+      ],
+      "contracts": [],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "docs/agents/rhythm-stability-results.md"
+      ]
+    },
+    {
+      "id": "S11",
+      "title": "Ship the first-lock tie-break",
+      "objective": "Bar-repeat deferred first lock chosen in S4, with the kick vote only if S4 demands it and Trevor agrees. A negative probe drops or re-scopes this slice.",
+      "depends_on": [
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC11",
+        "AC13"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "app/features/rhythm/tempo.ts",
+        "app/features/rhythm/tempo.test.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/rhythmAnalyzer.test.ts"
+      ]
+    },
+    {
+      "id": "S12",
+      "title": "Commit gate replay and fix the reports",
+      "objective": "Gate replay, the eval stability metric, verdict rounding and the Infinity CSV fix.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC11"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "scripts/gate-replay.ts",
+        "scripts/eval-rhythm.ts",
+        "scripts/debug-visualizer/"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Is summer2000 127.5 or 129 BPM? The two are 1.2% apart, more than the 1% test. lonley is confirmed at 140.",
+      "owner": "Trevor, before judging summer2000's AC2 row",
+      "blocking": false
+    },
+    {
+      "id": "Q2",
+      "question": "If replay shows no gate rule both opens within 4 s on lonley and rejects scatter, is a later opening acceptable? Plan default: yes, scatter rejection wins.",
+      "owner": "Trevor, at S8",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC8 and the third success metric demand both 'gate opens within 4 s of lock on all 5 kick tracks' and 'scattered seeds stay closed', while D11, Q2 and K3 (likelihood high) already expect these to conflict. The results doc (rhythm-stability-results.md section 4) says lonley's 32-41% on-place rate is too near the 20% chance rate for a constant to separate, and that penalties, leak, window 0.15 and open score 3 were all tried and rejected. Roughly 9 kicks in 4 s cannot separate 35% from 20% by any beat-level statistic, whether on-place rate (O1) or Rayleigh R (O2/O3). S8 lists these as replay candidates, so it is likely to re-run rejected work. The only candidate that uses different information is bar-to-bar repeat, which the doc names as the lead, and it is listed last.",
+        "suggestion": "Rewrite AC8 as two tiers: scatter rejection is mandatory (it.fails removed), and the 4 s opening is a target recorded as met or open per D11. Make bar-to-bar repeat the first S8 candidate. Add a replay feasibility check on lonley (kicks available in 4 s versus the statistic's power) before any gate code is written.",
+        "resolution": "Changed the plan: AC8 and the metric are two-tier, S8 starts with a feasibility check and tries bar-to-bar repeat first."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "design",
+        "finding": "D5 shows that normalizeOctave folds to 80..160 and 2x is therefore always over 140. D6 halves 'until it fits', so 2x resolves to 1x for every locked tempo up to 140 and to 0.5x above it. dancingCharacterSync.ts:173-177 today halves only when the chosen step is 1. After S3 the slider's top step is identical to the step below it. D7 (planner-assumption) leaves the slider unchanged and says to 'revisit if it reads as broken', so the plan ships a dead control and the AC10 spec for '2x, 1x and calm' pins the equivalence in place. The barsPerLoop < 1 double-time branch (lines 187-195) becomes unreachable while locked. That is dead code under the 95% coverage rule, and S9 will touch the same branch for the crossfade.",
+        "suggestion": "State in D7 that 2x equals 1x while locked and decide now: remove or relabel the step, or accept it knowingly. In S3, delete the unreachable branch and its specs, or keep it with a stated reason. Say what the calm-rate cap at 2x is, as a number against MAX_DANCE_BPM.",
+        "resolution": "Asked Trevor: remove the 2x step (D7). S3 deletes the branch; D6 gives the calm cap as about 0.97."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "design",
+        "finding": "C3/S7 (K4) make a dotted rival held for TEMPO_DOTTED_JUMP_SECONDS at confidence 0.5 or more raise BOUNDARY_SOFT. The only exemption is 'the held tempo corrected at first lock'. The tracker still self-corrects later (a dotted hold needs 32 estimates, tempo.ts:315-331), and S5 may add more late corrections. On syncopation-no-kick (holds 180 for the whole track) or syncopationbass (rival 130.7), a late correction of 180 to 135 would be reported as a song change. That bumps songChangeCount, runs keepOnlyRecent (rhythmAnalyzer.ts:249-258), resets the dance lock, octave and gate (dancingCharacterSync.ts:141-146), and restarts the stability the plan is protecting. eval:rhythm only counts false changes on whole files and cannot see a missed true dotted change, so the 0.00 guard covers only half of AC6. S7 depends only on S4, not on S5.",
+        "suggestion": "Have the boundary detector follow the tracker's own published-tempo corrections (a rival that the tracker itself adopts re-seeds the reference without a boundary) at any time, not only at first lock. Add a spec 'held tempo corrected 187.5 to 140 at 30 s raises nothing'. Make S7 depend on S5, or at least re-run the six-track false-boundary check after S5.",
+        "resolution": "Changed the plan with a different fix: re-seeding on every adoption would hide real changes, so D12 and C3 test whether the old pulse's support collapsed. S7 now depends on S5, with a false-boundary recheck and a spec for a correction at 30 s."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "C1 and the tie-break component leave TEMPO_TIE_MAX_DEFER_S without a value (O1 had about 3 s, O2 had 8 s). bpm 0 for that long stacks on a 5 s lock and an 11-13 s meter lock, and the beat grid, meter, bass gate and dance lock are all gated on a published tempo. The success metrics and AC8 measure 'after lock', and AC9 measures 'after meter lock', so none of them measures the added delay. O1's risk 'deferral can interact with boundary detection at song start' was dropped in O4 without a replacement, and C1 does not say what boundary.pushTempo receives while deferred. D2 permits slower, but an unbounded budget lets the slice trade away the first-response experience unnoticed.",
+        "suggestion": "Fix the defer ceiling in C1 (and a ceiling for added time to meter lock), add time-to-first-publish and time-to-meter-lock to the success metrics, and specify the pushTempo input during deferral with a synthetic spec in rhythmAnalyzer.test.ts.",
+        "resolution": "Changed the plan: D16 sets the ceiling, metrics measure first publish and meter lock, C1 specifies pushTempo during deferral."
+      },
+      {
+        "id": "F5",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "S4 (size L, R2) bundles the probe, the tie-break and a conditional escalation to a kick-only vote. The escalation changes the pushFrame signature, adds a data path, and spends bundle headroom of 0.24 kB (K1, K6). AC2, the other success metrics and slices S5-S8 all hang on S4, and nothing says what happens if the probe shows bar repeat does not separate lonley (K1 is medium likelihood and high impact). There is no checkpoint for Trevor between probe and build. S6 (octave re-seed, grid keep) and S8 are needed even when no tie-break works, because corrections still occur, so their dependency on S4 looks like ordering convenience.",
+        "suggestion": "Split S4 into S4a (probe results written to the results doc, a stop/go with Trevor) and S4b (implementation). Add an explicit branch: if the probe is negative, AC2 is recorded open, S4b is dropped or re-scoped, and S6/S8 proceed on their own. Weaken the S6/S8 dependency to S4a where the code does not need the tie-break.",
+        "resolution": "Changed the plan: S4 is now the probe with a stop or go, S11 the implementation, D13 the negative branch; S6 and S8 depend only on the probe."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC2, AC4 (timeScale across plays), AC5 (rebuilds 0), AC8, AC9 and most success metrics can only be checked live on Trevor's machine. The audio is not in the repo, so CI proves only synthetic specs. '4 of 4 fresh plays' is weak evidence for a fault seen in 2 of 3 plays. A tracker that still fails one play in three passes 4 of 4 about 20% of the time. The plays also differ for reasons the doc calls unexplained (frame timing, the 9 s rebuild). There is no stored evidence for a reviewer other than a PR comment.",
+        "suggestion": "Commit the derived, non-audio onset-sum and kick-flux envelopes (if licensing allows) or at least the telemetry CSVs, so the replay and probe tools give a deterministic regression for the tie-break. Raise the live gate to 8 plays for lonley and syncopationbass, or state that 4 of 4 is a smoke check rather than proof.",
+        "resolution": "Changed the plan: Trevor agreed to commit derived fixtures (D15, AC13), and the live gate rose to 8 plays."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "design",
+        "finding": "D8/C5/S9 make the crossfade 'once at meter lock' as a one-shot field on DanceTimingResult. The results doc (section 5) says summer2000 re-locks the meter a beat apart after its break near 23 s, and computeDanceTiming has enter and exit thresholds, so meterLocked can toggle several times per song. Nothing defines a per-song latch, and nothing defines what happens when the one-shot is not consumed (the visualizer is hidden, or the frame is dropped). The previous session chose the capped nudge so the dancer 'never jumps' (doc line 151), and K7 is only 'judged by eye'. Also, the doc says the clip already converges to within 0.01 of the bar after meter lock, so the 0.199-0.533 p95 spread is caused by the catch-up window. AC9's 'after meter lock' window must be pinned to when the metric starts, or the crossfade may not change what debug:repeat reports.",
+        "suggestion": "Specify the latch (once per songChangeCount, plus an explicit rule for re-lock), who clears the one-shot, and the minimum error threshold in beats. State in AC9 the exact debug:repeat window start. Add a spec for toggling meterLocked.",
+        "resolution": "Changed the plan: D8 defines the latch and 0.5 beat threshold, C5 the same-frame consumption, AC9 the window start and toggling spec."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "The probe in S4 and K5 rest on references that are weak. Q1 (lonley 140 and summer2000 127.5 or 129) is marked non-blocking, but the tie-break and AC2 tune directly against lonley's 140, and the doc says lonley's reference 'has not been confirmed by ear'. If lonley's truth is 187.5 or something else, S4, S6 and AC4 are built on the wrong target. D10's candidates A-F are 'from reading, no run', and D10's claim that the 4L comparison is decisive for a 3-3-3-3-4 pattern is untested. S5's whole premise (a ranked list) is unverified.",
+        "suggestion": "Make Q1 blocking for S4b (not for S1/S4a): Trevor confirms lonley and summer2000 by ear before any tie-break constant is chosen. Record the probe's tempo columns for the alternative references too, so a wrong reference is visible.",
+        "resolution": "Asked Trevor: lonley is confirmed at 140 (D14). summer2000 stays open in Q1 and does not drive tuning. D10 stays explicitly untested; S4 records which case applies."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "design",
+        "finding": "AC1 says ablation 'overrides one rhythmConfig constant deterministically' via an env map (C2, O2), but rhythmConfig.ts exports compile-time constants consumed by ES imports. The plan does not say how an override works without production-code hooks. A hook inside app code would ship in the bundle (0.24 kB headroom) or break the pure-config rule (AGENTS.md rules 2 and 5), while a build-time define or alias in scripts/ is fine. S1 also holds seven tool deliverables as one M slice, although S4 needs only the probe and the telemetry columns, and the telemetry column change touches the debug harness that live checks rely on.",
+        "suggestion": "State the override mechanism in C2 (esbuild alias or define in scripts/ only; no change in app/) and add a size check showing no app bundle change for S1. Consider splitting the telemetry columns and probe (needed by S4a) from the ablation, gate replay and eval fixes.",
+        "resolution": "Changed the plan: C2 names the scripts-only plugin with a size check, and S1 was split with S12."
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "delivery",
+        "finding": "D1 says every slice can be dropped alone, but S10 depends on S5 (a stretch slice), S9 depends on S3 and S6, and the dependency graph does not say what a dropped dependency means. S10 does not list S3, S4 or S6 either. AC12 is therefore unreachable if S5 is dropped, and risk classes are inconsistent: S4 and S8 change the clock at R2, while the gate change that ships a visible behavior to production on every push to main has no rollback trigger beyond 'smoke run fails'.",
+        "suggestion": "Define 'dropped' in the graph (a dropped dependency counts as satisfied, with the outcome recorded as open), list every slice S10 records, and add one concrete rollback criterion for clock-changing slices (for example, any six-track regression found within a day of deploy).",
+        "resolution": "Changed the plan: D13 defines a dropped dependency, S10 lists every slice, rollout has a regression trigger."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "1afb300423bf065ee8cb09d0cd9d2a98aa2fc64e523dc05121a66920ab039d2e",
+    "cards": {
+      "O1": "91ce173c72f08ecbe06c84730d54d20378b9c0742bcb7e4d2c5e37bf552fb139",
+      "O2": "d7014bcca37117e3ef5fba6dbab7d39d026c412c7e4156056ca3433a23b5cf01",
+      "O3": "a8d7f1730d9ce151429871acd05c396578d9c1ee1a5705599bb493606e22221b"
+    },
+    "critic_sha256": "0b121f7a2ddb642d4a476d2899e0a69bdf0b3463102d3497c7027d6d3eeab857",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "56990dd0468df156",
+      "acs_sha256": "0b9e96c3a8944f73"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "2b41adbdc3b28a5c",
+      "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C2",
+          "name": "Rhythm tool CLIs",
+          "kind": "cli",
+          "definition": "npm run ablate:rhythm -- <wav> --set NAME=VALUE (esbuild onLoad plugin in scripts/, no change in app/), npm run replay:gate -- <telemetry.csv> --rule NAME, and npm run probe:rhythm -- <dir>; telemetry CSV gains rawBpm and rivalBpm columns; dev only, nothing ships, and npm run size shows no change."
+        },
+        {
+          "id": "C5",
+          "name": "Dance timing result",
+          "kind": "module",
+          "definition": "The implied rate never exceeds MAX_DANCE_BPM; STEP_MULTIPLES becomes half and one, and the danceSpeed control's max becomes 1; DanceTimingResult gains a crossfadeToPhase value, negative when there is none, recomputed every call and consumed in the same frame, so nothing is left pending while the page is hidden; no allocation."
+        },
+        {
+          "id": "C3",
+          "name": "Dotted soft boundary",
+          "kind": "behavior",
+          "definition": "Per D12, pushTempo reports BOUNDARY_SOFT for a dotted-ratio tempo held TEMPO_DOTTED_JUMP_SECONDS at confidence 0.5 or above only when the old pulse's support collapsed; it replaces the assertion at boundary.test.ts:211-213. TempoTracker exposes the support at the held lag as a read-only value."
+        },
+        {
+          "id": "C4",
+          "name": "Bass gate state",
+          "kind": "module",
+          "definition": "BassGateState fields change with the chosen rule; stepBassGate's signature and return value, and the BassPulse surface in architecture.md section 6, do not."
+        },
+        {
+          "id": "C1",
+          "name": "Deferred first lock",
+          "kind": "behavior",
+          "definition": "TempoTracker.bpm stays 0 while a first-lock tie is open, at most TEMPO_TIE_MAX_DEFER_S (D16); rawBpm and confidence keep updating; state.bpm reads 0 and visualizers show the calm state. BoundaryDetector.pushTempo is not fed during the deferral, so its reference is seeded from the decided tempo."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Commit telemetry columns, probe, ablation and fixtures: Raw tempo and rival telemetry, ablation by scripts-only plugin, the probe tool and derived fixtures from the six tracks.",
+          "dependencies": [],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/debug-visualizer/",
+            "scripts/rhythm-ablate.ts",
+            "scripts/rhythm-probe.ts",
+            "scripts/fixtures/rhythm/",
+            "package.json"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Rhythm tool CLIs (cli): npm run ablate:rhythm -- <wav> --set NAME=VALUE (esbuild onLoad plugin in scripts/, no change in app/), npm run replay:gate -- <telemetry.csv> --rule NAME, and npm run probe:rhythm -- <dir>; telemetry CSV gains rawBpm and rivalBpm columns; dev only, nothing ships, and npm run size shows no change."
+          ],
+          "acceptance": [
+            "AC1: Given the offline ablation and gate replay techniques and the known tooling bugs, when a builder runs the committed scripts on a WAV or a recording, then ablation overrides one rhythmConfig constant deterministically through a scripts-only esbuild plugin, with no app bundle change; gate replay reproduces recorded opening times; eval:rhythm prints a stability metric; verdicts no longer fail on rounding (0.99 < 0.99); CSVs write Infinity as Infinity",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock",
+            "AC13: Given committed derived fixtures from the reference tracks, when CI runs the unit tests, then the tie-break and gate rule replay on them deterministically, and reverting either rule fails a spec; no audio is committed and each fixture passes the repository's max-file-size check"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Pin state.bpm with a dedicated spec: A spec that fails if state.bpm publishes the beat period again.",
+          "dependencies": [],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/rhythmAnalyzer.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC7: Given the state.bpm change in rhythmAnalyzer.ts, when it is reverted to publish the beat period, then a dedicated spec fails",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Cap every dance speed and remove the 2x step: Apply the limit to every setting and the calm rate, remove the 2x step and the double-time branch and its specs, regenerate the panel baseline.",
+          "dependencies": [],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterConfig.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterControls.test.ts",
+            "e2e/visual.spec.ts-snapshots/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C5 Dance timing result (module): The implied rate never exceeds MAX_DANCE_BPM; STEP_MULTIPLES becomes half and one, and the danceSpeed control's max becomes 1; DanceTimingResult gains a crossfadeToPhase value, negative when there is none, recomputed every call and consumed in the same frame, so nothing is left pending while the page is hidden; no allocation."
+          ],
+          "acceptance": [
+            "AC10: Given the slider's half time and on the beat steps and any tempo, locked or unknown, when computeDanceTiming chooses the speed, then the implied dance rate never exceeds MAX_DANCE_BPM (with the release share), the steps stay on the beat, the 2x step and double-time branch are gone, a spec covers both steps and calm at the extremes, and the settings-panel baseline is regenerated",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Run the evidence probe and hold a stop or go: Write the evidence table for all six tracks to the results doc, including which case of D10 applies on syncopation-no-kick and old-pulse support for D12, then decide S11's rule with Trevor.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/rhythm-stability-results.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC2: Given lonley and syncopationbass, played fresh 8 times each with debug:viz, when the tempo first locks, then the published bpm is within 1% of reference, or its octave, from the first lock on 8 of 8 plays, first publish meets the deferral ceiling, and imyourgirl, syncopationbass2 and summer2000 stay at 100% within 1%; if the S4 probe is negative this is recorded open instead",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Test the syncopation-no-kick causes (stretch): Work through causes A to F of D10 with raw tempo telemetry and ablation; keep a fix only if no track regresses; record each outcome.",
+          "dependencies": [
+            "S11"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/tempo.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "docs/agents/rhythm-stability-results.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC3: Given the ranked causes for syncopation-no-kick, when each is tested with rawBpm telemetry or ablation, then the outcome of each is recorded in rhythm-stability-results.md; reaching 135 within 1% is a stretch outcome that does not block the plan, and no other track regresses from any change kept",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S6",
+          "objective": "Keep the octave and the grid across corrections: Re-seed the octave after a dotted correction, keep the grid on an exact octave move, and explain the rebuild near 9 s.",
+          "dependencies": [
+            "S4"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/beatTracker.ts",
+            "app/features/rhythm/beatTracker.test.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC4: Given a tracker that corrects a wrong lock of 187.5 to 140, when normalizeOctave folds the corrected tempo, then the dance runs at the same timeScale as a play that locked on 140 first, shown by a spec in dancingCharacterSync.test.ts and by lonley's timeScale across plays",
+            "AC5: Given syncopationbass and lonley, when the tempo moves by exactly an octave, or a track plays through with no song change, then the grid is kept across the octave move (spec in beatTracker.test.ts), recorded grid rebuilds are 0, and the rebuild near 9 s is explained in the results doc",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S7",
+          "objective": "Report song changes at dotted ratios: Give dotted ratios a longer, confidence-gated jump time, with the old-pulse test of D12, then re-run the six-track false-boundary check.",
+          "dependencies": [
+            "S4",
+            "S5",
+            "S11"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/boundary.ts",
+            "app/features/rhythm/boundary.test.ts",
+            "app/features/rhythm/rhythmConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 Dotted soft boundary (behavior): Per D12, pushTempo reports BOUNDARY_SOFT for a dotted-ratio tempo held TEMPO_DOTTED_JUMP_SECONDS at confidence 0.5 or above only when the old pulse's support collapsed; it replaces the assertion at boundary.test.ts:211-213. TempoTracker exposes the support at the held lag as a read-only value."
+          ],
+          "acceptance": [
+            "AC6: Given a real song change at a dotted ratio such as 90 to 120 or 100 to 150, when the new tempo holds at confidence 0.5 or above for the longer jump time, then the boundary detector reports a soft boundary and songChangeCount rises when the old pulse's support has collapsed, while a dotted passage, or the held tempo correcting from 187.5 to 140 at 30 s with the old pulse still present, raises nothing, and eval:rhythm false song changes stay 0.00; if the probe shows these cannot be separated, nothing is raised and AC6 is recorded open",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S8",
+          "objective": "Choose and ship the bass gate place rule: Check feasibility in replay on lonley first; compare bar-to-bar repeat, then phase concentration and on-place rate; ship the winner and remove it.fails.",
+          "dependencies": [
+            "S4",
+            "S12"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/bassGate.ts",
+            "app/features/rhythm/bassGate.test.ts",
+            "app/features/rhythm/bassGateConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 Bass gate state (module): BassGateState fields change with the chosen rule; stepBassGate's signature and return value, and the BassPulse surface in architecture.md section 6, do not."
+          ],
+          "acceptance": [
+            "AC8: Given the bass gate on real and random bass, when the scattered-bass seeds run in bassGate.test.ts, and all 5 kick-bearing tracks play, then mandatory: the seeds no longer open the gate and the it.fails marker is removed, with no track losing its gate; target: it opens within 4 s of lock and stays open, recorded as met or open per track, starting with lonley",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock",
+            "AC13: Given committed derived fixtures from the reference tracks, when CI runs the unit tests, then the tie-break and gate rule replay on them deterministically, and reverting either rule fails a spec; no audio is committed and each fixture passes the repository's max-file-size check"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S9",
+          "objective": "Crossfade whole-beat clip errors at meter lock: Blend once to the right beat, keeping the nudge for small errors, then measure clip spread.",
+          "dependencies": [
+            "S3",
+            "S6"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/dancingCharacterSync.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterSync.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C5 Dance timing result (module): The implied rate never exceeds MAX_DANCE_BPM; STEP_MULTIPLES becomes half and one, and the danceSpeed control's max becomes 1; DanceTimingResult gains a crossfadeToPhase value, negative when there is none, recomputed every call and consumed in the same frame, so nothing is left pending while the page is hidden; no allocation."
+          ],
+          "acceptance": [
+            "AC9: Given imyourgirl and summer2000, 4 plays each, fresh and re-select, when debug:repeat compares them from 1 s after the latest first meter lock among the compared plays, then clip spread p95 is at or below 0.05, or for summer2000 the row is recorded as open with the meter measurement; errors of 0.5 beat or more resolve by one crossfade with no sustained speed change, and a spec covers meterLocked toggling and re-lock",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S10",
+          "objective": "Record the final results: Update rhythm-stability-results.md and rhythm-findings.md with final states, measurements and what stays open, including any dropped slice.",
+          "dependencies": [
+            "S2",
+            "S3",
+            "S4",
+            "S5",
+            "S6",
+            "S7",
+            "S8",
+            "S9",
+            "S11",
+            "S12"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/rhythm-stability-results.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC12: Given the plan's end, when the last slice merges or is dropped, then rhythm-stability-results.md shows each outcome's final state, measured values and anything left open"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S11",
+          "objective": "Ship the first-lock tie-break: Bar-repeat deferred first lock chosen in S4, with the kick vote only if S4 demands it and Trevor agrees. A negative probe drops or re-scopes this slice.",
+          "dependencies": [
+            "S4"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/tempo.ts",
+            "app/features/rhythm/tempo.test.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/rhythmAnalyzer.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Deferred first lock (behavior): TempoTracker.bpm stays 0 while a first-lock tie is open, at most TEMPO_TIE_MAX_DEFER_S (D16); rawBpm and confidence keep updating; state.bpm reads 0 and visualizers show the calm state. BoundaryDetector.pushTempo is not fed during the deferral, so its reference is seeded from the decided tempo."
+          ],
+          "acceptance": [
+            "AC2: Given lonley and syncopationbass, played fresh 8 times each with debug:viz, when the tempo first locks, then the published bpm is within 1% of reference, or its octave, from the first lock on 8 of 8 plays, first publish meets the deferral ceiling, and imyourgirl, syncopationbass2 and summer2000 stay at 100% within 1%; if the S4 probe is negative this is recorded open instead",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock",
+            "AC13: Given committed derived fixtures from the reference tracks, when CI runs the unit tests, then the tie-break and gate rule replay on them deterministically, and reverting either rule fails a spec; no audio is committed and each fixture passes the repository's max-file-size check"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S12",
+          "objective": "Commit gate replay and fix the reports: Gate replay, the eval stability metric, verdict rounding and the Infinity CSV fix.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/gate-replay.ts",
+            "scripts/eval-rhythm.ts",
+            "scripts/debug-visualizer/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Rhythm tool CLIs (cli): npm run ablate:rhythm -- <wav> --set NAME=VALUE (esbuild onLoad plugin in scripts/, no change in app/), npm run replay:gate -- <telemetry.csv> --rule NAME, and npm run probe:rhythm -- <dir>; telemetry CSV gains rawBpm and rivalBpm columns; dev only, nothing ships, and npm run size shows no change."
+          ],
+          "acceptance": [
+            "AC1: Given the offline ablation and gate replay techniques and the known tooling bugs, when a builder runs the committed scripts on a WAV or a recording, then ablation overrides one rhythmConfig constant deterministically through a scripts-only esbuild plugin, with no app bundle change; gate replay reproduces recorded opening times; eval:rhythm prints a stability metric; verdicts no longer fail on rounding (0.99 < 0.99); CSVs write Infinity as Infinity",
+            "AC11: Given each slice, when its PR is opened, then format, lint, typecheck, coverage, build, size and e2e pass; any budget growth is stated in the PR; six-track live results are posted for slices that change the clock"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}

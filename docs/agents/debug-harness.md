@@ -59,6 +59,94 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   already computed (`BassPulse`, `TrioColorWaveSheet`, `DancingCharacterScene`). No maths changed. These assignments
   are in production code, which costs about 0.1 kB.
 
+## Alignment against ground truth
+Alignment of the visuals to the music is measured against exact beat and onset times, stored in a sidecar
+`<track name without extension>.beats.json` beside the audio (type `BeatSidecar` in
+`app/features/rhythm/eval/evalTypes.ts`: `track`, `tempo`, `beats`, optional per-band `onsets`, `source` of
+`synthetic` or `tapped`, `tapOffsetMs`, optional `tapNoiseFloorMs`). The figures (type `EvalReport`) are the tempo ratio
+(detected over labelled, not folded to an octave) and lock time, the median, p95 and signed bias of the beat error in
+ms from the lock on, and onset precision, recall and F per band at 50 ms (the gate) and 20 ms (the headroom). A tapped
+track's report prints its tap noise floor beside the beat error.
+
+- **Synthetic tracks:** `npm run ground-truth -- <out-dir>` writes deterministic `<name>.wav`, `<name>.beats.json` and
+  `<name>.bpm` files: click tracks, drum patterns with distinct kick, bass, snare and hi-hat voices, a 4:3 trap, a 2:1
+  trap and a no-kick pattern. The sidecars are committed in `scripts/ground-truth/sidecars/` and a spec checks that the
+  generator reproduces them; the WAVs are not committed.
+- **Offline:** `npm run eval:rhythm -- <wav-dir> --alignment` runs the real pipeline over each WAV and prints its report.
+  A WAV with only a `.bpm` gets the tempo ratio and lock time. Onsets come from the three flux bands (kick to `kick`,
+  mid to `snare`, high to `highs`); `bass` is not scored.
+- **Live:** `debug:viz` copies `<track>.beats.json` to `track.beats.json` in the output folder, and
+  `npm run debug:summary -- <csv>` then prints the same report from the telemetry (beats from the beat phase wrapping,
+  tempo from the `bpm` column). The recording must start at the start of the track. Times are the CSV's `t`, which is
+  track time (the file playback's position), so they line up with the sidecar.
+  - **Onsets:** every recording has the base columns `onsetKick`, `onsetMid`, `onsetHigh`: the tracker's
+    `RhythmState.bandOnsets` (0..1, peak-held and decaying) exactly as the visualizers read them, sampled once per
+    frame. `devTelemetry.ts` cannot reach the tracker itself, so `DevTelemetryOverlay` passes `rhythmTracker.state` to
+    `attachTelemetry(engine, onsets)`; they are 0 when nothing is passed. The report peak-picks each column with
+    `pickPeaks` (radius 1 frame and a mean over 15 frames, since frames are about 16.7 ms apart, not 10 ms) and scores
+    kick against `kick`, mid against `snare` and high against `highs`; `bass` is not scored. It needs a sidecar with
+    `onsets` (synthetic tracks) and prints the frame allowance, the median row interval, because a peak time is a row
+    time.
+  - **Reaction offset:** `npm run debug:summary -- <csv> --reaction <column>` takes the beats of `track.beats.json` as
+    click times (use it with a click track) and finds, for each, the first row at or after the click where the column
+    rises above its level just before the click by 20 percent of the column's range, within 250 ms (for a counter
+    column such as `kicks` or `beats`, the first increment). A click with no reaction is a miss. It prints
+    `reactionOffsetMs` as the median and p95 of reaction time minus click time, in ms, with hits, misses and the
+    frame allowance (the median row interval; a reaction can be read up to that much late). Example:
+    `--reaction cubes.out`. Logic: `scripts/debug-visualizer/reactionOffset.ts`.
+  - **Normalization off:** `npm run debug:viz -- ... --no-normalize` turns the engine's volume normalization off for the
+    run through `window.__vizTelemetry.setNormalize(false)` (the hook also has `normalize()`). The harness opens a new
+    browser context for every run, so the setting the engine saves to storage disappears with it and the developer's
+    own profile is never changed. The run writes `options.json` (`viz`, `track`, `from`, `noNormalize`) beside the CSV;
+    `debug:summary` prints it first as `Run options:`, and `debug:viz` prints an `Options:` line, so recordings can be
+    told apart.
+- **Regression spec:** `scripts/ground-truth/alignment.test.ts` asserts what the pipeline meets today; the plan's targets
+  are `it.fails` tests that start failing (and must lose `.fails`) once the pipeline reaches them.
+
+## Bass ink
+`npm run debug:viz -- --dir <folder> --track <file> --viz bass-ink` records the `bass-ink` probe: `in` (the bass level
+the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz, after the gain stage), `out` (the
+governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `novelty`, `phase` (0 groove, 1 build,
+2 drop, 3 afterglow), `tension`, `grants` (brightness increases granted so far), `lockWeight` (motion-clock beat lock),
+`kicks` (shockwaves started so far), `transitions` (formation changes started so far), `formation` (0 sphere, 1 torus,
+2 double helix, 3 galaxy disc), `tempoConf` and `beats` (the tracker's tempo confidence and beat counter), `mid` (the
+followed mid-band level that drives the swirl), `gateOpen` (1 while the shared bass gate has found the bassline) and
+`gateIn` (the `BassPulse` level fed to the gate).
+
+Shockwaves come from the shared bass gate (`app/features/rhythm/bassGate.ts`, as in the dancing character), not from
+the raw kick onset. The onset also fires on syncopated bass notes, toms and claps: on the reference clips it fired 2.5
+to 3 times a second at 130 to 140 BPM, spread evenly across the beat, and as often on a clip with no kick drum. The
+gate learns where the kick sits in the beat and pulses there on the beat clock, so once it is open `kicks` rises by
+one per beat (compare it with `beats` per window). Expect no shockwaves until the tempo locks and the gate opens,
+typically 4 to 6 s after the lock, and none on a track the tracker holds at a wrong tempo (`syncopationbass`, held
+near 195 instead of 98 BPM). The mid and high bands are followed with attack and release times
+(`bassInkSceneConfig.turbulence` and `.sparkle`) for the same reason: fed straight in, every snare and hat made the
+cloud twitch.
+
+Most of the motion is the spectrum field (`spectrumField.ts`, tunables in `bassInkSceneConfig.spectrum`): 48 log-spaced
+frequencies, each measured between its own running average and its recent peak, written to a texture one row per
+frame. The vertex shader gives each point the frequency of its angle on screen (bass at the bottom, highs at the top,
+mirrored) and pushes it outward by that level, so the outline is the spectrum now and older rows roll inward behind
+it. On top of that every beat of a locked tempo punches the cloud outward (`cloud.beatPunch`), timed by the breathing
+clock. Use `--shots` a tenth of a second apart (headed, so on the real GPU) to judge it; the CSV cannot show it.
+
+How the drop rules in `bassInkConfig.director` were tuned, and what to check when changing them:
+- They read the bass, not the full-band loudness. A build is the DJ pulling the bass out (a deep cut held
+  `dipSeconds`, or a softer one held `softDipSeconds`); the drop is the bass coming back (`dropRatio`, at least
+  `dropRise` above the lowest ratio of the build) on a kick. A drop out of a quiet intro, with no cut before it, is a
+  surge: `surgeRatio` held `surgeSeconds` on a kick. Novelty only confirms the kickless "loud" build, because it needs
+  about half a minute of history and lags a cut by seconds.
+- Tune against the `in` column, not `bassRaw`: `bassRaw` is tapped before the gain stage, and the automatic gain
+  flattens a surge (on one clip a 2.2 ratio before the gain was 1.8 after it). A recording's `in` column can be replayed
+  through the real `EnergyTracker` and `SetDirector` with a few lines of script, with no browser and in well under a
+  second, by setting `bandOnsets[0]` to 1 on each frame where `kicks` increases and decaying it by 0.9 per 10 ms The
+director reads the raw kick onset, while `kicks` now counts gate pulses, so this is only an approximation, and it
+misses every kick while the gate is closed; recording the onset as its own column would make it exact.
+- Starting values came from six local clips of about 30 s (no labeled drop times, so the reference times were read off
+  the per-second bass): every drop flagged within about 1 s of that reading, and no drop on the three clips without one.
+  `warmupSeconds` exists because the first seconds of a track (or a fade-in) otherwise read as a surge. Real DJ mixes
+  with labeled drops are the next step; check both missed drops and false drops in long grooves when retuning.
+
 ## Frozen contracts
 
 These were frozen before implementation. Change them only deliberately, and update every consumer in the same change.
@@ -142,13 +230,13 @@ then `onStarted()`. Errors show in the existing one-line alert.
 export type TelemetryRead = (out: Float32Array) => void; // writes this probe's columns, in order, from index 0
 export function registerTelemetryProbe(name: string, columns: readonly string[], read: TelemetryRead): () => void;
 export function tickTelemetry(dtSeconds: number): void;
-export function attachTelemetry(engine: AudioEngine): () => void; // installs window.__vizTelemetry; returns detach
+export function attachTelemetry(engine: AudioEngine, onsets?: { bandOnsets: ArrayLike<number> }): () => void; // installs window.__vizTelemetry; returns detach
 ```
 - All three are no-ops outside DEV. Scenes call them only inside `if (import.meta.env.DEV)`.
 - A scene registers in its `useThreeScene` setup and unregisters in the returned `dispose`. The probe's `read` closure is
   created once and must not allocate.
 - Scenes call `tickTelemetry(delta / 1000)` at the end of their `update`, after their own maths. One row per tick.
-- Row layout: `t, dt, fps, bassRaw, bassPost, gain`, then each registered probe's columns as `<name>.<column>` in
+- Row layout: `t, dt, fps, bassRaw, bassPost, gain, onsetKick, onsetMid, onsetHigh`, then each registered probe's columns as `<name>.<column>` in
   registration order. `t` = `getActivePlayback()?.position()` when a file is playing, else the analyser context's
   `currentTime`. `dt` in seconds, `fps` = `1 / dt` (0 when `dt` is 0). `bassRaw` / `bassPost` = mean byte frequency
   magnitude / 255 over bins up to 120 Hz, from two DEV-only analysers (fftSize 4096, smoothing 0) connected in parallel
@@ -202,7 +290,7 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
   the window is widened. Total output never exceeds `maxLines` lines.
 
 `scripts/debug-visualizer/run.ts`, run as
-`npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]`:
+`npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--no-normalize] [--headless]`:
 - `--viz` is one of the paths in `app/features/landing/visualizations.ts` without the slash. Starts `react-router dev`
   on a free port, waits for it, launches Chromium (headed unless `--headless`) with
   `--autoplay-policy=no-user-gesture-required`, opens `/<viz>`, uploads the track through the `Audio file` input with
@@ -218,7 +306,8 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
   sized for 240 Hz displays.
 - A run fails as stalled when the playback position stops advancing for 15 s. Ctrl+C (exit 130) or SIGTERM (143)
   stops the dev server and browser within about 5 s; a second signal exits at once.
-- `npm run debug:summary -- <csv>` (`scripts/debug-visualizer/summarize.ts`) reprints the summary of a CSV.
+- `npm run debug:summary -- <csv> [--bpm N] [--window S] [--reaction <column>]` (`scripts/debug-visualizer/summarize.ts`)
+  reprints the summary of a CSV, plus `options.json` and the alignment report when they sit beside it.
 - `.debug-out/` is git-ignored.
 
 ### C5 Tempo telemetry and reports
