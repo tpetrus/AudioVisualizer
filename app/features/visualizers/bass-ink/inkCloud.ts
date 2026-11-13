@@ -64,6 +64,7 @@ export class InkCloud {
             uRadius: { value: config.cloud.radius },
             uTension: { value: 0 },
             uBreath: { value: 0 },
+            uPunch: { value: 0 },
             uMid: { value: 0 },
             uHigh: { value: 0 },
             uTurbulence: { value: 1 },
@@ -71,8 +72,13 @@ export class InkCloud {
             uPointScale: { value: 500 },
             uKickTimes: { value: this.kickTimes },
             uKickStrengths: { value: this.kickStrengths },
+            uSpectrum: { value: null },
+            uSpectrumHead: { value: 0 },
+            uSpectrumSpan: { value: 0 },
+            uSpectrumAmp: { value: config.spectrum.amplitude },
             uSqueeze: { value: config.cloud.tensionSqueeze },
             uBreathAmp: { value: config.cloud.breathingAmplitude },
+            uPunchAmp: { value: config.cloud.beatPunch },
             uWaveSpeed: { value: config.wave.speed },
             uWaveWidth: { value: config.wave.width },
             uWaveDecay: { value: config.wave.decay },
@@ -203,6 +209,19 @@ export class InkCloud {
         this.kickStrengths.set(kicks.strengths);
         this.core.set(palette.core);
         this.edge.set(palette.edge);
+    }
+
+    // The spectrum field to ripple through the cloud, and where its newest row and its oldest row are. The field is
+    // owned by the scene, so a cloud rebuilt for a density change reads the same history.
+    setSpectrum(texture: THREE.Texture, headCoordinate: number, span: number): void {
+        this.uniforms.uSpectrum.value = texture;
+        this.uniforms.uSpectrumHead.value = headCoordinate;
+        this.uniforms.uSpectrumSpan.value = span;
+    }
+
+    // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
+    setPunch(value: number): void {
+        this.uniforms.uPunch.value = value;
     }
 
     // Band onsets (0..1) for the turbulence and the sparkle, and the turbulence control's multiplier.

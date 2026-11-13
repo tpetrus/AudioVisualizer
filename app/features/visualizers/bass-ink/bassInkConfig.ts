@@ -26,6 +26,11 @@ export const bassInkConfig = {
         correctionRate: 1.5,
         // The pull never changes the phase step by more than this fraction of the base step, so it cannot stall or jump.
         maxCorrectionFraction: 0.5,
+        // The beat punch reaches its peak this far into the beat (a fraction of it): fast enough to read as the hit,
+        // slow enough that it never snaps ...
+        punchAttack: 0.06,
+        // ... and decays at this rate per beat, so it is mostly gone by the next eighth note.
+        punchDecay: 5,
     },
     chroma: {
         // Pitch classes drift between notes; 3 s of smoothing keeps the palette from following single notes.

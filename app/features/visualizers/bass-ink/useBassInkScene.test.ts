@@ -89,6 +89,8 @@ interface FakeCloud {
     beginTransition: ReturnType<typeof vi.fn>;
     update: ReturnType<typeof vi.fn>;
     setTexture: ReturnType<typeof vi.fn>;
+    setPunch: ReturnType<typeof vi.fn>;
+    setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
@@ -107,6 +109,8 @@ vi.mock('./inkCloud', async () => {
             beginTransition = vi.fn();
             update = vi.fn();
             setTexture = vi.fn();
+            setPunch = vi.fn();
+            setSpectrum = vi.fn();
             setViewport = vi.fn();
             showFormation = vi.fn();
             dispose = vi.fn();
@@ -340,6 +344,23 @@ describe('useBassInkScene', () => {
             expect(lastUpdate().brightness).toBeGreaterThan(0);
         });
 
+        it('punches the cloud on the beat only once the tempo is locked', () => {
+            const { frame, tracker } = mountScene();
+            frame();
+            expect(currentCloud().setPunch).toHaveBeenLastCalledWith(0);
+
+            tracker.state.bpm = 120;
+            tracker.state.beatPhase = 0;
+            tracker.state.tempoConfidence = 0.9;
+            const punches: number[] = [];
+            for (let i = 0; i < 240; i++) {
+                frame(16);
+                punches.push(currentCloud().setPunch.mock.calls.at(-1)![0] as number);
+            }
+            expect(Math.max(...punches)).toBeGreaterThan(0.5);
+            expect(Math.min(...punches.slice(120))).toBeLessThan(0.05);
+        });
+
         it('gives the gate the tempo lock of the breathing clock', () => {
             const { frame, tracker } = mountScene();
             frame();
@@ -419,6 +440,44 @@ describe('useBassInkScene', () => {
 
             unmount();
             expect(second.analyser.disconnect).toHaveBeenCalledTimes(1);
+        });
+
+        it('ripples the spectrum of the bound source through the cloud, one new row per frame', () => {
+            const { analyser, node } = createAnalyser();
+            const { frame } = mountScene({ analyser: node });
+            analyser.setByteFrequencyData(120);
+            frame();
+            const [texture, firstHead, span] = currentCloud().setSpectrum.mock.calls.at(-1)!;
+            frame();
+            const [sameTexture, nextHead] = currentCloud().setSpectrum.mock.calls.at(-1)!;
+
+            expect(sameTexture).toBe(texture);
+            const rows = bassInkSceneConfig.spectrum.rows;
+            expect(nextHead).toBeCloseTo(((firstHead as number) + 1 / rows) % 1, 9);
+            expect(span).toBeCloseTo((rows - 1) / rows, 9);
+        });
+
+        it('keeps the spectrum moving to flat while there is no source', () => {
+            const { frame } = mountScene();
+            frame();
+            const [, firstHead] = currentCloud().setSpectrum.mock.calls.at(-1)!;
+            frame();
+            const [, nextHead] = currentCloud().setSpectrum.mock.calls.at(-1)!;
+            expect(nextHead).not.toBe(firstHead);
+        });
+
+        it('frees the spectrum texture on unmount', () => {
+            const { frame, unmount } = mountScene();
+            frame();
+            const texture = currentCloud().setSpectrum.mock.calls.at(-1)![0] as {
+                addEventListener: (type: string, listener: () => void) => void;
+            };
+            let disposed = false;
+            texture.addEventListener('dispose', () => {
+                disposed = true;
+            });
+            unmount();
+            expect(disposed).toBe(true);
         });
 
         it('feeds the gate nothing while there is no source', () => {

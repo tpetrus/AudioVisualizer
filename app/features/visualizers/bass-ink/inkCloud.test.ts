@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import type { BufferAttribute, Material } from 'three';
 import { describe, expect, it, vi } from 'vitest';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
@@ -344,6 +345,23 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uBrightness')).toBe(0.3);
             expect(Array.from(uniformOf(cloud, 'uCore') as Float32Array)).toEqual(Array.from(palette.core));
             expect(Array.from(uniformOf(cloud, 'uEdge') as Float32Array)).toEqual(Array.from(palette.edge));
+        });
+
+        it('takes the spectrum field through setSpectrum', () => {
+            const { cloud } = setup();
+            const texture = new THREE.DataTexture(new Uint8Array(4), 2, 2, THREE.RedFormat);
+            cloud.setSpectrum(texture, 0.3, 0.9);
+            expect(uniformOf(cloud, 'uSpectrum')).toBe(texture);
+            expect(uniformOf(cloud, 'uSpectrumHead')).toBe(0.3);
+            expect(uniformOf(cloud, 'uSpectrumSpan')).toBe(0.9);
+            expect(uniformOf(cloud, 'uSpectrumAmp')).toBe(bassInkSceneConfig.spectrum.amplitude);
+        });
+
+        it('takes the beat punch through setPunch', () => {
+            const { cloud } = setup();
+            cloud.setPunch(0.7);
+            expect(uniformOf(cloud, 'uPunch')).toBe(0.7);
+            expect(uniformOf(cloud, 'uPunchAmp')).toBe(bassInkSceneConfig.cloud.beatPunch);
         });
 
         it('takes the band onsets and the turbulence control through setTexture', () => {

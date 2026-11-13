@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRhythmState, type RhythmState } from '~/features/rhythm/types';
 import { bassInkConfig } from './bassInkConfig';
-import { advance, createMotionClock } from './motionClock';
+import { advance, beatPunch, createMotionClock } from './motionClock';
 
 const DT = 1 / 60;
 const config = bassInkConfig.motion;
@@ -216,5 +216,53 @@ describe('motion clock', () => {
         const clock = createMotionClock();
         advance(clock, createRhythmState(), -1);
         expect(clock.phase).toBe(0);
+    });
+
+    describe('beatPunch', () => {
+        function lockedClock(phase: number, beats = 4) {
+            const clock = createMotionClock();
+            clock.beatLockWeight = 1;
+            clock.beatsPerBreath = beats;
+            clock.phase = phase;
+            return clock;
+        }
+
+        it('is 0 while the clock runs free', () => {
+            const clock = createMotionClock();
+            clock.phase = 0.01;
+            expect(beatPunch(clock)).toBe(0);
+        });
+
+        it('peaks just after each beat and is 0 on the beat itself, so beats join without a step', () => {
+            const attack = config.punchAttack;
+            for (const beat of [0, 1, 2, 3]) {
+                expect(beatPunch(lockedClock(beat / 4))).toBe(0);
+                expect(beatPunch(lockedClock((beat + attack) / 4))).toBeGreaterThan(0.6);
+                expect(beatPunch(lockedClock((beat + 0.5) / 4))).toBeLessThan(0.1);
+            }
+            expect(beatPunch(lockedClock(0.9999 / 4))).toBeLessThan(1e-3);
+        });
+
+        it('punches three times per breath in a bar of three', () => {
+            expect(beatPunch(lockedClock((1 + config.punchAttack) / 3, 3))).toBeGreaterThan(0.6);
+        });
+
+        it('scales with the lock weight', () => {
+            const clock = lockedClock(config.punchAttack / 4);
+            const full = beatPunch(clock);
+            clock.beatLockWeight = 0.5;
+            expect(beatPunch(clock)).toBeCloseTo(full / 2, 9);
+        });
+
+        it('takes the beats per breath from the latest advance', () => {
+            const clock = createMotionClock();
+            const state = lockedState(0, 90);
+            state.beatsPerBar = 3;
+            advance(clock, state, DT);
+            expect(clock.beatsPerBreath).toBe(3);
+            state.beatsPerBar = undefined;
+            advance(clock, state, DT);
+            expect(clock.beatsPerBreath).toBe(4);
+        });
     });
 });

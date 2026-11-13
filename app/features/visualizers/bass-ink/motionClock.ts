@@ -10,11 +10,13 @@ export interface MotionClock {
     beatLockWeight: number;
     // Hysteresis state: true while the tempo is trusted.
     locked: boolean;
+    // Beats in one breath (the bar length, 4 while the meter is unknown), as of the latest advance.
+    beatsPerBreath: number;
     readonly config: MotionConfig;
 }
 
 export function createMotionClock(config: MotionConfig = bassInkConfig.motion): MotionClock {
-    return { phase: 0, beatLockWeight: 0, locked: false, config };
+    return { phase: 0, beatLockWeight: 0, locked: false, beatsPerBreath: 4, config };
 }
 
 // Advances the clock by one frame and returns the breathing phase (one breath per bar when locked).
@@ -44,6 +46,7 @@ export function advance(clock: MotionClock, state: RhythmState, dtSeconds: numbe
     }
     const weight = clock.beatLockWeight;
 
+    clock.beatsPerBreath = state.beatsPerBar ?? 4;
     const freeRate = 1 / config.freeBreathingSeconds;
     // A lock that is fading out can outlive the tempo (bpm 0), so fall back to the free rate rather than stalling.
     const lockedRate = state.bpm > 0 ? state.bpm / 60 / (state.beatsPerBar ?? 4) : freeRate;
@@ -72,4 +75,17 @@ export function advance(clock: MotionClock, state: RhythmState, dtSeconds: numbe
     const next = clock.phase + step;
     clock.phase = next - Math.floor(next);
     return clock.phase;
+}
+
+// 0..1 punch on every beat of a locked clock, 0 while it runs free. Read from the clock's own phase, which only ever
+// moves forward and is pulled onto the beats, so the punch keeps the tempo even through masked kicks and can never
+// jitter. It rises over the first `attack` of the beat and decays after, and is 0 at both ends of the beat, so the
+// step from one beat to the next is continuous.
+export function beatPunch(clock: MotionClock): number {
+    const { punchAttack, punchDecay } = clock.config;
+    const position = clock.phase * clock.beatsPerBreath;
+    const x = position - Math.floor(position);
+    const t = Math.min(1, x / punchAttack);
+    const rise = t * t * (3 - 2 * t);
+    return clock.beatLockWeight * rise * Math.exp(-punchDecay * x) * (1 - x);
 }

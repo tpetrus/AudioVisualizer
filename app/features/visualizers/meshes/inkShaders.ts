@@ -17,6 +17,7 @@ uniform float uActive;
 uniform float uRadius;
 uniform float uTension;
 uniform float uBreath;
+uniform float uPunch;
 uniform float uMid;
 uniform float uHigh;
 uniform float uTurbulence;
@@ -24,10 +25,16 @@ uniform float uMaxPointSize;
 uniform float uPointScale;
 uniform float uKickTimes[${INK_KICK_SLOTS}];
 uniform float uKickStrengths[${INK_KICK_SLOTS}];
+// The recent spectrum: x is frequency (log-spaced), y is time as a ring whose newest row is at uSpectrumHead.
+uniform sampler2D uSpectrum;
+uniform float uSpectrumHead;
+uniform float uSpectrumSpan;
+uniform float uSpectrumAmp;
 
 // Constants from bassInkSceneConfig, set once.
 uniform float uSqueeze;
 uniform float uBreathAmp;
+uniform float uPunchAmp;
 uniform float uWaveSpeed;
 uniform float uWaveWidth;
 uniform float uWaveDecay;
@@ -53,8 +60,8 @@ void main() {
     vec3 rest = mix(from, to, s);
     vRadial = clamp(length(rest), 0.0, 1.0);
 
-    // The build squeezes the cloud, and the breathing phase swells it.
-    float breath = 1.0 + uBreathAmp * sin(6.2831853 * uBreath);
+    // The build squeezes the cloud, the breathing phase swells it, and every beat punches it outward.
+    float breath = (1.0 + uBreathAmp * sin(6.2831853 * uBreath)) * (1.0 + uPunchAmp * uPunch);
     float scale = uRadius * (1.0 - uTension * uSqueeze) * breath;
     vec3 p = rest * scale;
 
@@ -72,6 +79,7 @@ void main() {
     }
     p += outward * min(push, uWaveMax);
 
+
     // Swirling turbulence from cheap analytic noise: sums of sines at different frequencies and phases per axis.
     float t = uTime * uNoiseSpeed;
     vec3 q = p * uNoiseScale + vec3(aRand * 6.2831853);
@@ -85,6 +93,22 @@ void main() {
     p += swirl * amount * 0.5;
 
     vec4 mv = modelViewMatrix * vec4(p, 1.0);
+
+    // The music's own frequencies as waves, worked out on screen so the cloud's tilt and turn never scramble them: the
+    // angle around the cloud's center picks a point's frequency (bass at the bottom, highs at the top, mirrored left
+    // and right), and the point moves outward in the screen plane by that frequency's level, so the outline becomes
+    // the spectrum. The distance from the center is time, as the rows of the trio sheets are: the rim reads now, so
+    // the outline stays crisp and on time, and points further in read older rows, so each frequency rolls inward
+    // through the cloud as a wave behind it.
+    vec3 center = (modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+    vec2 across = mv.xy - center.xy;
+    float spread = length(across);
+    vec2 direction = spread > 0.0001 ? across / spread : vec2(0.0, 1.0);
+    float frequency = acos(clamp(-direction.y, -1.0, 1.0)) / 3.14159265;
+    float back = (1.0 - clamp(spread / uRadius, 0.0, 1.0)) * uSpectrumSpan;
+    float level = texture2D(uSpectrum, vec2(frequency, uSpectrumHead - back)).r;
+    // Scaled by the distance from the center, so the middle of the cloud never tears open.
+    mv.xy += direction * level * uSpectrumAmp * min(1.0, spread / uRadius);
     gl_Position = projectionMatrix * mv;
 
     // A small, fixed share of points glints with the highs. It changes their size only, never the brightness.

@@ -79,6 +79,13 @@ near 195 instead of 98 BPM). The mid and high bands are followed with attack and
 (`bassInkSceneConfig.turbulence` and `.sparkle`) for the same reason: fed straight in, every snare and hat made the
 cloud twitch.
 
+Most of the motion is the spectrum field (`spectrumField.ts`, tunables in `bassInkSceneConfig.spectrum`): 48 log-spaced
+frequencies, each measured between its own running average and its recent peak, written to a texture one row per
+frame. The vertex shader gives each point the frequency of its angle on screen (bass at the bottom, highs at the top,
+mirrored) and pushes it outward by that level, so the outline is the spectrum now and older rows roll inward behind
+it. On top of that every beat of a locked tempo punches the cloud outward (`cloud.beatPunch`), timed by the breathing
+clock. Use `--shots` a tenth of a second apart (headed, so on the real GPU) to judge it; the CSV cannot show it.
+
 How the drop rules in `bassInkConfig.director` were tuned, and what to check when changing them:
 - They read the bass, not the full-band loudness. A build is the DJ pulling the bass out (a deep cut held
   `dipSeconds`, or a softer one held `softDipSeconds`); the drop is the bass coming back (`dropRatio`, at least

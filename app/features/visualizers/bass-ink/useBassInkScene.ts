@@ -9,9 +9,10 @@ import { blendPalette, writePalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
-import { advance, createMotionClock } from './motionClock';
+import { advance, beatPunch, createMotionClock } from './motionClock';
 import { isSoftwareRenderer, maxPointSize, pointCountFor } from './renderBudget';
 import { SetDirector } from './setDirector';
+import { SpectrumField } from './spectrumField';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createBassGateState, stepBassGate } from '~/features/rhythm/bassGate';
 import { BassPulse } from '~/features/rhythm/bassPulse';
@@ -86,6 +87,9 @@ export function useBassInkScene(
         const brightnessMix = new BrightnessMix();
         // Shared with the dancing character: learns where the bassline's kick sits in the beat and pulses there.
         const bassGate = createBassGateState();
+        const field = new SpectrumField();
+        // The oldest row a point reads, as a texture-coordinate distance back from the newest one.
+        const spectrumSpan = (field.rows - 1) / field.rows;
         const cue = director.cue;
 
         let cloud = new InkCloud(pointCountFor(valuesRef.current.density, software), formationSeed, pointSizeLimit);
@@ -176,6 +180,7 @@ export function useBassInkScene(
             bassBins = bassBinCount(source.context.sampleRate, source.fftSize, bassInkConfig.energy.bassCutoffHz);
             // A different source is different music: forget the old loudness history.
             energy.reset();
+            field.reset();
             bassPulse?.dispose();
             bassPulse = new BassPulse(source);
             boundAnalyser = source;
@@ -201,8 +206,10 @@ export function useBassInkScene(
                     }
                     source.getByteFrequencyData(spectrum);
                     lastLevel = bassLevel(spectrum, bassBins);
+                    field.update(spectrum, source.context.sampleRate / source.fftSize, dt);
                 } else {
                     lastLevel = 0;
+                    field.fade(dt);
                 }
                 energy.update(lastLevel, dt);
 
@@ -270,6 +277,9 @@ export function useBassInkScene(
                 );
                 // The glints add a little light, so they follow the flash intensity like every other brightness term.
                 cloud.setTexture(midLevel, highLevel * values.intensity, values.turbulence);
+                // The punch fades with the bass, so a breakdown with the bass pulled out calms down with it.
+                cloud.setSpectrum(field.texture, field.headCoordinate, spectrumSpan);
+                cloud.setPunch(beatPunch(clock) * Math.min(1, energy.ratio));
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
                 cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
@@ -287,6 +297,7 @@ export function useBassInkScene(
             dispose: () => {
                 orbit.dispose();
                 bassPulse?.dispose();
+                field.dispose();
                 cloud.dispose();
                 unregisterProbe?.();
             },
