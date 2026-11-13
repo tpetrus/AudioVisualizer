@@ -1,0 +1,228 @@
+import { describe, expect, it } from 'vitest';
+import { BandOnsets } from './bandOnsets';
+import { OnsetExtractor } from './onsetExtractor';
+import {
+    FEATURE_ONSET_BANDS,
+    FFT_SIZE,
+    HUB_BAND_COUNT,
+    HUB_BAND_EDGES_HZ,
+    LOW_ONSET_REFRACTORY_FRAMES,
+    ONSET_LOOKAHEAD_FRAMES,
+} from './rhythmConfig';
+import { TEST_SAMPLE_RATE, silence } from './testSignals';
+
+const KICK = FEATURE_ONSET_BANDS.indexOf('kick');
+const BASS = FEATURE_ONSET_BANDS.indexOf('bass');
+const SNARE = FEATURE_ONSET_BANDS.indexOf('snare');
+const HIGHS = FEATURE_ONSET_BANDS.indexOf('highs');
+
+interface Event {
+    band: number;
+    time: number;
+    strength: number;
+    // The time of the frame at whose arrival the event was decided.
+    decidedAt: number;
+}
+
+interface Run {
+    events: Event[];
+    energy: number[][];
+    frameTimes: number[];
+}
+
+// Feeds PCM through the real extractor and detector the way the worklet does.
+function run(pcm: Float32Array, sampleRate = TEST_SAMPLE_RATE, detector?: BandOnsets): Run {
+    const extractor = new OnsetExtractor(sampleRate);
+    const onsets = detector ?? new BandOnsets(sampleRate, extractor.frameRate);
+    const result: Run = { events: [], energy: [], frameTimes: [] };
+    let now = 0;
+    const sink = (band: number, time: number, strength: number): void => {
+        result.events.push({ band, time, strength, decidedAt: now });
+    };
+    for (let offset = 0; offset < pcm.length; offset += 128) {
+        extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
+            now = (frame.endSample - FFT_SIZE / 2) / sampleRate;
+            onsets.push(frame.logMagnitude, now, sink);
+            result.energy.push(Array.from(onsets.energy));
+            result.frameTimes.push(now);
+        });
+    }
+    return result;
+}
+
+// Adds `voice(t)` for `seconds` starting at `start` seconds.
+function addHit(pcm: Float32Array, start: number, seconds: number, voice: (t: number) => number): void {
+    const first = Math.round(start * TEST_SAMPLE_RATE);
+    for (let i = 0; i < Math.round(seconds * TEST_SAMPLE_RATE) && first + i < pcm.length; i++) {
+        pcm[first + i] += voice(i / TEST_SAMPLE_RATE);
+    }
+}
+
+// A drum thump: a sine sweeping from about 100 Hz down to 45 Hz.
+function addKick(pcm: Float32Array, start: number, level = 1): void {
+    let phase = 0;
+    addHit(pcm, start, 0.3, (t) => {
+        phase += (2 * Math.PI * (45 + 55 * Math.exp(-t / 0.03))) / TEST_SAMPLE_RATE;
+        return 0.8 * level * Math.exp(-t / 0.07) * Math.sin(phase);
+    });
+}
+
+// A bass note: a steady 110 Hz tone with a short attack and release.
+function addBass(pcm: Float32Array, start: number, level = 1): void {
+    addHit(pcm, start, 0.3, (t) => {
+        const attack = Math.min(1, t / 0.005);
+        const release = Math.min(1, (0.3 - t) / 0.06);
+        const wave = Math.sin(2 * Math.PI * 110 * t) + 0.3 * Math.sin(2 * Math.PI * 220 * t);
+        return 0.35 * level * attack * release * wave;
+    });
+}
+
+// A mid-range burst (a snare's body) with a soft attack so that it leaks little into the other ranges.
+function addSnare(pcm: Float32Array, start: number, level = 1): void {
+    addHit(pcm, start, 0.15, (t) => {
+        const attack = Math.min(1, t / 0.004);
+        let sum = 0;
+        for (const hz of [900, 1300, 1700, 2300, 3100]) sum += Math.sin(2 * Math.PI * hz * t);
+        return 0.15 * level * attack * Math.exp(-t / 0.04) * sum;
+    });
+}
+
+// A high-range burst.
+function addHat(pcm: Float32Array, start: number, level = 1): void {
+    addHit(pcm, start, 0.05, (t) => {
+        let sum = 0;
+        for (const hz of [6500, 8200, 9700, 11300]) sum += Math.sin(2 * Math.PI * hz * t);
+        return 0.15 * level * Math.exp(-t / 0.012) * sum;
+    });
+}
+
+const bandsOf = (events: Event[]): number[] => events.map((event) => event.band);
+
+describe('BandOnsets energy', () => {
+    it('is the mean log magnitude of each hub band, loudest in the band that holds the tone', () => {
+        const tone = new Float32Array(TEST_SAMPLE_RATE / 2);
+        addHit(tone, 0, 0.5, (t) => 0.5 * Math.sin(2 * Math.PI * 1000 * t));
+        const { energy } = run(tone);
+        const last = energy[energy.length - 1];
+        expect(last).toHaveLength(HUB_BAND_COUNT);
+        const loudest = last.indexOf(Math.max(...last));
+        expect(HUB_BAND_EDGES_HZ[loudest]).toBeLessThanOrEqual(1000);
+        expect(HUB_BAND_EDGES_HZ[loudest + 1]).toBeGreaterThan(1000);
+    });
+
+    it('is zero for silence and gives every band a bin at a low sample rate', () => {
+        const lowRate = 8000;
+        const tone = new Float32Array(lowRate);
+        for (let i = 0; i < tone.length; i++) tone[i] = 0.5 * Math.sin((2 * Math.PI * 3000 * i) / lowRate);
+        const { energy } = run(tone, lowRate);
+        const last = energy[energy.length - 1];
+        // The topmost bands lie above Nyquist (4 kHz) here, so they are clamped to the last bins but still measured.
+        expect(last.every((value) => Number.isFinite(value))).toBe(true);
+        expect(Math.max(...last)).toBeGreaterThan(0);
+        expect(run(silence(0.5), lowRate).energy.every((frame) => frame.every((value) => value === 0))).toBe(true);
+    });
+});
+
+describe('BandOnsets events', () => {
+    it('reports an isolated kick once, near the time of its onset', () => {
+        const pcm = silence(1.5);
+        addKick(pcm, 0.5);
+        const { events } = run(pcm);
+        expect(bandsOf(events)).toEqual([KICK]);
+        expect(Math.abs(events[0].time - 0.5)).toBeLessThan(0.05);
+    });
+
+    it('stamps the onset frame and decides at most ONSET_LOOKAHEAD_FRAMES frames after it', () => {
+        const pcm = silence(2);
+        addKick(pcm, 0.5);
+        addSnare(pcm, 1.0);
+        addHat(pcm, 1.5);
+        const { events, frameTimes } = run(pcm);
+        expect(bandsOf(events).sort()).toEqual([KICK, SNARE, HIGHS].sort());
+        const hop = frameTimes[1] - frameTimes[0];
+        for (const event of events) {
+            // The event carries the onset frame's own time, a frame time, and not the time it was decided.
+            expect(frameTimes.some((time) => Math.abs(time - event.time) < 1e-9)).toBe(true);
+            expect(event.decidedAt - event.time).toBeLessThanOrEqual(ONSET_LOOKAHEAD_FRAMES * hop + 1e-9);
+            expect(event.decidedAt - event.time).toBeGreaterThanOrEqual(-1e-9);
+        }
+    });
+
+    it('keeps strengths between 0 and 1, with the loudest hit at 1 and weaker ones below it', () => {
+        const pcm = silence(3);
+        addKick(pcm, 0.5, 1);
+        addKick(pcm, 1.5, 0.3);
+        addKick(pcm, 2.5, 0.5);
+        const { events } = run(pcm);
+        expect(events).toHaveLength(3);
+        for (const event of events) {
+            expect(event.strength).toBeGreaterThan(0);
+            expect(event.strength).toBeLessThanOrEqual(1);
+        }
+        expect(events[0].strength).toBe(1);
+        expect(events[1].strength).toBeLessThan(events[2].strength);
+    });
+
+    it('reports no duplicates and keeps events in time order', () => {
+        const pcm = silence(4);
+        for (let beat = 0; beat < 6; beat++) {
+            addKick(pcm, 0.4 + beat * 0.5);
+            addSnare(pcm, 0.65 + beat * 0.5);
+            addHat(pcm, 0.4 + beat * 0.25);
+        }
+        const { events } = run(pcm);
+        expect(events.length).toBeGreaterThan(12);
+        for (let i = 1; i < events.length; i++) {
+            expect(events[i].time).toBeGreaterThanOrEqual(events[i - 1].time);
+            const same = events.filter((e) => e.band === events[i].band && Math.abs(e.time - events[i].time) < 0.03);
+            expect(same).toHaveLength(1);
+        }
+    });
+
+    it('does not take a snare for a kick: the snare range leaking into the low end is suppressed', () => {
+        const pcm = silence(3);
+        addKick(pcm, 0.5);
+        addSnare(pcm, 1.5);
+        addKick(pcm, 2.5);
+        const { events } = run(pcm);
+        expect(bandsOf(events)).toEqual([KICK, SNARE, KICK]);
+    });
+
+    it('calls a low note by its pitch: a thump is a kick, a 110 Hz note is bass', () => {
+        const pcm = silence(3);
+        addKick(pcm, 0.5);
+        addBass(pcm, 1.5);
+        addKick(pcm, 2.5);
+        const { events } = run(pcm);
+        expect(bandsOf(events)).toEqual([KICK, BASS, KICK]);
+    });
+
+    it('does not report the ripple of a hit as a second hit', () => {
+        const pcm = silence(2);
+        addKick(pcm, 0.5);
+        // A weak note right behind the kick, inside the refractory span, is a ripple and not a new event.
+        addBass(pcm, 0.5 + (LOW_ONSET_REFRACTORY_FRAMES / 2) * 0.01, 0.1);
+        const { events } = run(pcm);
+        expect(bandsOf(events)).toEqual([KICK]);
+    });
+
+    it('forgets everything on reset', () => {
+        const pcm = silence(1.5);
+        addKick(pcm, 0.5);
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
+        const first = run(pcm, TEST_SAMPLE_RATE, onsets);
+        expect(first.events).toHaveLength(1);
+        onsets.reset();
+        expect(Array.from(onsets.energy).every((value) => value === 0)).toBe(true);
+        // The same audio again gives the same answer, as if the detector were new.
+        const second = run(pcm, TEST_SAMPLE_RATE, onsets);
+        expect(second.events.map(({ band, time }) => [band, time])).toEqual(
+            first.events.map(({ band, time }) => [band, time]),
+        );
+    });
+
+    it('hears nothing in silence', () => {
+        expect(run(silence(2)).events).toEqual([]);
+    });
+});

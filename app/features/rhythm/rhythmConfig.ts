@@ -246,3 +246,37 @@ export const BAND_ONSET_FULL_RATIO = 3;
 export const CHROMA_DISPLAY_SMOOTHING = 0.1;
 // Phase is extrapolated at most this many seconds past the newest analysed frame, so a stalled worklet freezes it.
 export const PHASE_EXTRAPOLATE_MAX_SECONDS = 1.5;
+
+// ---- Per-band onset detection (BandOnsets, runs in the AudioWorklet beside the extractor) ----
+
+// Per detection function, in the order low end (kick and bass), snare range, highs. The function is the mean positive
+// rise of log magnitude over the range's bins, per frame.
+// A detection value must exceed this floor to count at all. Real hits rise by 0.1 to 2 on this scale. The low end's
+// floor is higher because the tails of its sustained notes ripple by 0.05 to 0.07 every few frames; the upper ranges
+// are quiet between hits, but the snare range's floor stays above the 0.03 to 0.04 that a kick's attack leaks into it,
+// and the soft hat of a sparse groove is as low as 0.04.
+export const BAND_ONSET_MIN_FLUX = [0.08, 0.05, 0.03] as const;
+// An onset must also reach this fraction of the range's recent loudest hit, so that the weak ripple in a snare's noise
+// tail (up to a quarter of the hit) is not a second event. The low end accepts a tenth: a bass note struck again on the
+// pitch of the one still sounding changes the spectrum by only that much.
+export const BAND_ONSET_RELATIVE_THRESHOLD = [0.1, 0.3, 0.3] as const;
+// Half-life in seconds of the "recent loudest hit" of each range. Long enough to bridge a bar of rests at slow tempos,
+// short enough to follow a change from a quiet verse to a loud chorus within a few bars.
+export const BAND_ONSET_PEAK_HALF_LIFE_SECONDS = 3;
+// A frame is an onset only if its detection value is the largest within this many frames before it. With the
+// look-ahead (ONSET_LOOKAHEAD_FRAMES) this makes two events of one range at least three frames (30 ms) apart.
+export const BAND_ONSET_PAST_FRAMES = 2;
+// A low-end onset weaker than this fraction of the low end's recent loudest hit is only believed with company. Weak
+// rises are what a sustained note's ripple (0.1), the leak of a snare's noise (0.13) and a bass note struck again on
+// the pitch still sounding (0.11 to 0.16) all look like. Only the snare's leak is told apart, by the snare range rising in
+// the same instant, so a weak low-end onset is dropped when the snare range is active and kept otherwise: a kick or bass
+// note that sounds without a hi-hat must still count.
+export const LOW_ONSET_WEAK_FRACTION = 0.25;
+// A low-end onset within this many frames of the previous low-end event is a ripple of that hit, not a new note, unless
+// it is nearly as strong: a drum's body keeps moving for a few frames after the attack (its pitch falls, a struck string
+// rings and beats), while real notes follow each other no faster than sixteenth notes at 200 BPM (75 ms). Eight frames
+// is 80 ms, just past that.
+export const LOW_ONSET_REFRACTORY_FRAMES = 8;
+// What fraction of the previous low-end event's strength a low-end onset inside the refractory span needs to count as a
+// second hit. A ripple is a fraction of the hit it follows; a hit struck on purpose is of the same order.
+export const LOW_ONSET_REFRACTORY_FRACTION = 0.6;

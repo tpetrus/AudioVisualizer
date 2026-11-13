@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FFT_SIZE, FRAME_RMS_OFFSET, FRAME_STRIDE, BATCH_FRAMES, RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
-import { sine } from './testSignals';
-import type { FrameBatch } from './types';
+import { BandOnsets } from './bandOnsets';
+import { OnsetExtractor, packFrame } from './onsetExtractor';
+import {
+    BATCH_FRAMES,
+    FEATURE_ONSET_BAND_COUNT,
+    FFT_SIZE,
+    FRAME_RMS_OFFSET,
+    FRAME_STRIDE,
+    HUB_BAND_COUNT,
+    RHYTHM_PROCESSOR_NAME,
+} from './rhythmConfig';
+import { silence, sine } from './testSignals';
+import { FEATURE_MESSAGE_VERSION, type FeatureBatch } from './types';
 
 const SAMPLE_RATE = 48000;
 // OnsetExtractor emits a frame every 480 samples at 48 kHz, and the first one only once a full window plus a previous
@@ -10,7 +20,7 @@ const FIRST_FRAME_END = 1920;
 const HOP = 480;
 
 interface PostedMessage {
-    message: FrameBatch;
+    message: FeatureBatch;
     transfer: Transferable[];
 }
 
@@ -108,7 +118,7 @@ describe('rhythm processor worklet', () => {
         play(harness, [sine(440, 0.3, 0.5, SAMPLE_RATE)]);
 
         const [first, second] = harness.posted();
-        expect(first.transfer).toEqual([first.message.frames.buffer]);
+        expect(first.transfer).toContain(first.message.frames.buffer);
         expect(second.message.frames.buffer).not.toBe(first.message.frames.buffer);
         // Posting transfers the buffer, which is why the first batch's bytes are no longer usable by the processor.
         expect(second.message.count).toBe(BATCH_FRAMES);
@@ -184,5 +194,169 @@ describe('rhythm processor worklet', () => {
         harness.state.currentFrame = 99_999;
         expect(harness.processor.process([[new Float32Array(128)]])).toBe(true);
         expect(harness.posted()).toHaveLength(0);
+    });
+
+    // Silence, then kicks, then silence: a few onset events for the detector to find.
+    function kickTrain(): Float32Array {
+        const pcm = silence(2.5, SAMPLE_RATE);
+        for (const start of [0.5, 1.2, 1.9]) {
+            let phase = 0;
+            for (let i = 0; i < 0.3 * SAMPLE_RATE; i++) {
+                const t = i / SAMPLE_RATE;
+                phase += (2 * Math.PI * (45 + 55 * Math.exp(-t / 0.03))) / SAMPLE_RATE;
+                pcm[Math.round(start * SAMPLE_RATE) + i] += 0.8 * Math.exp(-t / 0.07) * Math.sin(phase);
+            }
+        }
+        return pcm;
+    }
+
+    // Everything the worklet should say, worked out directly with the same extractor and detector.
+    function expected(pcm: Float32Array) {
+        const extractor = new OnsetExtractor(SAMPLE_RATE);
+        const bandOnsets = new BandOnsets(SAMPLE_RATE, extractor.frameRate);
+        const packed: number[][] = [];
+        const times: number[] = [];
+        const energy: number[][] = [];
+        const events: { band: number; time: number }[] = [];
+        for (let offset = 0; offset < pcm.length; offset += 128) {
+            extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
+                const row = new Float32Array(FRAME_STRIDE);
+                packFrame(frame, row, 0);
+                packed.push(Array.from(row));
+                const time = (frame.endSample - FFT_SIZE / 2) / SAMPLE_RATE;
+                times.push(time);
+                bandOnsets.push(frame.logMagnitude, time, (band, eventTime) => events.push({ band, time: eventTime }));
+                energy.push(Array.from(bandOnsets.energy));
+            });
+        }
+        return { packed, times, energy, events };
+    }
+
+    it('posts version 2 messages whose packed frames, time0 and count are the old FrameBatch', async () => {
+        const harness = await loadProcessor();
+        const pcm = kickTrain();
+        play(harness, [pcm]);
+
+        const want = expected(pcm);
+        const batches = harness.posted().map(({ message }) => message);
+        expect(batches.length).toBeGreaterThan(5);
+        batches.forEach((message, b) => {
+            expect(message.version).toBe(FEATURE_MESSAGE_VERSION);
+            expect(message.count).toBe(BATCH_FRAMES);
+            expect(message.time0).toBeCloseTo(want.times[b * BATCH_FRAMES], 12);
+            expect(message.frames).toHaveLength(BATCH_FRAMES * FRAME_STRIDE);
+            for (let f = 0; f < BATCH_FRAMES; f++) {
+                const frame = Array.from(message.frames.subarray(f * FRAME_STRIDE, (f + 1) * FRAME_STRIDE));
+                expect(frame).toEqual(want.packed[b * BATCH_FRAMES + f]);
+            }
+        });
+    });
+
+    it('stamps every frame with its window centre and posts its band energies', async () => {
+        const harness = await loadProcessor(1000);
+        const pcm = kickTrain();
+        play(harness, [pcm]);
+
+        const want = expected(pcm);
+        const batches = harness.posted().map(({ message }) => message);
+        batches.forEach((message, b) => {
+            expect(message.frameTimes).toHaveLength(BATCH_FRAMES);
+            expect(message.frameTimes[0]).toBe(message.time0);
+            expect(message.bandEnergy).toHaveLength(BATCH_FRAMES * HUB_BAND_COUNT);
+            for (let f = 0; f < BATCH_FRAMES; f++) {
+                if (f > 0) {
+                    expect(message.frameTimes[f] - message.frameTimes[f - 1]).toBeCloseTo(HOP / SAMPLE_RATE, 12);
+                }
+                const index = b * BATCH_FRAMES + f;
+                // The clock started at 1000, which the expectation run did not know about.
+                expect(message.frameTimes[f]).toBeCloseTo(want.times[index] + 1000 / SAMPLE_RATE, 9);
+                for (let band = 0; band < HUB_BAND_COUNT; band++) {
+                    expect(message.bandEnergy[f * HUB_BAND_COUNT + band]).toBeCloseTo(want.energy[index][band], 5);
+                }
+            }
+        });
+    });
+
+    it('sends each onset event once, including those decided in a later batch than their frame', async () => {
+        const harness = await loadProcessor();
+        const pcm = kickTrain();
+        play(harness, [pcm]);
+
+        const want = expected(pcm);
+        expect(want.events.length).toBe(3);
+        const sent: { band: number; time: number }[] = [];
+        for (const { message } of harness.posted()) {
+            expect(message.onsetBand).toHaveLength(BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT);
+            expect(message.onsetTime).toHaveLength(BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT);
+            expect(message.onsetStrength).toHaveLength(BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT);
+            for (let i = 0; i < message.onsetCount; i++) {
+                sent.push({ band: message.onsetBand[i], time: message.onsetTime[i] });
+                expect(message.onsetStrength[i]).toBeGreaterThan(0);
+                expect(message.onsetStrength[i]).toBeLessThanOrEqual(1);
+            }
+        }
+        // Every event was decided long before the audio ended, so all of them are in the posted batches, once each.
+        expect(sent.map((event) => event.band)).toEqual(want.events.map((event) => event.band));
+        sent.forEach((event, i) => expect(event.time).toBeCloseTo(want.events[i].time, 9));
+    });
+
+    it('sends events that cross a batch boundary once, whatever the alignment of the audio to the batches', async () => {
+        let crossings = 0;
+        for (let shift = 0; shift < BATCH_FRAMES; shift++) {
+            const harness = await loadProcessor();
+            const pcm = kickTrain();
+            // Starting the audio a few hops later moves every event across the batch grid.
+            const shifted = new Float32Array(pcm.length + shift * HOP);
+            shifted.set(pcm, shift * HOP);
+            play(harness, [shifted]);
+
+            const want = expected(shifted);
+            const sent: number[] = [];
+            for (const { message } of harness.posted()) {
+                for (let i = 0; i < message.onsetCount; i++) {
+                    sent.push(message.onsetTime[i]);
+                    // An event older than its batch's first frame was decided only after the batch began.
+                    if (message.onsetTime[i] < message.time0) crossings++;
+                }
+            }
+            expect(sent).toHaveLength(want.events.length);
+            sent.forEach((time, i) => expect(time).toBeCloseTo(want.events[i].time, 9));
+        }
+        expect(crossings).toBeGreaterThan(0);
+    });
+
+    it('starts the detector over when blocks were skipped', async () => {
+        const harness = await loadProcessor();
+        const pcm = kickTrain();
+        // The first kick, a gap in the clock, then the same audio again: after the reset it is found as if it were new.
+        const gap = 100_000;
+        play(harness, [pcm.subarray(0, Math.round(1.0 * SAMPLE_RATE))]);
+        harness.state.currentFrame += gap;
+        play(harness, [pcm.subarray(0, Math.round(1.0 * SAMPLE_RATE))]);
+
+        const times: number[] = [];
+        for (const { message } of harness.posted()) {
+            for (let i = 0; i < message.onsetCount; i++) times.push(message.onsetTime[i]);
+        }
+        expect(times).toHaveLength(2);
+        expect(times[1] - times[0]).toBeCloseTo(1.0 + gap / SAMPLE_RATE, 6);
+    });
+
+    it('transfers every buffer of the message and makes fresh ones after each post', async () => {
+        const harness = await loadProcessor();
+        play(harness, [kickTrain()]);
+
+        const [first, second] = harness.posted();
+        const buffersOf = (message: FeatureBatch): ArrayBufferLike[] => [
+            message.frames.buffer,
+            message.frameTimes.buffer,
+            message.bandEnergy.buffer,
+            message.onsetBand.buffer,
+            message.onsetTime.buffer,
+            message.onsetStrength.buffer,
+        ];
+        expect(first.transfer).toEqual(buffersOf(first.message));
+        expect(new Set(first.transfer).size).toBe(6);
+        buffersOf(second.message).forEach((buffer, i) => expect(buffer).not.toBe(buffersOf(first.message)[i]));
     });
 });
