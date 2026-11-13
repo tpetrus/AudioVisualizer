@@ -257,6 +257,22 @@ async function main(): Promise<void> {
             .locator('body')
             .click({ position: { x: 5, y: 5 } })
             .catch(() => undefined);
+        // The person is looking at this window, not the terminal, so the instruction and a running tap count go on
+        // the page. A tap that does not raise the count did not reach the recorder.
+        await page.evaluate(() => {
+            const banner = document.createElement('div');
+            banner.style.cssText =
+                'position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:12px 20px;' +
+                'border-radius:8px;background:rgba(0,0,0,0.8);color:#fff;font:600 18px system-ui,sans-serif;' +
+                'pointer-events:none';
+            const state = (window as unknown as { __tapAlong: { taps: number[] } }).__tapAlong;
+            const show = () => {
+                banner.textContent = `Tap SPACE on every beat (${state.taps.length} taps). Enter or Esc to finish.`;
+            };
+            show();
+            document.body.append(banner);
+            window.addEventListener('keydown', () => setTimeout(show, 0), true);
+        });
         console.log('Playing. Tap Space on every beat; Enter or Escape ends the run early.');
         rawTaps = await recordTaps(page);
     } finally {
