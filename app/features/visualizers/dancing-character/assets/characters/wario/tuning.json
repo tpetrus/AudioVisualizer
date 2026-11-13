@@ -1,0 +1,6 @@
+{
+  "lambada": { "groundLock": { "tolerance": 0.01 }, "soleClearanceMeters": 0.015 },
+  "twist": { "soleClearanceMeters": 0.015 },
+  "cabbage-patch": { "amplitude": [{ "group": "arms", "scale": 0.6, "restBlend": 0.4 }], "soleClearanceMeters": 0.015 },
+  "salsa": { "elbowCapMeters": 0.2, "amplitude": [{ "group": "arms", "scale": 0.6 }], "soleClearanceMeters": 0.015 }
+}

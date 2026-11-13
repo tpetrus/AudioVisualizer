@@ -1,6 +1,6 @@
 import type { Locator } from '@playwright/test';
 import { expect, test } from './fixtures';
-import { VISUALIZERS_UNDER_TEST, openSettings, startVisualizer } from './visualizers';
+import { VISUALIZERS_UNDER_TEST, openAllSections, openSettings, startVisualizer } from './visualizers';
 
 // How many of the panel's sliders each test exercises. Taken from the panel itself, so no labels or values are
 // hard-coded per visualizer.
@@ -35,6 +35,7 @@ for (const visualizer of VISUALIZERS_UNDER_TEST) {
         test('changing and resetting controls', async ({ page }) => {
             await startVisualizer(page, visualizer);
             await openSettings(page);
+            await openAllSections(page);
 
             const sliders = page.getByRole('slider');
             const tried = Math.min(SLIDERS_TO_TRY, await sliders.count());
@@ -112,6 +113,7 @@ test.describe('Dancing character dance select', () => {
     test('offers Auto and the four dances, and every choice keeps the scene rendering', async ({ page }) => {
         await startVisualizer(page, dancer);
         await openSettings(page);
+        await openAllSections(page);
 
         const select = page.getByLabel('Dance', { exact: true });
         await expect(select).toHaveValue('auto');
@@ -121,6 +123,30 @@ test.describe('Dancing character dance select', () => {
             await select.selectOption({ label });
             await expect(select.locator('option:checked')).toHaveText(label);
             await page.waitForTimeout(300);
+            await expect(page.locator('canvas')).toHaveCount(1);
+        }
+    });
+
+    // The options come from the page, not the registry module (its `?url` imports do not load under Node), so a
+    // character added to the registry is covered without editing this spec. A character that fails to load logs a
+    // console error, which the fixtures turn into a test failure.
+    test('switches through every character, keeps the choice and keeps the scene rendering', async ({ page }) => {
+        await startVisualizer(page, dancer);
+        await openSettings(page);
+
+        const select = page.getByLabel('Character', { exact: true });
+        await expect(select).toHaveValue('makehuman');
+        const values = await select
+            .getByRole('option')
+            .evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+        expect(values[0]).toBe('makehuman');
+
+        for (const value of [...values.slice(1), 'makehuman']) {
+            await select.selectOption(value);
+            // Long enough for the files to load and the swap to happen (or for a failure to put the default back).
+            await page.waitForTimeout(1500);
+            await expect(select).toHaveValue(value);
+            await expect(page.getByRole('status')).toHaveCount(0);
             await expect(page.locator('canvas')).toHaveCount(1);
         }
     });

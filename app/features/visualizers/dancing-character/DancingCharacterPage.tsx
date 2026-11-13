@@ -1,4 +1,6 @@
 import { useRef, useState } from 'react';
+import { CharacterAttribution } from './CharacterAttribution';
+import { DEFAULT_CHARACTER_ID, findCharacter } from './characterRegistry';
 import { controlsForMotionPreference, dancingCharacterControls } from './dancingCharacterControls';
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
@@ -18,6 +20,7 @@ export function DancingCharacterPage() {
     // True once the view has been moved away from its starting position (shows the reset-view button).
     const [viewChanged, setViewChanged] = useState(false);
     const [status, setStatus] = useState<DancingCharacterLoadStatus>('loading');
+    const [characterProblem, setCharacterProblem] = useState<string | null>(null);
 
     const { resetView } = useDancingCharacterScene(containerRef, {
         analyser,
@@ -28,7 +31,14 @@ export function DancingCharacterPage() {
         reducedMotion: controls !== dancingCharacterControls,
         onViewChanged: setViewChanged,
         onStatus: setStatus,
+        // A failed choice puts the default back in the select and says why; a good load clears the message.
+        onCharacterProblem: (message) => {
+            setCharacterProblem(message);
+            if (message !== null) setValue('character', DEFAULT_CHARACTER_ID);
+        },
     });
+
+    const selected = values.character === DEFAULT_CHARACTER_ID ? undefined : findCharacter(values.character);
 
     return (
         <>
@@ -41,6 +51,15 @@ export function DancingCharacterPage() {
                     The dancer couldn&apos;t be loaded. Try reloading the page.
                 </p>
             )}
+            {characterProblem !== null && (
+                <p
+                    role="status"
+                    className="fixed top-4 left-1/2 -translate-x-1/2 rounded bg-black/70 px-4 py-2 text-center text-white"
+                >
+                    {characterProblem}
+                </p>
+            )}
+            {selected && <CharacterAttribution character={selected} />}
             <ControlPanel
                 definitions={controls}
                 values={values}
