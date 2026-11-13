@@ -6,7 +6,7 @@ import {
     FFT_SIZE,
     HUB_BAND_COUNT,
     HUB_BAND_EDGES_HZ,
-    LOW_ONSET_REFRACTORY_FRAMES,
+    BAND_ONSET_REFRACTORY_FRAMES,
     ONSET_LOOKAHEAD_FRAMES,
 } from './rhythmConfig';
 import { TEST_SAMPLE_RATE, silence } from './testSignals';
@@ -201,7 +201,7 @@ describe('BandOnsets events', () => {
         const pcm = silence(2);
         addKick(pcm, 0.5);
         // A weak note right behind the kick, inside the refractory span, is a ripple and not a new event.
-        addBass(pcm, 0.5 + (LOW_ONSET_REFRACTORY_FRAMES / 2) * 0.01, 0.1);
+        addBass(pcm, 0.5 + (BAND_ONSET_REFRACTORY_FRAMES[0] / 2) * 0.01, 0.1);
         const { events } = run(pcm);
         expect(bandsOf(events)).toEqual([KICK]);
     });

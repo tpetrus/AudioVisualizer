@@ -9,13 +9,14 @@ import { basename, extname, join } from 'node:path';
 import { concat, createRandom, runPipeline, silence, timeToLock } from '../app/features/rhythm/testSignals';
 import type { RunResult } from '../app/features/rhythm/testSignals';
 import type { BeatsPerBar } from '../app/features/rhythm/types';
-import { detectFromPcm } from '../app/features/rhythm/eval/detect';
+import { detectFromPcm, type PipelineDetection } from '../app/features/rhythm/eval/detect';
 import {
     buildEvalReport,
     formatEvalReports,
     formatTempoLine,
     tempoFigures,
 } from '../app/features/rhythm/eval/evalReport';
+import { ONSET_BANDS } from '../app/features/rhythm/eval/evalTypes';
 import { parseBeatSidecar } from '../app/features/rhythm/eval/sidecar';
 import { tempoStability } from './rhythm-tools/tempoStability';
 
@@ -533,6 +534,29 @@ function evaluatePairs(clips: Clip[], options: Options): void {
 
 // ---- Alignment ----
 
+// Distance within which an onset of any band counts as sounding at a beat.
+const BEAT_COVERAGE_SECONDS = 0.05;
+
+// How busy each band is on a tapped track and how many tapped beats have some onset next to them. A tapped beat is not an
+// onset label, so this cannot score the events; it shows a detector that fires several times per beat (it is not
+// finding the beat's hit) or that is silent at the beats. Events are counted from the first to the last tapped beat, the
+// span the tapper covered. Printed beside the report, which does not carry it.
+function formatOnsetRates(beats: number[], onsets: PipelineDetection['onsets']): string[] {
+    const covered = (time: number): boolean =>
+        ONSET_BANDS.some((band) => onsets[band].some((onset) => Math.abs(onset - time) <= BEAT_COVERAGE_SECONDS));
+    const first = beats[0] ?? 0;
+    const last = beats[beats.length - 1] ?? 0;
+    const perBeat = ONSET_BANDS.map((band) => {
+        const count = onsets[band].filter((time) => time >= first && time <= last).length;
+        return `${band} ${(count / Math.max(1, beats.length - 1)).toFixed(2)}`;
+    });
+    const share = beats.length === 0 ? NaN : beats.filter(covered).length / beats.length;
+    return [
+        `  onset events per beat ${perBeat.join(', ')}`,
+        `  beats with an onset within ${BEAT_COVERAGE_SECONDS * 1000} ms ${Number.isNaN(share) ? 'n/a' : share.toFixed(2)} (${beats.length} beats)`,
+    ];
+}
+
 // Reports for every WAV directly in the folder that has a ground-truth sidecar. Detected beats, tempo and onsets come from
 // the real pipeline (see app/features/rhythm/eval/detect.ts).
 function evaluateAlignment(options: Options): void {
@@ -573,6 +597,9 @@ function evaluateAlignment(options: Options): void {
                 // The report names the audio file that was actually analysed.
                 sidecar.track = name;
                 console.log(formatEvalReports([buildEvalReport(sidecar, detected)]).join('\n'));
+                if (sidecar.source === 'tapped') {
+                    console.log(formatOnsetRates(sidecar.beats, detected.onsets).join('\n'));
+                }
             } catch (error) {
                 console.error(`${name}: ${beatsPath}: ${error instanceof Error ? error.message : String(error)}`);
                 process.exitCode = 1;
