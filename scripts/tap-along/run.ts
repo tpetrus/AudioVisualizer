@@ -233,6 +233,8 @@ async function main(): Promise<void> {
 
     let rawTaps: number[];
     try {
+        // Starting the server and the browser takes several seconds with nothing to see, so say what is happening.
+        console.log('Starting the dev server...');
         server = spawn(
             process.execPath,
             [resolve('node_modules/@react-router/dev/bin.cjs'), 'dev', '--port', String(port), '--strictPort'],
@@ -242,11 +244,13 @@ async function main(): Promise<void> {
         server.on('error', (error) => serverLines.push(`spawn failed: ${error.message}\n`, 2));
         await waitForServer(origin, server, serverLines);
 
+        console.log('Opening the browser window...');
         // Always headed: the person taps in this window, so it must have focus.
         browser = await chromium.launch({ headless: false, args: ['--autoplay-policy=no-user-gesture-required'] });
         const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
         await page.addInitScript(installTapRecorder);
         await page.goto(`${origin}/${viz}`);
+        console.log('Loading the track...');
         await page.getByLabel('Audio file').setInputFiles(trackPath);
         await waitForPlaybackStart(page);
         // The source dialog stays open after a source starts; close it so the window has the scene alone.
