@@ -79,3 +79,20 @@ Rules:
 Frozen at the wording in the plan (`freeze_first`). No task in the first session (S1, S9, S3, S2, S10) implements or
 depends on them. Their type-level definitions are written by the orchestrator at the start of the session that runs S4,
 after S2 has answered Q2 (tap before or after the automatic gain control).
+
+## C3 WorkletFeatureMessage (frozen at the start of the S4 session)
+
+S2 answered Q2: the tap and the worklet stay after the gain control. The types are the contract:
+`FeatureBatch` and `FEATURE_MESSAGE_VERSION` in `app/features/rhythm/types.ts`, and `HUB_BANDS`, `HUB_BAND_EDGES_HZ`,
+`FEATURE_ONSET_BANDS` and `ONSET_LOOKAHEAD_FRAMES` in `app/features/rhythm/rhythmConfig.ts`.
+
+- `FeatureBatch` extends `FrameBatch`, so the packed frame and `FRAME_STRIDE` are unchanged (D13) and the tracker keeps
+  reading `time0`, `count` and `frames`. The replay fixtures hold the tracker's combined onset envelope, which depends
+  only on the packed frame, so they stay valid; their spec proves it.
+- Onset events are detected in the worklet, causally, with at most `ONSET_LOOKAHEAD_FRAMES` frames of look-ahead, and
+  stamped with the analysis-window centre of the onset frame, not the time they were decided. The detector is a pure
+  module (`bandOnsets.ts`) that allocates only in its constructor, so the offline evaluation runs exactly the code the
+  worklet runs.
+- `bandEnergy` is in the packed frame's energy units and not normalized; normalizing is the hub's job (C5, S7).
+- `BATCH_FRAMES` stays 8 in S4. S5 measures and cuts it.
+- C5 and C6 are written at the start of the slices that implement them (S7 and S5).

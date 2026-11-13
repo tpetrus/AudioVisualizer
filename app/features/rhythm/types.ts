@@ -71,3 +71,31 @@ export interface FrameBatch {
     count: number;
     frames: Float32Array;
 }
+
+// Version of the message the worklet posts. Version 1 was a bare FrameBatch; version 2 adds the fields of
+// FeatureBatch beside the packed frames, which are unchanged.
+export const FEATURE_MESSAGE_VERSION = 2;
+
+// Contract C3: the message the worklet posts. The packed frames are exactly a FrameBatch, so the tracker can keep
+// reading `time0`, `count` and `frames` as before; the rest is for the analysis hub and the offline evaluation. All
+// times are AudioContext seconds. Each array is a fresh buffer transferred with the message and may be longer than its
+// valid part: only the first `count` frames and the first `onsetCount` events are meaningful.
+export interface FeatureBatch extends FrameBatch {
+    version: typeof FEATURE_MESSAGE_VERSION;
+    // The centre of each frame's analysis window, one per frame. frameTimes[0] equals time0.
+    frameTimes: Float64Array;
+    // Energy per hub band, HUB_BAND_COUNT values per frame in HUB_BANDS order: the mean of log(1 + MAGNITUDE_LOG_GAIN *
+    // magnitude) over the band's FFT bins, the same units as the packed frame's band energy. Not normalized: the hub
+    // does that.
+    bandEnergy: Float32Array;
+    // Onset events decided while this batch's frames were analysed, in time order. An event is never sent twice and
+    // does not wait for a tempo lock. Because of the look-ahead (ONSET_LOOKAHEAD_FRAMES), an event's time can be up to
+    // that many frames earlier than frameTimes[0].
+    onsetCount: number;
+    // Index into FEATURE_ONSET_BANDS.
+    onsetBand: Uint8Array;
+    // The centre of the window of the frame where the onset was detected, not the time it was decided.
+    onsetTime: Float64Array;
+    // 0..1, comparable across events of the same band: 1 is a hit as strong as the band's recent loudest.
+    onsetStrength: Float32Array;
+}

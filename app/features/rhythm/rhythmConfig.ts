@@ -36,6 +36,23 @@ export const FRAME_RMS_OFFSET = FRAME_ENERGY_OFFSET + BAND_COUNT;
 export const FRAME_CHROMA_OFFSET = FRAME_RMS_OFFSET + 1;
 export const FRAME_STRIDE = FRAME_CHROMA_OFFSET + CHROMA_BINS;
 
+// ---- Hub bands and per-band onsets (contract C3, added beside the packed frame; the tracker does not read them) ----
+
+// Bands whose energy the worklet reports to the analysis hub, low to high. Edges in Hz: band b covers
+// [HUB_BAND_EDGES_HZ[b], HUB_BAND_EDGES_HZ[b + 1]). Kick and bass share the low end of the spectrum, so the kick and
+// bass onset detectors may look at more than their own band to tell them apart.
+// Edges above the Nyquist frequency are clamped to it, and every band gets at least one FFT bin, as the three flux
+// bands do.
+export const HUB_BANDS = ['sub', 'kick', 'bass', 'lowMid', 'mid', 'highs'] as const;
+export const HUB_BAND_COUNT = HUB_BANDS.length;
+export const HUB_BAND_EDGES_HZ = [20, 60, 130, 300, 800, 4000, 16000] as const;
+// Kinds of onset event the worklet emits, in the order of their index in a feature batch.
+export const FEATURE_ONSET_BANDS = ['kick', 'bass', 'snare', 'highs'] as const;
+export const FEATURE_ONSET_BAND_COUNT = FEATURE_ONSET_BANDS.length;
+// Frames the onset detectors may look ahead before deciding that a frame holds an onset. Each frame of look-ahead
+// delays every event by one hop (10 ms), so this is capped at 2 by the 30 ms reaction target.
+export const ONSET_LOOKAHEAD_FRAMES = 2;
+
 // How much each band's flux contributes to the onset envelope used for tempo and beats (kick, mid, high).
 export const ONSET_BAND_WEIGHTS = [1, 1, 1] as const;
 // Each band's flux is divided by its decaying peak (this half-life in seconds) before the bands are summed, so every
