@@ -64,6 +64,8 @@ const lockTapSettings = (tap: AnalyserNode): void => {
 interface OwnedEntry {
     settings: AnalyserSettings;
     node?: AnalyserNode;
+    // The gain node feeding `node`, kept so the connection into the node can be removed again.
+    feed?: GainNode;
 }
 
 // Captures audio, normalizes its volume, and exposes the analyser the visualizations read. Framework-free: React
@@ -111,6 +113,7 @@ export class AudioEngine {
         applySettings(node, entry.settings);
         graph.gainNode.connect(node);
         entry.node = node;
+        entry.feed = graph.gainNode;
     }
 
     // Keeps the node's current settings in the entry first, so a rebuild reproduces them.
@@ -119,8 +122,12 @@ export class AudioEngine {
             return;
         }
         entry.settings = readSettings(entry.node);
+        // `disconnect()` with no argument only removes a node's outgoing connections. The connection from the gain
+        // node into it must be removed by name, or the gain node keeps the released analyser alive and processing.
+        entry.feed?.disconnect(entry.node);
         entry.node.disconnect();
         entry.node = undefined;
+        entry.feed = undefined;
     }
 
     public getIsCapturing = () => this.graph !== undefined;

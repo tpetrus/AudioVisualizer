@@ -901,14 +901,18 @@ describe('analysers: the tap and per-consumer nodes', () => {
     });
 
     it('release disconnects, stops recreation and is idempotent', async () => {
-        const { engine } = setup();
+        const { engine, graph } = setup();
         await engine.startSource((context) => nodeSource(context));
         const handle = engine.acquireAnalyser(A);
         const node = asWebAudio<FakeAnalyserNode>(handle.getNode());
+        const { gain } = graph();
 
         handle.release();
         handle.release();
 
+        // The gain node must let go of the node too, or the released analyser stays in the graph.
+        expect(gain.disconnect).toHaveBeenCalledTimes(1);
+        expect(gain.disconnect).toHaveBeenCalledWith(node);
         expect(node.disconnect).toHaveBeenCalledTimes(1);
         expect(handle.getNode()).toBeUndefined();
         await engine.startSource((context) => nodeSource(context));
