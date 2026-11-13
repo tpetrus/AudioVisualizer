@@ -114,6 +114,15 @@ describe('live onsets and the reaction offset', () => {
         expect(alignmentReportLines(onsetTable([0.5]), SIDECAR).join(NEWLINE)).toContain('onsets: not scored');
     });
 
+    it('still measures the reaction offset when the recording has no tempo columns', () => {
+        const rows = onsetTable([0.5, 1, 1.5]).rows.map((row) => [row[0], row[3]]);
+        const table = { columns: ['t', 'onsetKick'], rows };
+        const lines = alignmentReportLines(table, SIDECAR, { reactionColumn: 'onsetKick' });
+        expect(lines[0]).toContain('not available');
+        expect(lines[1]).toContain('reactionOffsetMs (onsetKick)');
+        expect(alignmentReportLines(table, SIDECAR)).toHaveLength(1);
+    });
+
     it('says why a reaction column cannot be used', () => {
         const text = alignmentReportLines(onsetTable([0.5]), SIDECAR, { reactionColumn: 'nope' }).join(NEWLINE);
         expect(text).toContain('reaction offset: not available, the recording has no "nope" column');

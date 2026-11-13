@@ -93,7 +93,13 @@ export function alignmentReportLines(
         return [`Alignment: cannot use track.beats.json: ${error instanceof Error ? error.message : String(error)}`];
     }
     const detected = detectedFromTelemetry(table);
-    if ('unavailable' in detected) return [`Alignment: not available, ${detected.unavailable}.`];
+    if ('unavailable' in detected) {
+        const lines = [`Alignment: not available, ${detected.unavailable}.`];
+        // The reaction offset needs only the click times and one column, not the tempo columns of a rhythm probe.
+        if (options.reactionColumn !== undefined)
+            lines.push(reactionLine(table, sidecar.beats, options.reactionColumn));
+        return lines;
+    }
     const onsets = onsetsFromTelemetry(table);
     const report = buildEvalReport(sidecar, { ...detected, onsets });
     const lines = ['Alignment (against track.beats.json):', ...formatEvalReports([report])];
@@ -104,16 +110,11 @@ export function alignmentReportLines(
     } else {
         lines.push(`  onsets: peaks of the recorded tracker onsets, frame allowance +/-${frameAllowance(table)} ms`);
     }
-    if (options.reactionColumn === undefined) {
-        lines.push('  reaction offset: not measured, pass --reaction <column> with a click track');
-    } else {
-        const reaction = measureReactionOffset(table, options.reactionColumn, sidecar.beats);
-        lines.push(
-            'unavailable' in reaction
-                ? `  reaction offset: not available, ${reaction.unavailable}`
-                : formatReactionOffset(options.reactionColumn, reaction),
-        );
-    }
+    lines.push(
+        options.reactionColumn === undefined
+            ? '  reaction offset: not measured, pass --reaction <column> with a click track'
+            : reactionLine(table, sidecar.beats, options.reactionColumn),
+    );
     return lines;
 }
 
@@ -127,4 +128,11 @@ function frameAllowance(table: TelemetryTable): string {
     }
     gaps.sort((a, b) => a - b);
     return gaps.length > 0 ? gaps[gaps.length >> 1].toFixed(1) : 'n/a';
+}
+
+function reactionLine(table: TelemetryTable, clicks: readonly number[], column: string): string {
+    const reaction = measureReactionOffset(table, column, clicks);
+    return 'unavailable' in reaction
+        ? `  reaction offset: not available, ${reaction.unavailable}`
+        : formatReactionOffset(column, reaction);
 }

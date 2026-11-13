@@ -34,11 +34,11 @@ describe('measureReactionOffset', () => {
         expect(result.medianMs).toBeCloseTo(20, 3);
     });
 
-    it('counts clicks without a reaction in the window, or before the recording, as misses', () => {
-        const result = measureReactionOffset(table(3, [0.5]), 'x', [0.5, 3, -1], { windowSeconds: 0.1 });
+    it('counts clicks without a reaction in the window as misses and skips clicks the recording does not cover', () => {
+        const result = measureReactionOffset(table(3, [0.5]), 'x', [0.5, 3, -1, 3.95], { windowSeconds: 0.1 });
         if ('unavailable' in result) throw new Error(result.unavailable);
         expect(result.hits).toBe(1);
-        expect(result.misses).toBe(2);
+        expect(result.misses).toBe(1);
         const none = measureReactionOffset(table(3, [0.5]), 'x', [3]);
         if ('unavailable' in none) throw new Error(none.unavailable);
         expect(none.medianMs).toBeUndefined();
@@ -56,6 +56,7 @@ describe('measureReactionOffset', () => {
             [1, 0],
             [1.1, 0],
             [1.18, 1],
+            [2, 0],
         ];
         const result = measureReactionOffset({ columns: ['t', 'x'], rows }, 'x', [0.1, 0.6, 1.1], {});
         if ('unavailable' in result) throw new Error(result.unavailable);

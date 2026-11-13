@@ -74,14 +74,12 @@ export function measureReactionOffset(
     const offsets: number[] = [];
     let misses = 0;
     for (const click of clicks) {
+        // A click the recording does not cover (before its first row, or too near its end for the whole search window)
+        // says nothing about the visualizer, so it is neither a hit nor a miss.
+        if (click <= times[0] || click + windowSeconds > times[times.length - 1]) continue;
         let before = -1;
         while (before + 1 < times.length && times[before + 1] < click) before++;
         // The level is the last row strictly before the click, so a rise recorded at the click's own row still counts.
-        // A click before the first row has no pre-click level to compare against.
-        if (before < 0) {
-            misses++;
-            continue;
-        }
         const level = values[before];
         let found = -1;
         for (let i = before + 1; i < times.length && times[i] <= click + windowSeconds; i++) {
