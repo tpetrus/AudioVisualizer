@@ -64,8 +64,20 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
 the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz, after the gain stage), `out` (the
 governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `novelty`, `phase` (0 groove, 1 build,
 2 drop, 3 afterglow), `tension`, `grants` (brightness increases granted so far), `lockWeight` (motion-clock beat lock),
-`kicks` (kicks recorded so far), `transitions` (formation changes started so far) and `formation` (0 sphere, 1 torus,
-2 double helix, 3 galaxy disc).
+`kicks` (shockwaves started so far), `transitions` (formation changes started so far), `formation` (0 sphere, 1 torus,
+2 double helix, 3 galaxy disc), `tempoConf` and `beats` (the tracker's tempo confidence and beat counter), `mid` (the
+followed mid-band level that drives the swirl), `gateOpen` (1 while the shared bass gate has found the bassline) and
+`gateIn` (the `BassPulse` level fed to the gate).
+
+Shockwaves come from the shared bass gate (`app/features/rhythm/bassGate.ts`, as in the dancing character), not from
+the raw kick onset. The onset also fires on syncopated bass notes, toms and claps: on the reference clips it fired 2.5
+to 3 times a second at 130 to 140 BPM, spread evenly across the beat, and as often on a clip with no kick drum. The
+gate learns where the kick sits in the beat and pulses there on the beat clock, so once it is open `kicks` rises by
+one per beat (compare it with `beats` per window). Expect no shockwaves until the tempo locks and the gate opens,
+typically 4 to 6 s after the lock, and none on a track the tracker holds at a wrong tempo (`syncopationbass`, held
+near 195 instead of 98 BPM). The mid and high bands are followed with attack and release times
+(`bassInkSceneConfig.turbulence` and `.sparkle`) for the same reason: fed straight in, every snare and hat made the
+cloud twitch.
 
 How the drop rules in `bassInkConfig.director` were tuned, and what to check when changing them:
 - They read the bass, not the full-band loudness. A build is the DJ pulling the bass out (a deep cut held
@@ -76,7 +88,9 @@ How the drop rules in `bassInkConfig.director` were tuned, and what to check whe
 - Tune against the `in` column, not `bassRaw`: `bassRaw` is tapped before the gain stage, and the automatic gain
   flattens a surge (on one clip a 2.2 ratio before the gain was 1.8 after it). A recording's `in` column can be replayed
   through the real `EnergyTracker` and `SetDirector` with a few lines of script, with no browser and in well under a
-  second, by setting `bandOnsets[0]` to 1 on each frame where `kicks` increases and decaying it by 0.9 per 10 ms.
+  second, by setting `bandOnsets[0]` to 1 on each frame where `kicks` increases and decaying it by 0.9 per 10 ms The
+director reads the raw kick onset, while `kicks` now counts gate pulses, so this is only an approximation, and it
+misses every kick while the gate is closed; recording the onset as its own column would make it exact.
 - Starting values came from six local clips of about 30 s (no labeled drop times, so the reference times were read off
   the per-second bass): every drop flagged within about 1 s of that reading, and no drop on the three clips without one.
   `warmupSeconds` exists because the first seconds of a track (or a fade-in) otherwise read as a surge. Real DJ mixes

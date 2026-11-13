@@ -45,6 +45,10 @@ export const bassInkSceneConfig = {
         // Always-on drift so the cloud never looks frozen, plus a share that follows the mid band.
         base: 0.04,
         midGain: 0.28,
+        // The mid band is followed with these time constants (seconds), so the swirl grows over a busy passage and
+        // settles in a quiet one rather than jumping on each snare or clap.
+        midAttackSeconds: 0.3,
+        midReleaseSeconds: 1.2,
         // How fast the swirl evolves, per second.
         speed: 0.35,
         // At full tension the points shiver by this much (world units): the build trembles before the drop.
@@ -58,6 +62,9 @@ export const bassInkSceneConfig = {
         // a flash has to change by to count (WCAG 2.3.1), however fast the hats are. The scene also scales the high
         // band by the flash intensity, so 0 turns the glints off.
         amplitude: 0.5,
+        // The high band is followed the same way: the glints shimmer with the hats' density, not flicker per hat.
+        attackSeconds: 0.15,
+        releaseSeconds: 0.6,
     },
     sprite: {
         // World size of one point; about 2.5 px at the default camera on a 900 px tall view.

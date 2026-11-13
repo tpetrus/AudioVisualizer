@@ -23,13 +23,15 @@ export function advance(clock: MotionClock, state: RhythmState, dtSeconds: numbe
     const dt = Math.max(0, dtSeconds);
     const barPhase = state.barPhase;
 
+    const beatPhase = state.beatPhase;
     // Two thresholds: the clock locks at a high confidence and lets go at a lower one, so a confidence hovering near
-    // one value does not toggle the lock every frame.
+    // one value does not toggle the lock every frame. The beat is enough to lock: the meter is often unsure for long
+    // stretches of a mix, and a breath that ignores a tempo everyone can hear looks out of time.
     if (clock.locked) {
-        if (state.tempoConfidence < config.exitConfidence || barPhase === undefined) {
+        if (state.tempoConfidence < config.exitConfidence || beatPhase === undefined) {
             clock.locked = false;
         }
-    } else if (state.tempoConfidence >= config.enterConfidence && barPhase !== undefined && state.bpm > 0) {
+    } else if (state.tempoConfidence >= config.enterConfidence && beatPhase !== undefined && state.bpm > 0) {
         clock.locked = true;
     }
 
@@ -48,10 +50,20 @@ export function advance(clock: MotionClock, state: RhythmState, dtSeconds: numbe
     const rate = freeRate + (lockedRate - freeRate) * weight;
     let step = rate * dt;
 
-    if (weight > 0 && barPhase !== undefined) {
+    let error: number | undefined;
+    if (barPhase !== undefined) {
         // Shortest signed distance to the real bar position, in -0.5..0.5.
-        let error = barPhase - clock.phase;
+        error = barPhase - clock.phase;
         error -= Math.round(error);
+    } else if (beatPhase !== undefined) {
+        // Only the beat is known: line the breath up with whichever beat is nearest, so each beat still falls on a
+        // quarter of the breath even though which one starts the bar is unknown.
+        const beats = state.beatsPerBar ?? 4;
+        let beatError = beatPhase - clock.phase * beats;
+        beatError -= Math.round(beatError);
+        error = beatError / beats;
+    }
+    if (weight > 0 && error !== undefined) {
         // Bounded to a fraction of the base step so the phase always keeps moving forward and never jumps.
         const limit = config.maxCorrectionFraction * step;
         step += Math.max(-limit, Math.min(limit, error * weight * config.correctionRate * dt));

@@ -11,6 +11,7 @@ function lockedState(barPhase: number, bpm = 120): RhythmState {
     const state = createRhythmState();
     state.bpm = bpm;
     state.barPhase = barPhase;
+    state.beatPhase = (barPhase * 4) % 1;
     state.beatsPerBar = 4;
     state.tempoConfidence = 0.9;
     return state;
@@ -69,22 +70,49 @@ describe('motion clock', () => {
         expect(clock.locked).toBe(false);
     });
 
-    it('does not lock without a bar position or a tempo, and unlocks when the bar position is lost', () => {
+    it('does not lock without a beat position or a tempo, and unlocks when the beat position is lost', () => {
         const clock = createMotionClock();
         const state = lockedState(0);
-        state.barPhase = undefined;
+        state.beatPhase = undefined;
         advance(clock, state, DT);
         expect(clock.locked).toBe(false);
-        state.barPhase = 0.1;
+        state.beatPhase = 0.1;
         state.bpm = 0;
         advance(clock, state, DT);
         expect(clock.locked).toBe(false);
         state.bpm = 120;
         advance(clock, state, DT);
         expect(clock.locked).toBe(true);
-        state.barPhase = undefined;
+        state.beatPhase = undefined;
         advance(clock, state, DT);
         expect(clock.locked).toBe(false);
+    });
+
+    it('locks on the beat alone while the meter is unsure', () => {
+        const clock = createMotionClock();
+        const state = lockedState(0);
+        state.barPhase = undefined;
+        state.beatsPerBar = undefined;
+        advance(clock, state, DT);
+        expect(clock.locked).toBe(true);
+    });
+
+    it('lines each beat up with a quarter of the breath when only the beat is known', () => {
+        const clock = createMotionClock();
+        const state = lockedState(0, 120);
+        state.barPhase = undefined;
+        clock.phase = 0.6;
+        let beatClock = 0;
+        const beatRate = 120 / 60;
+        for (let i = 0; i < 60 * 30; i++) {
+            beatClock = (beatClock + beatRate * DT) % 1;
+            state.beatPhase = beatClock;
+            advance(clock, state, DT);
+        }
+        // Which beat starts the breath is unknown, so any quarter is in line. Compared in breaths, like the bar.
+        let error = beatClock - clock.phase * 4;
+        error -= Math.round(error);
+        expect(Math.abs(error / 4)).toBeLessThan(0.02);
     });
 
     it('eases the lock weight linearly over the ease time', () => {

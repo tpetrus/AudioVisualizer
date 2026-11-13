@@ -14,14 +14,6 @@ export const bassInkConfig = {
         // the debug harness's bassRaw column, so recordings can be replayed against these rules.
         bassCutoffHz: 120,
     },
-    kick: {
-        // The kick onset is a decaying peak-hold, so a real kick shows as a jump between two frames.
-        riseDelta: 0.15,
-        // 0.18 s still lets a 200 BPM train (0.3 s apart) through while ignoring the double edge of one kick.
-        refractorySeconds: 0.18,
-        // Weak onsets are hi-hat or bass leakage, not kicks.
-        strengthFloor: 0.25,
-    },
     motion: {
         // Lock only when the tempo is trusted, and release at a lower value so the lock does not chatter.
         enterConfidence: 0.6,
@@ -142,7 +134,6 @@ export const bassInkConfig = {
 };
 
 export type EnergyConfig = typeof bassInkConfig.energy;
-export type KickConfig = typeof bassInkConfig.kick;
 export type MotionConfig = typeof bassInkConfig.motion;
 export type ChromaConfig = typeof bassInkConfig.chroma;
 export type DirectorConfig = typeof bassInkConfig.director;

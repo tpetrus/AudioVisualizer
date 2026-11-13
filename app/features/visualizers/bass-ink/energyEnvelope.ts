@@ -21,6 +21,23 @@ export function bassLevel(spectrum: Uint8Array, count: number): number {
     return sum / (last * 255);
 }
 
+// One step of an attack/release follower: rises toward `target` with time constant `attackSeconds` and falls with
+// `releaseSeconds`. The band onsets jump on every hit, and fed straight into the motion they make the cloud twitch on
+// every snare, clap and hat; followed this way the motion swells with how busy a band is instead.
+export function followLevel(
+    current: number,
+    target: number,
+    attackSeconds: number,
+    releaseSeconds: number,
+    dtSeconds: number,
+): number {
+    const tau = target > current ? attackSeconds : releaseSeconds;
+    if (tau <= 0) {
+        return target;
+    }
+    return current + (target - current) * (1 - Math.exp(-Math.max(0, dtSeconds) / tau));
+}
+
 // Fast and slow followers of the loudness. Only their ratio is used downstream, so the result does not depend on the
 // master volume or capture gain, the way an absolute threshold would.
 export class EnergyTracker implements EnergyEnvelope {

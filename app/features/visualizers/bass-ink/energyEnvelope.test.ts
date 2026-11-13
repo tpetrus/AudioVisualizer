@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bassBinCount, bassLevel, EnergyTracker } from './energyEnvelope';
+import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 
 function trace(fps: number, seconds: number, level: (t: number) => number, scale = 1): number[] {
     const tracker = new EnergyTracker();
@@ -123,5 +123,20 @@ describe('EnergyTracker', () => {
             tracker.update(t < 1 ? 0.01 + 0.49 * t : 0.5, 1 / 60);
         }
         expect(tracker.ratio).toBeLessThan(1.3);
+    });
+});
+
+describe('followLevel', () => {
+    it('rises with the attack time and falls with the release time', () => {
+        expect(followLevel(0, 1, 0.5, 2, 0.5)).toBeCloseTo(1 - Math.exp(-1), 9);
+        expect(followLevel(1, 0, 0.5, 2, 0.5)).toBeCloseTo(Math.exp(-0.25), 9);
+    });
+
+    it('jumps straight to the target with a zero time constant', () => {
+        expect(followLevel(0.2, 0.9, 0, 1, 0.016)).toBe(0.9);
+    });
+
+    it('treats a negative delta as no time', () => {
+        expect(followLevel(0.3, 1, 0.5, 2, -1)).toBe(0.3);
     });
 });

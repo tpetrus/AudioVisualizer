@@ -6,13 +6,15 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { PalettePair } from './bassInkTypes';
 import { BrightnessMix } from './brightnessMix';
 import { blendPalette, writePalette } from './chromaPalette';
-import { bassBinCount, bassLevel, EnergyTracker } from './energyEnvelope';
+import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
 import { advance, createMotionClock } from './motionClock';
 import { isSoftwareRenderer, maxPointSize, pointCountFor } from './renderBudget';
 import { SetDirector } from './setDirector';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
+import { createBassGateState, stepBassGate } from '~/features/rhythm/bassGate';
+import { BassPulse } from '~/features/rhythm/bassPulse';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
@@ -82,6 +84,8 @@ export function useBassInkScene(
         const director = new SetDirector();
         const clock = createMotionClock();
         const brightnessMix = new BrightnessMix();
+        // Shared with the dancing character: learns where the bassline's kick sits in the beat and pulses there.
+        const bassGate = createBassGateState();
         const cue = director.cue;
 
         let cloud = new InkCloud(pointCountFor(valuesRef.current.density, software), formationSeed, pointSizeLimit);
@@ -106,12 +110,17 @@ export function useBassInkScene(
 
         // Audio state, rebuilt whenever the analyser changes.
         let boundAnalyser: AnalyserNode | undefined;
+        let bassPulse: BassPulse | undefined;
         let spectrum = new Uint8Array(0);
         let bassBins = 1;
         let sceneTime = 0;
         let lastLevel = 0;
         let lastBrightness = 0;
         let lastKickStrength = 0;
+        let lastBassPulse = 0;
+        // Followed mid and high band levels for the swirl and the glints.
+        let midLevel = 0;
+        let highLevel = 0;
 
         // DEV only: reports the set logic's latest values to the telemetry recorder.
         let unregisterProbe: (() => void) | undefined;
@@ -132,6 +141,11 @@ export function useBassInkScene(
                     'kicks',
                     'transitions',
                     'formation',
+                    'tempoConf',
+                    'beats',
+                    'mid',
+                    'gateOpen',
+                    'gateIn',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -147,6 +161,11 @@ export function useBassInkScene(
                     out[10] = kickRing.count;
                     out[11] = cue.transitionCount;
                     out[12] = cue.formationIndex;
+                    out[13] = rhythm.state.tempoConfidence;
+                    out[14] = rhythm.state.beatCount;
+                    out[15] = midLevel;
+                    out[16] = bassGate.open ? 1 : 0;
+                    out[17] = lastBassPulse;
                 },
             );
         }
@@ -157,6 +176,8 @@ export function useBassInkScene(
             bassBins = bassBinCount(source.context.sampleRate, source.fftSize, bassInkConfig.energy.bassCutoffHz);
             // A different source is different music: forget the old loudness history.
             energy.reset();
+            bassPulse?.dispose();
+            bassPulse = new BassPulse(source);
             boundAnalyser = source;
         };
 
@@ -187,12 +208,15 @@ export function useBassInkScene(
 
                 rhythm.updatePhase();
                 const state = rhythm.state;
-                const kickFired = kickRing.update(state.bandOnsets[0], now);
+                const breathing = advance(clock, state, dt);
+                // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
+                lastBassPulse = source && bassPulse ? bassPulse.update() : 0;
+                stepBassGate(lastBassPulse, state, clock.locked, bassGate, dt);
+                const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
                     lastKickStrength = kickRing.strengths[(kickRing.count - 1) % kickRing.strengths.length];
                 }
                 director.update(state, energy, now);
-                const breathing = advance(clock, state, dt);
 
                 // A density change is rare (the settings are used before the set), so it simply rebuilds the cloud.
                 const wantedPoints = pointCountFor(values.density, software);
@@ -229,8 +253,23 @@ export function useBassInkScene(
 
                 lastBrightness = brightnessMix.update(cue, kickFired, lastKickStrength, now, dt, values.intensity);
 
+                const { turbulence, sparkle } = bassInkSceneConfig;
+                midLevel = followLevel(
+                    midLevel,
+                    state.bandOnsets[1],
+                    turbulence.midAttackSeconds,
+                    turbulence.midReleaseSeconds,
+                    dt,
+                );
+                highLevel = followLevel(
+                    highLevel,
+                    state.bandOnsets[2],
+                    sparkle.attackSeconds,
+                    sparkle.releaseSeconds,
+                    dt,
+                );
                 // The glints add a little light, so they follow the flash intensity like every other brightness term.
-                cloud.setTexture(state.bandOnsets[1], state.bandOnsets[2] * values.intensity, values.turbulence);
+                cloud.setTexture(midLevel, highLevel * values.intensity, values.turbulence);
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
                 cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
@@ -247,6 +286,7 @@ export function useBassInkScene(
 
             dispose: () => {
                 orbit.dispose();
+                bassPulse?.dispose();
                 cloud.dispose();
                 unregisterProbe?.();
             },

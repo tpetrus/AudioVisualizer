@@ -305,7 +305,8 @@ describe('InkCloud', () => {
     describe('update', () => {
         it('copies the kick ring into the shader uniforms in the same call', () => {
             const { cloud, kicks, frame } = setup();
-            expect(kicks.update(0.9, 1.5)).toBe(true);
+            kicks.update({ bumpCount: 0, bumpTarget: 0.9, weight: 1 }, 1.4);
+            expect(kicks.update({ bumpCount: 1, bumpTarget: 0.9, weight: 1 }, 1.5)).toBe(true);
 
             frame(1.5);
 
@@ -324,7 +325,8 @@ describe('InkCloud', () => {
             const { cloud, kicks, frame } = setup();
             const times = uniformOf(cloud, 'uKickTimes');
             frame(1);
-            kicks.update(0.9, 2);
+            kicks.update({ bumpCount: 0, bumpTarget: 0.9, weight: 1 }, 1);
+            kicks.update({ bumpCount: 1, bumpTarget: 0.9, weight: 1 }, 2);
             frame(2);
 
             expect(uniformOf(cloud, 'uKickTimes')).toBe(times);

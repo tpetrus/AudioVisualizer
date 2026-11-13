@@ -123,6 +123,8 @@ function runScene(bpm: number, intensity: number) {
     const period = 60 / bpm;
     const increaseTimes: number[] = [];
     const levels: number[] = [];
+    // The bass gate pulses on every beat at full strength, as it does once a steady bassline is found.
+    const gate = { bumpCount: 0, bumpTarget: 1, weight: 1 };
     let nextKick = 0;
     let onset = 0;
     let previousLevel = 0;
@@ -134,6 +136,7 @@ function runScene(bpm: number, intensity: number) {
         const kickNow = now >= nextKick - 1e-9;
         if (kickNow) {
             onset = 1;
+            gate.bumpCount++;
             nextKick += period;
         }
         state.bandOnsets[0] = onset;
@@ -148,7 +151,7 @@ function runScene(bpm: number, intensity: number) {
             }
         }
         state.novelty = building ? 0.9 : 0;
-        const kickFired = kicks.update(onset, now);
+        const kickFired = kicks.update(gate, now);
         const cue = director.update(state, energy, now);
         const level = mix.update(
             cue,

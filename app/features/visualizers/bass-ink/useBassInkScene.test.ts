@@ -31,6 +31,30 @@ vi.mock('~/features/audio/devTelemetry', () => ({
     tickTelemetry: telemetry.tick,
 }));
 
+// The bass gate has its own spec; here it is scripted: a spec sets `pulse` to make it start one beat pulse.
+const gateScript = vi.hoisted(() => ({ pulse: false, calls: [] as { bass: number; locked: boolean }[] }));
+vi.mock('~/features/rhythm/bassGate', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('~/features/rhythm/bassGate')>();
+    return {
+        ...actual,
+        stepBassGate: (
+            bass: number,
+            _rhythm: unknown,
+            locked: boolean,
+            state: { bumpCount: number; bumpTarget: number; weight: number },
+        ) => {
+            gateScript.calls.push({ bass, locked });
+            if (gateScript.pulse) {
+                gateScript.pulse = false;
+                state.bumpCount++;
+                state.bumpTarget = 0.9;
+                state.weight = 1;
+            }
+            return 0;
+        },
+    };
+});
+
 // The director is scripted: a spec writes the cue it wants the scene to see.
 const script = vi.hoisted(() => ({
     cue: {
@@ -101,7 +125,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(11);
+    const out = new Float32Array(18);
     probeRead()(out);
     return out;
 }
@@ -162,7 +186,7 @@ function lastUpdate() {
     return {
         cue: args[0] as DirectorCue,
         breathing: args[1] as number,
-        kicks: args[2] as { count: number },
+        kicks: args[2] as { count: number; strengths: Float32Array },
         core: Array.from(palette.core),
         brightness: args[4] as number,
         time: args[5] as number,
@@ -176,6 +200,8 @@ function scroll(element: HTMLElement, deltaY: number): void {
 describe('useBassInkScene', () => {
     beforeEach(() => {
         clouds.instances = [];
+        gateScript.pulse = false;
+        gateScript.calls = [];
         telemetry.register.mockClear();
         telemetry.unregister.mockClear();
         telemetry.tick.mockClear();
@@ -244,22 +270,40 @@ describe('useBassInkScene', () => {
             expect(lastUpdate().time).toBeCloseTo(0.016 + bassInkSceneConfig.maxFrameDeltaSeconds + 0.016, 6);
         });
 
-        it('advances the rhythm phase and hands the cloud the director cue and band onsets', () => {
+        it('advances the rhythm phase and hands the cloud the director cue and the followed band levels', () => {
             const { frame, tracker, valuesRef } = mountScene();
             tracker.state.bandOnsets[1] = 0.4;
             tracker.state.bandOnsets[2] = 0.7;
             valuesRef.current = { ...valuesRef.current, turbulence: 1.5 };
+            const { turbulence, sparkle } = bassInkSceneConfig;
 
-            frame();
+            frame(16);
 
             expect(tracker.updatePhase).toHaveBeenCalled();
             expect(lastUpdate().cue).toBe(script.cue);
-            const [mid, high, turbulence] = currentCloud().setTexture.mock.calls.at(-1)!;
-            expect([mid, high, turbulence]).toEqual([
-                expect.closeTo(0.4, 5),
-                expect.closeTo(0.7 * valuesRef.current.intensity, 5),
+            // One 16 ms attack step toward each onset, not a jump to it.
+            const [mid, high, multiplier] = currentCloud().setTexture.mock.calls.at(-1)!;
+            expect([mid, high, multiplier]).toEqual([
+                expect.closeTo(0.4 * (1 - Math.exp(-0.016 / turbulence.midAttackSeconds)), 6),
+                expect.closeTo(0.7 * (1 - Math.exp(-0.016 / sparkle.attackSeconds)) * valuesRef.current.intensity, 6),
                 1.5,
             ]);
+        });
+
+        it('lets the band levels swell over a busy passage and settle slowly after it', () => {
+            const { frame, tracker } = mountScene();
+            tracker.state.bandOnsets[1] = 1;
+            for (let i = 0; i < 300; i++) {
+                frame(16);
+            }
+            const swollen = currentCloud().setTexture.mock.calls.at(-1)![0] as number;
+            expect(swollen).toBeGreaterThan(0.99);
+
+            tracker.state.bandOnsets[1] = 0;
+            frame(16);
+            const after = currentCloud().setTexture.mock.calls.at(-1)![0] as number;
+            // The release is slower than the attack, so one quiet frame barely lowers it.
+            expect(after).toBeGreaterThan(0.98);
         });
 
         it('turns the cloud object by the camera drift and not at all when it is 0', () => {
@@ -278,24 +322,41 @@ describe('useBassInkScene', () => {
             expect(object.rotation.y).toBe(turned);
         });
 
-        it('records kicks from the lowest band onset and flashes by the intensity control', () => {
+        it('records a kick only for a bass gate pulse, not for a raw kick onset', () => {
             const { frame, tracker, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, intensity: 1 };
-            tracker.state.bandOnsets[0] = 0;
             frame();
 
+            // A loud onset off the learned beat place: the gate does not pulse, so nothing happens.
             tracker.state.bandOnsets[0] = 0.9;
             frame();
+            expect(lastUpdate().kicks.count).toBe(0);
+            expect(lastUpdate().brightness).toBe(0);
 
+            gateScript.pulse = true;
+            frame();
             expect(lastUpdate().kicks.count).toBe(1);
+            expect(lastUpdate().kicks.strengths[0]).toBeCloseTo(0.9, 6);
             expect(lastUpdate().brightness).toBeGreaterThan(0);
         });
 
+        it('gives the gate the tempo lock of the breathing clock', () => {
+            const { frame, tracker } = mountScene();
+            frame();
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+
+            tracker.state.bpm = 128;
+            tracker.state.beatPhase = 0.2;
+            tracker.state.tempoConfidence = 0.9;
+            frame();
+            expect(gateScript.calls.at(-1)!.locked).toBe(true);
+        });
+
         it('shows no flash at all with the intensity at 0', () => {
-            const { frame, tracker, valuesRef } = mountScene();
+            const { frame, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, intensity: 0 };
             frame();
-            tracker.state.bandOnsets[0] = 0.9;
+            gateScript.pulse = true;
             frame();
             script.cue.dropAt = 1;
             script.cue.tension = 1;
@@ -340,6 +401,30 @@ describe('useBassInkScene', () => {
             expect(readProbe()[0]).toBeCloseTo(0.4, 6);
             expect(allClouds()).toHaveLength(1);
             expect(FakeRenderer.instances).toEqual([renderer]);
+        });
+
+        it('taps the bass of each bound source for the gate and releases every tap', () => {
+            const first = createAnalyser();
+            const second = createAnalyser();
+            const { frame, rerender, unmount } = mountScene({ analyser: first.node });
+            frame();
+            expect(first.analyser.context.createBiquadFilter).toHaveBeenCalledTimes(2);
+            expect(first.analyser.connect).toHaveBeenCalledTimes(1);
+
+            rerender({ analyser: second.node, cameraLocked: true });
+            frame();
+            // The old source no longer feeds a tap of a scene that has moved on.
+            expect(first.analyser.disconnect).toHaveBeenCalledTimes(1);
+            expect(second.analyser.connect).toHaveBeenCalledTimes(1);
+
+            unmount();
+            expect(second.analyser.disconnect).toHaveBeenCalledTimes(1);
+        });
+
+        it('feeds the gate nothing while there is no source', () => {
+            const { frame } = mountScene();
+            frame();
+            expect(gateScript.calls.at(-1)!.bass).toBe(0);
         });
 
         it('keeps reading nothing after the source goes away', () => {
@@ -547,6 +632,11 @@ describe('useBassInkScene', () => {
                     'kicks',
                     'transitions',
                     'formation',
+                    'tempoConf',
+                    'beats',
+                    'mid',
+                    'gateOpen',
+                    'gateIn',
                 ],
                 expect.any(Function),
             );
@@ -558,8 +648,11 @@ describe('useBassInkScene', () => {
             valuesRef.current = { ...valuesRef.current, intensity: 1 };
             tracker.state.novelty = 0.6;
             script.cue.tension = 0.3;
+            tracker.state.tempoConfidence = 0.7;
+            tracker.state.beatCount = 12;
+            tracker.state.bandOnsets[1] = 1;
             frame();
-            tracker.state.bandOnsets[0] = 0.9;
+            gateScript.pulse = true;
             frame();
 
             const row = readProbe();
@@ -570,6 +663,11 @@ describe('useBassInkScene', () => {
             expect(row[7]).toBeCloseTo(0.3, 6);
             expect(row[8]).toBeGreaterThan(0);
             expect(row[10]).toBe(1);
+            expect(row[13]).toBeCloseTo(0.7, 6);
+            expect(row[14]).toBe(12);
+            expect(row[15]).toBeGreaterThan(0);
+            expect(row[16]).toBe(0);
+            expect(row[17]).toBe(0);
         });
     });
 
