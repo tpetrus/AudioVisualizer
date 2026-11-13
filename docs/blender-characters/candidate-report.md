@@ -27,3 +27,12 @@ spine and neck gaps. Clavicles, limbs, feet and head cannot be dummies.
   rebuild (K3).
 - Licenses are uploader-declared. The license files for 11590, 10017, 18416, 17097 and 16234 say fan art, not for
   commercial use; the Wario file is labeled CC0 yet carries the same note.
+
+## Outcome
+
+- Shipped: Mr Incredible (11590) and Wario (10017), both Rigify rigs that reused one bone map.
+- Mario (16234) was converted with a hand-made bone map and passed every dance rule, but his proportions (stubby body,
+  long arms, big gloves) looked wrong while dancing, so he was removed. `convert.py` keeps what the work added
+  (Solidify and Multires modifiers, `arm_scale`, `skin_material`, the straight-elbow nudge).
+- Not attempted: Gallade (needs a hand and wrist built), Plankton and C-3PO (fail the relaxed check), and the five files
+  that were never downloaded (8995, 6164, 30743, 27251, 6360).

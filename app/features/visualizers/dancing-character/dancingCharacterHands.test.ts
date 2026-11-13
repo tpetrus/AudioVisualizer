@@ -126,7 +126,7 @@ describe('applyRelaxedHands', () => {
 
 // The converted Blender characters have one bone per finger group. Curling must close each hand toward its palm (down,
 // in the rest pose) by a relaxed amount, on both sides.
-describe.each(['mr-incredible', 'wario', 'mario'])('applyRelaxedHands on %s', (id) => {
+describe.each(['mr-incredible', 'wario'])('applyRelaxedHands on %s', (id) => {
     function groupCentroid(model: THREE.Object3D, bone: string): THREE.Vector3 {
         const centroid = new THREE.Vector3();
         const v = new THREE.Vector3();
