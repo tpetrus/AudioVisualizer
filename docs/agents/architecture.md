@@ -55,6 +55,7 @@ Rules:
 | `audioEngineContext.ts` | `AudioEngineContext` + `useAudio()` (throws outside the provider) |
 | `AudioProvider.tsx` | provides the singleton; optional `engine` prop for tests/fakes. Mounted in `root.tsx` |
 | `useAudioState.ts` | `useAnalyser`, `useCapturing`, `useNormalize`, `useNormalizeOptions`, each `useSyncExternalStore(engine.subscribe, engine.getX, engine.getX)` |
+| analyser ownership | `useAnalyser()` returns the engine's tap: fixed settings (`ENGINE_TAP_SETTINGS`), assigning one throws. A visualizer that needs its own FFT size, smoothing or decibel range calls `useAnalyser(settings)` and gets a node only it owns (`engine.acquireAnalyser`), rebuilt on a source change; see `cubes/cubesAnalyser.ts`. Code may still build its own analyser downstream of the tap (`BassPulse`, the trio-color-wave sheets) |
 | `useLevelMeter.ts` | polls the meters every 100 ms while a source is capturing; detects silence |
 
 **Reading vs acting:** read state through the hooks above (re-renders on change); call actions on `useAudio()` directly

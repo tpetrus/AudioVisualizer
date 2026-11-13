@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore, type CSSProperties } from 'react';
 import { useAudio } from '~/features/audio/audioEngineContext';
+import { rhythmTracker } from '~/features/rhythm/rhythmTracker';
 import {
     attachTelemetry,
     getTelemetryView,
@@ -41,7 +42,7 @@ export function DevTelemetryOverlay() {
     const textRef = useRef<HTMLPreElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
-    useEffect(() => attachTelemetry(engine), [engine]);
+    useEffect(() => attachTelemetry(engine, rhythmTracker.state), [engine]);
 
     useEffect(() => {
         if (!visible) return;

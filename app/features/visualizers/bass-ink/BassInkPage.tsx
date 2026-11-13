@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { bassInkControls } from './bassInkControls';
+import { BASS_INK_ANALYSER } from './bassInkAnalyser';
 import { useBassInkScene } from './useBassInkScene';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
@@ -8,7 +9,7 @@ import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 
 export function BassInkPage() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const analyser = useAnalyser();
+    const analyser = useAnalyser(BASS_INK_ANALYSER);
     const rhythm = useRhythm();
     const { values, valuesRef, setValue, resetAll } = useControlValues(bassInkControls);
     // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.

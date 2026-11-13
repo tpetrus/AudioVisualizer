@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { BASS_INK_ANALYSER } from './bassInkAnalyser';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { bassInkControls } from './bassInkControls';
@@ -32,7 +33,7 @@ describe('BassInkPage', () => {
         expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0'));
     });
 
-    it('hands the scene the capturing analyser, the rhythm tracker and the default control values', () => {
+    it('hands the scene its own analyser node (not the tap), the rhythm tracker and the default control values', () => {
         const { engine, tracker } = renderWithProviders(<BassInkPage />);
         expect(latestOptions().analyser).toBeUndefined();
         expect(latestOptions().rhythm).toBe(tracker);
@@ -40,7 +41,9 @@ describe('BassInkPage', () => {
         const analyser = asWebAudio<AnalyserNode>({});
         act(() => engine.setAnalyser(analyser));
 
-        expect(latestOptions().analyser).toBe(analyser);
+        // The page's node is its own, carrying the declared settings; the engine's tap is not handed out.
+        expect(latestOptions().analyser).toMatchObject(BASS_INK_ANALYSER);
+        expect(latestOptions().analyser).not.toBe(analyser);
         const defaults = Object.fromEntries(bassInkControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
     });
