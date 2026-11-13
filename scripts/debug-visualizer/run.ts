@@ -2,7 +2,7 @@
 // Run it with `npm run debug:viz -- --help`. Not part of the app bundle: nothing under app/ imports this file.
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
@@ -112,8 +112,11 @@ interface PlayOptions {
     from: number;
     shots: readonly number[];
     reference: number | undefined;
+    // Path of the track's `.beats.json` ground truth, when it has one.
+    beatsSidecar: string | undefined;
     play: number;
     plays: number;
+    noNormalize: boolean;
 }
 
 // Waits for the playback to start, or throws the dialog's one-line failure. With `restartedFrom` it also needs the
@@ -169,7 +172,7 @@ async function chooseTrackAgain(page: Page, trackPath: string, previousPosition:
 // Records one play of the track that is already running: resets the recorder, waits for the range to be played, then
 // writes the CSV and prints the summary. Returns the last playback position seen.
 async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
-    const { viz, track, requestedSeconds, from, shots, reference, play, plays } = options;
+    const { viz, track, requestedSeconds, from, shots, reference, beatsSidecar, play, plays, noNormalize } = options;
     await closeSourceDialog(page);
 
     const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
@@ -192,6 +195,10 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
     mkdirSync(outDir, { recursive: true });
     // The folder keeps its own copy of the reference so debug:summary can judge it later without the music folder.
     if (reference !== undefined) writeFileSync(join(outDir, 'track.bpm'), `${reference}\n`);
+    // What was switched for this run, read back by debug:summary so recordings can be told apart.
+    writeFileSync(join(outDir, 'options.json'), JSON.stringify({ viz, track, from, noNormalize }) + '\n');
+    // The same for ground-truth beats, so debug:summary can print the alignment report.
+    if (beatsSidecar !== undefined) copyFileSync(beatsSidecar, join(outDir, 'track.beats.json'));
 
     // At 0 the track has only just begun. Seeking back to it would feed the tracker a discontinuity of a different
     // length on every run, so only the recorder is reset and the first row's t is slightly above 0.
@@ -268,6 +275,7 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
           : '';
     const playNote = plays > 1 ? ` play=${play}/${plays}` : '';
     console.log(`Run: viz=${viz} track=${track}${playNote} from=${num(from)} s seconds=${num(seconds)}${clampNote}`);
+    if (noNormalize) console.log('Options: volume normalization off (--no-normalize)');
     console.log(`Rows: ${rowCount}, measured mean fps: ${num(fps)}`);
     if (snapshot.overflowed)
         console.log('Warning: the recorder filled up and stopped; the tail of the run is missing from the CSV.');
@@ -286,7 +294,7 @@ async function main(): Promise<void> {
         return;
     }
     if (parsed.kind === 'error') fail(parsed.message);
-    const { dir, track, viz, seconds: requestedSeconds, from, shots, reselect, headless } = parsed.args;
+    const { dir, track, viz, seconds: requestedSeconds, from, shots, reselect, headless, noNormalize } = parsed.args;
 
     // Validate everything that needs no browser first, so a typo costs nothing.
     const dirPath = resolve(dir);
@@ -309,6 +317,9 @@ async function main(): Promise<void> {
         : { bpm: undefined, warning: undefined };
     if (sidecar.warning) console.log(sidecar.warning);
     const reference = sidecar.bpm;
+    // Ground-truth beats sit beside the track as `<name>.beats.json`; the folder keeps a copy for debug:summary.
+    const beatsPath = join(dirPath, `${sidecarName(track).replace(/\.bpm$/, '')}.beats.json`);
+    const beatsSidecar = existsSync(beatsPath) ? beatsPath : undefined;
 
     const port = await freePort();
     const origin = `http://localhost:${port}`;
@@ -370,6 +381,12 @@ async function main(): Promise<void> {
         });
         const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 } })).newPage();
         await page.goto(`${origin}/${viz}`);
+        // The context is new, so its storage starts empty and the engine's saved setting dies with it: nothing of the
+        // developer's own browser profile is touched. The hook exists once the recorder has attached.
+        if (noNormalize) {
+            await page.waitForFunction(() => window.__vizTelemetry !== undefined);
+            await page.evaluate(() => window.__vizTelemetry?.setNormalize(false));
+        }
 
         let lastPosition = 0;
         for (let play = 1; play <= reselect; play++) {
@@ -387,8 +404,10 @@ async function main(): Promise<void> {
                 from,
                 shots,
                 reference,
+                beatsSidecar,
                 play,
                 plays: reselect,
+                noNormalize,
             });
         }
     } finally {

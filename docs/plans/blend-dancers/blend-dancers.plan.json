@@ -1,0 +1,1097 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "blend-dancers-20261112t020415z-439d56d7",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-12T02:04:15.153Z",
+  "updated": "2026-11-12T02:17:15.886Z",
+  "feature": {
+    "slug": "blend-dancers",
+    "title": "Blender characters for dancing-character",
+    "request": "<task>\n-determine how feasible it is to add blender .blend files to the dancing-character visualization\n</task>\n\n<context>\n-here is a list of possible options:\n    -https://blendswap.com/blend/11590\n    -https://blendswap.com/blend/6360\n    -https://blendswap.com/blend/10017\n    -https://blendswap.com/blend/30743\n    -https://blendswap.com/blend/5830\n    -https://blendswap.com/blend/6164\n    -https://blendswap.com/blend/27211\n    -https://blendswap.com/blend/8995\n    -https://blendswap.com/blend/18416\n    -https://blendswap.com/blend/17097\n    -https://blendswap.com/blend/27251\n    -https://blendswap.com/blend/16234\n</context>\n\n<requirements>\n-determine which files have the correct number of bones (they should all be rigged)\n</requirements>"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840"
+  },
+  "problem": {
+    "statement": "The dancing-character visualizer ships one MakeHuman GLB, and its procedural dance is keyed to 20 MakeHuman bone names (DANCE_REQUIRED_BONES). The user wants several BlendSwap .blend characters selectable in it. Two things are unknown: which of the 12 candidate files have rigs that can drive the dance, and how .blend files get into a browser app that only loads glTF. BlendSwap listings give no bone counts or names. The rigs are not MakeHuman, so without a name map they silently stay in rest pose (buildDanceClip returns null). Most files are Blender 2.6x/2.7x with Blender Internal or Cycles materials, and those do not export cleanly to glTF.",
+    "users": [
+      "Visitors of the dancing-character visualizer who want to pick which character dances",
+      "The maintainer, who needs a repeatable, verifiable way to qualify and convert new Blender characters"
+    ],
+    "evidence": [
+      "context-brief.md: one GLB, 163 bones, 20 required bone names, null clip means rest pose with no error",
+      "dancingCharacterConfig.ts: DANCE_REQUIRED_BONES is root, spine01-05, clavicleL/R, upperarm01L/R, lowerarm01L/R, upperleg01L/R, lowerleg01L/R, footL/R, neck02, head",
+      "app/components/ControlPanel/controls.ts: ControlDefinition is range, checkbox or color only; there is no select control",
+      "BlendSwap listing pages for all 12 candidates (read 2026-11-11): every one says rigged, none states bone count or bone names; licenses CC-BY or CC0"
+    ]
+  },
+  "goals": [
+    "Produce a per-file qualification report for all 12 candidates: Blender version, armature present, bone count, bone names, and whether each of the 20 required bones maps to a source bone",
+    "Convert each qualifying, license-acceptable candidate from .blend to an optimized GLB with a repeatable script and a CREDITS entry",
+    "Let visitors choose the dancing character from the settings panel, with the existing MakeHuman dancer as the default",
+    "Every selectable character performs the existing procedural dance through a per-model bone-name map"
+  ],
+  "non_goals": [
+    "Loading .blend files in the browser at runtime (three.js has no .blend loader; conversion happens offline)",
+    "Hand re-rigging or re-skinning meshes that fail the 20-bone mapping (automatic dummy spine/neck bones at export are in scope)",
+    "New dance choreography or per-character dance styles (rest-pose and bone-roll normalization in convert.py is in scope)",
+    "Persisting control values across reloads (no control persists today)",
+    "Upgrading three.js or adding DRACO/KTX2 decoders unless a size check shows it is needed",
+    "Clearing trademark or copyright rights for fan-art characters (the user accepted that risk)"
+  ],
+  "success_metrics": [
+    "All 12 candidates have a recorded strict and relaxed verdict (qualifies / fails with the missing or non-skinned bones listed)",
+    "Each shipped character GLB is at most 3 MB",
+    "No shipped character stays in rest pose or breaks the pose checks: the registry test passes for every entry",
+    "At least 2 characters besides MakeHuman pass the relaxed verdict and the pose checks; otherwise the picker (S4) is not built and the feasibility verdict is recorded instead"
+  ],
+  "constraints": [
+    "three.js r186 pinned; GLTFLoader is the only model path (AGENTS.md, dancingCharacterAssets.ts)",
+    "Only CC-BY and CC0 files; CC-BY authors credited in assets/CREDITS.md and in the app",
+    "Named exports only, logic outside React, no React state in the render loop, no per-frame allocation, dispose every GPU resource (AGENTS.md rules 1-5)",
+    "Coverage stays at 95% or more over app/**; visual baselines regenerated through the Update visual snapshots workflow",
+    "Blender runs only offline on the maintainer's machine; CI never needs Blender (committed GLBs are the artifacts)",
+    "BlendSwap downloads: 7 free per day for the account; licenses are uploader-declared"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "the 12 candidate .blend files downloaded into a local folder",
+      "when": "the maintainer runs inspect.py on the folder with --factory-startup and --disable-autoexec",
+      "then": "a report lists for each file its Blender version, armatures, bone count and names, and for each of the 20 required bones the matched source bone or 'missing', its deform flag and whether any skinned mesh has weights on it, plus name collisions; it ends with a strict verdict (all 20 distinct) and a relaxed verdict (missing spine/neck bones filled by dummies), and flags rigid bone-parented meshes and textureless materials"
+    },
+    {
+      "id": "AC2",
+      "given": "a candidate that passes the relaxed verdict and is CC-BY or CC0",
+      "when": "convert.py runs on it with its bone map",
+      "then": "a GLB of at most 3 MB is written under assets/ with the 20 names present on SkinnedMesh skeletons, and CREDITS.md gets its sha256, source URL, author, license with version, snapshot date, a 'modified: converted, bones renamed, materials rebuilt' note and any trademark note"
+    },
+    {
+      "id": "AC3",
+      "given": "the character registry",
+      "when": "the registry unit test loads each GLB and samples its dance clip",
+      "then": "the clip has tracks for all 20 bones; knees bend forward, hands stay outside the torso box, foot height drift stays within the tolerance used for MakeHuman, and the measured height is within 10% of NOMINAL_CHARACTER_SIZE; a model missing a bone fails the test naming it"
+    },
+    {
+      "id": "AC4",
+      "given": "a visitor on /dancing-character",
+      "when": "they open the settings panel and pick another character",
+      "then": "the previous model is disposed, the chosen one loads and dances on the beat, and a reload starts again with the default like every other control"
+    },
+    {
+      "id": "AC5",
+      "given": "a visitor who never touches the character control",
+      "when": "the page loads",
+      "then": "the existing MakeHuman dancer appears exactly as before, and the e2e suite passes with no WebGL-context warnings across character switches"
+    },
+    {
+      "id": "AC6",
+      "given": "a selected CC-BY character",
+      "when": "the settings panel is open",
+      "then": "the character's title, author, license and a 'modified' note are shown as an attribution line"
+    },
+    {
+      "id": "AC7",
+      "given": "a ControlDefinition list with a select entry",
+      "when": "ControlPanel renders it and the user picks an option",
+      "then": "a labelled native select shows the options, the value updates through useControlValues, and the reset button restores the default"
+    },
+    {
+      "id": "AC8",
+      "given": "a registry character whose clip cannot be built or whose GLB fails to load",
+      "when": "a visitor selects it",
+      "then": "the default character is restored, the select shows the default again, the status line names the problem, and a console error lists the missing bones"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "How may the 12 files be researched?",
+      "answer": "Listing metadata first, then downloads where the metadata does not settle the rig",
+      "decided_by": "user",
+      "rationale": "Listings state 'rigged' but never bone names, so downloads are needed for every file"
+    },
+    {
+      "id": "D2",
+      "question": "What is the end goal?",
+      "answer": "Selectable characters, with the current one as the default",
+      "decided_by": "user",
+      "rationale": "More value than a single swap"
+    },
+    {
+      "id": "D3",
+      "question": "Which licenses are acceptable?",
+      "answer": "CC-BY and CC0 only, with credit",
+      "decided_by": "user",
+      "rationale": "Public site; all 12 listings are CC-BY or CC0 so none is excluded by license"
+    },
+    {
+      "id": "D4",
+      "question": "What counts as correct bones?",
+      "answer": "A rig qualifies when each of the 20 DANCE_REQUIRED_BONES maps to a distinct source bone; a per-model name map does the retarget",
+      "decided_by": "user",
+      "rationale": "Bone count is not enforced in code; the 163 figure is only a test pin for the vendored MakeHuman file"
+    },
+    {
+      "id": "D5",
+      "question": "Are fan-art characters of trademarked IP acceptable?",
+      "answer": "Yes, with author credit and a note naming the trademark owner",
+      "decided_by": "user",
+      "rationale": "Free, non-commercial hobby site; the user accepts the risk"
+    },
+    {
+      "id": "D6",
+      "question": "How are bones inspected?",
+      "answer": "Headless Blender (blender --background --python) on the maintainer's machine",
+      "decided_by": "user",
+      "rationale": "Blender is installed locally"
+    },
+    {
+      "id": "D7",
+      "question": "Does the browser load .blend directly?",
+      "answer": "No; .blend is converted offline to GLB and the GLB is committed",
+      "decided_by": "repo-fact",
+      "rationale": "dancingCharacterAssets.ts uses GLTFLoader only; three.js r186 has no .blend loader"
+    },
+    {
+      "id": "D8",
+      "question": "Do the current listings show bone counts?",
+      "answer": "No. All 12 pages say rigged; none states bone count or names",
+      "decided_by": "repo-fact",
+      "rationale": "Read from the BlendSwap listing pages on 2026-11-11"
+    },
+    {
+      "id": "D9",
+      "question": "Which candidates are likely to qualify before inspection?",
+      "answer": "Likely humanoid bipeds: 11590 Mr Incredible, 10017 Wario, 5830 C-3PO, 27211 Cute Cartoon Character, 18416 Gallade, 17097 Plankton, 16234 Mario. Doubtful: 6164 Steve (Minecraft rigs usually lack elbows, knees and a spine chain), 8995 monster (simple rig). Unlikely: 30743 Kirby, 27251 Among Us, 6360 Pikmin (no humanoid limbs, or five characters in one file)",
+      "decided_by": "planner-assumption",
+      "rationale": "Inferred from titles, descriptions and typical rigs; the inspection script in S1 replaces this guess with facts"
+    },
+    {
+      "id": "D10",
+      "question": "Does the character choice persist across reloads?",
+      "answer": "No; it resets like every other control (no control persists today)",
+      "decided_by": "user",
+      "rationale": "useControlValues is plain useState; persistence would be new, cross-visualizer work"
+    },
+    {
+      "id": "D11",
+      "question": "How are rigs with fewer than five spine bones or no neck02 handled?",
+      "answer": "convert.py inserts zero-weight dummy bones into the chain between mapped neighbors so all 20 names exist; rotations still propagate to children. inspect.py reports a strict and a relaxed verdict",
+      "decided_by": "user",
+      "rationale": "A strict rule would fail nearly all candidates"
+    },
+    {
+      "id": "D12",
+      "question": "Is the copyright risk of fan-art characters acceptable?",
+      "answer": "Yes, but the original Cute Cartoon Character (27211) is the pilot and ships first; fan-art characters follow with modified and trademark notes",
+      "decided_by": "user",
+      "rationale": "Gives the picker a safe core; user accepts the takedown risk"
+    },
+    {
+      "id": "D13",
+      "question": "Control persistence exists?",
+      "answer": "No; useControlValues.ts holds values in useState(defaultValues)",
+      "decided_by": "repo-fact",
+      "rationale": "Read in useControlValues.ts line 7"
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "One headless Blender script inspects and converts the candidates, a static TypeScript registry holds per-model bone maps, and a bone-name remap at load time lets the existing dance and a small select control work unchanged.",
+      "approach": [
+        "scripts/blender/inspect.py (blender --background --python): per .blend print version, armatures, bone count, names, and matches for the 20 required bones via a shared alias table; write report.md and a verdict per file (AC1).",
+        "scripts/blender/convert.py: open .blend, export GLB (Draco off, textures resized to 1024 px, JPEG), fail if over 3 MB, append sha256, source URL, author, license to assets/CREDITS.md (AC2).",
+        "Add characterRegistry.ts: array of {id,title,author,license,url (?url import),boneMap: Record<requiredName, sourceName>}; MakeHuman entry first with an identity map.",
+        "In DancingCharacterScene after load, rename mapped source bones to the MakeHuman names (bone.name = required name) so collectBones and buildDanceClip stay untouched.",
+        "Add a select control type to controls.ts and ControlPanel, persisted like the other values; wire the chosen id to the urls parameter of loadDancingCharacterAssets, with dispose of the old model on change (AC4, AC5).",
+        "Render the attribution line (title, author, license) under the control from the registry (AC6).",
+        "Unit test iterates the registry: loads each GLB, applies the map, asserts buildDanceClip is non-null and names the missing bone otherwise (AC3); regenerate the visual baseline."
+      ],
+      "components": [
+        {
+          "name": "inspect.py",
+          "responsibility": "Qualification report for the 12 files",
+          "location": "scripts/blender/inspect.py"
+        },
+        {
+          "name": "convert.py",
+          "responsibility": "Blend to GLB, size check, CREDITS entry",
+          "location": "scripts/blender/convert.py"
+        },
+        {
+          "name": "characterRegistry",
+          "responsibility": "Models, bone maps, attribution",
+          "location": "app/features/visualizers/dancing-character/characterRegistry.ts"
+        },
+        {
+          "name": "select control",
+          "responsibility": "Character picker in the settings panel",
+          "location": "app/components/ControlPanel/controls.ts"
+        }
+      ],
+      "contracts": [
+        "CharacterEntry {id,title,author,license,url,boneMap}",
+        "ControlDefinition gains a select variant {options:[{value,label}]}",
+        "Scene applies boneMap by renaming bones on load, before collectBones"
+      ],
+      "pros": [
+        "Dance code, clip constants and tests stay untouched",
+        "Smallest new surface: two scripts, one registry, one control type",
+        "CI needs no Blender"
+      ],
+      "cons": [
+        "Renaming bones mutates the loaded model, so the names in the GLB differ from the runtime names",
+        "Per-model scale and framing may need a small registry field, which is not planned",
+        "Blender 2.6x materials may export without textures, so those characters look flat"
+      ],
+      "risks": [
+        "Many candidates fail the 20-bone mapping, leaving few selectable characters",
+        "Limb-twist and rest-pose orientation differ from MakeHuman, so the dance can look wrong even with a valid map",
+        "A new select control raises ControlPanel coverage and accessibility work"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Data-driven character registry with per-model bone maps validated at three layers (offline inspect, offline convert, unit test), a generic retargeting resolve step in the scene, and a select control with attribution.",
+      "approach": [
+        "Add scripts/blender-characters/inspect.py (blender --background --python): per .blend emit JSON + markdown report with Blender version, armatures, bone count, names, and each of the 20 required bones matched via a per-rig alias table or 'missing', ending in a qualifies/fails verdict; exits non-zero on parse errors.",
+        "Add scripts/blender-characters/convert.py + a node wrapper: applies a reviewed bones/<id>.json map, renames bones to the canonical MakeHuman names at export (so runtime needs no remap), bakes materials to Principled/PNG, resizes textures, normalises scale and height to NOMINAL_CHARACTER_SIZE, exports GLB, fails if over 3 MB, and appends sha256/source/author/license to assets/CREDITS.md.",
+        "Add characterRegistry.ts (pure, in dancingCharacterConfig neighbours): typed entries {id, title, author, license, sourceUrl, trademarkNote, url, boneMap, bodyMaterialNames, framingScale}; MakeHuman is entry 0 and the default.",
+        "Add resolveBones(model, boneMap) in dancingCharacterDanceClip.ts: builds canonical-name bone lookup at load time (no per-frame work), and throws a named error listing missing bones instead of a silent null; the scene surfaces it as an error state and falls back to the default character.",
+        "Extend ControlDefinition with a 'select' kind in controls.ts and ControlPanel; wire a character select into dancingCharacterControls.ts with persistence like other controls, unknown stored ids falling back to the default.",
+        "useDancingCharacterScene reloads via loadDancingCharacterAssets(urls) on id change with an abort token; the old model is disposed (geometry, materials, textures, skeleton) before the new one is added; stale loads are discarded.",
+        "Tests: registry test iterates every entry, loads the real GLB, asserts buildDanceClip tracks cover all 20 names and that a map missing a bone fails naming it; dispose spy test across switches; e2e switches characters and checks no WebGL context warnings; attribution line component rendered from registry; regenerate visual baseline."
+      ],
+      "components": [
+        {
+          "name": "inspect script",
+          "responsibility": "Qualification report for the 12 candidates",
+          "location": "scripts/blender-characters/inspect.py"
+        },
+        {
+          "name": "convert script",
+          "responsibility": "Map, rename, bake, optimise, size-gate, record provenance",
+          "location": "scripts/blender-characters/convert.py"
+        },
+        {
+          "name": "bone maps",
+          "responsibility": "Reviewed per-model source-to-canonical maps",
+          "location": "scripts/blender-characters/bones/*.json"
+        },
+        {
+          "name": "character registry",
+          "responsibility": "Typed catalogue, default, attribution data",
+          "location": "app/features/visualizers/dancing-character/characterRegistry.ts"
+        },
+        {
+          "name": "select control",
+          "responsibility": "Generic dropdown control kind",
+          "location": "app/components/ControlPanel/controls.ts"
+        },
+        {
+          "name": "attribution line",
+          "responsibility": "Title/author/license display",
+          "location": "app/features/visualizers/dancing-character/CharacterAttribution.tsx"
+        }
+      ],
+      "contracts": [
+        "ControlDefinition gains { kind: 'select', options: {value,label}[] }",
+        "CharacterEntry type and CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID",
+        "resolveBones(root, boneMap) throws MissingBonesError(modelId, missing[])",
+        "convert CLI: convert.py <blend> --map bones/<id>.json --out assets/<id>.glb",
+        "inspect report JSON schema: {file, blenderVersion, armatures[], boneCount, bones[], matches{required:source|null}, verdict}"
+      ],
+      "pros": [
+        "Failures are loud and named at every stage, no silent rest pose",
+        "Renaming at export keeps runtime and dance clip unchanged and cheap",
+        "Registry makes adding a character a data-only change with test enforcement",
+        "Stale-load and disposal handling protects WebGL contexts"
+      ],
+      "cons": [
+        "Larger surface: new control kind, two Python scripts, registry, tests",
+        "Renaming at export diverges from D4's runtime per-model map wording; a runtime map can be kept alongside",
+        "Python scripts are untestable in CI (no Blender) and need manual verification"
+      ],
+      "risks": [
+        "Old Blender 2.6x/2.7x materials may need manual rebake; size/quality varies",
+        "Alias-table auto-matching may mis-map left/right or spine chains; a human must review each map",
+        "Rigs with fewer than 5 spine bones need a policy (duplicate or fail)",
+        "Coverage at 95% with new UI code"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Move the retarget out of the runtime: a Blender script renames each source bone to the 20 MakeHuman names (and normalizes scale/orientation) before export, so every shipped GLB already satisfies DANCE_REQUIRED_BONES and the app needs only a model registry and a select control.",
+      "approach": [
+        "Breaks the assumption that a per-model bone-name map must live in app code (D4): the map lives in scripts/blender-characters/maps/<slug>.json and is applied to the armature in Blender, so shipped GLBs carry MakeHuman names.",
+        "inspect.py (blender --background --python) emits the AC1 report as Markdown/JSON, with fuzzy suggestions for the 20 names (L/R, .L/_L, Spine/Chest/Neck patterns) to draft each map.",
+        "convert.py applies the map via bone.name rename, applies scale/rotation, strips unused materials, bakes materials to a single Skin material, downsizes textures, exports GLB, fails if over 3 MB or any required bone is missing, and appends sha256/source/author/license to CREDITS.md.",
+        "Registry characters.ts: slug, title, author, license, URL (?url import); the default stays MakeHuman. No runtime map or buildDanceClip change.",
+        "Add a 'select' ControlDefinition variant plus persistence; selection change calls the existing abort/dispose path and loads via the urls seam; attribution line from registry.",
+        "Unit test loads every registry GLB headlessly and runs buildDanceClip, asserting a track for each of 20 names, naming the missing one.",
+        "Defer: ship only the qualifying subset first (likely 2-4); the report is itself the feasibility deliverable."
+      ],
+      "components": [
+        {
+          "name": "inspect.py",
+          "responsibility": "Report bones, versions and match candidates per .blend",
+          "location": "scripts/blender-characters/inspect.py"
+        },
+        {
+          "name": "convert.py + maps",
+          "responsibility": "Rename bones, normalize, export GLB, write CREDITS",
+          "location": "scripts/blender-characters/"
+        },
+        {
+          "name": "characters registry",
+          "responsibility": "Metadata and URLs of selectable characters",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterRegistry.ts"
+        },
+        {
+          "name": "select control",
+          "responsibility": "Choose character in the settings panel",
+          "location": "app/components/ControlPanel/controls.ts"
+        }
+      ],
+      "contracts": [
+        "ControlDefinition gains a 'select' kind with options and a persisted string value",
+        "CharacterEntry { slug, title, author, license, url, trademarkNote? }",
+        "Map file { requiredBone: sourceBone } validated by convert.py for all 20 names, distinct sources"
+      ],
+      "pros": [
+        "Runtime stays untouched: the dance clip, scene and tests keep one name contract",
+        "Retarget errors surface at conversion time, offline, not as silent rest pose",
+        "Maps are not shipped to browsers; smaller bundle"
+      ],
+      "cons": [
+        "AC3 wording says the map is per-model at test time; here the test checks GLB names, so the map is not unit-tested in CI (no Blender in CI)",
+        "Renaming does not fix differing bone roll/rest orientation; the clip's local-axis rotations may look wrong",
+        "Adds a select control type to the shared ControlPanel"
+      ],
+      "risks": [
+        "Orientation mismatch: needs a headless render or visual check per model, possibly an axis-correction field in the map",
+        "Old 2.6x/2.7x files may export badly in current Blender (materials, modifiers)",
+        "Download cap of 7 per day stretches inspection over 2 days"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 3,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 3.9
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "Hybrid of O3 and O2. Blender renames each qualifying rig's bones to the 20 MakeHuman names at export, so the runtime dance stays unchanged (O3). Each per-model bone map is committed and unit-tested. The registry carries framing and material fields, and missing bones are a loud, named error with fallback to the default (O2). A pilot conversion acts as a go/no-go gate before any UI work.",
+      "approach": [
+        "inspect.py (blender --factory-startup --disable-autoexec --background --python): per .blend report version, armatures, bones, the 20 required matches with deform flag and vertex weights, collisions, rigid parented meshes, textureless materials; strict and relaxed verdicts (AC1)",
+        "Bone maps as reviewed JSON next to the assets, 20 required names to distinct source bones or 'dummy' for spine/neck gaps",
+        "convert.py: two-pass rename with a collision check against all bone names, insert dummy chain bones, normalize rest pose and bone roll to MakeHuman's A-pose axes, normalize height, export GLB, fail over 3 MB or on any missing name; BI materials need a manual Principled rebuild documented per model (AC2)",
+        "Pilot gate on 27211 Cute Cartoon Character: load it in dev through a DEV-only ?character=<id> query parameter and pass the AC3 pose checks before any UI work",
+        "characterRegistry.ts: {id, title, author, license, licenseVersion, sourceUrl, trademarkNote, url, bodyMaterialNames}; MakeHuman is entry 0 and the default; setCharacter takes bodyMaterialNames",
+        "Swap contract: the hook owns a per-load AbortController and request token; setCharacter returns whether it danced and which bones are missing; failure restores the default (AC8)",
+        "A select variant in ControlDefinition and ControlPanel, no persistence (AC7, AC4); attribution line with the modified note (AC6)",
+        "Tests: registry pose and height checks, bone-map completeness, stale-load and dispose tests, e2e character switching, regenerated baseline (AC3, AC5)"
+      ],
+      "components": [
+        {
+          "name": "inspect.py",
+          "responsibility": "Qualification report for the 12 candidates",
+          "location": "scripts/blender-characters/inspect.py"
+        },
+        {
+          "name": "convert.py",
+          "responsibility": "Rename bones, normalize, export GLB, size gate, CREDITS entry",
+          "location": "scripts/blender-characters/convert.py"
+        },
+        {
+          "name": "bone maps",
+          "responsibility": "Reviewed per-model source-to-MakeHuman maps",
+          "location": "app/features/visualizers/dancing-character/assets/bone-maps/"
+        },
+        {
+          "name": "character registry",
+          "responsibility": "Typed catalogue, default, attribution and framing data",
+          "location": "app/features/visualizers/dancing-character/characterRegistry.ts"
+        },
+        {
+          "name": "select control",
+          "responsibility": "Generic dropdown control kind",
+          "location": "app/components/ControlPanel/controls.ts"
+        },
+        {
+          "name": "attribution line",
+          "responsibility": "Title, author, license display",
+          "location": "app/features/visualizers/dancing-character/CharacterAttribution.tsx"
+        }
+      ],
+      "contracts": [
+        "ControlDefinition gains a select variant with options [{value,label}] and a string value",
+        "CharacterEntry and CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID",
+        "Bone-map JSON: 20 required names to distinct source bone names",
+        "convert.py CLI: convert.py <blend> --map <bone-map.json> --out <glb>"
+      ],
+      "pros": [
+        "Dance clip, collectBones and DANCE_REQUIRED_BONES stay unchanged: one name contract",
+        "Maps are reviewable data and are checked in CI without Blender",
+        "The pilot gate answers the feasibility question cheaply before UI work",
+        "Missing bones are loud and named, never a silent rest pose"
+      ],
+      "cons": [
+        "Python scripts cannot run in CI (no Blender); they are verified manually",
+        "Renaming fixes names, not bone roll or rest orientation; that is what the pilot gate checks",
+        "Adds a select kind to the shared ControlPanel"
+      ],
+      "risks": [
+        "Few candidates qualify, leaving a short picker list",
+        "Old 2.6x/2.7x materials export flat and need manual fixes"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 4.1
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O4 keeps O3's single runtime name contract: bones are renamed at export, so the dance code is untouched. It adds O2's safety: maps are committed and tested, failures are loud and fall back, and the swap path has a contract. After the critic, convert.py also normalizes rest pose and roll, and fills spine gaps with dummy bones (D11). Measurable pose checks replace the subjective pilot judgment. O1's runtime rename hides the map from offline checks; O2's runtime resolve layer duplicates what export-time renaming gives.",
+  "design": {
+    "overview": "An offline Blender pipeline (inspect, then convert) turns qualifying .blend files into GLBs that already use the 20 MakeHuman bone names. A typed registry lists the shipped characters; a new select control picks one; the scene swaps models through the existing loadDancingCharacterAssets urls seam, disposing the old one.",
+    "components": [
+      {
+        "name": "inspect.py",
+        "responsibility": "Per-file bones, skinning, collisions, materials, strict and relaxed verdicts",
+        "location": "scripts/blender-characters/inspect.py"
+      },
+      {
+        "name": "convert.py",
+        "responsibility": "Rename, dummy bones, rest and roll normalization, height, GLB export, size gate, CREDITS entry",
+        "location": "scripts/blender-characters/convert.py"
+      },
+      {
+        "name": "bone maps",
+        "responsibility": "Per-model JSON from MakeHuman name to source bone or dummy",
+        "location": "app/features/visualizers/dancing-character/assets/bone-maps/"
+      },
+      {
+        "name": "characterRegistry.ts",
+        "responsibility": "CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, attribution and bodyMaterialNames",
+        "location": "app/features/visualizers/dancing-character/characterRegistry.ts"
+      },
+      {
+        "name": "select control",
+        "responsibility": "Generic dropdown in ControlPanel",
+        "location": "app/components/ControlPanel/"
+      },
+      {
+        "name": "scene and hook",
+        "responsibility": "Swap model on selection, abort stale loads, dispose, fall back on failure",
+        "location": "app/features/visualizers/dancing-character/useDancingCharacterScene.ts"
+      },
+      {
+        "name": "CharacterAttribution",
+        "responsibility": "Title, author, license, modified and trademark note",
+        "location": "app/features/visualizers/dancing-character/CharacterAttribution.tsx"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "Select control",
+        "kind": "TypeScript type",
+        "definition": "SelectControl { section, key, label, type: 'select', options: readonly {value: string, label: string}[], default: string } added to the ControlDefinition union; ControlValue includes string; isModified compares strings; no persistence"
+      },
+      {
+        "id": "C2",
+        "name": "CharacterEntry registry",
+        "kind": "TypeScript type",
+        "definition": "CharacterEntry { id, title, author, license: 'CC0' | 'CC-BY', licenseVersion, sourceUrl, trademarkNote?, url, bodyMaterialNames: readonly string[] }; CHARACTER_REGISTRY readonly array; DEFAULT_CHARACTER_ID = 'makehuman'"
+      },
+      {
+        "id": "C3",
+        "name": "Bone-map JSON",
+        "kind": "file format",
+        "definition": "{ id, source: url, map: { <each of DANCE_REQUIRED_BONES>: <source bone name> | 'dummy' } }; 20 keys; non-dummy values distinct; 'dummy' allowed only for spine01-05 and neck02"
+      },
+      {
+        "id": "C4",
+        "name": "Blender scripts CLI",
+        "kind": "CLI",
+        "definition": "blender --factory-startup --disable-autoexec --background --python inspect.py -- <dir> --out <report.json>; blender --factory-startup --disable-autoexec --background <file.blend> --python convert.py -- --map <bone-map.json> --out <file.glb> --max-mb 3; both assert use_scripts_auto_execute is False and print the Blender version"
+      },
+      {
+        "id": "C5",
+        "name": "Character swap",
+        "kind": "TypeScript API",
+        "definition": "setCharacter(model, bodyMaterialNames) returns { danced: boolean, missing: string[] }; the hook keeps one AbortController and an increasing request token per load, ignores late results, disposes the previous model, and on failure restores DEFAULT_CHARACTER_ID in the control values and sets a status message"
+      }
+    ],
+    "data": "GLBs and bone maps are committed under app/features/visualizers/dancing-character/assets/; .blend sources stay out of git (downloaded locally). The selected character id is persisted with the other control values.",
+    "ux": "A 'Character' select at the top of the settings panel; the MakeHuman dancer is the default and comes back on reload. While a model loads the old one stays. On failure the default returns with a short status message. An attribution line shows title, author, license, a 'modified' note and any trademark note.",
+    "accessibility": "Native select element with a label, keyboard operable; attribution is plain text; axe e2e check stays clean.",
+    "security_privacy": "No new network origins: GLBs are same-origin hashed assets. Third-party .blend files never reach the browser. .blend files can embed Python, so the scripts always run with --factory-startup --disable-autoexec and assert auto-run is off before opening a file.",
+    "observability": "A console error naming the model and its missing bones when a clip cannot be built; the e2e fixtures fail on console errors, so this is caught in CI.",
+    "rollout": "Slices land behind the default: until S4 the registry only feeds the DEV-only query parameter, so users see no change. S4 is built only if the success-metric minimum (2 extra characters) is met. Each further character is a data-only PR. Rollback: Cloudflare rollback or removing the registry entry; removed GLBs remain in git history (accepted, D12)."
+  },
+  "test_strategy": {
+    "unit": "Registry test per GLB: 20 names on SkinnedMesh skeletons, clip tracks for all 20, sampled pose checks (knee direction, hands outside torso box, foot drift) and height within 10%; bone-map completeness and dummy rules; select control tests; setCharacter result for a model missing a bone.",
+    "integration": "Hook test with the fake renderer: switching ids disposes the previous model, a late-resolving stale load is ignored, and failure restores the default id.",
+    "e2e": "Extend the dancing-character spec to switch through every registry character, with no console errors or WebGL-context warnings; regenerate the settings-panel visual baseline.",
+    "manual": "npm run dev: watch each character dance to a track; check framing, limb twist and materials. Run inspect.py on all 12 files and review the report.",
+    "non_functional": "convert.py enforces at most 3 MB per GLB; npm run size and lighthouse stay green (the GLB is outside the JS budget and / is unchanged)."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Bone roll and rest orientation differ from MakeHuman, so the clip twists limbs wrongly even with correct names",
+      "likelihood": "high",
+      "impact": "high",
+      "mitigation": "convert.py normalizes rest pose and roll to MakeHuman's A-pose axes; AC3 pose checks make it measurable per model; the pilot (S2) must pass them before UI work, else the verdict is 'not feasible without re-rigging'"
+    },
+    {
+      "id": "K2",
+      "description": "Few candidates qualify even with dummy spine bones (Steve, Kirby, Among Us, Pikmin, monster likely lack elbows, knees or clavicles)",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "Strict and relaxed verdicts in the S1 report; minimum of 2 extra characters before S4 is built"
+    },
+    {
+      "id": "K3",
+      "description": "Blender 2.6x/2.7x Blender Internal materials load flat or textureless in current Blender; there is no automatic converter",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "inspect.py flags textureless output; manual Principled rebuild per model, recorded in CREDITS regeneration steps; per-model visual acceptance in S5"
+    },
+    {
+      "id": "K4",
+      "description": "A .blend file embeds a malicious Python script",
+      "likelihood": "low",
+      "impact": "high",
+      "mitigation": "--factory-startup --disable-autoexec on every call, and an assertion that auto-run is off"
+    },
+    {
+      "id": "K5",
+      "description": "BlendSwap's 7 free downloads per day stretch inspection over two days",
+      "likelihood": "high",
+      "impact": "low",
+      "mitigation": "Download the likely candidates (D9) first"
+    },
+    {
+      "id": "K6",
+      "description": "Copyright or trademark takedown of fan-art characters; files remain in git history",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Accepted (D5, D12); original character ships first; removal is a data-only change"
+    },
+    {
+      "id": "K7",
+      "description": "Meshes are rigid pieces parented to bones, not skinned, so collectBones finds no skeleton",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "inspect.py flags it and the file fails both verdicts"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Inspect the 12 candidates",
+      "objective": "Precondition: the maintainer downloads the 12 files (7 per day free, likely candidates from D9 first). Write inspect.py and run it on them; commit the report with strict and relaxed verdicts per file. This answers which files have the right bones.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "scripts/blender-characters/inspect.py",
+        "scripts/blender-characters/README.md",
+        "docs/blender-characters/candidate-report.md"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Pilot conversion and go/no-go",
+      "objective": "Write convert.py (rename, dummy bones, rest and roll normalization), the bone-map format and the registry with MakeHuman plus the pilot 27211, its CREDITS entry, a DEV-only ?character=<id> loader and the AC3 tests. Go only if the pilot passes the pose checks; a no-go stops here with the feasibility verdict.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC3"
+      ],
+      "contracts": [
+        "C2",
+        "C3",
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "scripts/blender-characters/convert.py",
+        "app/features/visualizers/dancing-character/characterRegistry.ts",
+        "app/features/visualizers/dancing-character/characterRegistry.test.ts",
+        "app/features/visualizers/dancing-character/assets/bone-maps/",
+        "app/features/visualizers/dancing-character/assets/CREDITS.md"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Select control kind",
+      "objective": "Add the select variant to ControlDefinition and ControlPanel with persistence and tests, unused by any visualizer yet.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC7"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R2",
+      "size": "S",
+      "draft_paths": [
+        "app/components/ControlPanel/controls.ts",
+        "app/components/ControlPanel/ControlPanel.tsx",
+        "app/components/ControlPanel/controls.test.ts"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Character picker and attribution",
+      "objective": "Built only if at least 2 extra characters qualify. Wire the Character select, implement the C5 swap path with abort, dispose and fallback, show attribution, extend e2e and regenerate the baseline.",
+      "depends_on": [
+        "S2",
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC4",
+        "AC5",
+        "AC6",
+        "AC8"
+      ],
+      "contracts": [
+        "C1",
+        "C2",
+        "C5"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+        "app/features/visualizers/dancing-character/useDancingCharacterScene.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+        "app/features/visualizers/dancing-character/CharacterAttribution.tsx",
+        "e2e/"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Convert remaining qualifying characters",
+      "objective": "Convert every other candidate the S1 report qualifies, one registry entry, bone map, GLB and CREDITS entry each, with tests green.",
+      "depends_on": [
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC3"
+      ],
+      "contracts": [
+        "C2",
+        "C3"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/assets/",
+        "app/features/visualizers/dancing-character/characterRegistry.ts"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q2",
+      "question": "Should the 3 MB per-GLB cap be enforced in CI by a test, or only by convert.py?",
+      "owner": "maintainer",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC4 says the character choice 'survives a reload like the other control values', and C1/S3 promise 'persistence'. In the repo no control value persists: useControlValues.ts is plain useState(defaultValues), and localStorage is used only by app/features/audio/storage.ts. The premise is false, so AC4 is either unsatisfiable as written or S3 silently grows into building persistence for the whole ControlPanel (with validation of stored ids, which O4 mentions as 'unknown stored ids fall back'). S3 is also sized S with no persistence design.",
+        "suggestion": "Decide explicitly: either drop 'survives a reload' from AC4 and C1, or add a small named slice and contract for persisting only the character id (key, schema, fallback to DEFAULT_CHARACTER_ID, storage-unavailable case) and test it.",
+        "resolution": "User decided no persistence (D10); AC4, C1 and non-goals updated."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "problem",
+        "finding": "The dance is tuned to MakeHuman bone-local axes, signs and absolute amplitudes (dancingCharacterDanceClip.ts: knee bends on negative local Z, arm lift positive X on L / negative X on R, ARM_LOWER 0.6 assuming a ~38 degree A-pose, ELBOW_RELEASE 0.9 assuming forward-pointing forearms, ROOT_DROP 0.05 m, foot counter-rotation keyed to the same Z axis). Renaming bones at export (O4) fixes names only; a T-pose rig or a Blender rig with different bone roll will fold knees backwards, cross arms through the torso or float the feet. K1 is rated high/high, yet the mitigation is one subjective pilot ('watch it dance'), the non-goal forbids per-character dance tuning, and AC3 only asserts that tracks exist for 20 names, so it passes for a visibly broken dance. A pilot passing for one rig also says nothing about the other rigs.",
+        "suggestion": "Add a measurable pose check to AC3 and the registry test (e.g. sample the clip on the loaded skinned model and assert foot-height drift, hand-to-torso distance and knee-bend direction are within thresholds). Put bone-roll/rest-axis normalization in convert.py's scope up front (or allow a per-entry axis/amplitude override in the registry, amending the non-goal) and re-estimate S2/S5 above 'M'.",
+        "resolution": "Rest-pose and roll normalization added to convert.py; measurable pose and height checks in AC3; pilot must pass them; S2 re-sized L."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "problem",
+        "finding": "D4 requires all 20 names to map to distinct source bones, including five spine bones (spine01-05), neck02 and head, plus both clavicles. Typical Blender character rigs have 1-3 spine bones and one neck bone, so under D4 most or all of the 12 candidates will fail, and the 'ship the qualifying subset (likely 2-4)' expectation is optimistic. Q1 (what to do with fewer than five spine bones) is marked non-blocking, but it decides the S1 verdicts and therefore whether the picker ever has more than one real option. D9's 'likely to qualify' list is a planner-assumption inferred from titles.",
+        "suggestion": "Resolve Q1 before S1 (make it blocking). Have inspect.py report two verdicts per file, strict (distinct) and relaxed (dummy spine/neck bones added at export), and state a minimum viable count; if the relaxed pass still yields fewer than 2 extra characters, the S4 picker should not be built.",
+        "resolution": "User decided dummy spine/neck bones (D11); strict and relaxed verdicts in AC1; minimum of 2 extra characters gates S4; Q1 removed."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "design",
+        "finding": "Qualification (AC1/D4) checks bone names only. The scene collects bones solely from THREE.SkinnedMesh skeletons (dancingCharacterScene.ts collectBones), so a rig whose meshes are bone-parented rigid pieces (plausible for Wario, Mario, C-3PO, Pikmin-style models) exports as non-skinned meshes and yields a null clip even with all 20 names. Also unaddressed: mapped bones may be non-deform control bones with no vertex weights; and renaming a source bone to e.g. 'head' or 'root' when an unmapped bone already has that name makes Blender silently append '.001', which GLTFLoader then sanitizes to a wrong name. C3's 'distinct values' check does not cover collisions with unmapped bones.",
+        "suggestion": "Extend inspect.py to report, per required bone, deform flag and whether any mesh has vertex weights for it (and armature-modifier presence). Have convert.py rename in two passes with a collision check against all bone names, and fail with the colliding names.",
+        "resolution": "AC1 reports deform flags, vertex weights, collisions and rigid meshes; convert.py renames in two passes with a collision check; K7 added."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "design",
+        "finding": "K3/convert.py assume 'convert materials to Principled with textures at most 1024 px' can be automated. Blender 2.8+ has no Blender Internal to Principled converter and drops BI texture slots on load, so for the 2.6x/2.7x majority the result is flat-colored or textureless meshes, which is a manual per-model rebuild rather than a script flag. Impact is rated medium, but flat Mario/Wario models may be unacceptable to the user. The installed Blender version is never pinned or recorded in the plan.",
+        "suggestion": "Record the Blender version in README/inspect output, state in convert.py's spec that BI materials need manual rebuild (or a documented node setup) and include per-model visual acceptance in S5; consider treating textureless output as a per-file fail in the AC1 verdict.",
+        "resolution": "fixed: manual BI material rebuild documented in K3 and O4; textureless flag in AC1; Blender version printed per C4."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "design",
+        "finding": "The character-swap mechanism has no contract. useDancingCharacterScene builds the scene once inside useThreeScene and calls loadDancingCharacterAssets(signal) with the scene-lifetime signal; settings are read through valuesRef inside the render loop. The plan does not say how a selection change is detected (effect vs per-frame comparison), where the per-load AbortController lives (a scene-lifetime signal cannot cancel a stale load), what happens to the 'loading'/'modelFailed' status during a switch, or how setCharacter reports a null clip (it returns void and currently sets no error). 'Fall back to default' on missing bones is described but with no state for the user (the select would still show the failing choice).",
+        "suggestion": "Add a contract C5 for the swap path: setCharacter returns {danced: boolean, missing: string[]}; the hook owns a per-load AbortController keyed by id and a monotonically increasing request token; on failure the select value is reset to the default and the status line says why. Test the late-resolving stale load explicitly.",
+        "resolution": "fixed: contract C5 and AC8 define the swap, stale-load token and fallback."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "security",
+        "finding": "security_privacy and K4 claim Python auto-run is disabled 'by default for --background without --enable-autoexec'. Blender's auto-run setting comes from the user's preferences, not from --background; a maintainer who enabled 'Auto Run Python Scripts' (common for rigs with driver expressions) would execute code from an untrusted BlendSwap file during inspect.py or convert.py. The mitigation text is therefore not a guarantee.",
+        "suggestion": "Require --factory-startup and --disable-autoexec (explicit flags) in the C4 CLI and README, and have the scripts assert bpy.context.preferences.filepaths.use_scripts_auto_execute is False before opening a file.",
+        "resolution": "fixed: --factory-startup --disable-autoexec and an auto-run assertion in C4 and security."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "The S2 go/no-go cannot be exercised as sequenced: the pilot GLB is only loadable through the picker built in S4, and S2 offers no way to view it (the page loads the default URL). 'Dances acceptably' has no criterion, and the success metric 'loads in under 2 s on the e2e runner' has no AC or test. S3 lists AC4 as its acceptance although it has no character wiring. S1 depends on a manual user download of 12 files under a 7/day cap, so the first deliverable depends on an out-of-band action not modeled as a dependency.",
+        "suggestion": "Give S2 a dev-only way to load a registry id (e.g. a query param honored in DEV only, or a throwaway test harness), define go/no-go thresholds (see F2), map the 2 s metric to an e2e assertion or drop it, and list 'user downloads files' as a precondition of S1.",
+        "resolution": "fixed: DEV-only query loader in S2; download precondition in S1; 2 s metric dropped; S3 traces to new AC7."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "D5/K6 treat the legal exposure as a low-likelihood trademark complaint. Most candidates (Mario, Wario, Kirby, Mr Incredible, C-3PO, Gallade, Plankton, Among Us, Pikmin, Steve) are derivatives of copyrighted designs whose uploaders cannot grant CC0/CC-BY over the underlying character, and BlendSwap states licenses are uploader-declared and unverified. The user accepted a trademark risk, not necessarily a copyright/takedown risk on a public site. The 'rollback' of removing a registry entry leaves the GLB in git history and in immutable-cached /assets. AC6 shows title/author/license but CC-BY also requires indicating that the work was modified (converted, renamed bones, rebuilt materials), and the license version is not captured.",
+        "suggestion": "Re-confirm D5 with the copyright framing stated, add a 'modified' note and license version/URL snapshot date to CREDITS and the attribution line, and prefer shipping CC0 or original (non-IP) characters first so the picker has a safe core.",
+        "resolution": "fixed: user re-confirmed with copyright framing (D12); original pilot first; modified note, license version and snapshot date in AC2 and AC6."
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "design",
+        "finding": "C2 carries bodyMaterialNames and framingScale, but the scene reads the BODY_MATERIAL_NAMES constant (['Skin']) and derives framing from the measured dance box (computeFraming in setCharacter), so framingScale is redundant and bodyMaterialNames is unwired unless S4 changes setCharacter. Without it the 'body color' control silently does nothing for new characters. ROOT_DROP is in absolute meters and NOMINAL_CHARACTER_SIZE assumes about 1.68 m, so a height-normalization error in convert.py changes the bounce visibly, yet no AC or test asserts model height.",
+        "suggestion": "Drop framingScale from C2, pass bodyMaterialNames into setCharacter (or hide the body color control when the entry has none), and add a registry test asserting measured model height within a tolerance of NOMINAL_CHARACTER_SIZE.height.",
+        "resolution": "fixed: framingScale dropped from C2; bodyMaterialNames passed to setCharacter; height check in AC3."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "d8ce1d3ac0259f4b4b98948fd4d019d5f404f6223f4de74ffcf35f1a7f5e131b",
+    "cards": {
+      "O1": "fcdf0c5288930fe93f88baa2cebcb0a07aa117e5f9ae590d72c4ac8e91f75068",
+      "O2": "1b970fe0e6153b49ac06cbd49379242b8f4f6ea5b1c55fac4d61d95a1df1213f",
+      "O3": "4b8af102019711c55d5910029e4f4c0e9b2d2f02dd11e1d552802a10c6d95012"
+    },
+    "critic_sha256": "2f6502b062331b068fb8b8725da784f2cd13ddcb9994b5accfd2c843bd503cfe",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "71b6039d041b553e",
+      "acs_sha256": "f1d63515f58cea28"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "17af0e4665cc2797",
+      "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C4",
+          "name": "Blender scripts CLI",
+          "kind": "CLI",
+          "definition": "blender --factory-startup --disable-autoexec --background --python inspect.py -- <dir> --out <report.json>; blender --factory-startup --disable-autoexec --background <file.blend> --python convert.py -- --map <bone-map.json> --out <file.glb> --max-mb 3; both assert use_scripts_auto_execute is False and print the Blender version"
+        },
+        {
+          "id": "C2",
+          "name": "CharacterEntry registry",
+          "kind": "TypeScript type",
+          "definition": "CharacterEntry { id, title, author, license: 'CC0' | 'CC-BY', licenseVersion, sourceUrl, trademarkNote?, url, bodyMaterialNames: readonly string[] }; CHARACTER_REGISTRY readonly array; DEFAULT_CHARACTER_ID = 'makehuman'"
+        },
+        {
+          "id": "C3",
+          "name": "Bone-map JSON",
+          "kind": "file format",
+          "definition": "{ id, source: url, map: { <each of DANCE_REQUIRED_BONES>: <source bone name> | 'dummy' } }; 20 keys; non-dummy values distinct; 'dummy' allowed only for spine01-05 and neck02"
+        },
+        {
+          "id": "C1",
+          "name": "Select control",
+          "kind": "TypeScript type",
+          "definition": "SelectControl { section, key, label, type: 'select', options: readonly {value: string, label: string}[], default: string } added to the ControlDefinition union; ControlValue includes string; isModified compares strings; no persistence"
+        },
+        {
+          "id": "C5",
+          "name": "Character swap",
+          "kind": "TypeScript API",
+          "definition": "setCharacter(model, bodyMaterialNames) returns { danced: boolean, missing: string[] }; the hook keeps one AbortController and an increasing request token per load, ignores late results, disposes the previous model, and on failure restores DEFAULT_CHARACTER_ID in the control values and sets a status message"
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Inspect the 12 candidates: Precondition: the maintainer downloads the 12 files (7 per day free, likely candidates from D9 first). Write inspect.py and run it on them; commit the report with strict and relaxed verdicts per file. This answers which files have the right bones.",
+          "dependencies": [],
+          "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/blender-characters/inspect.py",
+            "scripts/blender-characters/README.md",
+            "docs/blender-characters/candidate-report.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 Blender scripts CLI (CLI): blender --factory-startup --disable-autoexec --background --python inspect.py -- <dir> --out <report.json>; blender --factory-startup --disable-autoexec --background <file.blend> --python convert.py -- --map <bone-map.json> --out <file.glb> --max-mb 3; both assert use_scripts_auto_execute is False and print the Blender version"
+          ],
+          "acceptance": [
+            "AC1: Given the 12 candidate .blend files downloaded into a local folder, when the maintainer runs inspect.py on the folder with --factory-startup and --disable-autoexec, then a report lists for each file its Blender version, armatures, bone count and names, and for each of the 20 required bones the matched source bone or 'missing', its deform flag and whether any skinned mesh has weights on it, plus name collisions; it ends with a strict verdict (all 20 distinct) and a relaxed verdict (missing spine/neck bones filled by dummies), and flags rigid bone-parented meshes and textureless materials"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Pilot conversion and go/no-go: Write convert.py (rename, dummy bones, rest and roll normalization), the bone-map format and the registry with MakeHuman plus the pilot 27211, its CREDITS entry, a DEV-only ?character=<id> loader and the AC3 tests. Go only if the pilot passes the pose checks; a no-go stops here with the feasibility verdict.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/blender-characters/convert.py",
+            "app/features/visualizers/dancing-character/characterRegistry.ts",
+            "app/features/visualizers/dancing-character/characterRegistry.test.ts",
+            "app/features/visualizers/dancing-character/assets/bone-maps/",
+            "app/features/visualizers/dancing-character/assets/CREDITS.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 CharacterEntry registry (TypeScript type): CharacterEntry { id, title, author, license: 'CC0' | 'CC-BY', licenseVersion, sourceUrl, trademarkNote?, url, bodyMaterialNames: readonly string[] }; CHARACTER_REGISTRY readonly array; DEFAULT_CHARACTER_ID = 'makehuman'",
+            "C3 Bone-map JSON (file format): { id, source: url, map: { <each of DANCE_REQUIRED_BONES>: <source bone name> | 'dummy' } }; 20 keys; non-dummy values distinct; 'dummy' allowed only for spine01-05 and neck02",
+            "C4 Blender scripts CLI (CLI): blender --factory-startup --disable-autoexec --background --python inspect.py -- <dir> --out <report.json>; blender --factory-startup --disable-autoexec --background <file.blend> --python convert.py -- --map <bone-map.json> --out <file.glb> --max-mb 3; both assert use_scripts_auto_execute is False and print the Blender version"
+          ],
+          "acceptance": [
+            "AC2: Given a candidate that passes the relaxed verdict and is CC-BY or CC0, when convert.py runs on it with its bone map, then a GLB of at most 3 MB is written under assets/ with the 20 names present on SkinnedMesh skeletons, and CREDITS.md gets its sha256, source URL, author, license with version, snapshot date, a 'modified: converted, bones renamed, materials rebuilt' note and any trademark note",
+            "AC3: Given the character registry, when the registry unit test loads each GLB and samples its dance clip, then the clip has tracks for all 20 bones; knees bend forward, hands stay outside the torso box, foot height drift stays within the tolerance used for MakeHuman, and the measured height is within 10% of NOMINAL_CHARACTER_SIZE; a model missing a bone fails the test naming it"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Select control kind: Add the select variant to ControlDefinition and ControlPanel with persistence and tests, unused by any visualizer yet.",
+          "dependencies": [],
+          "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/components/ControlPanel/controls.ts",
+            "app/components/ControlPanel/ControlPanel.tsx",
+            "app/components/ControlPanel/controls.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Select control (TypeScript type): SelectControl { section, key, label, type: 'select', options: readonly {value: string, label: string}[], default: string } added to the ControlDefinition union; ControlValue includes string; isModified compares strings; no persistence"
+          ],
+          "acceptance": [
+            "AC7: Given a ControlDefinition list with a select entry, when ControlPanel renders it and the user picks an option, then a labelled native select shows the options, the value updates through useControlValues, and the reset button restores the default"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Character picker and attribution: Built only if at least 2 extra characters qualify. Wire the Character select, implement the C5 swap path with abort, dispose and fallback, show attribution, extend e2e and regenerate the baseline.",
+          "dependencies": [
+            "S2",
+            "S3"
+          ],
+          "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+            "app/features/visualizers/dancing-character/useDancingCharacterScene.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+            "app/features/visualizers/dancing-character/CharacterAttribution.tsx",
+            "e2e/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Select control (TypeScript type): SelectControl { section, key, label, type: 'select', options: readonly {value: string, label: string}[], default: string } added to the ControlDefinition union; ControlValue includes string; isModified compares strings; no persistence",
+            "C2 CharacterEntry registry (TypeScript type): CharacterEntry { id, title, author, license: 'CC0' | 'CC-BY', licenseVersion, sourceUrl, trademarkNote?, url, bodyMaterialNames: readonly string[] }; CHARACTER_REGISTRY readonly array; DEFAULT_CHARACTER_ID = 'makehuman'",
+            "C5 Character swap (TypeScript API): setCharacter(model, bodyMaterialNames) returns { danced: boolean, missing: string[] }; the hook keeps one AbortController and an increasing request token per load, ignores late results, disposes the previous model, and on failure restores DEFAULT_CHARACTER_ID in the control values and sets a status message"
+          ],
+          "acceptance": [
+            "AC4: Given a visitor on /dancing-character, when they open the settings panel and pick another character, then the previous model is disposed, the chosen one loads and dances on the beat, and a reload starts again with the default like every other control",
+            "AC5: Given a visitor who never touches the character control, when the page loads, then the existing MakeHuman dancer appears exactly as before, and the e2e suite passes with no WebGL-context warnings across character switches",
+            "AC6: Given a selected CC-BY character, when the settings panel is open, then the character's title, author, license and a 'modified' note are shown as an attribution line",
+            "AC8: Given a registry character whose clip cannot be built or whose GLB fails to load, when a visitor selects it, then the default character is restored, the select shows the default again, the status line names the problem, and a console error lists the missing bones"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Convert remaining qualifying characters: Convert every other candidate the S1 report qualifies, one registry entry, bone map, GLB and CREDITS entry each, with tests green.",
+          "dependencies": [
+            "S4"
+          ],
+          "base_revision": "cd3af30f9bbdc3bcb169358285e515e39c505840",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/assets/",
+            "app/features/visualizers/dancing-character/characterRegistry.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 CharacterEntry registry (TypeScript type): CharacterEntry { id, title, author, license: 'CC0' | 'CC-BY', licenseVersion, sourceUrl, trademarkNote?, url, bodyMaterialNames: readonly string[] }; CHARACTER_REGISTRY readonly array; DEFAULT_CHARACTER_ID = 'makehuman'",
+            "C3 Bone-map JSON (file format): { id, source: url, map: { <each of DANCE_REQUIRED_BONES>: <source bone name> | 'dummy' } }; 20 keys; non-dummy values distinct; 'dummy' allowed only for spine01-05 and neck02"
+          ],
+          "acceptance": [
+            "AC2: Given a candidate that passes the relaxed verdict and is CC-BY or CC0, when convert.py runs on it with its bone map, then a GLB of at most 3 MB is written under assets/ with the 20 names present on SkinnedMesh skeletons, and CREDITS.md gets its sha256, source URL, author, license with version, snapshot date, a 'modified: converted, bones renamed, materials rebuilt' note and any trademark note",
+            "AC3: Given the character registry, when the registry unit test loads each GLB and samples its dance clip, then the clip has tracks for all 20 bones; knees bend forward, hands stay outside the torso box, foot height drift stays within the tolerance used for MakeHuman, and the measured height is within 10% of NOMINAL_CHARACTER_SIZE; a model missing a bone fails the test naming it"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 4,
+    "lane_changes": []
+  }
+}

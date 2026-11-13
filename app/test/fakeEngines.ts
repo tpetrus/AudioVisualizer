@@ -1,6 +1,14 @@
 import { vi } from 'vitest';
 import type { AudioEngine } from '~/features/audio/audioEngine';
-import { DEFAULT_NORMALIZE_SETTINGS, type NormalizeSettings, type SavedSource } from '~/features/audio/types';
+import {
+    assignAnalyserSettings,
+    DEFAULT_NORMALIZE_SETTINGS,
+    type AnalyserSettings,
+    type NormalizeSettings,
+    type OwnedAnalyser,
+    type SavedSource,
+} from '~/features/audio/types';
+import { asWebAudio, FakeAnalyserNode } from './fakeWebAudio';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { createRhythmState, type BeatsPerBar } from '~/features/rhythm/types';
 
@@ -30,6 +38,30 @@ export class FakeAudioEngine {
     latencyInfo: AudioEngine['latencyInfo'] = {};
 
     readonly getAnalyser = () => this.analyser;
+
+    // Owned analysers, like the real engine's: one fresh node per consumer while capturing, rebuilt with the node's
+    // current settings whenever `setAnalyser` installs a different source, and gone after `release`.
+    readonly ownedEntries = new Set<{ node?: FakeAnalyserNode; settings: AnalyserSettings }>();
+    readonly acquireAnalyser = vi.fn((settings: AnalyserSettings): OwnedAnalyser => {
+        const entry: { node?: FakeAnalyserNode; settings: AnalyserSettings } = { settings: { ...settings } };
+        this.ownedEntries.add(entry);
+        if (this.analyser) {
+            entry.node = this.buildOwned(entry.settings);
+        }
+        return {
+            getNode: () => (entry.node ? asWebAudio<AnalyserNode>(entry.node) : undefined),
+            release: () => {
+                this.ownedEntries.delete(entry);
+                entry.node?.disconnect();
+                entry.node = undefined;
+            },
+        };
+    });
+    private buildOwned(settings: AnalyserSettings): FakeAnalyserNode {
+        const node = new FakeAnalyserNode();
+        assignAnalyserSettings(asWebAudio<AnalyserNode>(node), settings);
+        return node;
+    }
     readonly getIsCapturing = () => this.analyser !== undefined;
     readonly getNormalizeOptions = () => this.normalizeSettings;
     readonly getNormalize = () => this.normalize;
@@ -64,6 +96,18 @@ export class FakeAudioEngine {
     // `undefined` means "not capturing". Pass a `FakeAnalyserNode` cast with `asWebAudio<AnalyserNode>(...)`.
     setAnalyser(analyser: AnalyserNode | undefined): void {
         this.analyser = analyser;
+        for (const entry of this.ownedEntries) {
+            if (entry.node) {
+                entry.settings = {
+                    fftSize: entry.node.fftSize,
+                    smoothingTimeConstant: entry.node.smoothingTimeConstant,
+                    minDecibels: entry.node.minDecibels,
+                    maxDecibels: entry.node.maxDecibels,
+                };
+                entry.node.disconnect();
+            }
+            entry.node = analyser ? this.buildOwned(entry.settings) : undefined;
+        }
         this.notify();
     }
 

@@ -160,7 +160,7 @@ describe('useCubesScene', () => {
     });
 
     describe('audio', () => {
-        it('binds a new analyser: sets its window, reads the spectrum and raises the cubes the spectrum drives', () => {
+        it('binds a new analyser: leaves its settings to its owner, reads the spectrum and raises the cubes the spectrum drives', () => {
             const { analyser, node } = createAnalyser();
             const { frame, gridMesh } = mountScene({ analyser: node });
             const calmZ = cubeZ(gridMesh(), 21 * 32 + 16);
@@ -170,8 +170,9 @@ describe('useCubesScene', () => {
             frame(16);
             frame(32);
 
+            // The node's settings belong to whoever owns it; the scene must not touch them.
             expect(analyser.fftSize).toBe(2048);
-            expect(analyser.smoothingTimeConstant).toBe(0.5);
+            expect(analyser.smoothingTimeConstant).toBe(0.8);
             expect(analyser.getByteFrequencyData).toHaveBeenCalled();
             expect(cubeZ(gridMesh(), 21 * 32 + 16)).toBeGreaterThan(calmZ);
         });

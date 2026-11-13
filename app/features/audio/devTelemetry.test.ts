@@ -21,6 +21,11 @@ class StubEngine {
     input: FakeGainNode | undefined;
     post: FakeAnalyserNode | undefined;
     gain = 1;
+    normalizeOn = true;
+    readonly getNormalize = () => this.normalizeOn;
+    readonly setNormalize = (enabled: boolean) => {
+        this.normalizeOn = enabled;
+    };
     readonly subscribe = (listener: () => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
@@ -70,7 +75,20 @@ describe('probes and the column layout', () => {
         probe('a', ['in', 'out']);
         probe('b', ['x']);
 
-        expect(hook().columns).toEqual(['t', 'dt', 'fps', 'bassRaw', 'bassPost', 'gain', 'a.in', 'a.out', 'b.x']);
+        expect(hook().columns).toEqual([
+            't',
+            'dt',
+            'fps',
+            'bassRaw',
+            'bassPost',
+            'gain',
+            'onsetKick',
+            'onsetMid',
+            'onsetHigh',
+            'a.in',
+            'a.out',
+            'b.x',
+        ]);
         detach();
     });
 
@@ -84,7 +102,7 @@ describe('probes and the column layout', () => {
         tickTelemetry(0.01);
         unregister();
         expect(hook().rowCount).toBe(0);
-        expect(hook().columns).toHaveLength(6);
+        expect(hook().columns).toHaveLength(9);
         unregister(); // a second call does nothing
         detach();
     });
@@ -126,11 +144,11 @@ describe('tickTelemetry', () => {
 
         const rows = hook().snapshot();
         expect(hook().rowCount).toBe(3);
-        expect(rows).toHaveLength(3 * 8);
-        expect(Array.from(rows.slice(0, 8))).toEqual([2.5, 0.0125, 80, 0, 0, 3, 0.25, 0.5].map(Math.fround));
-        expect(rows[8 + 1]).toBeCloseTo(0.02);
-        expect(rows[8 + 2]).toBeCloseTo(50);
-        expect(rows[16 + 2]).toBe(0);
+        expect(rows).toHaveLength(3 * 11);
+        expect(Array.from(rows.slice(0, 11))).toEqual([2.5, 0.0125, 80, 0, 0, 3, 0, 0, 0, 0.25, 0.5].map(Math.fround));
+        expect(rows[11 + 1]).toBeCloseTo(0.02);
+        expect(rows[11 + 2]).toBeCloseTo(50);
+        expect(rows[22 + 2]).toBe(0);
         detach();
     });
 
@@ -183,7 +201,7 @@ describe('tickTelemetry', () => {
 
         expect(hook().rowCount).toBe(1);
         expect(hook().overflowed).toBe(true);
-        expect(hook().snapshot()[6]).toBe(1);
+        expect(hook().snapshot()[9]).toBe(1);
         detach();
     });
 
@@ -213,7 +231,49 @@ describe('tickTelemetry', () => {
 
     it('defaults to ten minutes of rows', () => {
         const { detach } = attach();
-        expect(getTelemetryView()!.rows).toHaveLength(600 * 120 * 6);
+        expect(getTelemetryView()!.rows).toHaveLength(600 * 120 * 9);
+        detach();
+    });
+});
+
+describe('onsets and normalization', () => {
+    const FIRST_ONSET = 6;
+
+    it('records the tracker band onsets in the base columns, and zeros without a tracker', () => {
+        const engine = new StubEngine();
+        engine.useContext();
+        const detach = attachTelemetry(asWebAudio<AudioEngine>(engine), {
+            bandOnsets: Float32Array.of(0.5, 0.25),
+        });
+        tickTelemetry(0.01);
+        // The third band is missing from the two-entry array and reads as 0.
+        expect(
+            Array.from(
+                hook()
+                    .snapshot()
+                    .slice(FIRST_ONSET, FIRST_ONSET + 3),
+            ),
+        ).toEqual([0.5, 0.25, 0]);
+        detach();
+
+        const bare = attach();
+        tickTelemetry(0.01);
+        expect(
+            Array.from(
+                hook()
+                    .snapshot()
+                    .slice(FIRST_ONSET, FIRST_ONSET + 3),
+            ),
+        ).toEqual([0, 0, 0]);
+        bare.detach();
+    });
+
+    it('turns the engine normalization off and on through the hook', () => {
+        const { engine, detach } = attach();
+        expect(hook().normalize()).toBe(true);
+        hook().setNormalize(false);
+        expect(engine.normalizeOn).toBe(false);
+        expect(hook().normalize()).toBe(false);
         detach();
     });
 });

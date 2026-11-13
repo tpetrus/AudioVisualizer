@@ -7,9 +7,10 @@ import { join } from 'node:path';
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
 export const USAGE =
-    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--headless]';
+    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--no-normalize] [--headless]';
 
-export const SUMMARY_USAGE = 'Usage: npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S]';
+export const SUMMARY_USAGE =
+    'Usage: npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S] [--reaction <column>]';
 
 export const REPEAT_USAGE = 'Usage: npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]';
 
@@ -22,6 +23,8 @@ export interface RunArgs {
     shots: number[];
     reselect: number; // how many times the track is played in one page, choosing it again each time
     headless: boolean;
+    // Turns the engine's volume normalization off for the run.
+    noNormalize: boolean;
 }
 
 export type ParsedArgs = { kind: 'help' } | { kind: 'run'; args: RunArgs } | { kind: 'error'; message: string };
@@ -35,11 +38,14 @@ function readNumber(name: string, text: string | undefined): number | string {
 export function parseArgs(argv: readonly string[]): ParsedArgs {
     const values = new Map<string, string>();
     let headless = false;
+    let noNormalize = false;
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
         if (arg === '--help' || arg === '-h') return { kind: 'help' };
         if (arg === '--headless') {
             headless = true;
+        } else if (arg === '--no-normalize') {
+            noNormalize = true;
         } else if (['--dir', '--track', '--viz', '--seconds', '--from', '--shots', '--reselect'].includes(arg)) {
             const value = argv[i + 1];
             if (value === undefined || value.startsWith('--'))
@@ -97,6 +103,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
             shots: shots.filter((shot, index) => shots.indexOf(shot) === index),
             reselect,
             headless,
+            noNormalize,
         },
     };
 }
@@ -173,6 +180,8 @@ export interface SummaryArgs {
     path: string;
     bpm: number | undefined;
     window: number | undefined;
+    // Telemetry column whose reaction to each click of track.beats.json is timed.
+    reaction: string | undefined;
 }
 
 export type ParsedSummaryArgs =
@@ -209,7 +218,7 @@ function splitPositional(
 }
 
 export function parseSummaryArgs(argv: readonly string[]): ParsedSummaryArgs {
-    const split = splitPositional(argv, ['--bpm', '--window']);
+    const split = splitPositional(argv, ['--bpm', '--window', '--reaction']);
     if (typeof split === 'string') return { kind: 'error', message: `${split} ${SUMMARY_USAGE}` };
     if (split.help) return { kind: 'help' };
     if (split.positional.length !== 1) return { kind: 'error', message: SUMMARY_USAGE };
@@ -217,7 +226,7 @@ export function parseSummaryArgs(argv: readonly string[]): ParsedSummaryArgs {
     if (typeof bpm === 'string') return { kind: 'error', message: bpm };
     const window = split.values.has('window') ? readPositive('window', split.values.get('window')) : undefined;
     if (typeof window === 'string') return { kind: 'error', message: window };
-    return { kind: 'run', args: { path: split.positional[0], bpm, window } };
+    return { kind: 'run', args: { path: split.positional[0], bpm, window, reaction: split.values.get('reaction') } };
 }
 
 export interface RepeatArgs {
