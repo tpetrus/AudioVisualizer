@@ -1,5 +1,5 @@
 // Reprints the windowed summary of a telemetry CSV written by the debug harness, followed by the tempo report. Run it
-// with `npm run debug:summary -- <csv> [--bpm N] [--window S]`. Not part of the app bundle: nothing under app/ imports
+// with `npm run debug:summary -- <csv> [--bpm N] [--window S] [--reaction <column>]`. Not part of the app bundle: nothing under app/ imports
 // this file.
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -25,7 +25,7 @@ if (parsed.kind === 'help') {
     process.exit(0);
 }
 if (parsed.kind === 'error') fail(parsed.message);
-const { path, bpm, window } = parsed.args;
+const { path, bpm, window, reaction } = parsed.args;
 
 let text = '';
 try {
@@ -54,10 +54,16 @@ try {
     const beatsPath = join(dirname(path), 'track.beats.json');
     if (existsSync(beatsPath)) {
         try {
-            lines.push(...alignmentReportLines(table, readFileSync(beatsPath, 'utf8')));
+            lines.push(...alignmentReportLines(table, readFileSync(beatsPath, 'utf8'), { reactionColumn: reaction }));
         } catch (error) {
             lines.push(`Alignment: cannot read ${beatsPath}: ${reasonOf(error)}`);
         }
+    }
+    // What the harness recorded about the run, so a CSV can be told apart (for example one made without normalization).
+    const optionsPath = join(dirname(path), 'options.json');
+    if (existsSync(optionsPath)) lines.unshift(`Run options: ${readFileSync(optionsPath, 'utf8').trim()}`);
+    if (reaction !== undefined && !existsSync(beatsPath)) {
+        lines.push(`Reaction offset: needs ${beatsPath}, a click track's ground truth.`);
     }
     console.log(lines.join('\n'));
 } catch (error) {

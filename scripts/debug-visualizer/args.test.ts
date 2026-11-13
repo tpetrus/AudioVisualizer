@@ -43,6 +43,7 @@ describe('parseArgs', () => {
             shots: [],
             reselect: 1,
             headless: false,
+            noNormalize: false,
         });
     });
 
@@ -56,6 +57,7 @@ describe('parseArgs', () => {
             shots: [1, 5],
             reselect: 1,
             headless: true,
+            noNormalize: false,
         });
     });
 
@@ -284,15 +286,25 @@ describe('chooseReference', () => {
     });
 });
 
+describe('--no-normalize and --reaction', () => {
+    it('reads the flag and the column', () => {
+        const parsed = parseArgs(['--dir', 'd', '--track', 't.wav', '--viz', 'cubes', '--no-normalize']);
+        expect(parsed.kind === 'run' && parsed.args.noNormalize).toBe(true);
+        expect(parseSummaryArgs(['a.csv', '--reaction', 'cubes.out'])).toMatchObject({
+            args: { reaction: 'cubes.out' },
+        });
+    });
+});
+
 describe('parseSummaryArgs', () => {
     it('reads the path, --bpm and --window', () => {
         expect(parseSummaryArgs(['a.csv', '--bpm', '120', '--window', '2.5'])).toEqual({
             kind: 'run',
-            args: { path: 'a.csv', bpm: 120, window: 2.5 },
+            args: { path: 'a.csv', bpm: 120, window: 2.5, reaction: undefined },
         });
         expect(parseSummaryArgs(['--bpm', '90', 'a.csv'])).toEqual({
             kind: 'run',
-            args: { path: 'a.csv', bpm: 90, window: undefined },
+            args: { path: 'a.csv', bpm: 90, window: undefined, reaction: undefined },
         });
     });
 

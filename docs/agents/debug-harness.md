@@ -77,8 +77,29 @@ track's report prints its tap noise floor beside the beat error.
   mid to `snare`, high to `highs`); `bass` is not scored.
 - **Live:** `debug:viz` copies `<track>.beats.json` to `track.beats.json` in the output folder, and
   `npm run debug:summary -- <csv>` then prints the same report from the telemetry (beats from the beat phase wrapping,
-  tempo from the `bpm` column). Onsets and the reaction offset print as not available because the CSV has no columns for
-  them. The recording must start at the start of the track.
+  tempo from the `bpm` column). The recording must start at the start of the track. Times are the CSV's `t`, which is
+  track time (the file playback's position), so they line up with the sidecar.
+  - **Onsets:** every recording has the base columns `onsetKick`, `onsetMid`, `onsetHigh`: the tracker's
+    `RhythmState.bandOnsets` (0..1, peak-held and decaying) exactly as the visualizers read them, sampled once per
+    frame. `devTelemetry.ts` cannot reach the tracker itself, so `DevTelemetryOverlay` passes `rhythmTracker.state` to
+    `attachTelemetry(engine, onsets)`; they are 0 when nothing is passed. The report peak-picks each column with
+    `pickPeaks` (radius 1 frame and a mean over 15 frames, since frames are about 16.7 ms apart, not 10 ms) and scores
+    kick against `kick`, mid against `snare` and high against `highs`; `bass` is not scored. It needs a sidecar with
+    `onsets` (synthetic tracks) and prints the frame allowance, the median row interval, because a peak time is a row
+    time.
+  - **Reaction offset:** `npm run debug:summary -- <csv> --reaction <column>` takes the beats of `track.beats.json` as
+    click times (use it with a click track) and finds, for each, the first row at or after the click where the column
+    rises above its level just before the click by 20 percent of the column's range, within 250 ms (for a counter
+    column such as `kicks` or `beats`, the first increment). A click with no reaction is a miss. It prints
+    `reactionOffsetMs` as the median and p95 of reaction time minus click time, in ms, with hits, misses and the
+    frame allowance (the median row interval; a reaction can be read up to that much late). Example:
+    `--reaction cubes.out`. Logic: `scripts/debug-visualizer/reactionOffset.ts`.
+  - **Normalization off:** `npm run debug:viz -- ... --no-normalize` turns the engine's volume normalization off for the
+    run through `window.__vizTelemetry.setNormalize(false)` (the hook also has `normalize()`). The harness opens a new
+    browser context for every run, so the setting the engine saves to storage disappears with it and the developer's
+    own profile is never changed. The run writes `options.json` (`viz`, `track`, `from`, `noNormalize`) beside the CSV;
+    `debug:summary` prints it first as `Run options:`, and `debug:viz` prints an `Options:` line, so recordings can be
+    told apart.
 - **Regression spec:** `scripts/ground-truth/alignment.test.ts` asserts what the pipeline meets today; the plan's targets
   are `it.fails` tests that start failing (and must lose `.fails`) once the pipeline reaches them.
 
@@ -209,13 +230,13 @@ then `onStarted()`. Errors show in the existing one-line alert.
 export type TelemetryRead = (out: Float32Array) => void; // writes this probe's columns, in order, from index 0
 export function registerTelemetryProbe(name: string, columns: readonly string[], read: TelemetryRead): () => void;
 export function tickTelemetry(dtSeconds: number): void;
-export function attachTelemetry(engine: AudioEngine): () => void; // installs window.__vizTelemetry; returns detach
+export function attachTelemetry(engine: AudioEngine, onsets?: { bandOnsets: ArrayLike<number> }): () => void; // installs window.__vizTelemetry; returns detach
 ```
 - All three are no-ops outside DEV. Scenes call them only inside `if (import.meta.env.DEV)`.
 - A scene registers in its `useThreeScene` setup and unregisters in the returned `dispose`. The probe's `read` closure is
   created once and must not allocate.
 - Scenes call `tickTelemetry(delta / 1000)` at the end of their `update`, after their own maths. One row per tick.
-- Row layout: `t, dt, fps, bassRaw, bassPost, gain`, then each registered probe's columns as `<name>.<column>` in
+- Row layout: `t, dt, fps, bassRaw, bassPost, gain, onsetKick, onsetMid, onsetHigh`, then each registered probe's columns as `<name>.<column>` in
   registration order. `t` = `getActivePlayback()?.position()` when a file is playing, else the analyser context's
   `currentTime`. `dt` in seconds, `fps` = `1 / dt` (0 when `dt` is 0). `bassRaw` / `bassPost` = mean byte frequency
   magnitude / 255 over bins up to 120 Hz, from two DEV-only analysers (fftSize 4096, smoothing 0) connected in parallel
@@ -269,7 +290,7 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
   the window is widened. Total output never exceeds `maxLines` lines.
 
 `scripts/debug-visualizer/run.ts`, run as
-`npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]`:
+`npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--no-normalize] [--headless]`:
 - `--viz` is one of the paths in `app/features/landing/visualizations.ts` without the slash. Starts `react-router dev`
   on a free port, waits for it, launches Chromium (headed unless `--headless`) with
   `--autoplay-policy=no-user-gesture-required`, opens `/<viz>`, uploads the track through the `Audio file` input with
@@ -285,7 +306,8 @@ export function summarizeTelemetry(table: TelemetryTable, options?: SummaryOptio
   sized for 240 Hz displays.
 - A run fails as stalled when the playback position stops advancing for 15 s. Ctrl+C (exit 130) or SIGTERM (143)
   stops the dev server and browser within about 5 s; a second signal exits at once.
-- `npm run debug:summary -- <csv>` (`scripts/debug-visualizer/summarize.ts`) reprints the summary of a CSV.
+- `npm run debug:summary -- <csv> [--bpm N] [--window S] [--reaction <column>]` (`scripts/debug-visualizer/summarize.ts`)
+  reprints the summary of a CSV, plus `options.json` and the alignment report when they sit beside it.
 - `.debug-out/` is git-ignored.
 
 ### C5 Tempo telemetry and reports
