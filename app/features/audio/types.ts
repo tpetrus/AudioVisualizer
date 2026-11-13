@@ -55,12 +55,27 @@ export interface AnalyserSettings {
 
 // The engine tap's fixed settings. Nothing outside the engine may change them, so what the tracker and the other
 // readers of the tap see never depends on which visualizer was opened before.
-export const ENGINE_TAP_SETTINGS: Readonly<AnalyserSettings> = {
+export const ENGINE_TAP_SETTINGS: Readonly<AnalyserSettings> = Object.freeze({
     fftSize: 2048,
     smoothingTimeConstant: 0,
     minDecibels: -100,
     maxDecibels: -30,
-};
+});
+
+// Assigns every setting on a node. A real AnalyserNode throws when the minimum is set at or above the current maximum
+// (or the maximum at or below the current minimum), so the end of the range that cannot collide with the old one goes
+// first: a new minimum at or above the old maximum means the maximum must move up before the minimum can follow.
+export function assignAnalyserSettings(node: AnalyserNode, settings: AnalyserSettings): void {
+    if (settings.minDecibels >= node.maxDecibels) {
+        node.maxDecibels = settings.maxDecibels;
+        node.minDecibels = settings.minDecibels;
+    } else {
+        node.minDecibels = settings.minDecibels;
+        node.maxDecibels = settings.maxDecibels;
+    }
+    node.fftSize = settings.fftSize;
+    node.smoothingTimeConstant = settings.smoothingTimeConstant;
+}
 
 export interface OwnedAnalyser {
     // The consumer's node for the current source, or undefined while nothing is captured. A new source gives a new

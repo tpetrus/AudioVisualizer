@@ -5,7 +5,7 @@ import {
     asWebAudio,
     createFakeStream,
     installFakeWebAudio,
-    type FakeAnalyserNode,
+    FakeAnalyserNode,
     type FakeAudioContext,
     type FakeMediaStream,
     FakeGainNode,
@@ -920,41 +920,90 @@ describe('analysers: the tap and per-consumer nodes', () => {
     });
 });
 
-// A deterministic model of what a node reports for a fixed input (a steady tone): the level depends only on the
-// node's own window size, smoothing and decibel range, so any leak of one consumer's settings into another shows up.
+// A deterministic model of what a node reports for a fixed input, NOT rendered audio: the level is a closed-form
+// function of the node's own window size, smoothing and decibel range. It exists so that any leak of one consumer's
+// settings into another's node shows up as a different number.
 function bandEnergyDb(node: AnalyserNode): number {
     const settled = -40 - 10 * Math.log10(node.fftSize / 2048) + 6 * node.smoothingTimeConstant;
     return Math.min(node.maxDecibels, Math.max(node.minDecibels, settled));
+}
+
+// An engine that breaks the contract on purpose: every consumer gets the same node, configured by the latest one.
+class SharingEngine extends AudioEngine {
+    private shared: AnalyserNode | undefined;
+    public override acquireAnalyser(settings: AnalyserSettings) {
+        const handle = super.acquireAnalyser(settings);
+        const node = (this.shared ??= handle.getNode()!);
+        Object.assign(node, settings);
+        return { getNode: () => node, release: handle.release };
+    }
 }
 
 describe('analyser acquisition order', () => {
     const A: AnalyserSettings = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
     const B: AnalyserSettings = { fftSize: 4096, smoothingTimeConstant: 0.8, minDecibels: -90, maxDecibels: -35 };
 
-    async function readings(order: 'AB' | 'BA', share = false) {
-        const { engine } = setup();
+    async function readings(order: 'AB' | 'BA', engine: AudioEngine) {
         await engine.startSource((context) => nodeSource(context));
-        const acquire = (settings: AnalyserSettings) => engine.acquireAnalyser(settings).getNode()!;
-        const first = order === 'AB' ? A : B;
-        const second = order === 'AB' ? B : A;
-        const firstNode = acquire(first);
-        // When sharing, the second consumer configures the same node, as the old shared analyser allowed.
-        const secondNode = share ? Object.assign(firstNode, second) : acquire(second);
-        const [a, b] = order === 'AB' ? [firstNode, secondNode] : [secondNode, firstNode];
-        return [bandEnergyDb(a), bandEnergyDb(b)];
+        const nodes = new Map<AnalyserSettings, AnalyserNode>();
+        for (const settings of order === 'AB' ? [A, B] : [B, A]) {
+            nodes.set(settings, engine.acquireAnalyser(settings).getNode()!);
+        }
+        return [bandEnergyDb(nodes.get(A)!), bandEnergyDb(nodes.get(B)!)];
     }
 
     it('gives each consumer the same reading whichever one was acquired first', async () => {
-        const ab = await readings('AB');
-        const ba = await readings('BA');
+        const ab = await readings('AB', setup().engine);
+        const ba = await readings('BA', setup().engine);
         expect(Math.abs(ab[0] - ba[0])).toBeLessThanOrEqual(1);
         expect(Math.abs(ab[1] - ba[1])).toBeLessThanOrEqual(1);
         expect(ab[0]).not.toBeCloseTo(ab[1], 0);
     });
 
-    it('would catch consumers sharing one node', async () => {
-        const ab = await readings('AB', true);
-        const ba = await readings('BA', true);
+    it('would catch an engine that hands out one shared node', async () => {
+        setup();
+        const ab = await readings('AB', new SharingEngine());
+        const ba = await readings('BA', new SharingEngine());
         expect(Math.abs(ab[0] - ba[0])).toBeGreaterThan(1);
+    });
+});
+
+describe('analyser decibel ranges', () => {
+    const HIGH: AnalyserSettings = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -20, maxDecibels: 0 };
+
+    it('acquires and rebuilds a range entirely above the fresh node range', async () => {
+        const { engine } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const handle = engine.acquireAnalyser(HIGH);
+        expect(handle.getNode()).toMatchObject({ minDecibels: -20, maxDecibels: 0 });
+
+        await engine.startSource((context) => nodeSource(context));
+        expect(handle.getNode()).toMatchObject({ minDecibels: -20, maxDecibels: 0 });
+    });
+
+    it('stays capturing with its timer and listeners when one rebuild throws', async () => {
+        const { engine } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const failing = engine.acquireAnalyser(HIGH);
+        const healthy = engine.acquireAnalyser({ ...HIGH, minDecibels: -90, maxDecibels: -30 });
+        const listener = vi.fn();
+        engine.subscribe(listener);
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const clear = vi.spyOn(window, 'setInterval');
+        // Armed after the first acquisition: from here on, assigning the failing consumer's minimum throws.
+        vi.spyOn(FakeAnalyserNode.prototype, 'minDecibels', 'set').mockImplementation((value: number) => {
+            if (value === -20) {
+                throw new Error('boom');
+            }
+        });
+
+        await engine.startSource((context) => nodeSource(context));
+
+        expect(engine.getIsCapturing()).toBe(true);
+        expect(failing.getNode()).toBeUndefined();
+        expect(healthy.getNode()).toBeDefined();
+        expect(errors).toHaveBeenCalled();
+        expect(listener).toHaveBeenCalled();
+        expect(clear).toHaveBeenCalled();
     });
 });

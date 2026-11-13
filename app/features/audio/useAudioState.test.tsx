@@ -1,7 +1,16 @@
 // @vitest-environment jsdom
-import { act } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { asWebAudio, FakeAnalyserNode } from '~/test/fakeWebAudio';
+import { act, renderHook } from '@testing-library/react';
+import { StrictMode, type ReactNode } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+    asWebAudio,
+    FakeAnalyserNode,
+    FakeGainNode,
+    installFakeWebAudio,
+    type FakeAudioContext,
+} from '~/test/fakeWebAudio';
+import { AudioEngine } from './audioEngine';
+import { AudioProvider } from './AudioProvider';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { renderHookWithProviders } from '~/test/renderWithProviders';
 import { DEFAULT_NORMALIZE_SETTINGS } from './types';
@@ -63,8 +72,9 @@ describe('useNormalizeOptions', () => {
     });
 });
 
+const A = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
+
 describe('useAnalyser(options)', () => {
-    const A = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
     const B = { fftSize: 4096, smoothingTimeConstant: 0.9, minDecibels: -90, maxDecibels: -20 };
 
     it('returns a node of its own carrying the declared settings, not the tap', () => {
@@ -122,5 +132,66 @@ describe('useAnalyser(options)', () => {
         unmount();
 
         expect(engine.ownedEntries.size).toBe(0);
+    });
+
+    it('owner assignments survive a source change while the options stay the same', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const { result } = renderHookWithProviders(() => useAnalyser(A), { engine });
+        act(() => {
+            result.current!.smoothingTimeConstant = 0.1;
+        });
+
+        act(() => engine.setAnalyser(fakeAnalyser()));
+        expect(result.current!.smoothingTimeConstant).toBe(0.1);
+    });
+
+    it('still assigns changed option values after an owner assignment', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const { result, rerender } = renderHookWithProviders((options) => useAnalyser(options), {
+            engine,
+            initialProps: A,
+        });
+        result.current!.smoothingTimeConstant = 0.1;
+
+        rerender({ ...A, smoothingTimeConstant: 0.7 });
+        expect(result.current!.smoothingTimeConstant).toBe(0.7);
+    });
+});
+
+describe('useAnalyser(options) against the real engine', () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it('leaves exactly one owned node connected under StrictMode, and none after unmount', async () => {
+        const web = installFakeWebAudio();
+        const engine = new AudioEngine();
+        await engine.startSource((context) => ({
+            node: asWebAudio<AudioNode>(new FakeGainNode(asWebAudio<FakeAudioContext>(context))),
+            stop: vi.fn(),
+        }));
+        const gain = web.contexts[0].createdGains[0];
+        // The tap and the two meters are the first three analysers; owned nodes come after them.
+        const ownedConnected = () => {
+            const owned = new Set(web.contexts[0].createdAnalysers.slice(3));
+            const connects = gain.connect.mock.calls.filter(([node]) => owned.has(node as FakeAnalyserNode)).length;
+            const disconnects = gain.disconnect.mock.calls.filter(([node]) =>
+                owned.has(node as FakeAnalyserNode),
+            ).length;
+            return connects - disconnects;
+        };
+        const wrapper = ({ children }: { children: ReactNode }) => (
+            <StrictMode>
+                <AudioProvider engine={engine}>{children}</AudioProvider>
+            </StrictMode>
+        );
+
+        const { unmount } = renderHook(() => useAnalyser(A), { wrapper });
+        expect(ownedConnected()).toBe(1);
+
+        unmount();
+        expect(ownedConnected()).toBe(0);
     });
 });

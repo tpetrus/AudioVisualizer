@@ -9,6 +9,7 @@ import {
     saveSource,
 } from './storage';
 import {
+    assignAnalyserSettings,
     DEFAULT_NORMALIZE_SETTINGS,
     ENGINE_TAP_SETTINGS,
     type AnalyserSettings,
@@ -26,14 +27,6 @@ const MIN_GAIN = 0.25;
 const METER_FFT_SIZE = 1024;
 
 const ANALYSER_KEYS = ['fftSize', 'smoothingTimeConstant', 'minDecibels', 'maxDecibels'] as const;
-
-const applySettings = (node: AnalyserNode, settings: AnalyserSettings): void => {
-    // Decibel range first: the browser rejects a minimum above the current maximum and the reverse.
-    node.minDecibels = settings.minDecibels;
-    node.maxDecibels = settings.maxDecibels;
-    node.fftSize = settings.fftSize;
-    node.smoothingTimeConstant = settings.smoothingTimeConstant;
-};
 
 const readSettings = (node: AnalyserNode): AnalyserSettings => ({
     fftSize: node.fftSize,
@@ -110,7 +103,7 @@ export class AudioEngine {
 
     private buildOwnedNode(entry: OwnedEntry, graph: AudioGraph): void {
         const node = graph.audioContext.createAnalyser();
-        applySettings(node, entry.settings);
+        assignAnalyserSettings(node, entry.settings);
         graph.gainNode.connect(node);
         entry.node = node;
         entry.feed = graph.gainNode;
@@ -347,7 +340,7 @@ export class AudioEngine {
             const source = input.node;
             const gainNode = audioContext.createGain();
             const analyser = audioContext.createAnalyser();
-            applySettings(analyser, ENGINE_TAP_SETTINGS);
+            assignAnalyserSettings(analyser, ENGINE_TAP_SETTINGS);
             lockTapSettings(analyser);
             const meter = audioContext.createAnalyser();
             meter.fftSize = METER_FFT_SIZE;
@@ -376,7 +369,15 @@ export class AudioEngine {
         this.teardown();
         this.graph = graph;
         for (const entry of this.ownedAnalysers) {
-            this.buildOwnedNode(entry, graph);
+            // One consumer's failing rebuild must not leave the source half installed: the others still get their
+            // nodes, the capture keeps its timer and subscribers still hear about the new source.
+            try {
+                this.buildOwnedNode(entry, graph);
+            } catch (error) {
+                entry.node = undefined;
+                entry.feed = undefined;
+                console.error('AudioEngine could not rebuild an owned analyser', error);
+            }
         }
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useAudio } from './audioEngineContext';
-import type { AnalyserSettings, NormalizeSettings, OwnedAnalyser } from './types';
+import { assignAnalyserSettings, type AnalyserSettings, type NormalizeSettings, type OwnedAnalyser } from './types';
 
 // Without options: the engine's shared tap (fixed settings, read-only). With options: a node owned by the calling
 // component, acquired in an effect and released in its cleanup, so a StrictMode double mount leaves one live node.
@@ -41,18 +41,21 @@ export function useAnalyser(options?: AnalyserSettings): AnalyserNode | undefine
         };
     }, [engine, wantsOwned]);
 
-    // Changed values go onto the existing node. The decibel range goes first, so a new range never meets the old
-    // one half way and gets rejected.
+    // Changed option values go onto the existing node. This depends on the values only, not on the node: a rebuilt node
+    // already carries the settings its owner last assigned (contract rule 3), and re-applying the declared options
+    // would overwrite them.
     useEffect(() => {
         const node = handleRef.current?.getNode();
         if (!node || fftSize === undefined) {
             return;
         }
-        node.minDecibels = minDecibels as number;
-        node.maxDecibels = maxDecibels as number;
-        node.fftSize = fftSize;
-        node.smoothingTimeConstant = smoothingTimeConstant as number;
-    }, [owned, fftSize, smoothingTimeConstant, minDecibels, maxDecibels]);
+        assignAnalyserSettings(node, {
+            fftSize,
+            smoothingTimeConstant: smoothingTimeConstant as number,
+            minDecibels: minDecibels as number,
+            maxDecibels: maxDecibels as number,
+        });
+    }, [fftSize, smoothingTimeConstant, minDecibels, maxDecibels]);
 
     return wantsOwned ? owned : tap;
 }

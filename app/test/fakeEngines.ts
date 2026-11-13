@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import type { AudioEngine } from '~/features/audio/audioEngine';
 import {
+    assignAnalyserSettings,
     DEFAULT_NORMALIZE_SETTINGS,
     type AnalyserSettings,
     type NormalizeSettings,
@@ -57,7 +58,9 @@ export class FakeAudioEngine {
         };
     });
     private buildOwned(settings: AnalyserSettings): FakeAnalyserNode {
-        return Object.assign(new FakeAnalyserNode(), settings);
+        const node = new FakeAnalyserNode();
+        assignAnalyserSettings(asWebAudio<AnalyserNode>(node), settings);
+        return node;
     }
     readonly getIsCapturing = () => this.analyser !== undefined;
     readonly getNormalizeOptions = () => this.normalizeSettings;
