@@ -91,8 +91,15 @@ S2 answered Q2: the tap and the worklet stay after the gain control. The types a
   only on the packed frame, so they stay valid; their spec proves it.
 - Onset events are detected in the worklet, causally, with at most `ONSET_LOOKAHEAD_FRAMES` frames of look-ahead, and
   stamped with the analysis-window centre of the onset frame, not the time they were decided. The detector is a pure
-  module (`bandOnsets.ts`) that allocates only in its constructor, so the offline evaluation runs exactly the code the
-  worklet runs.
+  module (`bandOnsets.ts`) that allocates only in its constructor, so the offline evaluation runs exactly the detector the
+  worklet runs. It does not run the worklet's batching and reset; the worklet spec covers those.
+- The band names describe frequency ranges, not instruments. `snare` is an onset in the mid band (800 to 4000 Hz),
+  which vocals and guitars also reach, and the kick and bass split is a centroid test at the bass band's lower edge
+  (130 Hz) that matches the synthetic voices, not real bass notes, whose fundamentals often sit below it.
+- Precision on real music is not measured: real tracks have no onset ground truth, and the synthetic F scores come
+  from the same tracks the thresholds were set on. On the six local debug tracks the detector emits 2 to 9 low-end
+  events and up to 8 snare events per tapped beat. Consumers must gate on `onsetStrength` and must not read the events
+  as one per drum hit until a later slice measures and fixes that.
 - `bandEnergy` is in the packed frame's energy units and not normalized; normalizing is the hub's job (C5, S7).
 - `BATCH_FRAMES` stays 8 in S4. S5 measures and cuts it.
 - C5 and C6 are written at the start of the slices that implement them (S7 and S5).

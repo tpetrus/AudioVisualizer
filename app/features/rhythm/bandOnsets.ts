@@ -24,8 +24,10 @@ const BASS = FEATURE_ONSET_BANDS.indexOf('bass');
 const SNARE = FEATURE_ONSET_BANDS.indexOf('snare');
 const HIGHS = FEATURE_ONSET_BANDS.indexOf('highs');
 
-// Hub band indexes where a detector's range starts and ends: the low end covers sub, kick and bass, the snare range
-// covers lowMid and mid, and the hi-hat range is the highs band.
+// Hub band indexes where a detector's range starts and ends: the low end covers sub, kick and bass, the snare range is
+// the mid band only (800 to 4000 Hz), and the hi-hat range is the highs band. No detector listens to lowMid: a snare's
+// body sits there too, but so do most sustained instruments, and the snare's crack in the mid band is enough to find
+// it on the synthetic tracks.
 const LOW_FIRST_BAND = 0;
 const LOW_LAST_BAND = 2;
 const SNARE_FIRST_BAND = 4;
