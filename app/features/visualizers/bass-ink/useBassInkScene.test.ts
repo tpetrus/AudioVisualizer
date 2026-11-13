@@ -529,7 +529,21 @@ describe('useBassInkScene', () => {
 
             expect(telemetry.register).toHaveBeenCalledWith(
                 'bass-ink',
-                ['in', 'out', 'fast', 'slow', 'ratio', 'novelty', 'phase', 'tension', 'grants', 'lockWeight', 'kicks'],
+                [
+                    'in',
+                    'out',
+                    'fast',
+                    'slow',
+                    'ratio',
+                    'novelty',
+                    'phase',
+                    'tension',
+                    'grants',
+                    'lockWeight',
+                    'kicks',
+                    'transitions',
+                    'formation',
+                ],
                 expect.any(Function),
             );
             expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);

@@ -68,10 +68,13 @@ export function writeFormation(
             }
             default: {
                 // Density falls off toward the rim (sqrt of a uniform number is uniform per area), arms wind with radius.
+                // Most points sit in wide arms; the rest fill the disc between them, so it reads as a galaxy from across
+                // a room rather than as two thin ribbons.
                 const radius = Math.sqrt(a);
                 const arm = Math.floor(b * config.discArms);
-                const angle =
-                    radius * config.discTwist + (arm / config.discArms) * TAU + (c - 0.5) * 0.5 * (1 - radius);
+                const inArm = hash01(i, seed, 5) < config.discArmShare;
+                const spread = inArm ? config.discArmSpread * (1.2 - 0.6 * radius) : TAU;
+                const angle = radius * config.discTwist + (arm / config.discArms) * TAU + (c - 0.5) * spread;
                 out[o] = radius * Math.cos(angle);
                 out[o + 1] = (hash01(i, seed, 4) - 0.5) * config.discThickness;
                 out[o + 2] = radius * Math.sin(angle);

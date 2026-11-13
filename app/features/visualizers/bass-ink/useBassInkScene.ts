@@ -117,7 +117,21 @@ export function useBassInkScene(
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
                 'bass-ink',
-                ['in', 'out', 'fast', 'slow', 'ratio', 'novelty', 'phase', 'tension', 'grants', 'lockWeight', 'kicks'],
+                [
+                    'in',
+                    'out',
+                    'fast',
+                    'slow',
+                    'ratio',
+                    'novelty',
+                    'phase',
+                    'tension',
+                    'grants',
+                    'lockWeight',
+                    'kicks',
+                    'transitions',
+                    'formation',
+                ],
                 (out) => {
                     out[0] = lastRms;
                     out[1] = lastBrightness;
@@ -130,6 +144,8 @@ export function useBassInkScene(
                     out[8] = brightnessMix.grantCount;
                     out[9] = clock.beatLockWeight;
                     out[10] = kickRing.count;
+                    out[11] = cue.transitionCount;
+                    out[12] = cue.formationIndex;
                 },
             );
         }

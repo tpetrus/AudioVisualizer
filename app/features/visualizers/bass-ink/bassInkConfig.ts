@@ -110,6 +110,9 @@ export const bassInkConfig = {
         discArms: 2,
         discTwist: 3,
         discThickness: 0.06,
+        // Share of disc points in the arms (the rest are spread over the whole disc) and each arm's angular width.
+        discArmShare: 0.7,
+        discArmSpread: 1.6,
     },
 };
 
