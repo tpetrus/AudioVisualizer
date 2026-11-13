@@ -78,6 +78,8 @@ export interface DanceManifest {
     // Per-bone-group amplitude scaling, applied before the arm passes.
     amplitude: readonly AmplitudeGroup[];
     mirror?: ArmMirrorSpec;
+    // Set by a character's tuning: the deepest a sole may dip below its rest level before the feet are eased flat.
+    soleClearanceMeters?: number;
     head?: HeadSpec;
 }
 
@@ -85,8 +87,15 @@ export interface DanceManifest {
 export const evenBeats = (start: number, framesPerBeat: number, beats: number): number[] =>
     Array.from({ length: beats + 1 }, (_, k) => start + k * framesPerBeat);
 
-const SHOULDERS_AND_ARMS = ['clavicleL', 'clavicleR', 'upperarm01L', 'upperarm01R', 'lowerarm01L', 'lowerarm01R'];
-const SPINE_AND_HEAD = ['spine05', 'spine04', 'spine03', 'spine02', 'spine01', 'neck02', 'head'];
+export const SHOULDERS_AND_ARMS = [
+    'clavicleL',
+    'clavicleR',
+    'upperarm01L',
+    'upperarm01R',
+    'lowerarm01L',
+    'lowerarm01R',
+];
+export const SPINE_AND_HEAD = ['spine05', 'spine04', 'spine03', 'spine02', 'spine01', 'neck02', 'head'];
 
 // The order is the Auto rotation order (docs/plans/natural-dance/contracts.md, Amendment 3).
 export const MANIFESTS: readonly DanceManifest[] = [

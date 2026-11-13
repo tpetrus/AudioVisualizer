@@ -1,4 +1,4 @@
-// Loads the MakeHuman GLB in node with GLTFLoader (the way scripts/dancing-character-model/check.ts does) and
+// Loads a character GLB in node with GLTFLoader (the way scripts/dancing-character-model/check.ts does) and
 // exposes its bones by the names GLTFLoader gives them.
 
 import { readFileSync } from 'node:fs';

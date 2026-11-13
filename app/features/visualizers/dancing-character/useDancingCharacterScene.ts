@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { BassPulse } from '~/features/rhythm/bassPulse';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
+import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, findCharacter, type CharacterEntry } from './characterRegistry';
 import { MAX_FRAME_DT } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
@@ -30,12 +31,27 @@ interface DancingCharacterSceneOptions {
     reducedMotion: boolean;
     // Called from the load callbacks, never from the render loop.
     onStatus: (status: DancingCharacterLoadStatus) => void;
+    // A message when a chosen character could not be used (the page then puts the default back in the control), and
+    // null once a character loaded fine. Called from the load callbacks, never from the render loop.
+    onCharacterProblem: (message: string | null) => void;
+    // The characters that can be chosen; the real list unless a spec injects its own.
+    registry?: readonly CharacterEntry[];
 }
 
 // A figure that dances to the music, rendered into `containerRef`.
 export function useDancingCharacterScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, rhythm, valuesRef, cameraLocked, reducedMotion, onViewChanged, onStatus }: DancingCharacterSceneOptions,
+    {
+        analyser,
+        rhythm,
+        valuesRef,
+        cameraLocked,
+        reducedMotion,
+        onViewChanged,
+        onStatus,
+        onCharacterProblem,
+        registry = CHARACTER_REGISTRY,
+    }: DancingCharacterSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
@@ -43,6 +59,7 @@ export function useDancingCharacterScene(
     const reducedMotionRef = useLatestRef(reducedMotion);
     const onViewChangedRef = useLatestRef(onViewChanged);
     const onStatusRef = useLatestRef(onStatus);
+    const onCharacterProblemRef = useLatestRef(onCharacterProblem);
     const resetViewRef = useRef<() => void>(() => {});
 
     useThreeScene(containerRef, ({ scene, renderer, size, signal }) => {
@@ -62,21 +79,83 @@ export function useDancingCharacterScene(
             character.resetOrbit();
         };
 
+        // The character on screen, the one being loaded or last asked for, and one whose load just failed. Plain locals:
+        // the render loop compares them with the control value every frame without touching React state.
+        let shownId = '';
+        let requestedId = '';
+        let failedId = '';
+        // True from a failure until the next load starts: that load is the one restoring the default.
+        let restoring = false;
+        // Each load has its own controller and an increasing token, so a result that arrives after a newer request (or
+        // after teardown) is recognized and freed instead of replacing the newer character.
+        let loadToken = 0;
+        let loadController: AbortController | undefined;
+
+        // A load that failed for any reason: say why, and ask the page to put the default back in the control. The
+        // figure on screen (the previous one, or none yet) stays; the default then loads like any other choice.
+        const failLoad = (entry: CharacterEntry | undefined, id: string, problem: string, missing: string[] = []) => {
+            failedId = id;
+            requestedId = shownId;
+            console.error(
+                `Dancing character "${entry?.title ?? id}" failed: ${problem}` +
+                    (missing.length > 0 ? `; missing bones: ${missing.join(', ')}` : ''),
+            );
+            if (id === DEFAULT_CHARACTER_ID) {
+                // Nothing to fall back to: with no figure on screen the page shows its failure note.
+                if (shownId === '') onStatusRef.current('modelFailed');
+                return;
+            }
+            restoring = true;
+            onCharacterProblemRef.current(
+                `${entry?.title ?? id} couldn't be loaded, so the default character is back.`,
+            );
+        };
+
+        const loadCharacter = (id: string) => {
+            // The load that puts the default back after a failure keeps the message; any other choice clears it.
+            if (!(restoring && id === DEFAULT_CHARACTER_ID)) onCharacterProblemRef.current(null);
+            restoring = false;
+            requestedId = id;
+            const token = ++loadToken;
+            loadController?.abort();
+            const entry = findCharacter(id, registry);
+            if (!entry) {
+                failLoad(undefined, id, 'it is not in the character list');
+                return;
+            }
+            const controller = new AbortController();
+            loadController = controller;
+            loadDancingCharacterAssets(controller.signal, entry.urls)
+                .then((assets) => {
+                    // Torn down or superseded while loading (or StrictMode's first mount): nothing owns the assets, so
+                    // free them.
+                    if (signal.aborted || token !== loadToken) {
+                        disposeDancingCharacterAssets(assets);
+                        return;
+                    }
+                    // The previous model is disposed inside setCharacter, after the new one is ready to show.
+                    const { danced, missing } = character.setCharacter(
+                        assets.model,
+                        assets.dances,
+                        entry.bodyMaterialNames,
+                    );
+                    shownId = id;
+                    if (!danced && id !== DEFAULT_CHARACTER_ID) {
+                        failLoad(entry, id, 'it cannot dance', missing);
+                        return;
+                    }
+                    if (!danced)
+                        console.error(`Dancing character "${entry.title}" cannot dance: ${missing.join(', ')}`);
+                    onStatusRef.current('ready');
+                })
+                .catch((error: unknown) => {
+                    if (signal.aborted || token !== loadToken || isAbortError(error)) return;
+                    failLoad(entry, id, 'its files could not be loaded');
+                });
+        };
+
         onStatusRef.current('loading');
-        loadDancingCharacterAssets(signal)
-            .then((assets) => {
-                // Torn down while loading (or StrictMode's first mount): nothing owns the assets, so free them.
-                if (signal.aborted) {
-                    disposeDancingCharacterAssets(assets);
-                    return;
-                }
-                character.setCharacter(assets.model, assets.dances);
-                onStatusRef.current('ready');
-            })
-            .catch((error: unknown) => {
-                if (signal.aborted || isAbortError(error)) return;
-                onStatusRef.current('modelFailed');
-            });
+        loadCharacter(valuesRef.current.character);
 
         let boundAnalyser: AnalyserNode | undefined;
         let bass: BassPulse | undefined;
@@ -161,6 +240,14 @@ export function useDancingCharacterScene(
             update: (_time, delta) => {
                 orbit.setLocked(cameraLockedRef.current);
 
+                // A different character chosen in the panel: start loading it. The old one stays on screen until the
+                // new one is ready. A choice that just failed is skipped until the control has been put back.
+                const wanted = valuesRef.current.character;
+                if (wanted !== failedId) {
+                    failedId = '';
+                    if (wanted !== requestedId) loadCharacter(wanted);
+                }
+
                 // A new source: keep the scene and just rebind the bass tap.
                 const source = analyserRef.current;
                 if (source !== boundAnalyser) {
@@ -187,6 +274,7 @@ export function useDancingCharacterScene(
             resize: () => character.resize(),
 
             dispose: () => {
+                loadController?.abort();
                 orbit.dispose();
                 bass?.dispose();
                 character.dispose();

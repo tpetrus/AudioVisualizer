@@ -1,4 +1,4 @@
-// Retargets a CMU ASF/AMC motion onto the MakeHuman rig.
+// Retargets a CMU ASF/AMC motion onto the character rig.
 //
 // Per mapped target bone the world rotation is Rt(t) = Rfix * Ws(t) * A * Rt0, where Ws(t) is the source bone's world
 // rotation (the identity at the source's rest pose, so Ws * Rs0^-1 is Ws), Rfix turns the whole motion about the
