@@ -14,6 +14,7 @@ import {
     HUB_BAND_EDGES_HZ,
     LOW_ONSET_KICK_MAX_SETTLED,
     LOW_ONSET_KICK_MIN_SKIRT,
+    LOW_ONSET_LAG_FRAMES,
     LOW_ONSET_WEAK_FRACTION,
     ONSET_LOOKAHEAD_FRAMES,
 } from './rhythmConfig';
@@ -54,7 +55,8 @@ const RING_MASK = RING - 1;
 // frames, so both run exactly this code. It allocates only in the constructor.
 //
 // Each frame it measures the energy of the six hub bands and one detection function per range: the mean positive rise
-// of log magnitude per bin, like the flux of the extractor but over finer ranges. A frame is an onset when its value is
+// of log magnitude per bin, like the flux of the extractor but over finer ranges. The low end's rise is measured
+// against LOW_ONSET_LAG_FRAMES frames back instead of the previous frame, so the ripple of a held chord is not a hit. A frame is an onset when its value is
 // the largest among the ONSET_LOOKAHEAD_FRAMES frames after it and BAND_ONSET_PAST_FRAMES before it, and it is both
 // above a floor that follows the music (a fixed minimum, a fraction of the range's recent loudest hit and a multiple of
 // its running mean) and not a ripple of the range's previous hit. The decision is therefore made
@@ -162,13 +164,25 @@ export class BandOnsets {
                 rise = 0;
             }
             if (b >= LOW_FIRST_BAND && b <= LOW_LAST_BAND) {
-                lowRise += rise;
+                // The low end's rise is measured against an older frame below, not against the previous one.
                 lowBins += bins;
             } else if (b >= SNARE_FIRST_BAND && b <= SNARE_LAST_BAND) {
                 snareRise += rise;
                 snareBins += bins;
             } else if (b === HIGHS_BAND) {
                 highsRise = rise / bins;
+            }
+        }
+
+        // A bin counts as risen when it is above where it was LOW_ONSET_LAG_FRAMES frames ago: a drum hit steps up and
+        // stays up for those frames, while the ripple of a sustained chord has come back down.
+        if (this.frames >= LOW_ONSET_LAG_FRAMES) {
+            const older = ((this.frames - LOW_ONSET_LAG_FRAMES) & RING_MASK) * this.lowBinCount;
+            for (let i = 0; i < this.lowBinCount; i++) {
+                const delta = logMagnitude[this.lowFirstBin + i] - this.lowLevels[older + i];
+                if (delta > 0 && Number.isFinite(delta)) {
+                    lowRise += delta;
+                }
             }
         }
 
@@ -269,7 +283,7 @@ export class BandOnsets {
     // resolve the pitch of the note instead (one bin is 43 Hz, wider than the gaps between bass notes), and the pitch of
     // a kick's thump and of a bass overlap anyway, so the classifier does not ask for it.
     private lowBand(candidate: number): number {
-        const before = ((candidate - 1) & RING_MASK) * this.lowBinCount;
+        const before = ((candidate - LOW_ONSET_LAG_FRAMES) & RING_MASK) * this.lowBinCount;
         const first = (candidate & RING_MASK) * this.lowBinCount;
         const last = ((candidate + ONSET_LOOKAHEAD_FRAMES) & RING_MASK) * this.lowBinCount;
         let gainAtOnset = 0;

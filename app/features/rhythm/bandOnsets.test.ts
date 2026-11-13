@@ -67,6 +67,19 @@ function addKick(pcm: Float32Array, start: number, level = 1): void {
     });
 }
 
+// A sustained chord at 174 to 330 Hz with second harmonics that fades in over `attack` seconds and whose amplitude ripples a
+// little 8 times a second, like the pads of a real mix. The partials beat against each other too.
+function addPad(pcm: Float32Array, start: number, seconds: number, attack: number): void {
+    addHit(pcm, start, seconds, (t) => {
+        const ripple = 1 + 0.05 * Math.sin(2 * Math.PI * 8 * t);
+        let sum = 0;
+        for (const hz of [220, 261.6, 329.6]) {
+            sum += Math.sin(2 * Math.PI * hz * t) + 0.3 * Math.sin(4 * Math.PI * hz * t);
+        }
+        return 0.12 * Math.min(1, t / attack) * ripple * (sum / 3);
+    });
+}
+
 // A bass note: a steady 110 Hz tone with a short attack and release.
 function addBass(pcm: Float32Array, start: number, level = 1): void {
     addHit(pcm, start, 0.3, (t) => {
@@ -195,6 +208,19 @@ describe('BandOnsets events', () => {
         addKick(pcm, 2.5);
         const { events } = run(pcm);
         expect(bandsOf(events)).toEqual([KICK, BASS, KICK]);
+    });
+
+    it('hears the kicks under a sustained pad chord and nothing in the chord itself', () => {
+        const pcm = silence(5);
+        addPad(pcm, 0.5, 4.5, 0.4);
+        const kickTimes = [0.2, 2, 3, 4];
+        for (const t of kickTimes) {
+            addKick(pcm, t);
+        }
+        const low = run(pcm).events.filter((event) => event.band === KICK || event.band === BASS);
+        // The chord's own ripple adds nothing: the low end holds the four kicks and no more.
+        expect(low.map((event) => event.band)).toEqual([KICK, KICK, KICK, KICK]);
+        low.forEach((event, i) => expect(event.time).toBeCloseTo(kickTimes[i], 1));
     });
 
     it('does not report the ripple of a hit as a second hit', () => {

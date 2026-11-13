@@ -297,3 +297,10 @@ export const BAND_ONSET_REFRACTORY_FRACTION = [0.6, 0.6, 0.6] as const;
 // of a drum attack is at least 1, and 0.5 is half of the smallest measured.
 export const LOW_ONSET_KICK_MIN_SKIRT = 0.5;
 export const LOW_ONSET_KICK_MAX_SETTLED = 0.8;
+
+// How many frames back the low end's detection function and the kick/bass classifier look for the level a bin rose from.
+// One frame (the plain flux) counts every small ripple of a sustained chord as a rise: a pad held at 174 to 330 Hz gave
+// a false bass event about every 120 ms (27 on the pad-lead-groove-110 track) while a drum hit, which steps up and stays
+// up, rises just as much from two frames back. Three or more frames smear the onset's time and the classifier's
+// baseline too far; two cleared the pad while keeping the drum onsets within the 50 ms the evaluation allows.
+export const LOW_ONSET_LAG_FRAMES = 2;
