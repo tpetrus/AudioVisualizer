@@ -9,6 +9,7 @@ import {
     CAMERA_ELEVATION,
     CLUB_REDUCED_MOTION_FLASH_STRENGTH,
     DANCE_CLOCK_SECONDS,
+    DANCE_REQUIRED_BONES,
     DANCES,
     FADE_IN_SECONDS,
     MAX_FRAME_DT,
@@ -185,8 +186,15 @@ export class DancingCharacterScene {
     }
 
     // `dances` are the loader's clips, which stay owned by the loader result: they hold no GPU resources, and the mixer
-    // is dropped with the character. With none, the model keeps its rest pose, which still renders.
-    setCharacter(model: THREE.Group, dances: ReadonlyMap<DanceId, THREE.AnimationClip> = new Map()): void {
+    // is dropped with the character. With none, the model keeps its rest pose, which still renders. The materials named
+    // in `bodyMaterialNames` are the ones the Skin tint colors. The result says whether the model can dance: `danced`
+    // is false when no clip loaded or a bone every dance drives is missing (those bones are listed in `missing`), so
+    // the caller can fall back to another character instead of showing a figure that stands still.
+    setCharacter(
+        model: THREE.Group,
+        dances: ReadonlyMap<DanceId, THREE.AnimationClip> = new Map(),
+        bodyMaterialNames: readonly string[] = BODY_MATERIAL_NAMES,
+    ): { danced: boolean; missing: string[] } {
         this.disposeCharacter();
 
         // The loader's materials may be shared with the caller, so tint copies, never the originals.
@@ -199,10 +207,7 @@ export class DancingCharacterScene {
                 : mesh.material.clone();
             mesh.material = cloned;
             for (const material of Array.isArray(cloned) ? cloned : [cloned]) {
-                if (
-                    isStandardMaterial(material) &&
-                    (BODY_MATERIAL_NAMES as readonly string[]).includes(material.name)
-                ) {
+                if (isStandardMaterial(material) && bodyMaterialNames.includes(material.name)) {
                     this.tinted.push({ material, original: material.color.clone() });
                 }
             }
@@ -238,6 +243,11 @@ export class DancingCharacterScene {
         this.fadeElapsed = 0;
         this.applyModelTransform(0);
         this.refreshDistance();
+
+        // Once per load, so the temporary set and list are fine. Tracks of a missing bone silently bind to nothing.
+        const boneNames = new Set(this.collectBones(model).map((bone) => bone.name));
+        const missing = DANCE_REQUIRED_BONES.filter((bone) => !boneNames.has(bone));
+        return { danced: this.danceActions.length > 0 && missing.length === 0, missing };
     }
 
     // One looping action per loaded dance, in the registry's order (which is also the Auto rotation order). All play at

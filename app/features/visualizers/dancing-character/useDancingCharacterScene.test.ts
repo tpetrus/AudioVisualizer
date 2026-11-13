@@ -9,6 +9,7 @@ import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
 import type { DancingCharacterAssets } from './dancingCharacterAssets';
 import { loadDancingCharacterAssets, disposeDancingCharacterAssets } from './dancingCharacterAssets';
+import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, type CharacterEntry } from './characterRegistry';
 import { dancingCharacterControls, type DancingCharacterSettings } from './dancingCharacterControls';
 import type { DancingCharacterFrame } from './dancingCharacterScene';
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
@@ -38,7 +39,7 @@ vi.mock('./dancingCharacterScene', () => ({
         readonly update = vi.fn((frame: DancingCharacterFrame) => {
             this.frames.push({ ...frame });
         });
-        readonly setCharacter = vi.fn();
+        readonly setCharacter = vi.fn(() => ({ danced: true, missing: [] as string[] }));
         readonly resize = vi.fn();
         readonly resetOrbit = vi.fn();
         readonly restartDance = vi.fn();
@@ -114,6 +115,7 @@ interface Props {
     analyser: AnalyserNode | undefined;
     cameraLocked: boolean;
     reducedMotion?: boolean;
+    registry?: readonly CharacterEntry[];
 }
 
 function mountScene(initial: Partial<Props> = {}) {
@@ -126,10 +128,11 @@ function mountScene(initial: Partial<Props> = {}) {
     const valuesRef: { current: DancingCharacterSettings } = { current: defaultValues(dancingCharacterControls) };
     const onViewChanged = vi.fn();
     const statuses: DancingCharacterLoadStatus[] = [];
+    const onCharacterProblem = vi.fn();
     const onStatus = vi.fn((status: DancingCharacterLoadStatus) => statuses.push(status));
 
     const hook = renderHook(
-        ({ analyser, cameraLocked, reducedMotion }: Props) =>
+        ({ analyser, cameraLocked, reducedMotion, registry }: Props) =>
             useDancingCharacterScene(containerRef, {
                 analyser,
                 rhythm: asTracker(tracker),
@@ -138,16 +141,42 @@ function mountScene(initial: Partial<Props> = {}) {
                 reducedMotion: reducedMotion ?? false,
                 onViewChanged,
                 onStatus,
+                onCharacterProblem,
+                registry,
             }),
         { initialProps: { analyser: undefined, cameraLocked: true, reducedMotion: false, ...initial } as Props },
     );
 
     const renderer = FakeRenderer.last;
-    return { ...hook, renderer, tracker, valuesRef, onViewChanged, onStatus, statuses, resizes, container };
+    return {
+        ...hook,
+        renderer,
+        tracker,
+        valuesRef,
+        onViewChanged,
+        onStatus,
+        onCharacterProblem,
+        statuses,
+        resizes,
+        container,
+    };
 }
 
 // Lets the promise callbacks the hook attached run.
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const makeEntry = (id: string): CharacterEntry => ({
+    id,
+    title: `Character ${id}`,
+    author: '',
+    license: 'CC0',
+    licenseVersion: '1.0',
+    sourceUrl: `https://example.test/${id}`,
+    modifiedNote: 'Changed.',
+    urls: { model: `${id}-model.glb`, dances: `${id}-dances.glb` },
+    bodyMaterialNames: [`${id}-skin`],
+});
+const FAKE_REGISTRY = [makeEntry(DEFAULT_CHARACTER_ID), makeEntry('robot'), makeEntry('fox')];
 
 describe('useDancingCharacterScene', () => {
     beforeEach(() => {
@@ -179,7 +208,11 @@ describe('useDancingCharacterScene', () => {
             loads[0].resolve(assets);
             await flush();
 
-            expect(character().setCharacter).toHaveBeenCalledWith(assets.model, assets.dances);
+            expect(character().setCharacter).toHaveBeenCalledWith(
+                assets.model,
+                assets.dances,
+                CHARACTER_REGISTRY[0].bodyMaterialNames,
+            );
             expect(statuses).toEqual(['loading', 'ready']);
         });
 
@@ -232,6 +265,214 @@ describe('useDancingCharacterScene', () => {
             await flush();
 
             expect(statuses).toEqual(['loading']);
+        });
+    });
+
+    describe('switching characters', () => {
+        // Mounts with the fake registry, loads the default, and returns helpers for choosing a character.
+        async function mountLoaded() {
+            const mounted = mountScene({ registry: FAKE_REGISTRY });
+            const first = makeAssets();
+            loads[0].resolve(first);
+            await flush();
+            const choose = (id: string) => {
+                mounted.valuesRef.current = { ...mounted.valuesRef.current, character: id };
+                mounted.renderer.renderFrame(0);
+            };
+            return { ...mounted, first, choose };
+        }
+
+        it('loads the default character from its registry urls at mount', () => {
+            mountScene({ registry: FAKE_REGISTRY });
+
+            expect(loadDancingCharacterAssets).toHaveBeenCalledWith(expect.any(AbortSignal), FAKE_REGISTRY[0].urls);
+        });
+
+        it('loads a newly chosen character once, keeps the old model until it arrives, and then swaps', async () => {
+            const { choose, onStatus } = await mountLoaded();
+
+            choose('robot');
+            choose('robot');
+
+            expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(2);
+            expect(loadDancingCharacterAssets).toHaveBeenLastCalledWith(expect.any(AbortSignal), FAKE_REGISTRY[1].urls);
+            expect(character().setCharacter).toHaveBeenCalledTimes(1);
+
+            const robot = makeAssets();
+            loads[1].resolve(robot);
+            await flush();
+
+            // The scene disposes the model it replaces inside setCharacter; the hook only hands over the new one.
+            expect(character().setCharacter).toHaveBeenLastCalledWith(robot.model, robot.dances, ['robot-skin']);
+            expect(onStatus).toHaveBeenLastCalledWith('ready');
+        });
+
+        it('ignores a stale load that arrives after a newer request, and frees its assets', async () => {
+            const { choose } = await mountLoaded();
+
+            choose('robot');
+            choose('fox');
+            expect(loads[1].signal.aborted).toBe(true);
+
+            const stale = makeAssets();
+            const fresh = makeAssets();
+            loads[2].resolve(fresh);
+            await flush();
+            loads[1].resolve(stale);
+            await flush();
+
+            expect(disposeDancingCharacterAssets).toHaveBeenCalledWith(stale);
+            expect(character().setCharacter).toHaveBeenCalledTimes(2);
+            expect(character().setCharacter).toHaveBeenLastCalledWith(fresh.model, fresh.dances, ['fox-skin']);
+        });
+
+        it('ignores the failure of a superseded load', async () => {
+            const { choose, onCharacterProblem } = await mountLoaded();
+
+            choose('robot');
+            choose('fox');
+            loads[1].reject(new Error('404'));
+            await flush();
+
+            expect(onCharacterProblem).not.toHaveBeenCalledWith(expect.stringContaining('robot'));
+        });
+
+        it('on a load error names the problem, logs it and asks for the default back without retrying', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose, onCharacterProblem } = await mountLoaded();
+
+            choose('robot');
+            loads[1].reject(new Error('404'));
+            await flush();
+            // Until the page puts the default back the control still says robot; that is not retried.
+            choose('robot');
+
+            expect(onCharacterProblem).toHaveBeenLastCalledWith(expect.stringContaining('Character robot'));
+            expect(error).toHaveBeenCalledWith(expect.stringContaining('Character robot'));
+            expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(2);
+            error.mockRestore();
+        });
+
+        it('when the new model cannot dance logs its missing bones and loads the default again', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose, onCharacterProblem } = await mountLoaded();
+            character().setCharacter.mockReturnValueOnce({ danced: false, missing: ['spine01', 'root'] });
+
+            choose('robot');
+            loads[1].resolve(makeAssets());
+            await flush();
+
+            expect(error).toHaveBeenCalledWith(expect.stringContaining('missing bones: spine01, root'));
+            expect(onCharacterProblem).toHaveBeenLastCalledWith(expect.stringContaining('Character robot'));
+
+            // The page restored the default in the control; that is a normal choice and loads it again.
+            onCharacterProblem.mockClear();
+            choose(DEFAULT_CHARACTER_ID);
+            expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(3);
+            expect(loadDancingCharacterAssets).toHaveBeenLastCalledWith(expect.any(AbortSignal), FAKE_REGISTRY[0].urls);
+            // That restoring load must not clear the message.
+            expect(onCharacterProblem).not.toHaveBeenCalledWith(null);
+            error.mockRestore();
+        });
+
+        it('does not reload the default after a failed switch from the default itself', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose } = await mountLoaded();
+
+            choose('robot');
+            loads[1].reject(new Error('404'));
+            await flush();
+            choose(DEFAULT_CHARACTER_ID);
+
+            expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(2);
+            error.mockRestore();
+        });
+
+        it('clears the message when another character is chosen afterwards', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose, onCharacterProblem } = await mountLoaded();
+
+            choose('robot');
+            loads[1].reject(new Error('404'));
+            await flush();
+            choose(DEFAULT_CHARACTER_ID);
+            onCharacterProblem.mockClear();
+            choose('fox');
+
+            expect(onCharacterProblem).toHaveBeenCalledWith(null);
+            error.mockRestore();
+        });
+
+        it('treats a character that is not in the registry as a failure', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose, onCharacterProblem } = await mountLoaded();
+
+            choose('ghost');
+
+            expect(onCharacterProblem).toHaveBeenLastCalledWith(expect.stringContaining('ghost'));
+            expect(loadDancingCharacterAssets).toHaveBeenCalledTimes(1);
+            error.mockRestore();
+        });
+
+        it('reports modelFailed when the default fails and nothing is on screen, without asking for a restore', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { statuses, onCharacterProblem } = mountScene({ registry: FAKE_REGISTRY });
+
+            loads[0].reject(new Error('404'));
+            await flush();
+
+            expect(statuses).toEqual(['loading', 'modelFailed']);
+            expect(onCharacterProblem).not.toHaveBeenCalledWith(expect.any(String));
+            error.mockRestore();
+        });
+
+        it('stays quiet when the default fails while another character is on screen', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { choose, statuses, onCharacterProblem } = await mountLoaded();
+            choose('robot');
+            loads[1].resolve(makeAssets());
+            await flush();
+
+            choose(DEFAULT_CHARACTER_ID);
+            loads[2].reject(new Error('404'));
+            await flush();
+
+            expect(statuses).not.toContain('modelFailed');
+            expect(onCharacterProblem).not.toHaveBeenCalledWith(expect.any(String));
+            expect(error).toHaveBeenCalled();
+            error.mockRestore();
+        });
+
+        it('logs, but keeps the default, when it loads with no dances', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const { onCharacterProblem, statuses } = mountScene({ registry: FAKE_REGISTRY });
+            character().setCharacter.mockReturnValueOnce({ danced: false, missing: [] });
+
+            loads[0].resolve(makeAssets());
+            await flush();
+
+            expect(error).toHaveBeenCalled();
+            expect(onCharacterProblem).not.toHaveBeenCalledWith(expect.any(String));
+            expect(statuses).toEqual(['loading', 'ready']);
+            error.mockRestore();
+        });
+
+        it('aborts the load in flight on unmount', async () => {
+            const { choose, unmount } = await mountLoaded();
+            choose('robot');
+
+            unmount();
+
+            expect(loads[1].signal.aborted).toBe(true);
+        });
+
+        it('uses the real registry by default', () => {
+            mountScene();
+
+            expect(loadDancingCharacterAssets).toHaveBeenCalledWith(
+                expect.any(AbortSignal),
+                CHARACTER_REGISTRY[0].urls,
+            );
         });
     });
 
@@ -537,6 +778,7 @@ describe('useDancingCharacterScene', () => {
                         reducedMotion: false,
                         onViewChanged: vi.fn(),
                         onStatus: vi.fn(),
+                        onCharacterProblem: vi.fn(),
                     },
                 ),
             );

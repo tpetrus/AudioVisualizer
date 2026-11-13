@@ -4,12 +4,14 @@ import {
     dancingCharacterControls,
     dancingCharacterReducedMotionControls,
 } from './dancingCharacterControls';
+import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID } from './characterRegistry';
 import { CALM_DANCE_ID, DANCES } from './dancingCharacterConfig';
 import { defaultValues, isShown } from '~/components/ControlPanel/controls';
 
 describe('dancingCharacterControls', () => {
     it('has the settings the plan freezes, with their defaults', () => {
         expect(defaultValues(dancingCharacterControls)).toEqual({
+            character: 'makehuman',
             dance: 'auto',
             danceSpeed: 1,
             autoOrbit: true,
@@ -25,9 +27,22 @@ describe('dancingCharacterControls', () => {
         });
     });
 
-    it('starts the panel with a Dance select: Auto first, then every dance', () => {
-        expect(dancingCharacterControls[0]).toMatchObject({ section: 'Dance', key: 'dance', type: 'select' });
+    it('starts the panel with a Character select built from the registry, defaulting to MakeHuman', () => {
+        expect(dancingCharacterControls[0]).toMatchObject({
+            section: 'Character',
+            key: 'character',
+            label: 'Character',
+            type: 'select',
+            default: DEFAULT_CHARACTER_ID,
+        });
         const options = (dancingCharacterControls[0] as { options: { value: string; label: string }[] }).options;
+        expect(options).toEqual(CHARACTER_REGISTRY.map((entry) => ({ value: entry.id, label: entry.title })));
+    });
+
+    it('has a Dance select with Auto first, then every dance', () => {
+        const dance = dancingCharacterControls[1];
+        expect(dance).toMatchObject({ section: 'Dance', key: 'dance', type: 'select' });
+        const options = (dance as { options: { value: string; label: string }[] }).options;
         expect(options).toEqual([
             { value: 'auto', label: 'Auto' },
             ...DANCES.map((dance) => ({ value: dance.id, label: dance.label })),
