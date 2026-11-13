@@ -100,6 +100,8 @@ S2 answered Q2: the tap and the worklet stay after the gain control. The types a
   from the same tracks the thresholds were set on. On the six local debug tracks the detector emits 2 to 9 low-end
   events and up to 8 snare events per tapped beat. Consumers must gate on `onsetStrength` and must not read the events
   as one per drum hit until a later slice measures and fixes that.
+- Up to `ONSET_LOOKAHEAD_FRAMES` onset candidates still waiting for their look-ahead are dropped when the worklet
+  resets after skipped blocks, and at the end of the input; there is no flush.
 - `bandEnergy` is in the packed frame's energy units and not normalized; normalizing is the hub's job (C5, S7).
 - `BATCH_FRAMES` stays 8 in S4. S5 measures and cuts it.
 - C5 and C6 are written at the start of the slices that implement them (S7 and S5).
