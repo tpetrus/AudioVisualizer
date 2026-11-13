@@ -29,6 +29,7 @@ import { writeAnimationGlb } from './glb';
 import { directorySource, fetchVerified, loadInputs } from './inputs';
 import { KEYS_PER_BEAT, beatKeys, combineLoops, makeLoop } from './loop';
 import { MANIFESTS as RECIPES } from './manifests';
+import { clearSoles } from './soles';
 import { applyTuning, parseTuning } from './tuning';
 import type { DanceManifest, TakeSpec } from './manifests';
 import { retarget } from './retarget';
@@ -85,6 +86,12 @@ function danceClip(inputs: ReadonlyMap<string, Buffer>, manifest: DanceManifest,
         const { driver, shiftBeats, liftCapDegrees, elbowCapMeters } = manifest.mirror;
         const capped = capUpperArms(rig, clip, liftCapDegrees, elbowCapMeters, id);
         clip = mirrorArm(rig, capped, driver === 'L' ? 'R' : 'L', shiftBeats * KEYS_PER_BEAT, id);
+    }
+    if (manifest.soleClearanceMeters !== undefined) {
+        const soles = clearSoles(rig, clip, manifest.soleClearanceMeters);
+        console.log(
+            `${id}: soles dipped up to ${(soles.dipBefore * 100).toFixed(1)} cm, now ${(soles.dipAfter * 100).toFixed(1)} cm`,
+        );
     }
     const arms = clearArms(rig, torso, clip);
     if (manifest.head) {

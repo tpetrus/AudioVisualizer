@@ -130,11 +130,11 @@ hashed under `/assets/` with immutable caching.
   fan art and may not be used commercially.
 - Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton (`scripts/blender-characters/convert.py` with
   `bone-map.json`), materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above,
-  retargeted to this skeleton with `tuning.json` (arm and leg amplitude, ground lock, mirrored elbow cap).
+  retargeted to this skeleton with `tuning.json` (arm amplitude, ground lock, mirrored elbow cap, sole clearance).
 - Trademark: Mr Incredible is a character of Disney/Pixar. This is unofficial fan art; the CC license cannot clear the
   underlying character rights, and the entry is removed on request.
 - Results: `model.glb` 2459856 bytes sha256 `d5e0ab5debcb54d70e1b95992b2bedc547aa025320d0dde598c7a82bd0cc86b8`; `dances.glb`
-  196968 bytes sha256 `5e89d0caf56655ed13734a053f8660b4c27731960a83a24da386a6e7ca2943a9`.
+  196968 bytes sha256 `b30fab51c331bab5948ee60953f071abdff646b321ce28fa7d26108743ea30d6`.
 - Rebuild: `blender --factory-startup --disable-autoexec --background <file.blend> --python
   scripts/blender-characters/convert.py -- --map <bone-map.json> --out <model.glb> --max-mb 3`, then the dance build with
   `--model <model.glb>` (see its header comment).
@@ -148,11 +148,11 @@ hashed under `/assets/` with immutable caching.
   fan art and may not be used commercially, which conflicts with the plain CC0 label.
 - Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton (`scripts/blender-characters/convert.py` with
   `bone-map.json`), materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above,
-  retargeted to this skeleton with `tuning.json`.
+  retargeted to this skeleton with `tuning.json` (arm amplitude, ground lock, sole clearance).
 - Trademark: Wario is a character of Nintendo. This is unofficial fan art; the CC0 label cannot clear the underlying
   character rights, and the entry is removed on request.
 - Results: `model.glb` 2077164 bytes sha256 `0abba69c724dcb6dd7d08a769df3c0af966f461d700b0a53684032c8f7247afe`; `dances.glb`
-  196968 bytes sha256 `2d8efd9bc3c7c520c0dcf17355062107f51d2ec7cec68f234d82bf711e21e7ee`.
+  196968 bytes sha256 `906344d44f8758c4238a526a9cc437c8d301ab61e2fa592196a6eb121df818ca`.
 - Rebuild: as for Mr Incredible.
 
 ## Characters/mario (Mario)
@@ -169,5 +169,5 @@ hashed under `/assets/` with immutable caching.
 - Trademark: Mario is a character of Nintendo. This is unofficial fan art; the CC license cannot clear the underlying
   character rights, and the entry is removed on request.
 - Results: `model.glb` 2360712 bytes sha256 `d42b3875a95b8fd55157d4b0d81a25a32f4eec6915bb8aa9bb947827c2954d6b`; `dances.glb`
-  196968 bytes sha256 `86a2034cdc2aacf0a546e820c5c2986e0326ab3141ed42590ba7eac79646204d`.
+  196968 bytes sha256 `92709184e8307ccde15f706f3bb7bd086401d91f5c150e9a88b3b49768210352`.
 - Rebuild: as for Mr Incredible.

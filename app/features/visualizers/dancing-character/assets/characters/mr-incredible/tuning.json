@@ -1,14 +1,48 @@
 {
   "lambada": {
-    "groundLock": { "tolerance": 0.028 },
-    "amplitude": [{ "group": "arms", "scale": 0.6, "restBlend": 0.3 }]
+    "groundLock": {
+      "tolerance": 0.028
+    },
+    "amplitude": [
+      {
+        "group": "arms",
+        "scale": 0.6,
+        "restBlend": 0.3
+      }
+    ],
+    "soleClearanceMeters": 0.015
   },
   "twist": {
     "amplitude": [
-      { "group": "arms", "scale": 0.6 },
-      { "group": "legs", "scale": 0.92 }
-    ]
+      {
+        "group": "arms",
+        "scale": 0.6
+      },
+      {
+        "group": "legs",
+        "scale": 0.92
+      }
+    ],
+    "soleClearanceMeters": 0.015
   },
-  "cabbage-patch": { "amplitude": [{ "group": "arms", "scale": 0.5, "restBlend": 0.4 }] },
-  "salsa": { "elbowCapMeters": 0.26, "amplitude": [{ "group": "arms", "scale": 0.6 }] }
+  "cabbage-patch": {
+    "amplitude": [
+      {
+        "group": "arms",
+        "scale": 0.5,
+        "restBlend": 0.4
+      }
+    ],
+    "soleClearanceMeters": 0.015
+  },
+  "salsa": {
+    "elbowCapMeters": 0.26,
+    "amplitude": [
+      {
+        "group": "arms",
+        "scale": 0.6
+      }
+    ],
+    "soleClearanceMeters": 0.015
+  }
 }

@@ -11,6 +11,7 @@ import type { DanceManifest } from './manifests';
 export const TUNING_GROUPS: Readonly<Record<string, readonly string[]>> = {
     arms: SHOULDERS_AND_ARMS,
     spine: SPINE_AND_HEAD,
+    feet: ['footL', 'footR'],
     legs: ['upperleg01L', 'upperleg01R', 'lowerleg01L', 'lowerleg01R', 'footL', 'footR'],
 };
 
@@ -20,6 +21,9 @@ export interface DanceTuning {
     // Replaces the mirrored arm's elbow cap in meters; the recipe's value suits MakeHuman's 0.23 m upper arm, so a
     // character with longer upper arms needs a proportionally larger one.
     elbowCapMeters?: number;
+    // Ease the feet back toward flat wherever a toe or heel would dip more than this many meters below the sole's rest
+    // level, so the floor the app puts under the dance is not set by one deep dip.
+    soleClearanceMeters?: number;
     // Added after the recipe's own amplitude groups.
     amplitude?: readonly { group: string; scale: number; restBlend?: number }[];
 }
@@ -53,6 +57,7 @@ export function applyTuning(manifest: DanceManifest, tuning: Tuning): DanceManif
         ...manifest,
         groundLock: own.groundLock === undefined ? manifest.groundLock : own.groundLock,
         amplitude: [...manifest.amplitude, ...extra],
+        ...(own.soleClearanceMeters === undefined ? {} : { soleClearanceMeters: own.soleClearanceMeters }),
         ...(manifest.mirror && own.elbowCapMeters !== undefined
             ? { mirror: { ...manifest.mirror, elbowCapMeters: own.elbowCapMeters } }
             : {}),

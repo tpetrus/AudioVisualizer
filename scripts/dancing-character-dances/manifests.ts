@@ -78,6 +78,8 @@ export interface DanceManifest {
     // Per-bone-group amplitude scaling, applied before the arm passes.
     amplitude: readonly AmplitudeGroup[];
     mirror?: ArmMirrorSpec;
+    // Set by a character's tuning: the deepest a sole may dip below its rest level before the feet are eased flat.
+    soleClearanceMeters?: number;
     head?: HeadSpec;
 }
 
