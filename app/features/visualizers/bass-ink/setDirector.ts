@@ -36,6 +36,16 @@ export class SetDirector {
     private songChangeLatched = false;
     // Deadline of a song change waiting for a drop to share its transition, or -1.
     private pendingDeadline = -1;
+    // Scene time sound was first heard, or -1 before; builds and drops wait for the warm-up after it.
+    private soundSince = -1;
+    // Scene time the bass dip started holding without a break, or -1 while it does not hold.
+    private dipSince = -1;
+    // Same for the softer, longer cut.
+    private softDipSince = -1;
+    // Lowest energy ratio seen in the current build; the drop is measured from it.
+    private buildMinRatio = Infinity;
+    // Scene time the bass surge started holding without a break, or -1 while it does not hold.
+    private surgeSince = -1;
 
     constructor(config: DirectorConfig = bassInkConfig.director) {
         this.config = config;
@@ -114,6 +124,60 @@ export class SetDirector {
 
     private updateGroove(state: RhythmState, energy: EnergyEnvelope, now: number): void {
         const config = this.config;
+        const sounding = energy.fast > config.silenceFloor;
+        if (sounding && this.soundSince < 0) {
+            this.soundSince = now;
+        }
+        if (this.soundSince < 0 || now - this.soundSince < config.warmupSeconds) {
+            this.cueHeldSince = -1;
+            this.dipSince = -1;
+            this.softDipSince = -1;
+            this.surgeSince = -1;
+            return;
+        }
+
+        // The bass arriving out of a quiet intro is a drop with no build before it.
+        if (energy.ratio >= config.surgeRatio) {
+            if (this.surgeSince < 0) {
+                this.surgeSince = now;
+            }
+            if (now - this.surgeSince >= config.surgeSeconds && state.bandOnsets[0] >= config.dropKickLevel) {
+                this.surgeSince = -1;
+                this.cueHeldSince = -1;
+                this.dipSince = -1;
+                this.softDipSince = -1;
+                this.drop(now);
+                return;
+            }
+        } else {
+            this.surgeSince = -1;
+        }
+
+        // A bass cut is the strongest sign of a coming drop, so it enters the build on its own.
+        if (sounding && energy.ratio <= config.dipRatio) {
+            if (this.dipSince < 0) {
+                this.dipSince = now;
+            }
+            if (now - this.dipSince >= config.dipSeconds) {
+                this.enterBuild(now);
+                return;
+            }
+        } else {
+            this.dipSince = -1;
+        }
+        // A soft cut needs to hold longer, so a quieter bar or a filter sweep in a groove is not read as a breakdown.
+        if (sounding && energy.ratio <= config.softDipRatio) {
+            if (this.softDipSince < 0) {
+                this.softDipSince = now;
+            }
+            if (now - this.softDipSince >= config.softDipSeconds) {
+                this.enterBuild(now);
+                return;
+            }
+        } else {
+            this.softDipSince = -1;
+        }
+
         const loud = energy.ratio >= config.buildEnterRatio;
         const kickGone = state.bandOnsets[0] < config.kickAbsentLevel && energy.fast > config.silenceFloor;
         if (!loud && !kickGone) {
@@ -129,12 +193,19 @@ export class SetDirector {
             held >= config.buildEnterSeconds &&
             (state.novelty >= config.noveltyConfirm || held >= 2 * config.buildEnterSeconds)
         ) {
-            this.setPhase('build', now);
-            this.buildStart = now;
-            this.cueHeldSince = -1;
-            if (!this.transitioning) {
-                this.cue.nextFormationIndex = this.pick(this.cue.formationIndex);
-            }
+            this.enterBuild(now);
+        }
+    }
+
+    private enterBuild(now: number): void {
+        this.setPhase('build', now);
+        this.buildStart = now;
+        this.buildMinRatio = Infinity;
+        this.cueHeldSince = -1;
+        this.dipSince = -1;
+        this.softDipSince = -1;
+        if (!this.transitioning) {
+            this.cue.nextFormationIndex = this.pick(this.cue.formationIndex);
         }
     }
 
@@ -146,7 +217,12 @@ export class SetDirector {
         // Tension never falls inside a build, so each core step is reached once.
         cue.tension = Math.max(cue.tension, Math.min(1, Math.max(0, target)));
 
-        if (energy.ratio >= config.dropRatio && state.bandOnsets[0] >= config.dropKickLevel) {
+        this.buildMinRatio = Math.min(this.buildMinRatio, energy.ratio);
+        if (
+            energy.ratio >= config.dropRatio &&
+            energy.ratio - this.buildMinRatio >= config.dropRise &&
+            state.bandOnsets[0] >= config.dropKickLevel
+        ) {
             this.drop(now);
         } else if (elapsed >= config.buildMaxSeconds) {
             this.abandonBuild(now);

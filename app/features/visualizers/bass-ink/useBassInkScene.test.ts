@@ -303,19 +303,19 @@ describe('useBassInkScene', () => {
     });
 
     describe('audio', () => {
-        it('reads the loudness from the time-domain data of the bound analyser', () => {
+        it('reads the bass level from the frequency data of the bound analyser', () => {
             const { analyser, node } = createAnalyser();
             const { frame } = mountScene({ analyser: node });
-            analyser.setFloatTimeDomainData(0.5);
+            analyser.setByteFrequencyData(51);
 
             frame();
 
             expect(node.fftSize).toBe(2048);
-            expect(analyser.getFloatTimeDomainData).toHaveBeenCalled();
-            expect(readProbe()[0]).toBeCloseTo(0.5, 6);
+            expect(analyser.getByteFrequencyData).toHaveBeenCalled();
+            expect(readProbe()[0]).toBeCloseTo(0.2, 6);
         });
 
-        it('reports no loudness while there is no analyser', () => {
+        it('reports no bass level while there is no analyser', () => {
             const { frame } = mountScene();
             frame();
 
@@ -329,11 +329,11 @@ describe('useBassInkScene', () => {
             frame();
 
             rerender({ analyser: second.node, cameraLocked: true });
-            second.analyser.setFloatTimeDomainData(0.25);
+            second.analyser.setByteFrequencyData(102);
             frame();
 
-            expect(second.analyser.getFloatTimeDomainData).toHaveBeenCalled();
-            expect(readProbe()[0]).toBeCloseTo(0.25, 6);
+            expect(second.analyser.getByteFrequencyData).toHaveBeenCalled();
+            expect(readProbe()[0]).toBeCloseTo(0.4, 6);
             expect(allClouds()).toHaveLength(1);
             expect(FakeRenderer.instances).toEqual([renderer]);
         });

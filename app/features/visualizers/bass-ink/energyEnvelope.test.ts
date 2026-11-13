@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EnergyTracker, rmsOfTimeDomain } from './energyEnvelope';
+import { bassBinCount, bassLevel, EnergyTracker } from './energyEnvelope';
 
 function trace(fps: number, seconds: number, level: (t: number) => number, scale = 1): number[] {
     const tracker = new EnergyTracker();
@@ -12,14 +12,25 @@ function trace(fps: number, seconds: number, level: (t: number) => number, scale
     return out;
 }
 
-describe('rmsOfTimeDomain', () => {
-    it('is the root mean square', () => {
-        expect(rmsOfTimeDomain(new Float32Array([1, -1, 1, -1]))).toBeCloseTo(1);
-        expect(rmsOfTimeDomain(new Float32Array([0.5, 0.5]))).toBeCloseTo(0.5);
+describe('bassBinCount', () => {
+    it('counts the bins up to the cutoff, from bin 1', () => {
+        // 48 kHz / 2048 = 23.4 Hz per bin, so 120 Hz is 5 bins.
+        expect(bassBinCount(48000, 2048, 120)).toBe(5);
     });
 
-    it('is 0 for an empty buffer', () => {
-        expect(rmsOfTimeDomain(new Float32Array(0))).toBe(0);
+    it('is at least one bin', () => {
+        expect(bassBinCount(48000, 256, 50)).toBe(1);
+    });
+});
+
+describe('bassLevel', () => {
+    it('is the mean of bins 1..count as 0..1, skipping the DC bin', () => {
+        expect(bassLevel(new Uint8Array([255, 255, 0, 0]), 2)).toBeCloseTo(0.5);
+    });
+
+    it('clamps the count to the spectrum and is 0 without bass bins', () => {
+        expect(bassLevel(new Uint8Array([0, 51]), 10)).toBeCloseTo(0.2);
+        expect(bassLevel(new Uint8Array([255]), 3)).toBe(0);
     });
 });
 
@@ -103,5 +114,14 @@ describe('EnergyTracker', () => {
         }
         expect(tracker.slow).toBeLessThan(0.005);
         expect(tracker.ratio).toBe(1);
+    });
+
+    it('does not read a fade-in as a surge: the slow follower is the running mean until it has heard enough', () => {
+        const tracker = new EnergyTracker();
+        // A near-silent first sample, a one-second fade up, then steady music.
+        for (let t = 0; t < 4; t += 1 / 60) {
+            tracker.update(t < 1 ? 0.01 + 0.49 * t : 0.5, 1 / 60);
+        }
+        expect(tracker.ratio).toBeLessThan(1.3);
     });
 });

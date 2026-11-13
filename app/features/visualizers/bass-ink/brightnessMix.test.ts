@@ -137,11 +137,12 @@ function runScene(bpm: number, intensity: number) {
             nextKick += period;
         }
         state.bandOnsets[0] = onset;
-        // 0-8 s groove, 8-18 s build, drop at the first kick after 18 s, then afterglow and groove again.
+        // 0-8 s groove, 8-18 s with the bass cut (the build), the bass back at 18 s (the drop at the first kick),
+        // then afterglow and groove again.
         const building = now >= 8 && now < 18;
-        energy.ratio = building ? 1.45 : dropped ? 1 : 1;
+        energy.ratio = building ? 0.5 : 1;
         if (now >= 18 && !dropped) {
-            energy.ratio = 1.8;
+            energy.ratio = 1.6;
             if (director.cue.dropAt >= 0) {
                 dropped = true;
             }

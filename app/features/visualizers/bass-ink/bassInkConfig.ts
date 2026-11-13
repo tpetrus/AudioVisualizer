@@ -9,6 +9,10 @@ export const bassInkConfig = {
         slowTauSeconds: 8,
         // Below this RMS the slow envelope is treated as silence, so a quiet gap does not turn into a huge ratio.
         silenceFloor: 0.005,
+        // The envelopes follow the bass below this frequency: a DJ builds tension by pulling the bass out and drops by
+        // bringing it back, which shows far more clearly in the bass than in the full-band loudness. Same cutoff as
+        // the debug harness's bassRaw column, so recordings can be replayed against these rules.
+        bassCutoffHz: 120,
     },
     kick: {
         // The kick onset is a decaying peak-hold, so a real kick shows as a jump between two frames.
@@ -48,14 +52,31 @@ export const bassInkConfig = {
         edgeHueShiftDegrees: 40,
     },
     director: {
-        // Energy at 1.35x its recent level, held, reads as a build.
-        buildEnterRatio: 1.35,
+        // Bass at 1.6x its recent level, held, reads as a build. Set high because the bass staying up after a drop
+        // also runs above its recent level for a while, and that is not a build. With a kick on top the same rise is
+        // a surge drop (surgeRatio below), so in practice this path is the kickless riser.
+        buildEnterRatio: 1.6,
         // The cue must hold this long without a break, so a loud bar or one missing kick is not a build.
         buildEnterSeconds: 2,
         // Novelty only confirms a build early; without it the cue must hold twice as long.
         noveltyConfirm: 0.5,
         // Kick onset below this (while there is sound) means a breakdown or riser.
         kickAbsentLevel: 0.15,
+        // The energy fed in is the bass. Bass this far below its recent level means the DJ pulled it out (a breakdown
+        // or the classic one-bar cut before a drop); held this long it is a build on its own, without novelty, because
+        // novelty needs half a minute of history and lags the cut by seconds.
+        dipRatio: 0.7,
+        dipSeconds: 1,
+        // A softer cut, held longer, is a breakdown where the DJ only thins the bass out for a phrase.
+        softDipRatio: 0.85,
+        softDipSeconds: 3,
+        // No build or drop is read until there has been sound for this long: the slow envelope needs time to learn
+        // the level, and a track fading in would otherwise look like a huge surge.
+        warmupSeconds: 6,
+        // A drop out of a quiet intro has no cut before it: the bass simply arrives at twice its level or more and
+        // stays. Held this long it is a drop on its own, which also keeps one loud hit from counting.
+        surgeRatio: 1.6,
+        surgeSeconds: 1,
         // Energy floor for the breakdown cue, in line with the energy tracker's silence floor.
         silenceFloor: 0.005,
         // Tension climbs from 0 to 1 over this time during a build.
@@ -64,9 +85,13 @@ export const bassInkConfig = {
         buildRatioPush: 0.15,
         // A build with no drop for this long is given up.
         buildMaxSeconds: 40,
-        // The drop needs a clear loudness jump and a real kick on the same frame.
-        dropRatio: 1.5,
-        dropKickLevel: 0.6,
+        // The drop needs the bass back well above its recent level and a real kick on the same frame. Tuned on the
+        // local reference clips: after a cut the bass is back above its recent level within a few frames of the drop.
+        dropRatio: 1.05,
+        dropKickLevel: 0.4,
+        // The drop must also rise this far above the lowest ratio of its build, so a loud build (already above
+        // dropRatio) does not drop on the frame it starts, while the bass coming back after a cut easily does.
+        dropRise: 0.4,
         // How long the drop phase lasts before the afterglow settles things.
         dropHoldSeconds: 1.5,
         // No new build can start during the afterglow, so one drop is not followed by an instant re-build.

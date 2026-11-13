@@ -6,11 +6,16 @@ import { FORMATION_COUNT } from './bassInkTypes';
 import { SetDirector } from './setDirector';
 
 const config = bassInkConfig.director;
+// Most sequences start their build at once; the warm-up has its own spec below.
+const noWarmup = { ...config, warmupSeconds: 0 };
+// A loud build and the drop out of it, from the configured thresholds so the sequences follow tuning.
+const BUILD_RATIO = config.buildEnterRatio + 0.1;
+const DROP_RATIO = BUILD_RATIO + config.dropRise + 0.1;
 const DT = 1 / 60;
 
 // A scripted rig: set the inputs, run some seconds, read the cue.
 class Rig {
-    readonly director = new SetDirector();
+    readonly director = new SetDirector(noWarmup);
     readonly state = createRhythmState();
     readonly energy = { fast: 0.2, slow: 0.2, ratio: 1 };
     now = 0;
@@ -29,7 +34,7 @@ class Rig {
 
     // A loud build with novelty to confirm it.
     build(): void {
-        this.energy.ratio = 1.5;
+        this.energy.ratio = BUILD_RATIO;
         this.state.bandOnsets[0] = 0.3;
         this.state.novelty = 0.8;
     }
@@ -47,7 +52,7 @@ class Rig {
     }
 
     drop(): void {
-        this.energy.ratio = 1.8;
+        this.energy.ratio = DROP_RATIO;
         this.state.bandOnsets[0] = 1;
         this.step();
         this.groove();
@@ -247,7 +252,7 @@ describe('SetDirector', () => {
 
     it('only latches the song change count on the first update', () => {
         const rig = new Rig();
-        const late = new SetDirector();
+        const late = new SetDirector(noWarmup);
         rig.state.songChangeCount = 5;
         late.update(rig.state, rig.energy, 0);
         late.update(rig.state, rig.energy, 10);
@@ -282,7 +287,7 @@ describe('SetDirector', () => {
     });
 
     it('plays the drop burst but starts no second transition for a drop right after a song-change transition', () => {
-        const director = new SetDirector({ ...config, buildEnterSeconds: 0.2 });
+        const director = new SetDirector({ ...noWarmup, buildEnterSeconds: 0.2 });
         const state = createRhythmState();
         const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
         let now = 0;
@@ -299,11 +304,11 @@ describe('SetDirector', () => {
         expect(director.cue.transitionCount).toBe(1);
         const start = director.cue.transitionStart;
         // A build right after the song-change transition, dropping about a second later.
-        energy.ratio = 1.5;
+        energy.ratio = BUILD_RATIO;
         state.novelty = 1;
         tick(0.5);
         expect(director.cue.phase).toBe('build');
-        energy.ratio = 1.8;
+        energy.ratio = DROP_RATIO;
         state.bandOnsets[0] = 1;
         tick(DT * 2);
         expect(director.cue.phase).toBe('drop');
@@ -340,7 +345,7 @@ describe('SetDirector', () => {
     });
 
     it('restarts a transition mid-fade from the old target', () => {
-        const director = new SetDirector({ ...config, coalesceSeconds: 0.05 });
+        const director = new SetDirector({ ...noWarmup, coalesceSeconds: 0.05 });
         const state = createRhythmState();
         const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
         director.update(state, energy, 0);
@@ -360,7 +365,7 @@ describe('SetDirector', () => {
     });
 
     it('does not re-pick the target of a transition when a build starts during it', () => {
-        const director = new SetDirector({ ...config, buildEnterSeconds: 0.5, coalesceSeconds: 0.1 });
+        const director = new SetDirector({ ...noWarmup, buildEnterSeconds: 0.5, coalesceSeconds: 0.1 });
         const state = createRhythmState();
         const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
         state.bandOnsets[0] = 0.5;
@@ -370,7 +375,7 @@ describe('SetDirector', () => {
         director.update(state, energy, 0.2);
         const target = director.cue.nextFormationIndex;
         expect(director.cue.transitionCount).toBe(1);
-        energy.ratio = 1.5;
+        energy.ratio = BUILD_RATIO;
         state.novelty = 1;
         for (let t = 0.25; t < 1.2; t += 0.05) {
             director.update(state, energy, t);
@@ -401,8 +406,8 @@ describe('SetDirector', () => {
     });
 
     it('picks formations deterministically and never the same one twice in a row', () => {
-        const a = new SetDirector();
-        const b = new SetDirector();
+        const a = new SetDirector(noWarmup);
+        const b = new SetDirector(noWarmup);
         expect(a.cue.nextFormationIndex).toBe(b.cue.nextFormationIndex);
         const state = createRhythmState();
         const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
@@ -428,5 +433,96 @@ describe('SetDirector', () => {
         rig.director.update(rig.state, rig.energy, 5);
         rig.director.update(rig.state, rig.energy, 4);
         expect(rig.cue.phase).toBe('groove');
+    });
+
+    describe('reading the bass (tuned on local clips)', () => {
+        // Feeds a scripted bass ratio at 60 fps with sound present and a kick on every frame (worst case for drops).
+        function drive(director: SetDirector, ratioAt: (t: number) => number, seconds: number, kick = 0.8) {
+            const state = createRhythmState();
+            state.bandOnsets[0] = kick;
+            const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
+            const drops: number[] = [];
+            let seen = director.cue.dropAt;
+            for (let f = 1; f <= Math.round(seconds / DT); f++) {
+                const t = f * DT;
+                energy.ratio = ratioAt(t);
+                director.update(state, energy, t);
+                if (director.cue.dropAt !== seen) {
+                    seen = director.cue.dropAt;
+                    drops.push(t);
+                }
+            }
+            return drops;
+        }
+
+        it('reads no build or drop during the warm-up, however big the surge', () => {
+            const director = new SetDirector();
+            // A track fading in: the fast envelope runs far ahead of the slow one at first.
+            expect(drive(director, (t) => (t < 1 ? 0.3 : 4), config.warmupSeconds - 0.1)).toEqual([]);
+            expect(director.cue.phase).toBe('groove');
+        });
+
+        it('drops when the bass comes back after a cut of a bar or two', () => {
+            const director = new SetDirector();
+            // Steady, a 2 s cut at 10 s, the bass back at 12 s.
+            const drops = drive(director, (t) => (t < 10 ? 1 : t < 12 ? 0.4 : 1.6), 16);
+            expect(drops).toHaveLength(1);
+            expect(drops[0]).toBeGreaterThanOrEqual(12);
+            expect(drops[0]).toBeLessThan(12.1);
+        });
+
+        it('reads a soft cut held for softDipSeconds as a breakdown, and drops when the bass returns', () => {
+            const director = new SetDirector();
+            const cut = config.warmupSeconds + 2;
+            const back = cut + config.softDipSeconds + 4;
+            const soft = (config.dipRatio + config.softDipRatio) / 2;
+            const drops = drive(
+                director,
+                (t) => (t < cut ? 1 : t < back ? soft : soft + config.dropRise + 0.1),
+                back + 2,
+            );
+            expect(drops).toHaveLength(1);
+            expect(drops[0]).toBeGreaterThanOrEqual(back);
+            expect(drops[0]).toBeLessThan(back + 0.1);
+        });
+
+        it('does not take a soft cut shorter than softDipSeconds for a build', () => {
+            const director = new SetDirector();
+            const cut = config.warmupSeconds + 2;
+            const soft = (config.dipRatio + config.softDipRatio) / 2;
+            drive(director, (t) => (t > cut && t < cut + config.softDipSeconds * 0.5 ? soft : 1), cut + 4);
+            expect(director.cue.phase).toBe('groove');
+        });
+
+        it('does not take a dip shorter than dipSeconds for a build', () => {
+            const director = new SetDirector();
+            const short = config.warmupSeconds + 2;
+            drive(director, (t) => (t > short && t < short + config.dipSeconds * 0.5 ? 0.4 : 1), short + 2);
+            expect(director.cue.phase).toBe('groove');
+        });
+
+        it('drops straight out of a quiet intro when the bass arrives at twice its level and stays', () => {
+            const director = new SetDirector();
+            const arrive = config.warmupSeconds + 2;
+            const drops = drive(director, (t) => (t < arrive ? 1 : config.surgeRatio + 0.2), arrive + 3);
+            expect(drops).toHaveLength(1);
+            expect(drops[0]).toBeGreaterThanOrEqual(arrive + config.surgeSeconds);
+            expect(drops[0]).toBeLessThan(arrive + config.surgeSeconds + 0.1);
+        });
+
+        it('does not count one loud hit shorter than surgeSeconds as a drop', () => {
+            const director = new SetDirector();
+            const hit = config.warmupSeconds + 2;
+            const spike = (t: number) => (t > hit && t < hit + config.surgeSeconds * 0.6 ? config.surgeRatio + 1 : 1);
+            expect(drive(director, spike, hit + 3)).toEqual([]);
+        });
+
+        it('does not drop a loud build on the frame it starts', () => {
+            const director = new SetDirector(noWarmup);
+            // A riser: the bass up with no kick (with a kick, a held rise is a surge drop instead). Above dropRatio,
+            // but it never rises dropRise above where the build began.
+            expect(drive(director, () => config.buildEnterRatio + 0.05, 8, 0.1)).toEqual([]);
+            expect(director.cue.phase).toBe('build');
+        });
     });
 });

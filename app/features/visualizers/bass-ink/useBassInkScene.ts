@@ -6,7 +6,7 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { PalettePair } from './bassInkTypes';
 import { BrightnessMix } from './brightnessMix';
 import { blendPalette, writePalette } from './chromaPalette';
-import { EnergyTracker, rmsOfTimeDomain } from './energyEnvelope';
+import { bassBinCount, bassLevel, EnergyTracker } from './energyEnvelope';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
 import { advance, createMotionClock } from './motionClock';
@@ -18,7 +18,7 @@ import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
 import { createOrbitView } from '~/lib/three/orbitView';
 
-// Time-domain window for the loudness: 2048 samples is about 46 ms at 44.1 kHz, plenty for an RMS.
+// Frequency data: 2048 samples gives bins of about 23 Hz, so the bass below 120 Hz spans about five of them.
 const FFT_SIZE = 2048;
 // useThreeScene renders at most at this pixel ratio, and gl_PointSize is in drawing-buffer pixels.
 const MAX_PIXEL_RATIO = 2;
@@ -106,9 +106,10 @@ export function useBassInkScene(
 
         // Audio state, rebuilt whenever the analyser changes.
         let boundAnalyser: AnalyserNode | undefined;
-        let timeDomain = new Float32Array(0);
+        let spectrum = new Uint8Array(0);
+        let bassBins = 1;
         let sceneTime = 0;
-        let lastRms = 0;
+        let lastLevel = 0;
         let lastBrightness = 0;
         let lastKickStrength = 0;
 
@@ -133,7 +134,7 @@ export function useBassInkScene(
                     'formation',
                 ],
                 (out) => {
-                    out[0] = lastRms;
+                    out[0] = lastLevel;
                     out[1] = lastBrightness;
                     out[2] = energy.fast;
                     out[3] = energy.slow;
@@ -152,7 +153,8 @@ export function useBassInkScene(
 
         const bindAudio = (source: AnalyserNode) => {
             source.fftSize = FFT_SIZE;
-            timeDomain = new Float32Array(source.fftSize);
+            spectrum = new Uint8Array(source.frequencyBinCount);
+            bassBins = bassBinCount(source.context.sampleRate, source.fftSize, bassInkConfig.energy.bassCutoffHz);
             // A different source is different music: forget the old loudness history.
             energy.reset();
             boundAnalyser = source;
@@ -176,12 +178,12 @@ export function useBassInkScene(
                     if (source !== boundAnalyser) {
                         bindAudio(source);
                     }
-                    source.getFloatTimeDomainData(timeDomain);
-                    lastRms = rmsOfTimeDomain(timeDomain);
+                    source.getByteFrequencyData(spectrum);
+                    lastLevel = bassLevel(spectrum, bassBins);
                 } else {
-                    lastRms = 0;
+                    lastLevel = 0;
                 }
-                energy.update(lastRms, dt);
+                energy.update(lastLevel, dt);
 
                 rhythm.updatePhase();
                 const state = rhythm.state;

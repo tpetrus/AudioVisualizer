@@ -59,6 +59,29 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   already computed (`BassPulse`, `TrioColorWaveSheet`, `DancingCharacterScene`). No maths changed. These assignments
   are in production code, which costs about 0.1 kB.
 
+## Bass ink
+`npm run debug:viz -- --dir <folder> --track <file> --viz bass-ink` records the `bass-ink` probe: `in` (the bass level
+the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz, after the gain stage), `out` (the
+governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `novelty`, `phase` (0 groove, 1 build,
+2 drop, 3 afterglow), `tension`, `grants` (brightness increases granted so far), `lockWeight` (motion-clock beat lock),
+`kicks` (kicks recorded so far), `transitions` (formation changes started so far) and `formation` (0 sphere, 1 torus,
+2 double helix, 3 galaxy disc).
+
+How the drop rules in `bassInkConfig.director` were tuned, and what to check when changing them:
+- They read the bass, not the full-band loudness. A build is the DJ pulling the bass out (a deep cut held
+  `dipSeconds`, or a softer one held `softDipSeconds`); the drop is the bass coming back (`dropRatio`, at least
+  `dropRise` above the lowest ratio of the build) on a kick. A drop out of a quiet intro, with no cut before it, is a
+  surge: `surgeRatio` held `surgeSeconds` on a kick. Novelty only confirms the kickless "loud" build, because it needs
+  about half a minute of history and lags a cut by seconds.
+- Tune against the `in` column, not `bassRaw`: `bassRaw` is tapped before the gain stage, and the automatic gain
+  flattens a surge (on one clip a 2.2 ratio before the gain was 1.8 after it). A recording's `in` column can be replayed
+  through the real `EnergyTracker` and `SetDirector` with a few lines of script, with no browser and in well under a
+  second, by setting `bandOnsets[0]` to 1 on each frame where `kicks` increases and decaying it by 0.9 per 10 ms.
+- Starting values came from six local clips of about 30 s (no labeled drop times, so the reference times were read off
+  the per-second bass): every drop flagged within about 1 s of that reading, and no drop on the three clips without one.
+  `warmupSeconds` exists because the first seconds of a track (or a fade-in) otherwise read as a surge. Real DJ mixes
+  with labeled drops are the next step; check both missed drops and false drops in long grooves when retuning.
+
 ## Frozen contracts
 
 These were frozen before implementation. Change them only deliberately, and update every consumer in the same change.
