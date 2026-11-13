@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { summarizeTelemetry } from '../../app/features/audio/devTelemetrySummary';
+import { alignmentReportLines } from './alignmentReport';
 import { parseCsv } from './csv';
 import { chooseReference, parseSummaryArgs, SUMMARY_USAGE } from './args';
 import { parseBpmSidecar, summarizeTempo } from './tempoReport';
@@ -49,6 +50,15 @@ try {
     if (reference.warning) console.log(reference.warning);
     const lines = summarizeTelemetry(table, { maxLines: 20, windowSeconds: window });
     lines.push(...summarizeTempo(table, { referenceBpm: reference.bpm, windowSeconds: window }));
+    // Ground truth the harness copied beside the CSV, when the track had a `.beats.json`.
+    const beatsPath = join(dirname(path), 'track.beats.json');
+    if (existsSync(beatsPath)) {
+        try {
+            lines.push(...alignmentReportLines(table, readFileSync(beatsPath, 'utf8')));
+        } catch (error) {
+            lines.push(`Alignment: cannot read ${beatsPath}: ${reasonOf(error)}`);
+        }
+    }
     console.log(lines.join('\n'));
 } catch (error) {
     fail(`${path}: ${reasonOf(error)}`);

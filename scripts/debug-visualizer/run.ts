@@ -2,7 +2,7 @@
 // Run it with `npm run debug:viz -- --help`. Not part of the app bundle: nothing under app/ imports this file.
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
@@ -112,6 +112,8 @@ interface PlayOptions {
     from: number;
     shots: readonly number[];
     reference: number | undefined;
+    // Path of the track's `.beats.json` ground truth, when it has one.
+    beatsSidecar: string | undefined;
     play: number;
     plays: number;
 }
@@ -169,7 +171,7 @@ async function chooseTrackAgain(page: Page, trackPath: string, previousPosition:
 // Records one play of the track that is already running: resets the recorder, waits for the range to be played, then
 // writes the CSV and prints the summary. Returns the last playback position seen.
 async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
-    const { viz, track, requestedSeconds, from, shots, reference, play, plays } = options;
+    const { viz, track, requestedSeconds, from, shots, reference, beatsSidecar, play, plays } = options;
     await closeSourceDialog(page);
 
     const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
@@ -192,6 +194,8 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
     mkdirSync(outDir, { recursive: true });
     // The folder keeps its own copy of the reference so debug:summary can judge it later without the music folder.
     if (reference !== undefined) writeFileSync(join(outDir, 'track.bpm'), `${reference}\n`);
+    // The same for ground-truth beats, so debug:summary can print the alignment report.
+    if (beatsSidecar !== undefined) copyFileSync(beatsSidecar, join(outDir, 'track.beats.json'));
 
     // At 0 the track has only just begun. Seeking back to it would feed the tracker a discontinuity of a different
     // length on every run, so only the recorder is reset and the first row's t is slightly above 0.
@@ -309,6 +313,9 @@ async function main(): Promise<void> {
         : { bpm: undefined, warning: undefined };
     if (sidecar.warning) console.log(sidecar.warning);
     const reference = sidecar.bpm;
+    // Ground-truth beats sit beside the track as `<name>.beats.json`; the folder keeps a copy for debug:summary.
+    const beatsPath = join(dirPath, `${sidecarName(track).replace(/\.bpm$/, '')}.beats.json`);
+    const beatsSidecar = existsSync(beatsPath) ? beatsPath : undefined;
 
     const port = await freePort();
     const origin = `http://localhost:${port}`;
@@ -387,6 +394,7 @@ async function main(): Promise<void> {
                 from,
                 shots,
                 reference,
+                beatsSidecar,
                 play,
                 plays: reselect,
             });

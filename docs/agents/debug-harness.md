@@ -59,6 +59,29 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   already computed (`BassPulse`, `TrioColorWaveSheet`, `DancingCharacterScene`). No maths changed. These assignments
   are in production code, which costs about 0.1 kB.
 
+## Alignment against ground truth
+Alignment of the visuals to the music is measured against exact beat and onset times, stored in a sidecar
+`<track name without extension>.beats.json` beside the audio (type `BeatSidecar` in
+`app/features/rhythm/eval/evalTypes.ts`: `track`, `tempo`, `beats`, optional per-band `onsets`, `source` of
+`synthetic` or `tapped`, `tapOffsetMs`, optional `tapNoiseFloorMs`). The figures (type `EvalReport`) are the tempo ratio
+(detected over labelled, not folded to an octave) and lock time, the median, p95 and signed bias of the beat error in
+ms from the lock on, and onset precision, recall and F per band at 50 ms (the gate) and 20 ms (the headroom). A tapped
+track's report prints its tap noise floor beside the beat error.
+
+- **Synthetic tracks:** `npm run ground-truth -- <out-dir>` writes deterministic `<name>.wav`, `<name>.beats.json` and
+  `<name>.bpm` files: click tracks, drum patterns with distinct kick, bass, snare and hi-hat voices, a 4:3 trap, a 2:1
+  trap and a no-kick pattern. The sidecars are committed in `scripts/ground-truth/sidecars/` and a spec checks that the
+  generator reproduces them; the WAVs are not committed.
+- **Offline:** `npm run eval:rhythm -- <wav-dir> --alignment` runs the real pipeline over each WAV and prints its report.
+  A WAV with only a `.bpm` gets the tempo ratio and lock time. Onsets come from the three flux bands (kick to `kick`,
+  mid to `snare`, high to `highs`); `bass` is not scored.
+- **Live:** `debug:viz` copies `<track>.beats.json` to `track.beats.json` in the output folder, and
+  `npm run debug:summary -- <csv>` then prints the same report from the telemetry (beats from the beat phase wrapping,
+  tempo from the `bpm` column). Onsets and the reaction offset print as not available because the CSV has no columns for
+  them. The recording must start at the start of the track.
+- **Regression spec:** `scripts/ground-truth/alignment.test.ts` asserts what the pipeline meets today; the plan's targets
+  are `it.fails` tests that start failing (and must lose `.fails`) once the pipeline reaches them.
+
 ## Bass ink
 `npm run debug:viz -- --dir <folder> --track <file> --viz bass-ink` records the `bass-ink` probe: `in` (the bass level
 the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz, after the gain stage), `out` (the
