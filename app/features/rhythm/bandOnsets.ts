@@ -102,7 +102,9 @@ export class BandOnsets {
         this.peakDecay = Math.pow(0.5, 1 / (BAND_ONSET_PEAK_HALF_LIFE_SECONDS * frameRate));
     }
 
-    // Forgets everything, e.g. when the extractor was reset: the next frame has no predecessor to compare with.
+    // Forgets everything, e.g. when the extractor was reset: the next frame has no predecessor to compare with. Up to
+    // ONSET_LOOKAHEAD_FRAMES onset candidates that were still waiting for their look-ahead are dropped here, and the
+    // same holds at the end of the input: there is no flush.
     reset(): void {
         this.energy.fill(0);
         this.previous.fill(0);
@@ -117,7 +119,8 @@ export class BandOnsets {
     }
 
     // Takes the log magnitude spectrum of the newest frame (index 0 is DC) and the time of the frame's window centre,
-    // updates `energy` and calls `sink` for each onset decided now, in time order.
+    // updates `energy` and calls `sink` for each onset decided now, in time order. The newest ONSET_LOOKAHEAD_FRAMES
+    // frames are still candidates that are never decided if the input ends or reset() is called (there is no flush).
     push(logMagnitude: ArrayLike<number>, time: number, sink: OnsetSink): void {
         const slot = this.frames & RING_MASK;
         const comparable = this.frames > 0;
@@ -134,7 +137,9 @@ export class BandOnsets {
                 const level = logMagnitude[k];
                 sum += level;
                 const delta = level - this.previous[k];
-                if (delta > 0) {
+                // A non-finite rise (an Infinity level) would make the range's decaying peak Infinity for good and
+                // silence it, so it is not counted.
+                if (delta > 0 && Number.isFinite(delta)) {
                     rise += delta;
                 }
             }

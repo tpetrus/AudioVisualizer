@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { OnsetExtractor, hopSizeFor, packFrame, type OnsetFrame } from './onsetExtractor';
 import {
     BAND_COUNT,
+    KICK_MAX_HZ,
+    MAGNITUDE_LOG_GAIN,
+    MID_MAX_HZ,
     CHROMA_BINS,
     FRAME_CHROMA_OFFSET,
     FRAME_ENERGY_OFFSET,
@@ -197,9 +200,28 @@ describe('OnsetExtractor logMagnitude', () => {
         expect(low.energy[0]).toBeGreaterThan(low.energy[1]);
         const high = lastSpectrum(sine(9000, 0.3, 0.5));
         expect(high.energy[2]).toBeGreaterThan(high.energy[0]);
-        // No mean can exceed the largest value it averages.
-        const largest = Math.max(...low.log);
-        expect(low.energy.every((value) => value <= largest)).toBe(true);
+    });
+
+    it('has band energies that are the means of the log magnitude over each band, and the documented log scale', () => {
+        const binHz = TEST_SAMPLE_RATE / FFT_SIZE;
+        const lastBin = FFT_SIZE / 2;
+        // The same band edges the extractor derives, in bins: [1, kickEnd), [kickEnd, midEnd), [midEnd, lastBin).
+        const kickEnd = Math.min(lastBin - 2, Math.max(2, Math.floor(KICK_MAX_HZ / binHz) + 1));
+        const midEnd = Math.min(lastBin - 1, Math.max(kickEnd + 1, Math.floor(MID_MAX_HZ / binHz) + 1));
+        const edges = [1, kickEnd, midEnd, lastBin];
+        // A tone exactly on a bin, so that it does not leak into its neighbors.
+        const bin = 40;
+        const { log, energy } = lastSpectrum(sine(bin * binHz, 0.3, 0.5));
+        for (let b = 0; b < BAND_COUNT; b++) {
+            let sum = 0;
+            for (let k = edges[b]; k < edges[b + 1]; k++) sum += log[k];
+            expect(energy[b]).toBeCloseTo(sum / (edges[b + 1] - edges[b]), 4);
+        }
+        // A sine of amplitude A on a bin reads magnitude A (the Hann window halves it and the extractor scale of
+        // 4 / FFT_SIZE restores it), so the log value is log(1 + gain * A). The 2 percent tolerance covers the
+        // window's discrete shape and float32 rounding, and is far below what a wrong gain would change.
+        const expectedLog = Math.log(1 + MAGNITUDE_LOG_GAIN * 0.5);
+        expect(Math.abs(log[bin] - expectedLog) / expectedLog).toBeLessThan(0.02);
     });
 });
 

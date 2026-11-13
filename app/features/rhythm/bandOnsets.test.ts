@@ -225,4 +225,47 @@ describe('BandOnsets events', () => {
     it('hears nothing in silence', () => {
         expect(run(silence(2)).events).toEqual([]);
     });
+
+    it('ignores a non-finite level instead of going deaf', () => {
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: Event[] = [];
+        const sink = (band: number, time: number, strength: number): void => {
+            events.push({ band, time, strength, decidedAt: 0 });
+        };
+        const frame = (level: number): Float32Array => new Float32Array(FFT_SIZE / 2).fill(level);
+        let t = 0;
+        const push = (level: number): void => onsets.push(frame(level), (t += 0.01), sink);
+        for (let i = 0; i < 5; i++) push(0);
+        push(Infinity);
+        for (let i = 0; i < 20; i++) push(0);
+        // A normal hit long after the bad frame.
+        push(3);
+        for (let i = 0; i < 20; i++) push(0);
+        expect(events.length).toBeGreaterThan(0);
+        for (const event of events) {
+            expect(Number.isFinite(event.strength)).toBe(true);
+            expect(event.strength).toBeGreaterThan(0);
+        }
+    });
+
+    it.each([8000, 44100, 48000, 96000])('builds sensible bands at %i Hz', (sampleRate) => {
+        const extractor = new OnsetExtractor(sampleRate);
+        const onsets = new BandOnsets(sampleRate, extractor.frameRate);
+        const pcm = new Float32Array(sampleRate);
+        for (let i = Math.round(0.5 * sampleRate); i < pcm.length; i++) {
+            pcm[i] = 0.5 * Math.sin((2 * Math.PI * 80 * i) / sampleRate) * Math.exp(-(i / sampleRate - 0.5) / 0.1);
+        }
+        let frames = 0;
+        expect(() => {
+            for (let offset = 0; offset < pcm.length; offset += 128) {
+                extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
+                    onsets.push(frame.logMagnitude, frames++ / extractor.frameRate, () => {});
+                    for (let b = 0; b < HUB_BAND_COUNT; b++) {
+                        expect(Number.isFinite(onsets.energy[b])).toBe(true);
+                    }
+                });
+            }
+        }).not.toThrow();
+        expect(frames).toBeGreaterThan(10);
+    });
 });

@@ -328,18 +328,37 @@ describe('rhythm processor worklet', () => {
     it('starts the detector over when blocks were skipped', async () => {
         const harness = await loadProcessor();
         const pcm = kickTrain();
-        // The first kick, a gap in the clock, then the same audio again: after the reset it is found as if it were new.
+        // A loud kick, a gap in the clock, then a much quieter kick: after the reset the quiet one is the loudest the
+        // detector has heard, so its strength is exactly 1. A retained band peak would make it less than 1.
         const gap = 100_000;
-        play(harness, [pcm.subarray(0, Math.round(1.0 * SAMPLE_RATE))]);
+        const loud = pcm.slice(0, Math.round(1.0 * SAMPLE_RATE));
+        const quiet = loud.map((value) => value * 0.3);
+        play(harness, [loud]);
         harness.state.currentFrame += gap;
-        play(harness, [pcm.subarray(0, Math.round(1.0 * SAMPLE_RATE))]);
+        play(harness, [quiet]);
 
         const times: number[] = [];
+        const strengths: number[] = [];
         for (const { message } of harness.posted()) {
-            for (let i = 0; i < message.onsetCount; i++) times.push(message.onsetTime[i]);
+            for (let i = 0; i < message.onsetCount; i++) {
+                times.push(message.onsetTime[i]);
+                strengths.push(message.onsetStrength[i]);
+            }
         }
         expect(times).toHaveLength(2);
         expect(times[1] - times[0]).toBeCloseTo(1.0 + gap / SAMPLE_RATE, 6);
+        expect(strengths[1]).toBe(1);
+    });
+
+    it('never counts more onset events than its arrays hold', async () => {
+        const harness = await loadProcessor();
+        const capacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+        const sink = (
+            harness.processor as unknown as { onOnset: (band: number, time: number, strength: number) => void }
+        ).onOnset;
+        for (let i = 0; i < capacity + 5; i++) sink(0, i, 1);
+        play(harness, [silence(0.3, SAMPLE_RATE)]);
+        expect(harness.posted()[0].message.onsetCount).toBe(capacity);
     });
 
     it('transfers every buffer of the message and makes fresh ones after each post', async () => {

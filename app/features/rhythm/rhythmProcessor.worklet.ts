@@ -51,6 +51,11 @@ class RhythmProcessor extends AudioWorkletProcessor {
 
     // Fields rather than methods or per-frame closures, so the audio thread allocates nothing per frame.
     private readonly onOnset: OnsetSink = (band, time, strength) => {
+        // The arrays hold ONSET_CAPACITY events, one per band per frame, which the detector cannot exceed; the guard
+        // keeps the count (posted to the main thread, which reads that many entries) honest if that ever changes.
+        if (this.onsetCount >= ONSET_CAPACITY) {
+            return;
+        }
         this.onsetBand[this.onsetCount] = band;
         this.onsetTime[this.onsetCount] = time;
         this.onsetStrength[this.onsetCount] = strength;
