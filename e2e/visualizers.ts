@@ -32,3 +32,11 @@ export async function openSettings(page: Page): Promise<void> {
     await page.getByRole('button', { name: '☰ Settings' }).click();
     await expect(page.getByRole('button', { name: '✕ Close' })).toBeVisible();
 }
+
+// Only the panel's first section starts open, so a test that needs a control from a later one opens every section.
+export async function openAllSections(page: Page): Promise<void> {
+    const closed = page.locator('details:not([open]) > summary');
+    while ((await closed.count()) > 0) {
+        await closed.first().click();
+    }
+}

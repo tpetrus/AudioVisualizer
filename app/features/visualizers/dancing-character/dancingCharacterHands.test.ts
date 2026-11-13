@@ -7,7 +7,7 @@ import { applyRelaxedHands } from './dancingCharacterHands';
 // Measured on the real rig: for every finger of both hands, curling moves the tip toward the palm, keeps the fingers
 // in order across the hand, and shortens the wrist-to-tip distance by a relaxed amount (not a fist).
 
-async function loadModel(): Promise<THREE.Group> {
+async function loadModel(path = './assets/MakeHumanDancer.glb'): Promise<THREE.Group> {
     // Same stand-in image element as dancingCharacterClip.test.ts: GLTFLoader decodes textures through it.
     vi.stubGlobal('self', globalThis);
     vi.stubGlobal('document', {
@@ -24,7 +24,7 @@ async function loadModel(): Promise<THREE.Group> {
             };
         },
     });
-    const file = readFileSync(new URL('./assets/MakeHumanDancer.glb', import.meta.url));
+    const file = readFileSync(new URL(path, import.meta.url));
     const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     return (await new GLTFLoader().parseAsync(bytes, '')).scene;
 }
@@ -121,5 +121,60 @@ describe('applyRelaxedHands', () => {
 
     it('leaves a model without the finger bones alone', () => {
         expect(() => applyRelaxedHands(new THREE.Group())).not.toThrow();
+    });
+});
+
+// The converted Blender characters have one bone per finger group. Curling must close each hand toward its palm (down,
+// in the rest pose) by a relaxed amount, on both sides.
+describe.each(['mr-incredible', 'wario'])('applyRelaxedHands on %s', (id) => {
+    function groupCentroid(model: THREE.Object3D, bone: string): THREE.Vector3 {
+        const centroid = new THREE.Vector3();
+        const v = new THREE.Vector3();
+        let count = 0;
+        model.updateMatrixWorld(true);
+        model.traverse((o) => {
+            const mesh = o as THREE.SkinnedMesh;
+            if (!mesh.isSkinnedMesh) return;
+            mesh.skeleton.update();
+            const indices = mesh.geometry.getAttribute('skinIndex');
+            const weights = mesh.geometry.getAttribute('skinWeight');
+            for (let i = 0; i < indices.count; i++) {
+                let best = 0;
+                for (let c = 1; c < 4; c++) if (weights.getComponent(i, c) > weights.getComponent(i, best)) best = c;
+                if (mesh.skeleton.bones[indices.getComponent(i, best)].name !== bone) continue;
+                centroid.add(mesh.getVertexPosition(i, v).applyMatrix4(mesh.matrixWorld));
+                count++;
+            }
+        });
+        return centroid.divideScalar(Math.max(count, 1));
+    }
+
+    // The palm normal from the rest pose: the middle finger's direction crossed with the index-to-little span, mirrored
+    // for the right hand (the same rule the dance build uses). The palms face down on some rigs and forward on others.
+    function palmNormalOf(model: THREE.Object3D, side: Side): THREE.Vector3 {
+        const middle = position(model, `finger3-1${side}`).sub(position(model, `wrist${side}`));
+        const span = position(model, `finger2-1${side}`).sub(position(model, `finger5-1${side}`));
+        return middle
+            .cross(span)
+            .multiplyScalar(side === 'L' ? 1 : -1)
+            .normalize();
+    }
+
+    it('curls the finger groups of both hands toward the palm by a relaxed amount', async () => {
+        const model = await loadModel(`./assets/characters/${id}/model.glb`);
+        model.updateMatrixWorld(true);
+        const names = SIDES.flatMap((side) =>
+            ['finger2-1', 'finger3-1', 'finger5-1'].map((n) => ({ n: `${n}${side}`, side })),
+        );
+        const before = names.map(({ n }) => groupCentroid(model, n));
+        const normals = SIDES.map((side) => palmNormalOf(model, side));
+
+        applyRelaxedHands(model);
+
+        names.forEach(({ n, side }, i) => {
+            const moved = groupCentroid(model, n).sub(before[i]);
+            expect(moved.dot(normals[SIDES.indexOf(side)]), `${n} moves toward the palm`).toBeGreaterThan(0.001);
+            expect(moved.length(), `${n} stays a relaxed curl`).toBeLessThan(0.12);
+        });
     });
 });

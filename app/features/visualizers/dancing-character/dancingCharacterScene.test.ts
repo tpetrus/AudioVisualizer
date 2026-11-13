@@ -262,6 +262,44 @@ describe('setCharacter', () => {
         expect(floor.position.y).toBeLessThan(0);
     });
 
+    it('reports that the model danced when every required bone is present and the clips loaded', () => {
+        const { dancing } = setup();
+        const { model } = makeModel();
+        expect(dancing.setCharacter(model, makeDances())).toEqual({ danced: true, missing: [] });
+    });
+
+    it('lists the required bones the model lacks and reports that it cannot dance', () => {
+        const { dancing } = setup();
+        const { model } = makeModel(DANCE_REQUIRED_BONES.slice(0, 3));
+        const result = dancing.setCharacter(model, makeDances());
+        expect(result.danced).toBe(false);
+        expect(result.missing).toEqual(DANCE_REQUIRED_BONES.slice(3));
+    });
+
+    it('reports that the model cannot dance when no clip loaded', () => {
+        const { dancing } = setup();
+        const { model } = makeModel();
+        expect(dancing.setCharacter(model, new Map())).toEqual({ danced: false, missing: [] });
+    });
+
+    it('tints the materials named by the character, not the default ones', () => {
+        const { dancing } = setup({ bodyColor: '#ff0000' });
+        const { model } = makeModel();
+        dancing.setCharacter(model, makeDances(), ['Eyes']);
+        dancing.update(makeFrame({ settings: settings({ bodyColor: '#ff0000' }) }));
+
+        const colors = new Map<string, THREE.Color>();
+        model.traverse((object) => {
+            const mesh = object as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            for (const material of [mesh.material].flat()) {
+                colors.set(material.name, (material as THREE.MeshStandardMaterial).color);
+            }
+        });
+        expect(colors.get('Skin')!.getHexString()).toBe(new THREE.Color('#808080').getHexString());
+        expect(colors.get('Eyes')!.g).toBeCloseTo(0);
+    });
+
     it('clones the materials, so the input model keeps its colors, and tints Skin only', () => {
         const { dancing } = setup({ bodyColor: '#ff0000' });
         const { model, materials } = makeModel();

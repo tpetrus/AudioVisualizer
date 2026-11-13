@@ -1,5 +1,8 @@
 import type { ControlDefinition, ControlValues } from '~/components/ControlPanel/controls';
+import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID } from './characterRegistry';
 import { AUTO_DANCE, CALM_DANCE_ID, DANCES } from './dancingCharacterConfig';
+
+const characterOptions = CHARACTER_REGISTRY.map((entry) => ({ value: entry.id, label: entry.title }));
 
 // Auto first, then every dance in the order the Auto rotation plays them.
 const danceOptions = [
@@ -9,6 +12,15 @@ const danceOptions = [
 
 // Ordered dance, camera, bass, colors, so the panel reads from what moves the most to what only changes the look.
 export const dancingCharacterControls = [
+    // Which figure dances. Not remembered: every visit starts with the default.
+    {
+        section: 'Character',
+        key: 'character',
+        label: 'Character',
+        type: 'select',
+        options: characterOptions,
+        default: DEFAULT_CHARACTER_ID,
+    },
     // Auto lets the dancer change dance by herself; any other value keeps that one dance.
     { section: 'Dance', key: 'dance', label: 'Dance', type: 'select', options: danceOptions, default: AUTO_DANCE },
     // While the tempo is locked the dance speed snaps to half time (0.5) or on the beat (1), so the steps stay on
