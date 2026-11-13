@@ -1,17 +1,13 @@
+import { BandOnsets } from '../bandOnsets';
 import { OnsetExtractor, packFrame, type OnsetFrame } from '../onsetExtractor';
 import { RhythmAnalyzer } from '../rhythmAnalyzer';
-import { BAND_COUNT, FFT_SIZE, FRAME_STRIDE } from '../rhythmConfig';
+import { FEATURE_ONSET_BANDS, FFT_SIZE, FRAME_STRIDE } from '../rhythmConfig';
 import type { DetectedRun } from './evalReport';
-import type { OnsetBand } from './evalTypes';
 import type { TempoSample } from './metrics';
 
 // Runs the real pipeline (OnsetExtractor then RhythmAnalyzer, driven exactly as `runPipeline` in testSignals.ts drives
 // them) over PCM and reads off what the alignment metrics need: beat times, the tempo over time, and onsets per band. It
 // lives here and not in the app modules because only the evaluation needs it; it changes nothing the app runs.
-
-// Until the pipeline has its own onset events the only per-band signal is the three-band spectral flux. Kick maps to
-// kick, mid to snare and high to highs; bass has no band of its own and stays out of the report.
-export const FLUX_BAND_TO_ONSET = ['kick', 'snare', 'highs'] as const satisfies readonly OnsetBand[];
 
 export interface PeakOptions {
     // A peak must be the largest value within this many frames on either side.
@@ -55,7 +51,8 @@ export function pickPeaks(values: ArrayLike<number>, options: PeakOptions = DEFA
 }
 
 export interface PipelineDetection extends DetectedRun {
-    onsets: Record<(typeof FLUX_BAND_TO_ONSET)[number], number[]>;
+    // The events of BandOnsets, the detector the worklet runs, per band, in time order.
+    onsets: Record<(typeof FEATURE_ONSET_BANDS)[number], number[]>;
 }
 
 export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDetection {
@@ -66,8 +63,11 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
     const packed = new Float32Array(FRAME_STRIDE);
     const beats: number[] = [];
     const tempo: TempoSample[] = [];
-    const times: number[] = [];
-    const flux: number[][] = Array.from({ length: BAND_COUNT }, () => []);
+    const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
+    const onsets: PipelineDetection['onsets'] = { kick: [], bass: [], snare: [], highs: [] };
+    const onOnset = (band: number, eventTime: number): void => {
+        onsets[FEATURE_ONSET_BANDS[band]].push(eventTime);
+    };
     let lastBeatCount = 0;
 
     const onFrame = (frame: OnsetFrame): void => {
@@ -75,8 +75,7 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
         packFrame(frame, packed, 0);
         analyzer.pushFrame(time, packed, 0);
         analyzer.updatePhase(time);
-        times.push(time);
-        for (let b = 0; b < BAND_COUNT; b++) flux[b].push(frame.flux[b]);
+        bandOnsets.push(frame.logMagnitude, time, onOnset);
         tempo.push({ time, bpm: state.bpm });
         if (state.beatCount > lastBeatCount) {
             lastBeatCount = state.beatCount;
@@ -92,9 +91,5 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
         extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + blockSize)), onFrame);
     }
 
-    const onsets: PipelineDetection['onsets'] = { kick: [], snare: [], highs: [] };
-    FLUX_BAND_TO_ONSET.forEach((band, b) => {
-        onsets[band] = pickPeaks(flux[b]).map((index) => times[index]);
-    });
     return { beats, tempo, onsets };
 }

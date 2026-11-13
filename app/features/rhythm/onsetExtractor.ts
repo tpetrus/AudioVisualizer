@@ -27,6 +27,9 @@ export interface OnsetFrame {
     rms: number;
     // Strength of each pitch class, C first.
     chroma: Float32Array;
+    // log(1 + MAGNITUDE_LOG_GAIN * magnitude) per FFT bin, index 0 (DC) always 0. The band energies and fluxes above are
+    // reductions of this, so a detector that wants a finer view than three bands reads it here. Read-only to sinks.
+    logMagnitude: Float32Array;
     // Total samples consumed when the frame's window ended. The window is centred FFT_SIZE / 2 samples earlier.
     endSample: number;
 }
@@ -77,6 +80,7 @@ export class OnsetExtractor {
         energy: new Float32Array(BAND_COUNT),
         rms: 0,
         chroma: new Float32Array(CHROMA_BINS),
+        logMagnitude: this.logMagnitude,
         endSample: 0,
     };
 

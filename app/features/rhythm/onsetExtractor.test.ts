@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { OnsetExtractor, hopSizeFor, packFrame, type OnsetFrame } from './onsetExtractor';
 import {
     BAND_COUNT,
+    KICK_MAX_HZ,
+    MAGNITUDE_LOG_GAIN,
+    MID_MAX_HZ,
     CHROMA_BINS,
     FRAME_CHROMA_OFFSET,
     FRAME_ENERGY_OFFSET,
     FRAME_FLUX_OFFSET,
     FRAME_RMS_OFFSET,
+    FFT_SIZE,
     FRAME_STRIDE,
     HOP_SECONDS,
 } from './rhythmConfig';
@@ -165,6 +169,62 @@ describe('OnsetExtractor features', () => {
     });
 });
 
+describe('OnsetExtractor logMagnitude', () => {
+    // The spectrum of the last frame of `samples`, copied, with the frame's band energies.
+    function lastSpectrum(samples: Float32Array): { log: number[]; energy: number[] } {
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        let last = { log: [] as number[], energy: [] as number[] };
+        for (let offset = 0; offset < samples.length; offset += 128) {
+            extractor.push(samples.subarray(offset, Math.min(samples.length, offset + 128)), (frame) => {
+                last = { log: Array.from(frame.logMagnitude), energy: Array.from(frame.energy) };
+            });
+        }
+        return last;
+    }
+
+    it('has one value per FFT bin below Nyquist, none for DC, and peaks at the bin of a pure tone', () => {
+        const { log } = lastSpectrum(sine(1000, 0.3, 0.5));
+        expect(log).toHaveLength(FFT_SIZE / 2);
+        expect(log[0]).toBe(0);
+        const peak = log.indexOf(Math.max(...log));
+        expect(peak).toBeCloseTo(1000 / (TEST_SAMPLE_RATE / FFT_SIZE), 0);
+    });
+
+    it('agrees with the band energies: both are nothing for silence and follow the same tone', () => {
+        const silent = lastSpectrum(silence(0.3));
+        expect(silent.log.every((value) => value === 0)).toBe(true);
+        expect(silent.energy.every((value) => value === 0)).toBe(true);
+
+        // The band energies are means of the log magnitude over bins, so the loudest band is the one with the tone.
+        const low = lastSpectrum(sine(60, 0.3, 0.5));
+        expect(low.energy[0]).toBeGreaterThan(low.energy[1]);
+        const high = lastSpectrum(sine(9000, 0.3, 0.5));
+        expect(high.energy[2]).toBeGreaterThan(high.energy[0]);
+    });
+
+    it('has band energies that are the means of the log magnitude over each band, and the documented log scale', () => {
+        const binHz = TEST_SAMPLE_RATE / FFT_SIZE;
+        const lastBin = FFT_SIZE / 2;
+        // The same band edges the extractor derives, in bins: [1, kickEnd), [kickEnd, midEnd), [midEnd, lastBin).
+        const kickEnd = Math.min(lastBin - 2, Math.max(2, Math.floor(KICK_MAX_HZ / binHz) + 1));
+        const midEnd = Math.min(lastBin - 1, Math.max(kickEnd + 1, Math.floor(MID_MAX_HZ / binHz) + 1));
+        const edges = [1, kickEnd, midEnd, lastBin];
+        // A tone exactly on a bin, so that it does not leak into its neighbors.
+        const bin = 40;
+        const { log, energy } = lastSpectrum(sine(bin * binHz, 0.3, 0.5));
+        for (let b = 0; b < BAND_COUNT; b++) {
+            let sum = 0;
+            for (let k = edges[b]; k < edges[b + 1]; k++) sum += log[k];
+            expect(energy[b]).toBeCloseTo(sum / (edges[b + 1] - edges[b]), 4);
+        }
+        // A sine of amplitude A on a bin reads magnitude A (the Hann window halves it and the extractor scale of
+        // 4 / FFT_SIZE restores it), so the log value is log(1 + gain * A). The 2 percent tolerance covers the
+        // window's discrete shape and float32 rounding, and is far below what a wrong gain would change.
+        const expectedLog = Math.log(1 + MAGNITUDE_LOG_GAIN * 0.5);
+        expect(Math.abs(log[bin] - expectedLog) / expectedLog).toBeLessThan(0.02);
+    });
+});
+
 describe('packFrame', () => {
     it('writes flux, energy, rms and chroma at the documented offsets', () => {
         expect(FRAME_STRIDE).toBe(19);
@@ -173,6 +233,7 @@ describe('packFrame', () => {
             energy: Float32Array.from([4, 5, 6]),
             rms: 7,
             chroma: Float32Array.from({ length: CHROMA_BINS }, (_, i) => 10 + i),
+            logMagnitude: new Float32Array(FFT_SIZE / 2),
             endSample: 0,
         };
         const out = new Float32Array(FRAME_STRIDE * 2);
