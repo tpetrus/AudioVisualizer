@@ -138,11 +138,14 @@ def parse_args():
 # The source material the app's body color control should tint, from the bone map's optional "skin_material" (the
 # default is a material already named "skin" in any case).
 SKIN_MATERIAL = {"name": None}
+# Optional "arm_scale" in the bone map: shortens the arms (shoulder to wrist) by this factor, hands kept at full size.
+ARM_SCALE = {"value": 1.0}
 
 
 def load_map(path):
     data = json.loads(path.read_text(encoding="utf-8"))
     SKIN_MATERIAL["name"] = data.get("skin_material")
+    ARM_SCALE["value"] = float(data.get("arm_scale", 1.0))
     for key in ("id", "source", "armature", "map"):
         if key not in data:
             fail(f"bone map has no '{key}'")
@@ -254,6 +257,30 @@ def tails(head, sources, joints):
         if (tail[name] - head[name]).length < 1e-4:
             fail(f"{name} has a zero-length bone")
     return tail
+
+
+def shorten_arms(points, head, factor):
+    """Returns a function that moves a point so each arm, from the shoulder joint to the wrist, is `factor` as long and
+    everything beyond the wrist (the hand) slides in with it at full size. The arms of these sources run along X, so
+    this works on the distance from the shoulder along X; nothing inside the shoulder joint moves."""
+    center = head["root"].x
+    sides = []
+    for s in SIDES:
+        sign = 1.0 if head[f"wrist{s}"].x > center else -1.0
+        shoulder = head[f"upperarm01{s}"].x * sign
+        wrist = head[f"wrist{s}"].x * sign
+        sides.append((sign, shoulder, wrist - shoulder))
+
+    def move(co):
+        for sign, shoulder, length in sides:
+            u = co.x * sign - shoulder
+            if u <= 0 or co.x * sign < 0:
+                continue
+            co.x = (shoulder + (factor * u if u <= length else factor * length + (u - length))) * sign
+            return co
+        return co
+
+    return move
 
 
 def mesh_objects(armature):
@@ -422,6 +449,13 @@ def run(args, levels, first):
     obj = join_meshes(meshes)
     obj.name = "Body"
     obj.data.name = "Body"
+    if ARM_SCALE["value"] != 1.0:
+        move = shorten_arms(None, head, ARM_SCALE["value"])
+        for vertex in obj.data.vertices:
+            move(vertex.co)
+        for points in (head, tail):
+            for name in points:
+                move(points[name])
 
     # Scale so the character is --height tall from the floor to the top of the head, feet on z = 0 (y = 0 once exported).
     zs = [v.co.z for v in obj.data.vertices]

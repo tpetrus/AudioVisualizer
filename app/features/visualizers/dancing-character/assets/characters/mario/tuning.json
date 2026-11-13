@@ -18,6 +18,11 @@
       {
         "group": "arms",
         "scale": 0.7
+      },
+      {
+        "group": "wrists",
+        "scale": 0.6,
+        "restBlend": 0.6
       }
     ]
   }

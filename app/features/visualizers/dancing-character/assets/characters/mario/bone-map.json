@@ -48,5 +48,6 @@
     "footR": "Bone.031",
     "toe1-1R": "Bone.033"
   },
-  "skin_material": "mario"
+  "skin_material": "mario",
+  "arm_scale": 0.72
 }

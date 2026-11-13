@@ -12,6 +12,7 @@ export const TUNING_GROUPS: Readonly<Record<string, readonly string[]>> = {
     arms: SHOULDERS_AND_ARMS,
     spine: SPINE_AND_HEAD,
     feet: ['footL', 'footR'],
+    wrists: ['wristL', 'wristR'],
     legs: ['upperleg01L', 'upperleg01R', 'lowerleg01L', 'lowerleg01R', 'footL', 'footR'],
 };
 

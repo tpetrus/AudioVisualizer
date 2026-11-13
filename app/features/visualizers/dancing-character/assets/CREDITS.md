@@ -164,10 +164,10 @@ hashed under `/assets/` with immutable caching.
   file is fan art and may not be used commercially.
 - Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton from the file's unnamed bones
   (`scripts/blender-characters/convert.py` with `bone-map.json`), Solidify and Subdivision modifiers applied,
-  materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above, retargeted to this
+  materials rebuilt as flat Principled colors, arms shortened to 72 % (`arm_scale`), scaled to 1.68 m. The dances are the CMU clips above, retargeted to this
   skeleton with `tuning.json`.
 - Trademark: Mario is a character of Nintendo. This is unofficial fan art; the CC license cannot clear the underlying
   character rights, and the entry is removed on request.
-- Results: `model.glb` 2360712 bytes sha256 `d42b3875a95b8fd55157d4b0d81a25a32f4eec6915bb8aa9bb947827c2954d6b`; `dances.glb`
-  196968 bytes sha256 `92709184e8307ccde15f706f3bb7bd086401d91f5c150e9a88b3b49768210352`.
+- Results: `model.glb` 2360668 bytes sha256 `b6203da695b71bb53b0d0adae24eb94179b55caef7cab67fe619bb222fdbb19c`; `dances.glb`
+  196968 bytes sha256 `5ed9a1324dd6044d34d92f2cf5fb1033a0f03476c61cb59ce3445d79a08c8f6b`.
 - Rebuild: as for Mr Incredible.
