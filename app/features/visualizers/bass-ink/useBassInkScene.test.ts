@@ -255,7 +255,11 @@ describe('useBassInkScene', () => {
             expect(tracker.updatePhase).toHaveBeenCalled();
             expect(lastUpdate().cue).toBe(script.cue);
             const [mid, high, turbulence] = currentCloud().setTexture.mock.calls.at(-1)!;
-            expect([mid, high, turbulence]).toEqual([expect.closeTo(0.4, 5), expect.closeTo(0.7, 5), 1.5]);
+            expect([mid, high, turbulence]).toEqual([
+                expect.closeTo(0.4, 5),
+                expect.closeTo(0.7 * valuesRef.current.intensity, 5),
+                1.5,
+            ]);
         });
 
         it('turns the cloud object by the camera drift and not at all when it is 0', () => {

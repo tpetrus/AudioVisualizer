@@ -53,8 +53,11 @@ export const bassInkSceneConfig = {
     sparkle: {
         // Share of points that can sparkle; the rest never do, so the highs read as glints, not a global flash.
         fraction: 0.06,
-        // A sparkling point grows by up to this factor times the high-band onset (size only, never brightness).
-        amplitude: 1.6,
+        // A sparkling point grows by up to this factor times the high-band onset. Points are additive, so a bigger point
+        // adds light: with this share and amplitude the whole cloud gains at most about 8% on a full hat, under the 10%
+        // a flash has to change by to count (WCAG 2.3.1), however fast the hats are. The scene also scales the high
+        // band by the flash intensity, so 0 turns the glints off.
+        amplitude: 0.5,
     },
     sprite: {
         // World size of one point; about 2.5 px at the default camera on a 900 px tall view.
@@ -63,9 +66,10 @@ export const bassInkSceneConfig = {
         baseAlpha: 0.5,
         // Tension shrinks points by this fraction ...
         tensionSizeShrink: 0.3,
-        // ... and fades them by this fraction, because the squeezed cloud overlaps more and would otherwise get brighter
-        // by itself (global brightness is the BrightnessMix's job alone).
-        tensionAlphaNormalization: 0.6,
+        // ... and fades them by this fraction, chosen with the squeeze and the shrink so the light per screen area stays
+        // the same at any tension: the squeezed core neither saturates nor dims, and the release after a drop reads as
+        // the cloud spreading out, not as a flash (global brightness is the BrightnessMix's job alone).
+        tensionAlphaNormalization: 0.14,
     },
     camera: {
         // The cloud fills about 60 percent of the height at this distance and field of view.

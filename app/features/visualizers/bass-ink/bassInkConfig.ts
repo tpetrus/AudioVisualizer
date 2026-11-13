@@ -97,7 +97,7 @@ export const bassInkConfig = {
         // No new build can start during the afterglow, so one drop is not followed by an instant re-build.
         afterglowSeconds: 6,
         // Tension falls fast after a drop and slowly after an abandoned build.
-        tensionFallAfterDropSeconds: 0.5,
+        tensionFallAfterDropSeconds: 1,
         tensionFallAfterAbandonSeconds: 3,
         // Fixed length so a transition looks the same in every genre.
         transitionSeconds: 2,

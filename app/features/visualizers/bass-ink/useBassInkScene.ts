@@ -229,7 +229,8 @@ export function useBassInkScene(
 
                 lastBrightness = brightnessMix.update(cue, kickFired, lastKickStrength, now, dt, values.intensity);
 
-                cloud.setTexture(state.bandOnsets[1], state.bandOnsets[2], values.turbulence);
+                // The glints add a little light, so they follow the flash intensity like every other brightness term.
+                cloud.setTexture(state.bandOnsets[1], state.bandOnsets[2] * values.intensity, values.turbulence);
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
                 cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
