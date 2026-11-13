@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { BandOnsets } from '../bandOnsets';
+import { OnsetExtractor } from '../onsetExtractor';
+import { FEATURE_ONSET_BANDS, FFT_SIZE } from '../rhythmConfig';
 import { renderTrack, runPipeline, TEST_SAMPLE_RATE } from '../testSignals';
 import { detectFromPcm, pickPeaks } from './detect';
 import { beatError, lockSeconds, scoreOnsets } from './metrics';
@@ -57,10 +60,31 @@ describe('detectFromPcm', () => {
         expect(detected.beats).toEqual([...detected.beats].sort((a, b) => a - b));
     });
 
-    it('picks the onsets of the bands: a click on every beat is a high-band event', () => {
-        expect(scoreOnsets(track.beatTimes, detected.onsets.highs, 50).f).toBeGreaterThan(0.9);
+    it('finds the onsets of the bands: a 3 kHz click on every beat is a snare-range event', () => {
+        expect(scoreOnsets(track.beatTimes, detected.onsets.snare, 50).f).toBeGreaterThan(0.9);
         // The kick is only on the downbeats.
         const downbeats = scoreOnsets(track.downbeatTimes, detected.onsets.kick, 50);
         expect(downbeats.recall).toBe(1);
+    });
+
+    it('takes the onsets of all four bands from BandOnsets, the detector the worklet runs', () => {
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        const bandOnsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
+        const direct: Record<(typeof FEATURE_ONSET_BANDS)[number], number[]> = {
+            kick: [],
+            bass: [],
+            snare: [],
+            highs: [],
+        };
+        for (let offset = 0; offset < track.pcm.length; offset += 4096) {
+            extractor.push(track.pcm.subarray(offset, Math.min(track.pcm.length, offset + 4096)), (frame) => {
+                const time = (frame.endSample - FFT_SIZE / 2) / TEST_SAMPLE_RATE;
+                bandOnsets.push(frame.logMagnitude, time, (band, eventTime) => {
+                    direct[FEATURE_ONSET_BANDS[band]].push(eventTime);
+                });
+            });
+        }
+        expect(Object.keys(detected.onsets).sort()).toEqual([...FEATURE_ONSET_BANDS].sort());
+        expect(detected.onsets).toEqual(direct);
     });
 });
