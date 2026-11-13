@@ -10,7 +10,10 @@ import {
 } from './storage';
 import {
     DEFAULT_NORMALIZE_SETTINGS,
+    ENGINE_TAP_SETTINGS,
+    type AnalyserSettings,
     type AudioGraph,
+    type OwnedAnalyser,
     type NormalizeSettings,
     type SavedSource,
     type SourceInput,
@@ -21,6 +24,47 @@ const AGC_INTERVAL_MS = 30;
 const ATTACK_TIME_CONSTANT = 0.02;
 const MIN_GAIN = 0.25;
 const METER_FFT_SIZE = 1024;
+
+const ANALYSER_KEYS = ['fftSize', 'smoothingTimeConstant', 'minDecibels', 'maxDecibels'] as const;
+
+const applySettings = (node: AnalyserNode, settings: AnalyserSettings): void => {
+    // Decibel range first: the browser rejects a minimum above the current maximum and the reverse.
+    node.minDecibels = settings.minDecibels;
+    node.maxDecibels = settings.maxDecibels;
+    node.fftSize = settings.fftSize;
+    node.smoothingTimeConstant = settings.smoothingTimeConstant;
+};
+
+const readSettings = (node: AnalyserNode): AnalyserSettings => ({
+    fftSize: node.fftSize,
+    smoothingTimeConstant: node.smoothingTimeConstant,
+    minDecibels: node.minDecibels,
+    maxDecibels: node.maxDecibels,
+});
+
+// Makes the tap's settings read-only for everyone: it is shared, so a write from one reader would change what all the
+// others see. The node keeps the values applied before this call.
+const lockTapSettings = (tap: AnalyserNode): void => {
+    for (const key of ANALYSER_KEYS) {
+        Object.defineProperty(tap, key, {
+            configurable: false,
+            enumerable: true,
+            get: () => ENGINE_TAP_SETTINGS[key],
+            set: () => {
+                throw new TypeError(
+                    `The engine's shared analyser is read-only (tried to set ${key}). Use useAnalyser(options) to get a node with your own settings.`,
+                );
+            },
+        });
+    }
+};
+
+// One consumer's analyser. `node` is undefined while nothing is captured; `settings` remembers the last known
+// settings so a later capture rebuilds the node the way its owner left it.
+interface OwnedEntry {
+    settings: AnalyserSettings;
+    node?: AnalyserNode;
+}
 
 // Captures audio, normalizes its volume, and exposes the analyser the visualizations read. Framework-free: React
 // reads it through `subscribe` + the arrow-property getters (see useAudioState.ts).
@@ -34,6 +78,8 @@ export class AudioEngine {
     private readonly meterData = new Uint8Array(METER_FFT_SIZE);
     private resumePromise: Promise<boolean> | undefined;
 
+    private readonly ownedAnalysers = new Set<OwnedEntry>();
+
     private readonly listeners = new Set<() => void>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
@@ -43,6 +89,40 @@ export class AudioEngine {
     // Snapshot getters for useSyncExternalStore: arrow properties so `this` survives being passed around, and each
     // returns the same value (same reference) until something changes.
     public getAnalyser = () => this.graph?.analyser;
+    // A node of the consumer's own, fed from the same point as the tap and carrying exactly the settings it declares.
+    // The consumer may assign new settings on it at any time. The engine rebuilds it when the source changes.
+    public acquireAnalyser(settings: AnalyserSettings): OwnedAnalyser {
+        const entry: OwnedEntry = { settings: { ...settings } };
+        this.ownedAnalysers.add(entry);
+        if (this.graph) {
+            this.buildOwnedNode(entry, this.graph);
+        }
+        return {
+            getNode: () => entry.node,
+            release: () => {
+                this.ownedAnalysers.delete(entry);
+                this.disconnectOwnedNode(entry);
+            },
+        };
+    }
+
+    private buildOwnedNode(entry: OwnedEntry, graph: AudioGraph): void {
+        const node = graph.audioContext.createAnalyser();
+        applySettings(node, entry.settings);
+        graph.gainNode.connect(node);
+        entry.node = node;
+    }
+
+    // Keeps the node's current settings in the entry first, so a rebuild reproduces them.
+    private disconnectOwnedNode(entry: OwnedEntry): void {
+        if (!entry.node) {
+            return;
+        }
+        entry.settings = readSettings(entry.node);
+        entry.node.disconnect();
+        entry.node = undefined;
+    }
+
     public getIsCapturing = () => this.graph !== undefined;
     public getNormalizeOptions = () => this.normalizeSettings;
     public getNormalize = () => this.normalize;
@@ -260,6 +340,8 @@ export class AudioEngine {
             const source = input.node;
             const gainNode = audioContext.createGain();
             const analyser = audioContext.createAnalyser();
+            applySettings(analyser, ENGINE_TAP_SETTINGS);
+            lockTapSettings(analyser);
             const meter = audioContext.createAnalyser();
             meter.fftSize = METER_FFT_SIZE;
             const outputMeter = audioContext.createAnalyser();
@@ -286,6 +368,9 @@ export class AudioEngine {
 
         this.teardown();
         this.graph = graph;
+        for (const entry of this.ownedAnalysers) {
+            this.buildOwnedNode(entry, graph);
+        }
         this.agcTimer = window.setInterval(() => this.updateGain(), AGC_INTERVAL_MS);
         this.notify();
     }
@@ -299,6 +384,9 @@ export class AudioEngine {
         }
         const { input, source, audioContext } = this.graph;
         this.graph = undefined;
+        for (const entry of this.ownedAnalysers) {
+            this.disconnectOwnedNode(entry);
+        }
         input.stop();
         source.disconnect();
         void audioContext.close();

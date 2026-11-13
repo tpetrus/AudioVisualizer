@@ -22,7 +22,6 @@ import { useThreeScene } from '~/hooks/useThreeScene';
 import { createOrbitView } from '~/lib/three/orbitView';
 
 // Frequency data: 2048 samples gives bins of about 23 Hz, so the bass below 120 Hz spans about five of them.
-const FFT_SIZE = 2048;
 // useThreeScene renders at most at this pixel ratio, and gl_PointSize is in drawing-buffer pixels.
 const MAX_PIXEL_RATIO = 2;
 
@@ -175,7 +174,6 @@ export function useBassInkScene(
         }
 
         const bindAudio = (source: AnalyserNode) => {
-            source.fftSize = FFT_SIZE;
             spectrum = new Uint8Array(source.frequencyBinCount);
             bassBins = bassBinCount(source.context.sampleRate, source.fftSize, bassInkConfig.energy.bassCutoffHz);
             // A different source is different music: forget the old loudness history.
