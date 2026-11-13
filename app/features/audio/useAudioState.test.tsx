@@ -2,6 +2,7 @@
 import { act } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { asWebAudio, FakeAnalyserNode } from '~/test/fakeWebAudio';
+import { FakeAudioEngine } from '~/test/fakeEngines';
 import { renderHookWithProviders } from '~/test/renderWithProviders';
 import { DEFAULT_NORMALIZE_SETTINGS } from './types';
 import { useAnalyser, useCapturing, useNormalize, useNormalizeOptions } from './useAudioState';
@@ -59,5 +60,67 @@ describe('useNormalizeOptions', () => {
 
         act(() => engine.resetNormalizeOptions());
         expect(result.current).toEqual(DEFAULT_NORMALIZE_SETTINGS);
+    });
+});
+
+describe('useAnalyser(options)', () => {
+    const A = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
+    const B = { fftSize: 4096, smoothingTimeConstant: 0.9, minDecibels: -90, maxDecibels: -20 };
+
+    it('returns a node of its own carrying the declared settings, not the tap', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const one = renderHookWithProviders(() => useAnalyser(A), { engine });
+        const two = renderHookWithProviders(() => useAnalyser(B), { engine });
+
+        expect(one.result.current).not.toBe(engine.getAnalyser());
+        expect(one.result.current).not.toBe(two.result.current);
+        expect(one.result.current).toMatchObject(A);
+        expect(two.result.current).toMatchObject(B);
+    });
+
+    it('follows the engine to a new source and keeps one live node under StrictMode', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const { result } = renderHookWithProviders(() => useAnalyser(A), { engine, reactStrictMode: true });
+
+        expect(engine.ownedEntries.size).toBe(1);
+        const first = result.current;
+        expect(first).toMatchObject(A);
+
+        act(() => engine.setAnalyser(fakeAnalyser()));
+        expect(result.current).not.toBe(first);
+        expect(result.current).toMatchObject(A);
+        expect(engine.ownedEntries.size).toBe(1);
+    });
+
+    it('does not recreate the node for equal values in a new object, and assigns changed values to it', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const { result, rerender } = renderHookWithProviders((options) => useAnalyser(options), {
+            engine,
+            initialProps: A,
+        });
+        const node = result.current;
+
+        rerender({ ...A });
+        expect(result.current).toBe(node);
+        expect(engine.acquireAnalyser).toHaveBeenCalledTimes(1);
+
+        rerender(B);
+        expect(result.current).toBe(node);
+        expect(result.current).toMatchObject(B);
+        expect(engine.acquireAnalyser).toHaveBeenCalledTimes(1);
+    });
+
+    it('releases the node on unmount', () => {
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(fakeAnalyser());
+        const { unmount } = renderHookWithProviders(() => useAnalyser(A), { engine });
+        expect(engine.ownedEntries.size).toBe(1);
+
+        unmount();
+
+        expect(engine.ownedEntries.size).toBe(0);
     });
 });

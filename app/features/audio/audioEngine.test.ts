@@ -12,7 +12,7 @@ import {
 } from '~/test/fakeWebAudio';
 import { AudioEngine } from './audioEngine';
 import { loadNormalize, loadNormalizeSettings, loadSource, saveNormalizeSettings, saveSource } from './storage';
-import { DEFAULT_NORMALIZE_SETTINGS } from './types';
+import { DEFAULT_NORMALIZE_SETTINGS, ENGINE_TAP_SETTINGS, type AnalyserSettings } from './types';
 
 // The nodes AudioEngine.connect() builds, in the order it creates them.
 interface CapturedGraph {
@@ -33,6 +33,12 @@ function setup(media: FakeMediaOptions = {}) {
         return { context, gain: context.createdGains[0], analyser, meter, outputMeter };
     };
     return { web, media: mediaDevices, engine, graph };
+}
+
+// A source that is a bare node, like the dev file source's bus.
+function nodeSource(context: AudioContext, label?: string) {
+    const node = asWebAudio<AudioNode>(new FakeGainNode(asWebAudio<FakeAudioContext>(context)));
+    return { node, stop: vi.fn(), label };
 }
 
 beforeEach(() => {
@@ -740,12 +746,6 @@ describe('latencyInfo and trackInfo', () => {
 });
 
 describe('startSource', () => {
-    // A source that is a bare node, like the dev file source's bus.
-    function nodeSource(context: AudioContext, label?: string) {
-        const node = asWebAudio<AudioNode>(new FakeGainNode(asWebAudio<FakeAudioContext>(context)));
-        return { node, stop: vi.fn(), label };
-    }
-
     it('wires a node source through the gain stage and both meters without remembering it', async () => {
         const { engine, graph } = setup();
         let node: FakeGainNode | undefined;
@@ -813,5 +813,148 @@ describe('startSource', () => {
 
         await engine.startSource((context) => nodeSource(context));
         expect(engine.trackInfo).toBe('');
+    });
+});
+
+describe('analysers: the tap and per-consumer nodes', () => {
+    const A: AnalyserSettings = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
+    const B: AnalyserSettings = { fftSize: 4096, smoothingTimeConstant: 0.9, minDecibels: -90, maxDecibels: -20 };
+    const settingsOf = (node: AnalyserNode | undefined): AnalyserSettings => ({
+        fftSize: node!.fftSize,
+        smoothingTimeConstant: node!.smoothingTimeConstant,
+        minDecibels: node!.minDecibels,
+        maxDecibels: node!.maxDecibels,
+    });
+
+    it('creates the tap with the fixed settings and throws when any is assigned from outside', async () => {
+        const { engine } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const tap = engine.getAnalyser()!;
+
+        expect(settingsOf(tap)).toEqual(ENGINE_TAP_SETTINGS);
+        for (const key of ['fftSize', 'smoothingTimeConstant', 'minDecibels', 'maxDecibels'] as const) {
+            expect(() => {
+                tap[key] = 1;
+            }).toThrow(TypeError);
+            expect(() => {
+                tap[key] = 1;
+            }).toThrow(/useAnalyser\(options\)/);
+        }
+        expect(settingsOf(tap)).toEqual(ENGINE_TAP_SETTINGS);
+    });
+
+    it('gives two consumers their own settings in either acquisition order, untouched by each other and the tap', async () => {
+        for (const order of [
+            [A, B],
+            [B, A],
+        ]) {
+            const { engine } = setup();
+            await engine.startSource((context) => nodeSource(context));
+            const handles = order.map((settings) => engine.acquireAnalyser(settings));
+            const nodes = handles.map((handle) => handle.getNode());
+
+            expect(nodes[0]).not.toBe(nodes[1]);
+            expect(nodes).not.toContain(engine.getAnalyser());
+            expect(settingsOf(nodes[0])).toEqual(order[0]);
+            expect(settingsOf(nodes[1])).toEqual(order[1]);
+
+            nodes[0]!.fftSize = 512;
+            expect(settingsOf(nodes[1])).toEqual(order[1]);
+            expect(settingsOf(engine.getAnalyser())).toEqual(ENGINE_TAP_SETTINGS);
+        }
+    });
+
+    it('feeds an owned node from the gain output and works when acquired before capture starts', async () => {
+        const { engine, graph } = setup();
+        const early = engine.acquireAnalyser(A);
+        expect(early.getNode()).toBeUndefined();
+
+        await engine.startSource((context) => nodeSource(context));
+        const node = early.getNode();
+        expect(settingsOf(node)).toEqual(A);
+        expect(graph().gain.connect).toHaveBeenCalledWith(node);
+    });
+
+    it('rebuilds owned nodes in the new context with their current settings and notifies', async () => {
+        const { engine, web } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const handle = engine.acquireAnalyser(A);
+        const first = handle.getNode()!;
+        first.smoothingTimeConstant = 0.1;
+        const seen: Array<AnalyserNode | undefined> = [];
+        engine.subscribe(() => seen.push(handle.getNode()));
+
+        await engine.startSource((context) => nodeSource(context));
+
+        const second = handle.getNode()!;
+        expect(second).not.toBe(first);
+        expect(second.context).toBe(web.contexts[1]);
+        expect(settingsOf(second)).toEqual({ ...A, smoothingTimeConstant: 0.1 });
+        expect(seen).toEqual([second]);
+        expect(asWebAudio<FakeAnalyserNode>(first).disconnect).toHaveBeenCalled();
+
+        // Stopping drops the node but remembers the settings for the next capture.
+        engine.stopCapture();
+        expect(handle.getNode()).toBeUndefined();
+        await engine.startSource((context) => nodeSource(context));
+        expect(settingsOf(handle.getNode())).toEqual({ ...A, smoothingTimeConstant: 0.1 });
+    });
+
+    it('release disconnects, stops recreation and is idempotent', async () => {
+        const { engine, graph } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const handle = engine.acquireAnalyser(A);
+        const node = asWebAudio<FakeAnalyserNode>(handle.getNode());
+        const { gain } = graph();
+
+        handle.release();
+        handle.release();
+
+        // The gain node must let go of the node too, or the released analyser stays in the graph.
+        expect(gain.disconnect).toHaveBeenCalledTimes(1);
+        expect(gain.disconnect).toHaveBeenCalledWith(node);
+        expect(node.disconnect).toHaveBeenCalledTimes(1);
+        expect(handle.getNode()).toBeUndefined();
+        await engine.startSource((context) => nodeSource(context));
+        expect(handle.getNode()).toBeUndefined();
+    });
+});
+
+// A deterministic model of what a node reports for a fixed input (a steady tone): the level depends only on the
+// node's own window size, smoothing and decibel range, so any leak of one consumer's settings into another shows up.
+function bandEnergyDb(node: AnalyserNode): number {
+    const settled = -40 - 10 * Math.log10(node.fftSize / 2048) + 6 * node.smoothingTimeConstant;
+    return Math.min(node.maxDecibels, Math.max(node.minDecibels, settled));
+}
+
+describe('analyser acquisition order', () => {
+    const A: AnalyserSettings = { fftSize: 2048, smoothingTimeConstant: 0.5, minDecibels: -100, maxDecibels: -30 };
+    const B: AnalyserSettings = { fftSize: 4096, smoothingTimeConstant: 0.8, minDecibels: -90, maxDecibels: -35 };
+
+    async function readings(order: 'AB' | 'BA', share = false) {
+        const { engine } = setup();
+        await engine.startSource((context) => nodeSource(context));
+        const acquire = (settings: AnalyserSettings) => engine.acquireAnalyser(settings).getNode()!;
+        const first = order === 'AB' ? A : B;
+        const second = order === 'AB' ? B : A;
+        const firstNode = acquire(first);
+        // When sharing, the second consumer configures the same node, as the old shared analyser allowed.
+        const secondNode = share ? Object.assign(firstNode, second) : acquire(second);
+        const [a, b] = order === 'AB' ? [firstNode, secondNode] : [secondNode, firstNode];
+        return [bandEnergyDb(a), bandEnergyDb(b)];
+    }
+
+    it('gives each consumer the same reading whichever one was acquired first', async () => {
+        const ab = await readings('AB');
+        const ba = await readings('BA');
+        expect(Math.abs(ab[0] - ba[0])).toBeLessThanOrEqual(1);
+        expect(Math.abs(ab[1] - ba[1])).toBeLessThanOrEqual(1);
+        expect(ab[0]).not.toBeCloseTo(ab[1], 0);
+    });
+
+    it('would catch consumers sharing one node', async () => {
+        const ab = await readings('AB', true);
+        const ba = await readings('BA', true);
+        expect(Math.abs(ab[0] - ba[0])).toBeGreaterThan(1);
     });
 });
