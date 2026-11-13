@@ -1,6 +1,14 @@
+import { BandOnsets, type OnsetSink } from './bandOnsets';
 import { OnsetExtractor, packFrame, type FrameSink } from './onsetExtractor';
-import { BATCH_FRAMES, FFT_SIZE, FRAME_STRIDE, RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
-import type { FrameBatch } from './types';
+import {
+    BATCH_FRAMES,
+    FEATURE_ONSET_BAND_COUNT,
+    FFT_SIZE,
+    FRAME_STRIDE,
+    HUB_BAND_COUNT,
+    RHYTHM_PROCESSOR_NAME,
+} from './rhythmConfig';
+import { FEATURE_MESSAGE_VERSION, type FeatureBatch } from './types';
 
 // The AudioWorklet global scope has none of the DOM, and TypeScript's DOM lib does not describe it, so the few
 // globals this file uses are declared here. `sampleRate` and `currentFrame` are provided by the worklet scope.
@@ -16,14 +24,24 @@ declare function registerProcessor(name: string, processor: new () => AudioWorkl
 // sizes are handled by growing it.
 const RENDER_QUANTUM = 128;
 
-// A thin shell around OnsetExtractor: it runs on the audio thread, turns the incoming audio into feature frames,
-// and posts them to the main thread in batches. All analysis beyond that happens on the main thread, where it is
-// cheap (a few hundred operations per frame) and easy to test.
+// Each frame decides at most one event per onset band, so a batch holds at most this many events.
+const ONSET_CAPACITY = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+
+// A thin shell around OnsetExtractor and BandOnsets: it runs on the audio thread, turns the incoming audio into
+// feature frames, band energies and onset events, and posts them to the main thread in batches. The tempo and beat
+// analysis happens on the main thread, where it is cheap (a few hundred operations per frame) and easy to test.
 class RhythmProcessor extends AudioWorkletProcessor {
     private readonly extractor = new OnsetExtractor(sampleRate);
+    private readonly bandOnsets = new BandOnsets(sampleRate, this.extractor.frameRate);
     private mix = new Float32Array(RENDER_QUANTUM);
-    // A batch is posted by transferring its buffer, so a fresh one is needed after each post (~12 per second).
+    // A batch is posted by transferring its buffers, so fresh ones are needed after each post (~12 per second).
     private batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
+    private frameTimes = new Float64Array(BATCH_FRAMES);
+    private bandEnergy = new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT);
+    private onsetBand = new Uint8Array(ONSET_CAPACITY);
+    private onsetTime = new Float64Array(ONSET_CAPACITY);
+    private onsetStrength = new Float32Array(ONSET_CAPACITY);
+    private onsetCount = 0;
     private batchCount = 0;
     private batchTime0 = 0;
     // Context sample index of the first sample the extractor saw, and how many it has seen since.
@@ -31,12 +49,29 @@ class RhythmProcessor extends AudioWorkletProcessor {
     private consumed = 0;
     private started = false;
 
+    // Fields rather than methods or per-frame closures, so the audio thread allocates nothing per frame.
+    private readonly onOnset: OnsetSink = (band, time, strength) => {
+        // The arrays hold ONSET_CAPACITY events, one per band per frame, which the detector cannot exceed; the guard
+        // keeps the count (posted to the main thread, which reads that many entries) honest if that ever changes.
+        if (this.onsetCount >= ONSET_CAPACITY) {
+            return;
+        }
+        this.onsetBand[this.onsetCount] = band;
+        this.onsetTime[this.onsetCount] = time;
+        this.onsetStrength[this.onsetCount] = strength;
+        this.onsetCount++;
+    };
+
     private readonly onFrame: FrameSink = (frame) => {
+        // The window is centred half its length before its end.
+        const time = (this.startSample + frame.endSample - FFT_SIZE / 2) / sampleRate;
         if (this.batchCount === 0) {
-            // The window is centred half its length before its end.
-            this.batchTime0 = (this.startSample + frame.endSample - FFT_SIZE / 2) / sampleRate;
+            this.batchTime0 = time;
         }
         packFrame(frame, this.batch, this.batchCount * FRAME_STRIDE);
+        this.frameTimes[this.batchCount] = time;
+        this.bandOnsets.push(frame.logMagnitude, time, this.onOnset);
+        this.bandEnergy.set(this.bandOnsets.energy, this.batchCount * HUB_BAND_COUNT);
         if (++this.batchCount === BATCH_FRAMES) {
             this.post();
         }
@@ -53,6 +88,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
         if (this.started && currentFrame !== this.startSample + this.consumed) {
             this.post();
             this.extractor.reset();
+            this.bandOnsets.reset();
             this.started = false;
         }
         if (!this.started) {
@@ -87,9 +123,33 @@ class RhythmProcessor extends AudioWorkletProcessor {
         if (this.batchCount === 0) {
             return;
         }
-        const message: FrameBatch = { time0: this.batchTime0, count: this.batchCount, frames: this.batch };
-        this.port.postMessage(message, [this.batch.buffer]);
+        const message: FeatureBatch = {
+            version: FEATURE_MESSAGE_VERSION,
+            time0: this.batchTime0,
+            count: this.batchCount,
+            frames: this.batch,
+            frameTimes: this.frameTimes,
+            bandEnergy: this.bandEnergy,
+            onsetCount: this.onsetCount,
+            onsetBand: this.onsetBand,
+            onsetTime: this.onsetTime,
+            onsetStrength: this.onsetStrength,
+        };
+        this.port.postMessage(message, [
+            this.batch.buffer,
+            this.frameTimes.buffer,
+            this.bandEnergy.buffer,
+            this.onsetBand.buffer,
+            this.onsetTime.buffer,
+            this.onsetStrength.buffer,
+        ]);
         this.batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
+        this.frameTimes = new Float64Array(BATCH_FRAMES);
+        this.bandEnergy = new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT);
+        this.onsetBand = new Uint8Array(ONSET_CAPACITY);
+        this.onsetTime = new Float64Array(ONSET_CAPACITY);
+        this.onsetStrength = new Float32Array(ONSET_CAPACITY);
+        this.onsetCount = 0;
         this.batchCount = 0;
     }
 }
