@@ -1,0 +1,1029 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "natural-dance-20261111t152213z-80d5a7f4",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-11T15:22:13.589Z",
+  "updated": "2026-11-11T15:33:13.076Z",
+  "feature": {
+    "slug": "natural-dance",
+    "title": "Natural dance for the dancing character",
+    "request": "<task>\n-Implement a more natural dance for the dancing character animation\n</task>\n\n<context>\n-Currently the character has an awkward dance that just raises arms, and slightly bends legs\n-We want a more natural-looking dance\n</context>\n\n<requirements>\n-Dance should mimic the dance a normal human would make\n-This can either be a popular dance, or just a basic dance someone might make on a dance floor\n</requirements>\n\n<scope-and-non-goals>\n-The dance can include any part of the body moving: legs, feet, arms, hands, head, chest, etc\n-Prioritize finding a dance online that you can use, rather than creating from scratch\n-You can decide to create one from scratch only if you can't find a good one online\n-If there are multiple options, we can consider letting the user select a dance\n</scope-and-non-goals>\n\n<verification>\n-A new dance has been created and still dances to tempo properly\n</verification>"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7"
+  },
+  "problem": {
+    "statement": "The dancing-character visualizer's dance is a procedural 4-beat loop (buildDanceClip in dancingCharacterDanceClip.ts: a per-beat bounce plus arm-sway and head-nod accents) that reads as awkward: it mostly raises the arms and slightly bends the legs. Viewers expect the character to move like a person on a dance floor, with weight shifts, steps, hips, chest, arms and head working together, while staying locked to the detected tempo.",
+    "users": [
+      "Visitors of the AudioVisualizer site who open the dancing-character visualizer while music plays"
+    ],
+    "evidence": [
+      "User report in this session: the current dance just raises arms and slightly bends legs",
+      "context-brief.md: the dance is built procedurally in code from 20 required bones, no motion-capture data is used"
+    ]
+  },
+  "goals": [
+    "Replace the current dance with natural-looking human dances, preferably sourced from existing motion-capture or animation clips rather than authored from scratch",
+    "Ship 2-3 distinct dances the user can pick from in the settings panel, plus an auto-rotate mode that changes dance over time",
+    "Keep every dance locked to tempo: beats of the dance land on detected beats, and the speed follows the BPM as today"
+  ],
+  "non_goals": [
+    "Changing the character model, outfit, club scene, camera or framing beyond what a new dance needs",
+    "Runtime retargeting or loading of arbitrary user-supplied animations",
+    "Upgrading three.js or adding a runtime animation library",
+    "Choreography that reacts to individual sounds beyond the existing beat, bar and bass signals"
+  ],
+  "success_metrics": [
+    "In npm run dev with a 120 BPM track, the dance's step hits coincide with detected beats for every dance (visual check plus a unit test on clip timing)",
+    "The user judges each shipped dance natural-looking in a manual review",
+    "Coverage stays at or above 95 percent and all CI gates pass"
+  ],
+  "constraints": [
+    "three.js r186 pinned; no new runtime dependencies; named exports only; logic outside React; no per-frame allocation (AGENTS.md)",
+    "The rig is the CC0 MakeHuman 163-bone skeleton in assets/MakeHumanDancer.glb; any clip must be retargeted to its bone names offline",
+    "Every bundled asset needs provenance and licence in assets/CREDITS.md",
+    "Tempo sync assumes a clip of DANCE_CLIP_BEATS beats at NATIVE_BPM 120 (dancingCharacterConfig.ts, dancingCharacterSync.ts)",
+    "ControlPanel supports only range, checkbox and color controls today",
+    "A settings-panel change needs new Linux visual baselines"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "the dancing-character visualizer is open with audio playing",
+      "when": "a dance is active",
+      "then": "the character performs a full-body dance (weight shift or steps in legs and feet, hip and chest motion, arm and head motion) sourced from or retargeted from human motion data, not the old buildDanceClip motion"
+    },
+    {
+      "id": "AC2",
+      "given": "a track with a steady detected tempo between 80 and 160 BPM",
+      "when": "any shipped dance plays",
+      "then": "each dance's baked beat markers sit at k times 0.5 s, its contact signal (hips-height minimum or foot strike) lies within 40 ms of each marker in the build check and a unit test, and computeDanceTiming with that dance's beat count keeps beat phase aligned and speed scaled with BPM in the sync simulation"
+    },
+    {
+      "id": "AC3",
+      "given": "the settings panel is open",
+      "when": "the user selects one of at least 2 named dances in the Dance select",
+      "then": "the switch starts on the next bar boundary (or next 4-beat boundary when the meter is not locked), cross-fades over one beat with the shared clip clock continuous and the per-frame bone rotation change during the fade under a unit-tested bound, and an unavailable or unknown selection falls back to an available dance or Auto"
+    },
+    {
+      "id": "AC4",
+      "given": "the Dance select is set to Auto",
+      "when": "a song change is detected or 8 bars (or 32 beats without a locked meter) pass",
+      "then": "the dance changes to a different available dance on a boundary with a cross-fade, tested in the director for both locked and unlocked meter"
+    },
+    {
+      "id": "AC5",
+      "given": "the dance assets are bundled",
+      "when": "the repository is inspected",
+      "then": "assets/CREDITS.md has a new section per dance with source URL, author, licence and its verification, the retarget process, and the dances GLB hash and size, leaving the existing CC0 model record untouched; the build script, its manifests and either the committed inputs or a hash-verified fetch of them are committed"
+    },
+    {
+      "id": "AC6",
+      "given": "the change is complete",
+      "when": "CI runs",
+      "then": "format, lint, typecheck, coverage at 95 percent, build, size and e2e (with refreshed visual baselines) pass, and the e2e fixtures (which fail on any console error or WebGL-context warning) pass with the Dance select changed"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "One dance or several?",
+      "answer": "2-3 dances with a picker in the settings panel, plus an auto-rotate mode",
+      "decided_by": "user",
+      "rationale": "User answer in round 1"
+    },
+    {
+      "id": "D2",
+      "question": "Which animation sources are acceptable?",
+      "answer": "CC0, CC-BY, or a custom licence verified to explicitly allow copying, modification and redistribution (for example the CMU Graphics Lab mocap terms), each recorded in CREDITS.md. Only if none is good enough, revisit Mixamo with files kept out of git and fetched at build time; never commit Mixamo data",
+      "decided_by": "user",
+      "rationale": "Round 3 (CC0/CC-BY first) and critic round (allow CMU-style permissive terms)"
+    },
+    {
+      "id": "D3",
+      "question": "Web research allowed?",
+      "answer": "Yes",
+      "decided_by": "user",
+      "rationale": "User answer in round 1"
+    },
+    {
+      "id": "D4",
+      "question": "How is the current dance produced and synced?",
+      "answer": "Procedurally in buildDanceClip; an AnimationMixer advanced by dt times timeScale (BPM/120 times step multiple) plus a phase nudge from beat or bar phase",
+      "decided_by": "repo-fact",
+      "rationale": "context-brief.md, dancingCharacterScene.ts and dancingCharacterSync.ts"
+    },
+    {
+      "id": "D5",
+      "question": "Where does retargeting happen and with which toolchain?",
+      "answer": "Offline in a committed script under scripts/dancing-character-dances/; the S0 spike picks node (three.js BVHLoader plus retarget maths) or Blender headless and records the choice and any install need",
+      "decided_by": "planner-assumption",
+      "rationale": "Keeps runtime simple and allocation-free; toolchain is a spike outcome (critic F7)"
+    },
+    {
+      "id": "D6",
+      "question": "Keep the old procedural dance as a selectable option?",
+      "answer": "No, remove it and its code",
+      "decided_by": "user",
+      "rationale": "Round 2 answer"
+    },
+    {
+      "id": "D7",
+      "question": "Is the framing (2-3 retargeted mocap dances, selector with Auto, cross-fades, tempo lock, credits) confirmed?",
+      "answer": "Yes, with the CC0/CC-BY-first source policy",
+      "decided_by": "user",
+      "rationale": "Round 2 and 3 answers"
+    },
+    {
+      "id": "D8",
+      "question": "Fixed 4-beat loop or per-dance loop length?",
+      "answer": "Per-dance beats of 4 or 8; the active dance's beats are passed to computeDanceTiming, which already takes clipBeats",
+      "decided_by": "planner-assumption",
+      "rationale": "Critic F3: natural grooves alternate left and right over 8 beats; generalising is cheap now"
+    },
+    {
+      "id": "D9",
+      "question": "What counts as a bar boundary when the meter is not locked?",
+      "answer": "A bar boundary is a downbeatCount increment when barPhase is defined; otherwise every 4th beatCount increment. Auto also rotates on songChangeCount increments",
+      "decided_by": "repo-fact",
+      "rationale": "RhythmState in app/features/rhythm/types.ts has beatCount, downbeatCount, songChangeCount and barPhase (undefined unless the meter is locked); critic F1"
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "experience",
+      "summary": "Retarget 2-3 CC0/CC-BY mocap dances offline into fixed 4-beat/2s clips, add a native select control (Auto default, named dances) with bar-aligned cross-fades, and make every state (loading, missing clip, reduced motion, switching) look intentional.",
+      "approach": [
+        "Offline script scripts/dancing-character-dances/build-dances.ts retargets each source clip to the MakeHuman bone names, trims to one 4-beat loop at 120 BPM, bakes seamless loop and beat markers, and writes dance-<id>.glb clips plus a manifest.",
+        "Add DANCES table in dancingCharacterConfig.ts (id, label, url, beats=4) so a dance is data, not code; delete buildDanceClip (D6).",
+        "Add a select control type to ControlDefinition and ControlInput (native <select> with a visible label, keyboard and screen-reader support for free); dance control is 'Dance': Auto, then dance names.",
+        "Scene holds one AnimationAction per dance; switching schedules the change on the next bar boundary and cross-fades over about one beat (crossFadeFrom, warp off since all clips share length), so no pose snap and tempo phase stays continuous.",
+        "Auto mode: rotate on song change or every 8 bars, always to a different dance, on a bar line; manual pick never auto-rotates.",
+        "Failure states: if a clip fails to load, drop it from the select and fall back to the remaining dances; if none load, show the existing idle pose with a one-line status, never a console error loop. Loading shows idle sway until the first clip is ready.",
+        "Reduced-motion table: pin to the calmest dance, no auto-rotate, shorter cross-fade. Unit tests per dance for beat markers and timing; refresh the settings-panel baseline."
+      ],
+      "components": [
+        {
+          "name": "Dance build script",
+          "responsibility": "Retarget, loop-trim, beat-mark and credit each source clip",
+          "location": "scripts/dancing-character-dances/"
+        },
+        {
+          "name": "Dance registry",
+          "responsibility": "Typed list of dances, labels, urls, beat count",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterConfig.ts"
+        },
+        {
+          "name": "Dance director",
+          "responsibility": "Pure logic: choose next dance, bar-aligned switch, auto-rotate, fade length",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterDirector.ts"
+        },
+        {
+          "name": "Select control",
+          "responsibility": "Accessible dropdown in the settings panel",
+          "location": "app/components/ControlPanel/ControlInput.tsx, controls.ts"
+        },
+        {
+          "name": "Credits",
+          "responsibility": "Source, author, licence, retarget process per dance",
+          "location": "app/features/visualizers/dancing-character/assets/CREDITS.md"
+        }
+      ],
+      "contracts": [
+        "ControlDefinition gains { type: 'select', options: {value,label}[] }",
+        "DANCES: readonly { id; label; url; beats: 4 }[]",
+        "Director: nextDance(state, barIndex, songChanged) returns dance id or null; allocation-free"
+      ],
+      "pros": [
+        "Switching is always on a bar line with a fade, so it looks choreographed and stays on beat",
+        "Native select is accessible (WCAG 2.2 AA) with no custom widget",
+        "Graceful degradation when a clip fails; reduced-motion respected",
+        "Adding a dance later is data plus one build entry"
+      ],
+      "cons": [
+        "Bar-aligned switching delays response up to one bar (about 2 s at 120 BPM); user may feel lag, so show the pending dance in the label or accept it",
+        "Fixed 4-beat loop forces trimming mocap, which may lose natural phrasing",
+        "New control type touches shared ControlPanel and its tests"
+      ],
+      "risks": [
+        "No CC0/CC-BY clip may be good enough; D2 then reopens Mixamo (build-time fetch only)",
+        "Retargeting quality (foot sliding, twisted limbs) needs manual review per dance",
+        "Mocap tempo may not suit 4 beats at 120 BPM and needs retiming"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 4
+      },
+      "total": 3.5
+    },
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Bake 3 CC0/CC-BY mocap dances offline into 4-beat, 2 s, 120 BPM loops in one animation-only GLB so the runtime sync maths stays untouched, then add a select control and crossFadeTo between mixer actions.",
+      "approach": [
+        "Offline script scripts/dancing-character-model/build-dances.ts (node, or Blender headless) takes CMU BVH / Quaternius / Rokoko clips, maps joints to MakeHuman bone names, bakes keyframes, and fits each to exactly 4 beats at 120 BPM (pick a 2-beat or 4-beat groove segment, resample, blend the loop seam).",
+        "Output assets/MakeHumanDances.glb holding N named AnimationClips with 20 required bones only (small file), imported with ?url like the model.",
+        "Extend loadDancingCharacterAssets to also load the clips; delete buildDanceClip and the accent code (D6).",
+        "Scene keeps one mixer; one LoopRepeat action per dance; selecting a dance does crossFadeTo over about 0.5 s with the new action time-synced to the old one, so the existing phaseNudge keeps beats aligned.",
+        "Auto mode: count bars from the existing bar phase; every K bars or on song change, switch to the next dance on the bar boundary.",
+        "Add a 'select' ControlDefinition type and a native <select> in ControlInput; add danceStyle (Auto, Dance A, B, C) to dancingCharacterControls.ts.",
+        "Update CREDITS.md per clip, refresh the settings-panel Linux baseline, and add unit tests for clip duration and beat markers per dance plus the select control."
+      ],
+      "components": [
+        {
+          "name": "build-dances script",
+          "responsibility": "Retarget, loop-fit and bake clips offline",
+          "location": "scripts/dancing-character-model/build-dances.ts"
+        },
+        {
+          "name": "Dance GLB",
+          "responsibility": "Baked 4-beat clips for the 20 bones",
+          "location": "app/features/visualizers/dancing-character/assets/MakeHumanDances.glb"
+        },
+        {
+          "name": "Scene dance switcher",
+          "responsibility": "Actions, crossfade, Auto bar counting",
+          "location": "dancingCharacterScene.ts, new dancingCharacterDanceSelect.ts"
+        },
+        {
+          "name": "Select control",
+          "responsibility": "Dropdown control type",
+          "location": "app/components/ControlPanel/controls.ts, ControlInput.tsx"
+        }
+      ],
+      "contracts": [
+        "ControlDefinition gains { type: 'select', options: {value,label}[] }",
+        "Every shipped clip must have duration DANCE_CLIP_DURATION (2 s) and DANCE_CLIP_BEATS beats; checked in tests",
+        "loadDancingCharacterAssets returns { model, dances: Record<DanceId, AnimationClip> }"
+      ],
+      "pros": [
+        "computeDanceTiming, NATIVE_BPM and the sync tests are unchanged",
+        "No runtime retargeting; clips tiny and bundle-neutral",
+        "Reuses the mixer and crossFadeTo, no new dependency"
+      ],
+      "cons": [
+        "Forcing mocap into a 4-beat 2 s loop loses longer phrases and can look repetitive",
+        "Squeezing a free-tempo clip to 120 BPM may distort speed and foot contact",
+        "New select control touches shared ControlPanel code"
+      ],
+      "risks": [
+        "No CC0/CC-BY clip may look good enough, forcing the Mixamo fallback in D2",
+        "Loop-seam blending can cause foot sliding",
+        "Joint axis mismatch in the retarget needs manual tuning"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 4.15
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Offline pipeline bakes licence-verified CC0/CC-BY mocap into versioned, validated clip data per dance, loaded through a single DanceLibrary with a uniform clip contract (loop length, beat markers, root-motion stripped) and a proper select control with bar-boundary cross-fades.",
+      "approach": [
+        "Add scripts/dancing-character-dances/ (node/TS, next to the protected model script, not editing it): per-dance manifest JSON (source URL, author, licence, clip file sha256, beat-0 frame, bars, loop trim) drives a build that retargets BVH/FBX to the 163 MakeHuman bone names, strips root translation (in-place), trims to a whole-bar loop, resamples to a fixed rate at 120 BPM, and bakes loop-closing blend of the last 0.25 s.",
+        "Build validates each output: all 20 DANCE_REQUIRED_BONES present, no NaN, first/last pose delta under threshold, duration equals beats*0.5 s, licence field in allowlist (CC0, CC-BY). Fail build otherwise.",
+        "Emit one compact JSON clip file per dance (quaternion tracks only, hips position y only) imported with ?url; load beside the GLB, parse into AnimationClip at load; no new runtime dependency.",
+        "Generalise config: per-dance beats (4 or 8) and beat offset in a DANCES table in dancingCharacterConfig.ts; computeDanceTiming takes the active dance's beats instead of the hard-coded 4.",
+        "Scene holds one action per dance (created at load, weight 0); a DanceDirector (pure logic) changes target dance on the next bar boundary and crossfades with synced time so phase is preserved, no allocation per frame.",
+        "Add a select ControlDefinition type (options, Auto) to ControlPanel with a labelled native select; Auto rotates every N bars or on song change, never repeating the current dance.",
+        "Remove buildDanceClip and its tests (D6); add timing tests per dance, manifest and licence validation tests, CREDITS.md entries with retarget process; refresh Linux baselines."
+      ],
+      "components": [
+        {
+          "name": "Dance build pipeline",
+          "responsibility": "Retarget, in-place, loop-trim, validate, emit clips from manifests",
+          "location": "scripts/dancing-character-dances/"
+        },
+        {
+          "name": "Dance manifests and clip data",
+          "responsibility": "Provenance, licence, beat metadata, baked tracks",
+          "location": "app/features/visualizers/dancing-character/assets/dances/"
+        },
+        {
+          "name": "DanceDirector",
+          "responsibility": "Selection, Auto rotation, bar-boundary switch, crossfade state",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterDirector.ts"
+        },
+        {
+          "name": "Select control",
+          "responsibility": "Accessible select in settings panel",
+          "location": "app/components/ControlPanel/ControlInput.tsx, controls.ts"
+        }
+      ],
+      "contracts": [
+        "DANCES: readonly { id, label, beats, beatOffset, url }[] in dancingCharacterConfig.ts",
+        "computeDanceTiming(input, beats) replaces fixed DANCE_CLIP_BEATS",
+        "ControlDefinition adds { type: 'select', options: {value,label}[] }",
+        "Manifest schema: source, author, licence in {CC0-1.0, CC-BY-4.0}, sha256, bars"
+      ],
+      "pros": [
+        "Build-time validation catches bad licences, bad loops, missing bones before runtime",
+        "Per-dance beat metadata makes tempo correctness unit-testable for every dance",
+        "Clean boundaries; adding a dance is data plus credits",
+        "Fails safe: a failed clip load falls back to the next dance"
+      ],
+      "cons": [
+        "Largest scope: pipeline, director, new control type",
+        "Dance source and quality still depend on finding good CC0 clips",
+        "Generalising beats touches config, sync and tests together"
+      ],
+      "risks": [
+        "Retarget quality (bone roll and rest pose mismatch) needs manual visual iteration",
+        "CC-BY clips need attribution per clip",
+        "Mocap tempo is not exactly 120 BPM, so time-warping may distort the motion",
+        "Clip size growth in the bundle"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 3,
+        "risk": 3,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.05
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "O1's core (offline-baked 4-beat, 2 s, 120 BPM clips in one animation-only GLB, sync maths untouched) plus O2's build-time validation and licence allowlist, plus O3's pure DanceDirector with bar-aligned cross-fades, Auto rotation and load-failure fallback.",
+      "approach": [
+        "Spike first (S0, no commit): verify each candidate's licence page against D2 (CC0, CC-BY or verified permissive custom such as CMU), retarget one dance to MakeHuman, decide toolchain and loop length, and get the user's go or no-go",
+        "Offline script under scripts/dancing-character-dances/ (does not edit the protected scripts/dancing-character-model/) reads a manifest per dance (source URL, author, licence, input sha256, per-beat source times), maps joints to MakeHuman bone names, strips root translation except hips height, applies a piecewise beat-to-beat warp to 4 or 8 beats at 120 BPM, blends the loop seam and writes all clips into assets/MakeHumanDances.glb",
+        "The build fails when a clip lacks a required bone, has NaN, exceeds the seam or foot-skate thresholds, misplaces its contact signal by more than 40 ms from a beat marker, or carries a licence outside the D2 allowlist",
+        "DANCES registry (id, label, beats) in dancingCharacterConfig.ts; the active dance's beats feed computeDanceTiming; loadDancingCharacterAssets also loads the dances GLB; buildDanceClip and its tests are deleted (D6)",
+        "Pure dancingCharacterDirector.ts: boundaries from downbeatCount when the meter is locked, else every 4 beats; Auto on song change or every 8 bars; unavailable selection maps to an available dance, unknown to Auto",
+        "Scene creates one LoopRepeat action per clip and cross-fades over one beat with a continuous shared clock",
+        "Static select ControlDefinition rendered as a labelled native select; reduced-motion table defaults to CALM_DANCE_ID",
+        "CREDITS.md gets a new section per dance; refresh the settings-panel Linux baseline"
+      ],
+      "components": [
+        {
+          "name": "Dance build pipeline",
+          "responsibility": "Retarget, trim, time-warp, validate and bake clips from manifests",
+          "location": "scripts/dancing-character-dances/"
+        },
+        {
+          "name": "Dances GLB and manifests",
+          "responsibility": "Baked clips and provenance",
+          "location": "app/features/visualizers/dancing-character/assets/"
+        },
+        {
+          "name": "DanceDirector",
+          "responsibility": "Pure selection, bar-boundary switching, Auto rotation",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterDirector.ts"
+        },
+        {
+          "name": "Scene dance mixer",
+          "responsibility": "One action per dance, cross-fade on director decision",
+          "location": "app/features/visualizers/dancing-character/dancingCharacterScene.ts"
+        },
+        {
+          "name": "Select control",
+          "responsibility": "Native labelled select in the settings panel",
+          "location": "app/components/ControlPanel/controls.ts and ControlInput.tsx"
+        }
+      ],
+      "contracts": [
+        "C1 select ControlDefinition",
+        "C2 dance clip invariants and DANCES registry",
+        "C3 loadDancingCharacterAssets returns dances",
+        "C4 DanceDirector API"
+      ],
+      "pros": [
+        "Keeps the proven sync maths and its tests unchanged",
+        "Validation catches licence, loop and bone problems at build time",
+        "Bar-aligned cross-fades look choreographed and stay on beat",
+        "Adding a dance later is a manifest plus a rebuild"
+      ],
+      "cons": [
+        "More scope than O1: a director module and build validation",
+        "A fixed 4-beat loop can look repetitive and loses longer phrases",
+        "Bar-aligned switching delays a manual pick by up to one bar"
+      ],
+      "risks": [
+        "No CC0/CC-BY clip may look good enough, reopening D2",
+        "Retarget quality (rest pose and bone roll mismatch, foot sliding) needs manual iteration",
+        "Time-warping mocap to 120 BPM may distort the motion"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 4.1
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O1 scores marginally higher on effort alone, but O4 adds what the user asked for and O1 handles thinly: Auto rotation and switching on a bar boundary, both pure and unit-testable in a director, plus build-time licence and loop validation that enforces the CC0/CC-BY decision (D2). It keeps O1's fixed 4-beat clip so computeDanceTiming and its tests stay unchanged, and it skips O2's generalised beat counts and per-dance JSON format, which cost more without a requirement behind them.",
+  "design": {
+    "overview": "Mocap dances from CC0/CC-BY sources are retargeted offline to the existing MakeHuman rig and baked into a single animation-only GLB of 4-beat, 2 s loops at 120 BPM. At runtime the scene creates one AnimationAction per dance on the existing mixer, which the existing computeDanceTiming already advances at BPM/120 with a phase nudge. A pure DanceDirector picks the active dance from the control value (Auto or a named dance), the bar counter and song-change events, and the scene cross-fades between actions on bar boundaries. The procedural buildDanceClip is removed.",
+    "components": [
+      {
+        "name": "Dance build pipeline",
+        "responsibility": "Manifest-driven offline retarget, trim, time-warp, seam blend, validation and GLB output",
+        "location": "scripts/dancing-character-dances/"
+      },
+      {
+        "name": "Dances asset",
+        "responsibility": "Baked clips plus per-dance manifests and credits",
+        "location": "app/features/visualizers/dancing-character/assets/MakeHumanDances.glb, assets/dances/*.json, assets/CREDITS.md"
+      },
+      {
+        "name": "DANCES registry",
+        "responsibility": "Dance ids and labels, shared constants",
+        "location": "app/features/visualizers/dancing-character/dancingCharacterConfig.ts"
+      },
+      {
+        "name": "DanceDirector",
+        "responsibility": "Pure decision logic for the active dance and switch timing",
+        "location": "app/features/visualizers/dancing-character/dancingCharacterDirector.ts"
+      },
+      {
+        "name": "Scene mixer wiring",
+        "responsibility": "Actions per dance, cross-fade on director decisions, framing via measureDance over all clips",
+        "location": "app/features/visualizers/dancing-character/dancingCharacterScene.ts"
+      },
+      {
+        "name": "Select control",
+        "responsibility": "Shared select ControlDefinition and native select input",
+        "location": "app/components/ControlPanel/controls.ts, ControlInput.tsx"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "select ControlDefinition",
+        "kind": "TypeScript type",
+        "definition": "ControlDefinition gains { type: 'select'; label; options: readonly { value: string; label: string }[] } with a string value; ControlInput renders a labelled native select; useControlValues stores the string"
+      },
+      {
+        "id": "C2",
+        "name": "Dance clip invariants and registry",
+        "kind": "data contract",
+        "definition": "DANCES: readonly { id: DanceId; label: string; beats: 4 | 8 }[] in dancingCharacterConfig.ts, with CALM_DANCE_ID naming the calmest dance. Each clip in MakeHumanDances.glb is named by its id, lasts beats times 0.5 s at 120 BPM, has beat 1 at t=0 produced by a piecewise beat-to-beat warp from per-beat source times in its manifest, tracks for every DANCE_REQUIRED_BONES bone, no root translation except hips height, a loop seam with max bone rotation delta under 10 degrees, and foot skate under a stated threshold; asserted by the build and by unit tests against the real GLB"
+      },
+      {
+        "id": "C3",
+        "name": "Asset loader result",
+        "kind": "function signature",
+        "definition": "loadDancingCharacterAssets(signal, urls) resolves { model, dances: ReadonlyMap<DanceId, AnimationClip> }; a missing or invalid clip is omitted, never thrown, unless none remain"
+      },
+      {
+        "id": "C4",
+        "name": "DanceDirector API",
+        "kind": "pure module",
+        "definition": "createDanceDirector(available: readonly DanceId[]) with update(input: { selection: string; beatCount: number; downbeatCount: number; meterLocked: boolean; songChangeCount: number }, out) writing { active, next, switchNow } into a preallocated object. Boundary is a downbeatCount increment when meterLocked, else every 4th beatCount increment, further restricted to boundaries compatible with both dances' loop lengths. Auto rotates every AUTO_ROTATE_BARS (8) bars or on a songChangeCount increment and never picks the current dance. An unavailable selection maps to the first available dance; an unknown selection is treated as auto"
+      }
+    ],
+    "data": "No persisted data; control values are not persisted today (ControlPanel has no storage), and this plan does not add persistence.",
+    "ux": "Settings panel gains a static Dance select: Auto (default), then the named dances; the option list never changes at runtime. A manual pick takes effect on the next boundary with a one-beat cross-fade. Auto changes dance on song change or every 8 bars. Before the tempo locks, the existing CALM_DANCE_WEIGHT blend is reviewed per dance in S2; if the 0.35 blend toward the rest pose looks stiff, the calm state instead plays CALM_DANCE_ID at native rate.",
+    "accessibility": "Native select with a visible label, keyboard and screen-reader support; the reduced-motion control table defaults the select to CALM_DANCE_ID instead of Auto; axe check in e2e must stay clean.",
+    "security_privacy": "No new data or network calls; assets are bundled and hashed. Licence allowlist (CC0-1.0, CC-BY-4.0) enforced at build time; no Mixamo data is committed.",
+    "observability": "Dev-only: the existing debug harness (npm run debug:viz) can record a track per dance to check beat alignment; no production telemetry added.",
+    "rollout": "Ships as one feat PR (minor bump) merged to main, which Cloudflare deploys to production; check the PR preview URL first on /dancing-character with a real track. Rollback by reverting the PR or rolling back the deployment in Cloudflare; no data migration, so rollback is clean."
+  },
+  "test_strategy": {
+    "unit": "Director: locked and unlocked boundaries, manual switch waits for a boundary, Auto every 8 bars or 32 beats and on song change, never repeats, single-dance case, unavailable and unknown selections. Clips: every DANCES id exists in the real GLB with duration beats times 0.5 s, required bones, seam delta under 10 degrees, contact signal within 40 ms of each beat marker. Retarget maths: rest-pose conversion on a synthetic bone pair. Sync: existing dancingCharacterSync tests stay green; simulate per dance with its beat count. Fade: max per-frame bone rotation delta under a bound and continuous clock phase. Controls: select renders, changes value, keyboard works (jsdom). Loader: a missing clip is omitted. Coverage stays at 95 percent.",
+    "integration": "useDancingCharacterScene and DancingCharacterPage tests updated for the new control key and multiple actions, using the shared fakes in app/test/.",
+    "e2e": "npm run test:e2e with the existing fixtures that fail on page errors, console errors and WebGL-context warnings; add a step that changes the Dance select; refresh the settings-panel visual baseline via the Update visual snapshots workflow.",
+    "manual": "npm run dev with tracks at about 90, 120 and 150 BPM: each dance looks natural, steps land on beats, a manual switch fades on the next bar, Auto rotates, and there are no WebGL warnings; the user reviews each dance for naturalness.",
+    "non_functional": "npm run size and npm run lighthouse stay within budget; the dances GLB stays under about 1 MB (record its size in CREDITS.md); no per-frame allocation in the director or scene changes."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Too few clips under the allowed licences look natural after retargeting",
+      "likelihood": "high",
+      "impact": "high",
+      "mitigation": "S0 is a no-commit spike that verifies licences of each candidate and has the user review one retargeted clip before any repository change; if it fails, the user decides on the D2 Mixamo fallback (Q2)"
+    },
+    {
+      "id": "K2",
+      "description": "Retarget artifacts: rest-pose or bone-roll mismatch, twisted limbs, foot sliding",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "Map rest poses explicitly in the build, strip root translation, review in dev and with the debug harness, and iterate per dance"
+    },
+    {
+      "id": "K3",
+      "description": "Time-warping mocap to exactly 4 beats at 120 BPM distorts motion or misplaces the step accents",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Piecewise beat-to-beat warp from per-beat source times in each manifest; beat 1 at a foot strike; contact signal within 40 ms of each marker asserted by build and unit test (AC2)"
+    },
+    {
+      "id": "K4",
+      "description": "CC-BY attribution missed or a source licence misread",
+      "likelihood": "low",
+      "impact": "high",
+      "mitigation": "Manifest licence field with allowlist enforced by the build; source page URL and author recorded in CREDITS.md; reviewer checks each source page"
+    },
+    {
+      "id": "K5",
+      "description": "Cross-fades or multiple actions change framing or break measureDance",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "measureDance samples every clip and uses the union for framing; covered by framing tests"
+    },
+    {
+      "id": "K6",
+      "description": "The pre-lock calm blend (CALM_DANCE_WEIGHT 0.35 toward the rest pose) looks stiff with mocap clips",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Reviewed in S2; fallback is playing CALM_DANCE_ID at native rate during the calm state"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Select control type in ControlPanel",
+      "objective": "Add the select ControlDefinition and a labelled native select input with tests, unused by any visualizer yet",
+      "depends_on": [
+        "S0"
+      ],
+      "acceptance_refs": [
+        "AC3",
+        "AC6"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "app/components/ControlPanel/controls.ts",
+        "app/components/ControlPanel/ControlInput.tsx",
+        "app/components/ControlPanel/ControlInput.test.tsx"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Dance build pipeline and first retargeted dance",
+      "objective": "Commit the pipeline with manifests, validation and retarget-maths tests, bake the approved dance into MakeHumanDances.glb with credits, pass the active dance's beats into computeDanceTiming, replace buildDanceClip, review the calm state, keep sync tests green",
+      "depends_on": [
+        "S0"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC2",
+        "AC5"
+      ],
+      "contracts": [
+        "C2",
+        "C3"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "scripts/dancing-character-dances/",
+        "app/features/visualizers/dancing-character/assets/MakeHumanDances.glb",
+        "app/features/visualizers/dancing-character/assets/CREDITS.md",
+        "app/features/visualizers/dancing-character/dancingCharacterAssets.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterConfig.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterDanceClip.ts"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "DanceDirector and cross-fade switching",
+      "objective": "Pure director with locked and unlocked boundaries, scene wiring of one action per dance with one-beat cross-fades and continuous clock, Auto rotation, fallback for unavailable or unknown selections, tested with two clips",
+      "depends_on": [
+        "S2"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC3",
+        "AC4"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/dancingCharacterDirector.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterDirector.test.ts",
+        "app/features/visualizers/dancing-character/dancingCharacterScene.ts"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Remaining dances, Dance selector and baselines",
+      "objective": "Bake the remaining 1-2 dances, add the Dance select (Auto default) and reduced-motion entry to the controls, refresh the settings-panel baseline and run the full gate set",
+      "depends_on": [
+        "S1",
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC6"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+        "app/features/visualizers/dancing-character/assets/dances/",
+        "e2e/visual.spec.ts-snapshots/dancingcharacter-settings-panel-chromium-linux.png"
+      ]
+    },
+    {
+      "id": "S0",
+      "title": "Licence and retarget spike, no commit",
+      "objective": "Verify the licence page of each candidate (CMU dance subjects, Quaternius, others), list those that pass D2, retarget one dance to MakeHuman in a throwaway branch, pick the toolchain and loop length, and get the user's go or no-go before any committed change",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1",
+        "AC5"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "scripts/dancing-character-dances/"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Which specific dance takes ship (for example a two-step groove, a bounce with arm swing, a hip-hop or salsa basic)?",
+      "owner": "implementer in S2/S4, approved by the user after the dev review",
+      "blocking": false
+    },
+    {
+      "id": "Q2",
+      "question": "If no clip under the allowed licences passes the user's review in the S0 spike, adopt Mixamo fetched at build time and kept out of git?",
+      "owner": "user, at the end of S1",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "design",
+        "finding": "C4 takes a barIndex input and AC3/AC4 depend on 'bar boundary', but RhythmState (app/features/rhythm/types.ts) has no bar index. It has barPhase and downbeatCount. barPhase is undefined unless the tempo is locked, the meter is a confident 4/4 and a bar is known (dancingCharacterSync.ts L159-165). For most real music (3/4, weak meter, tempo not locked) the director never sees a bar advance. A manual pick then never applies, or Auto never rotates, with no feedback to the user. The plan names no source for barIndex and no fallback.",
+        "suggestion": "Define barIndex as derived from downbeatCount or barPhase wraps. Add a fallback when the meter is unlocked: switch on a beat wrap (or immediately with a short fade) after a timeout, and add a time-based Auto interval. Cover both paths in the director tests and AC3/AC4.",
+        "resolution": "Fixed: D9 and C4 derive boundaries from downbeatCount when the meter is locked and from every 4th beatCount otherwise, with Auto on songChangeCount; AC3 and AC4 now cover both paths and director tests cover locked and unlocked meters"
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC2 and the success metric claim steps land on beats, 'verified by unit tests on the timing maths for every dance'. But computeDanceTiming is dance-independent: it only nudges the clip's beat slot (clip phase * 4 against beatPhase, STEP_PHASE_OFFSET=0). Whether a given dance's foot strikes or accents sit at t = k*0.5 s depends on the baked clip. The plan only does a uniform time-warp of a groove segment (O4 approach, K3), so real mocap beats drift inside the loop. C2 puts 'beat 1 at t=0' in the contract but has no beat markers, and no test can assert accent positions. The existing procedural clip had identical beats, which is why the slot-only lock worked.",
+        "suggestion": "In the manifest, record per-beat source times and apply a piecewise (beat to beat) warp. Have the build and a unit test assert a measurable contact signal (for example hips-height minimum or a foot strike) within a tolerance of each k*0.5 s. State that tolerance in AC2.",
+        "resolution": "Fixed: manifests record per-beat source times and the build applies a piecewise beat-to-beat warp; C2 and AC2 require the contact signal within 40 ms of each k times 0.5 s marker, asserted by the build and a unit test against the real GLB"
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "assumption",
+        "finding": "C2 freezes every dance to a 4-beat, 2 s loop before the S2 spike has shown that any real dance fits. A natural groove usually alternates left and right over 8 beats, and a 4-beat loop looks mechanical, which the plan's own cons admit. The rationale for dropping O2's per-dance beats ('cost more') is weak: computeDanceTiming already takes clipBeats as a parameter, and the scene hard-codes DANCE_CLIP_BEATS at the call (scene L267). Generalising is cheap now. If the spike finds 8 beats are needed, C2, the config, sync tests and every clip change after S3/S4 depend on them.",
+        "suggestion": "Make the spike decide the loop length. Allow DANCES to carry beats (4 or 8) now and pass the active dance's beats into computeDanceTiming. Fade and switch only on loop-compatible bar boundaries.",
+        "resolution": "Fixed: D8 allows 4 or 8 beats per dance in DANCES, the active dance's beats are passed to computeDanceTiming, and the S0 spike chooses the loop length; C4 switches only on boundaries compatible with both loop lengths"
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "assumption",
+        "finding": "The licence allowlist (CC0-1.0, CC-BY-4.0, D2, K4) conflicts with the spike shortlist in O4 (CMU mocap, Rokoko free dance pack, Movella free data). To my knowledge these ship under their own custom terms, not CC0 or CC-BY, so they would fail the build's own allowlist. The usable CC0/CC-BY dance supply is small, so K1 ('medium') looks understated and the D2 fallback is likely to be reached. The decision depends on Q1/Q2 and on user review at the end of an L slice.",
+        "suggestion": "Before S2 starts, verify the licence page of each candidate and list the ones that pass the allowlist. If fewer than 2 or 3 pass, ask the user now about widening the allowlist (a verified permissive custom licence recorded in CREDITS.md) or about Mixamo. Raise K1 to high likelihood.",
+        "resolution": "Fixed: the user widened D2 to verified permissive custom licences such as CMU's terms, recorded in CREDITS.md; K1 raised to high likelihood; S0 verifies each candidate's licence before any commit"
+      },
+      {
+        "id": "F5",
+        "severity": "high",
+        "area": "design",
+        "finding": "The plan says 'a clip missing at load is dropped from the select', but the control table must be a module-level constant. dancingCharacterControls.ts L81-82 says useControlValues needs a constant table, and the table is chosen once at mount by controlsForMotionPreference. The options therefore cannot change after the async asset load. Dropping an option would need a dynamic table, which breaks useControlValues. The alternative leaves the user selecting a dance that silently does nothing.",
+        "suggestion": "Keep the select static. Have the director map an unavailable selection to the first available dance (it already takes `available`), and show a 'unavailable' hint if wanted. State this in C1/C4 and test it.",
+        "resolution": "Fixed: the select stays static (design.ux); C4 maps an unavailable selection to the first available dance and an unknown one to Auto; covered by AC3 and director tests"
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "design",
+        "finding": "Until the tempo locks (start of every track, quiet or unclear music), the scene sets the base action's weight to CALM_DANCE_WEIGHT (0.35) at the native rate. That blends the pose toward the bind/rest pose. This was a gentle bounce for the procedural clip, but for a 20-bone mocap dance it yields a stiff partial pose, and it is what a visitor sees first. D6 removes the old clip, so this state is never revisited. The reduced-motion plan to 'pin the calmest dance' is also undefined: which dance is calmest, and how a default Auto becomes pinned (the reduced table only changes defaults).",
+        "suggestion": "Add the calm look as an explicit design item: either accept and review the 0.35 blend per dance, or bake a calm idle sway as a fallback action. Name the calm dance id and set the reduced-motion table's default for the select to it.",
+        "resolution": "Fixed: K6 and design.ux review the 0.35 calm blend per dance in S2 with a fallback to CALM_DANCE_ID at native rate; C2 names CALM_DANCE_ID and the reduced-motion table defaults to it"
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "The go or no-go on the content (K1) sits at the end of S2, an L slice that also adds the pipeline, deletes buildDanceClip and its tests, and rewires the scene. S3 and S1 do not depend on the review outcome, so work and a half-replaced scene pile up before the user has judged a single clip. If the review fails, the delete-the-old-dance (D6) work and the scene rewrite are wasted or must be reverted. The pipeline toolchain is also undecided (D5 says 'node or Blender').",
+        "suggestion": "Split S2: S2a is a throwaway spike with no repo changes (licence check, one retargeted clip, user review). Only then do S2b (pipeline, deletion, scene) and S1/S3. Pick the toolchain in S2a, and note whether Blender needs to be installed.",
+        "resolution": "Fixed: new S0 no-commit spike (licence check, one retargeted clip, toolchain and loop length, user go or no-go) precedes S1 and S2"
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "Several ACs are not observable as written. AC1 'natural' and AC3 'without a visible pose snap' are judged by eye only. AC3 says 'stays on beat' during a cross-fade, but there is no test for the fade itself. The plan sets a seam-delta threshold in the build but no number and no foot-sliding check, and K2 (high likelihood) relies only on manual review. AC6 'no WebGL warnings' is not tied to a mechanism.",
+        "suggestion": "Add testable proxies. In the build, set a numeric loop-seam threshold and a foot-skate metric. In scene or director tests, assert that the maximum per-frame bone rotation delta during a fade stays under a bound and that the clock phase stays continuous. Name the e2e console-error check for AC6.",
+        "resolution": "Fixed: C2 sets a 10 degree seam bound and a foot-skate threshold, AC3 adds a unit-tested per-frame rotation bound and continuous clock during fades, AC6 names the e2e fixtures that fail on console errors and WebGL warnings; naturalness stays a user review (success metric)"
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "data",
+        "finding": "AC5 requires 'the build script that produces them is committed', but the input mocap files are neither committed nor kept reproducible. The manifest holds a source URL and an input sha256, and nothing says where raw inputs live (CC0 inputs could be committed, CC-BY ones need attribution in-repo). The 20-bone retarget (rest-pose and bone-roll mapping to the 163-bone rig, K2) is the riskiest code in the plan and is a single unspecified script, with no tests besides the output validators. MakeHumanDances.glb also needs its hash and size recorded in CREDITS.md; the existing CC0 record is protected.",
+        "suggestion": "Decide where the source clips are stored or fetched (committed inputs if licence allows, otherwise fetched and hash-verified). Add unit tests for the retarget maths (rest-pose conversion on a synthetic bone pair). Record the GLB hash and size in the new CREDITS.md section, leaving the existing CC0 record untouched.",
+        "resolution": "Fixed: AC5 requires committed inputs or a hash-verified fetch, retarget-maths unit tests on a synthetic bone pair are in test_strategy, and the GLB hash and size go in a new CREDITS.md section leaving the CC0 record untouched"
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "assumption",
+        "finding": "design.data says the selection 'persists like other controls if useControlValues persists them', which is unverified. A grep of app/components/ControlPanel found no storage use, so persistence is probably absent. The Auto default also means a visitor never sees a stable choice in the settings-panel baseline, and an invalid or stale value (renamed dance id) has no handling.",
+        "suggestion": "Drop the persistence claim. Have the director treat an unknown selection as 'auto'. Add a test.",
+        "resolution": "Fixed: design.data drops the persistence claim; C4 treats an unknown selection as Auto with a test"
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "44820f1cc255ee33574b7de26f3f7705b046686c4dee9a0546df6364e5215a37",
+    "cards": {
+      "O3": "93e550b0be8cd64508dd824b25977dc7997cebd6c1c6bd70207225653e7e3034",
+      "O1": "f01fc5d984cf8ec5d404f179cb3c0363fbede3205188ccbfde339e9b16e219db",
+      "O2": "d780adc9fb84734db4d846f28308e7880c120a01552f1e1723369a0005783863"
+    },
+    "critic_sha256": "e6d001afa3df7df7e1436f86b55d5ede4e94937312026cde5ce1e3df643fe1f5",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "c90080acc157f6f7",
+      "acs_sha256": "c77c34f181d09f50"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "f90d601b16fb2ada",
+      "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "select ControlDefinition",
+          "kind": "TypeScript type",
+          "definition": "ControlDefinition gains { type: 'select'; label; options: readonly { value: string; label: string }[] } with a string value; ControlInput renders a labelled native select; useControlValues stores the string"
+        },
+        {
+          "id": "C2",
+          "name": "Dance clip invariants and registry",
+          "kind": "data contract",
+          "definition": "DANCES: readonly { id: DanceId; label: string; beats: 4 | 8 }[] in dancingCharacterConfig.ts, with CALM_DANCE_ID naming the calmest dance. Each clip in MakeHumanDances.glb is named by its id, lasts beats times 0.5 s at 120 BPM, has beat 1 at t=0 produced by a piecewise beat-to-beat warp from per-beat source times in its manifest, tracks for every DANCE_REQUIRED_BONES bone, no root translation except hips height, a loop seam with max bone rotation delta under 10 degrees, and foot skate under a stated threshold; asserted by the build and by unit tests against the real GLB"
+        },
+        {
+          "id": "C3",
+          "name": "Asset loader result",
+          "kind": "function signature",
+          "definition": "loadDancingCharacterAssets(signal, urls) resolves { model, dances: ReadonlyMap<DanceId, AnimationClip> }; a missing or invalid clip is omitted, never thrown, unless none remain"
+        },
+        {
+          "id": "C4",
+          "name": "DanceDirector API",
+          "kind": "pure module",
+          "definition": "createDanceDirector(available: readonly DanceId[]) with update(input: { selection: string; beatCount: number; downbeatCount: number; meterLocked: boolean; songChangeCount: number }, out) writing { active, next, switchNow } into a preallocated object. Boundary is a downbeatCount increment when meterLocked, else every 4th beatCount increment, further restricted to boundaries compatible with both dances' loop lengths. Auto rotates every AUTO_ROTATE_BARS (8) bars or on a songChangeCount increment and never picks the current dance. An unavailable selection maps to the first available dance; an unknown selection is treated as auto"
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Select control type in ControlPanel: Add the select ControlDefinition and a labelled native select input with tests, unused by any visualizer yet",
+          "dependencies": [
+            "S0"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/components/ControlPanel/controls.ts",
+            "app/components/ControlPanel/ControlInput.tsx",
+            "app/components/ControlPanel/ControlInput.test.tsx"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 select ControlDefinition (TypeScript type): ControlDefinition gains { type: 'select'; label; options: readonly { value: string; label: string }[] } with a string value; ControlInput renders a labelled native select; useControlValues stores the string"
+          ],
+          "acceptance": [
+            "AC3: Given the settings panel is open, when the user selects one of at least 2 named dances in the Dance select, then the switch starts on the next bar boundary (or next 4-beat boundary when the meter is not locked), cross-fades over one beat with the shared clip clock continuous and the per-frame bone rotation change during the fade under a unit-tested bound, and an unavailable or unknown selection falls back to an available dance or Auto",
+            "AC6: Given the change is complete, when CI runs, then format, lint, typecheck, coverage at 95 percent, build, size and e2e (with refreshed visual baselines) pass, and the e2e fixtures (which fail on any console error or WebGL-context warning) pass with the Dance select changed"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Dance build pipeline and first retargeted dance: Commit the pipeline with manifests, validation and retarget-maths tests, bake the approved dance into MakeHumanDances.glb with credits, pass the active dance's beats into computeDanceTiming, replace buildDanceClip, review the calm state, keep sync tests green",
+          "dependencies": [
+            "S0"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/dancing-character-dances/",
+            "app/features/visualizers/dancing-character/assets/MakeHumanDances.glb",
+            "app/features/visualizers/dancing-character/assets/CREDITS.md",
+            "app/features/visualizers/dancing-character/dancingCharacterAssets.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterConfig.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterScene.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterDanceClip.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Dance clip invariants and registry (data contract): DANCES: readonly { id: DanceId; label: string; beats: 4 | 8 }[] in dancingCharacterConfig.ts, with CALM_DANCE_ID naming the calmest dance. Each clip in MakeHumanDances.glb is named by its id, lasts beats times 0.5 s at 120 BPM, has beat 1 at t=0 produced by a piecewise beat-to-beat warp from per-beat source times in its manifest, tracks for every DANCE_REQUIRED_BONES bone, no root translation except hips height, a loop seam with max bone rotation delta under 10 degrees, and foot skate under a stated threshold; asserted by the build and by unit tests against the real GLB",
+            "C3 Asset loader result (function signature): loadDancingCharacterAssets(signal, urls) resolves { model, dances: ReadonlyMap<DanceId, AnimationClip> }; a missing or invalid clip is omitted, never thrown, unless none remain"
+          ],
+          "acceptance": [
+            "AC1: Given the dancing-character visualizer is open with audio playing, when a dance is active, then the character performs a full-body dance (weight shift or steps in legs and feet, hip and chest motion, arm and head motion) sourced from or retargeted from human motion data, not the old buildDanceClip motion",
+            "AC2: Given a track with a steady detected tempo between 80 and 160 BPM, when any shipped dance plays, then each dance's baked beat markers sit at k times 0.5 s, its contact signal (hips-height minimum or foot strike) lies within 40 ms of each marker in the build check and a unit test, and computeDanceTiming with that dance's beat count keeps beat phase aligned and speed scaled with BPM in the sync simulation",
+            "AC5: Given the dance assets are bundled, when the repository is inspected, then assets/CREDITS.md has a new section per dance with source URL, author, licence and its verification, the retarget process, and the dances GLB hash and size, leaving the existing CC0 model record untouched; the build script, its manifests and either the committed inputs or a hash-verified fetch of them are committed"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "DanceDirector and cross-fade switching: Pure director with locked and unlocked boundaries, scene wiring of one action per dance with one-beat cross-fades and continuous clock, Auto rotation, fallback for unavailable or unknown selections, tested with two clips",
+          "dependencies": [
+            "S2"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/dancingCharacterDirector.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterDirector.test.ts",
+            "app/features/visualizers/dancing-character/dancingCharacterScene.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 DanceDirector API (pure module): createDanceDirector(available: readonly DanceId[]) with update(input: { selection: string; beatCount: number; downbeatCount: number; meterLocked: boolean; songChangeCount: number }, out) writing { active, next, switchNow } into a preallocated object. Boundary is a downbeatCount increment when meterLocked, else every 4th beatCount increment, further restricted to boundaries compatible with both dances' loop lengths. Auto rotates every AUTO_ROTATE_BARS (8) bars or on a songChangeCount increment and never picks the current dance. An unavailable selection maps to the first available dance; an unknown selection is treated as auto"
+          ],
+          "acceptance": [
+            "AC2: Given a track with a steady detected tempo between 80 and 160 BPM, when any shipped dance plays, then each dance's baked beat markers sit at k times 0.5 s, its contact signal (hips-height minimum or foot strike) lies within 40 ms of each marker in the build check and a unit test, and computeDanceTiming with that dance's beat count keeps beat phase aligned and speed scaled with BPM in the sync simulation",
+            "AC3: Given the settings panel is open, when the user selects one of at least 2 named dances in the Dance select, then the switch starts on the next bar boundary (or next 4-beat boundary when the meter is not locked), cross-fades over one beat with the shared clip clock continuous and the per-frame bone rotation change during the fade under a unit-tested bound, and an unavailable or unknown selection falls back to an available dance or Auto",
+            "AC4: Given the Dance select is set to Auto, when a song change is detected or 8 bars (or 32 beats without a locked meter) pass, then the dance changes to a different available dance on a boundary with a cross-fade, tested in the director for both locked and unlocked meter"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Remaining dances, Dance selector and baselines: Bake the remaining 1-2 dances, add the Dance select (Auto default) and reduced-motion entry to the controls, refresh the settings-panel baseline and run the full gate set",
+          "dependencies": [
+            "S1",
+            "S3"
+          ],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/dancingCharacterControls.ts",
+            "app/features/visualizers/dancing-character/assets/dances/",
+            "e2e/visual.spec.ts-snapshots/dancingcharacter-settings-panel-chromium-linux.png"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 select ControlDefinition (TypeScript type): ControlDefinition gains { type: 'select'; label; options: readonly { value: string; label: string }[] } with a string value; ControlInput renders a labelled native select; useControlValues stores the string",
+            "C2 Dance clip invariants and registry (data contract): DANCES: readonly { id: DanceId; label: string; beats: 4 | 8 }[] in dancingCharacterConfig.ts, with CALM_DANCE_ID naming the calmest dance. Each clip in MakeHumanDances.glb is named by its id, lasts beats times 0.5 s at 120 BPM, has beat 1 at t=0 produced by a piecewise beat-to-beat warp from per-beat source times in its manifest, tracks for every DANCE_REQUIRED_BONES bone, no root translation except hips height, a loop seam with max bone rotation delta under 10 degrees, and foot skate under a stated threshold; asserted by the build and by unit tests against the real GLB"
+          ],
+          "acceptance": [
+            "AC1: Given the dancing-character visualizer is open with audio playing, when a dance is active, then the character performs a full-body dance (weight shift or steps in legs and feet, hip and chest motion, arm and head motion) sourced from or retargeted from human motion data, not the old buildDanceClip motion",
+            "AC3: Given the settings panel is open, when the user selects one of at least 2 named dances in the Dance select, then the switch starts on the next bar boundary (or next 4-beat boundary when the meter is not locked), cross-fades over one beat with the shared clip clock continuous and the per-frame bone rotation change during the fade under a unit-tested bound, and an unavailable or unknown selection falls back to an available dance or Auto",
+            "AC4: Given the Dance select is set to Auto, when a song change is detected or 8 bars (or 32 beats without a locked meter) pass, then the dance changes to a different available dance on a boundary with a cross-fade, tested in the director for both locked and unlocked meter",
+            "AC5: Given the dance assets are bundled, when the repository is inspected, then assets/CREDITS.md has a new section per dance with source URL, author, licence and its verification, the retarget process, and the dances GLB hash and size, leaving the existing CC0 model record untouched; the build script, its manifests and either the committed inputs or a hash-verified fetch of them are committed",
+            "AC6: Given the change is complete, when CI runs, then format, lint, typecheck, coverage at 95 percent, build, size and e2e (with refreshed visual baselines) pass, and the e2e fixtures (which fail on any console error or WebGL-context warning) pass with the Dance select changed"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S0",
+          "objective": "Licence and retarget spike, no commit: Verify the licence page of each candidate (CMU dance subjects, Quaternius, others), list those that pass D2, retarget one dance to MakeHuman in a throwaway branch, pick the toolchain and loop length, and get the user's go or no-go before any committed change",
+          "dependencies": [],
+          "base_revision": "6bccc895447c6e41bead8cd0005e53ee4407fbf7",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/dancing-character-dances/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Dance clip invariants and registry (data contract): DANCES: readonly { id: DanceId; label: string; beats: 4 | 8 }[] in dancingCharacterConfig.ts, with CALM_DANCE_ID naming the calmest dance. Each clip in MakeHumanDances.glb is named by its id, lasts beats times 0.5 s at 120 BPM, has beat 1 at t=0 produced by a piecewise beat-to-beat warp from per-beat source times in its manifest, tracks for every DANCE_REQUIRED_BONES bone, no root translation except hips height, a loop seam with max bone rotation delta under 10 degrees, and foot skate under a stated threshold; asserted by the build and by unit tests against the real GLB"
+          ],
+          "acceptance": [
+            "AC1: Given the dancing-character visualizer is open with audio playing, when a dance is active, then the character performs a full-body dance (weight shift or steps in legs and feet, hip and chest motion, arm and head motion) sourced from or retargeted from human motion data, not the old buildDanceClip motion",
+            "AC5: Given the dance assets are bundled, when the repository is inspected, then assets/CREDITS.md has a new section per dance with source URL, author, licence and its verification, the retarget process, and the dances GLB hash and size, leaving the existing CC0 model record untouched; the build script, its manifests and either the committed inputs or a hash-verified fetch of them are committed"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}

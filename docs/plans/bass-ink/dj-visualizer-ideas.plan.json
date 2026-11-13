@@ -1,0 +1,1067 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "dj-visualizer-ideas-20261113t015019z-3939ead8",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R1",
+  "created": "2026-11-13T01:50:19.831Z",
+  "updated": "2026-11-13T02:04:04.756Z",
+  "feature": {
+    "slug": "dj-visualizer-ideas",
+    "title": "New DJ set visualizer",
+    "request": "I want to plan out some new visualizations. Give me some ideas of some cool, one-of-a-kind animations we can use given all of the audio data available to us. This is intended to be used for DJ sets, so use that as context when coming up with ideas.  give me 5 ideas"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "f1a4ec34d230edb31e74f1e38efcd26f7209c6a3"
+  },
+  "problem": {
+    "statement": "The app has three visualizers (cubes, trio-color-wave, dancing-character). None is built for a DJ set on a projector: across a room they read as small detail, and none uses the arc of a set (builds, drops, phrases, blends between tracks) even though the rhythm tracker already exposes kick/mid/high onsets, chroma, novelty, beat and bar phase, tempo confidence and song changes. DJs want a hands-off visual that feels made for the set and doesn't look like a generic spectrum bar.",
+    "users": [
+      "DJ playing a 4/4 electronic set who sets the visual up before the set and then leaves it alone",
+      "Audience watching a projector or big screen behind the DJ from across a room"
+    ],
+    "evidence": [
+      "context-brief.md: RhythmState exposes bpm, beatPhase, barPhase, beatsPerBar, tempoConfidence, meterConfidence, bandOnsets[3], chroma[12], novelty, nextBeatTime, beatCount, downbeatCount, songChangeCount",
+      "context-brief.md: three existing visualizers; only dancing-character uses the full rhythm stack, trio is analyser-only",
+      "docs/agents/rhythm-stability-results.md (via brief): tempo can lock wrong at dotted ratios, octave changes rebuild the grid, a song change may not raise songChangeCount, and clip catch-up drifts for up to 8 s"
+    ]
+  },
+  "goals": [
+    "Offer 5 distinct, one-of-a-kind visualizer concepts tuned for 4/4 DJ sets and pick one to build",
+    "Build the chosen visualizer so it reads from across a room on a projector: bold shapes, high contrast, full-frame reactions",
+    "React to the set's structure (kicks, builds, drops, song changes), not just the instantaneous spectrum",
+    "Run fully automatically through a whole set, including transitions where the tempo lock is weak"
+  ],
+  "non_goals": [
+    "Building more than one visualizer in this plan (the other concepts stay as alternatives for later runs)",
+    "Live triggers, MIDI or keyboard performance controls",
+    "A new fullscreen or hide-UI mode, or any change to the shared ControlPanel",
+    "Changing the rhythm tracker, its worklet or rhythmConfig to fix its known weaknesses",
+    "Upgrading three.js or adding a postprocessing or physics dependency"
+  ],
+  "success_metrics": [
+    "Holds 60 fps at 1080p on a mid-range laptop GPU through a 10-minute recording played with npm run debug:viz",
+    "A full DJ mix played start to finish shows a visible change of look at each track change and each drop, with no stalls or visible jumps at transitions",
+    "All CI gates pass with no budget raised beyond the new route chunk"
+  ],
+  "constraints": [
+    "Follow AGENTS.md rules 1-7: named exports, logic in classes and pure functions, refs not state in the render loop, every resource disposed, no per-frame allocation, reuse useThreeScene, createOrbitView, disposeScene, useControlValues, ControlPanel, useAnalyser, useRhythm",
+    "Follow .agents/skills/add-visualizer/SKILL.md and look like cubes and trio-color-wave",
+    "three.js r186 pinned, addons only from three/addons; no new runtime dependency",
+    "One WebGL canvas per route, released on leave; e2e fails on Too many active WebGL contexts",
+    "Bundle budget in .size-limit.json (entry 133 kB gzip, total JS 320 kB gzip); new code must stay in the route chunk and out of the entry chunk, so no new constants in rhythmConfig",
+    "Lighthouse budget on / unchanged; / must not load three.js",
+    "95% coverage over app/**; Linux visual baselines regenerated for the new card and settings panel",
+    "Do not rely on bpm or barPhase early in a track or across transitions; gate beat-locked motion on tempoConfidence"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "an audio source has been chosen on /",
+      "when": "the user opens the new visualizer from its landing card",
+      "then": "the route renders exactly one canvas, its card appears on / with AVIF/WebP images, and the page logs no errors or WebGL-context warnings"
+    },
+    {
+      "id": "AC2",
+      "given": "a 4/4 track is playing",
+      "when": "bandOnsets[0] rises past the kick rise threshold on a frame (with the refractory interval and strength floor from bassInkConfig)",
+      "then": "KickRing.update records that frame's time as the kick start and InkCloud.update uploads it in the same call, so a shockwave covering a large part of the frame starts on that frame (unit spec); readability across a room is a manual check"
+    },
+    {
+      "id": "AC3",
+      "given": "tempoConfidence is below the visualizer's threshold (start of a track or mid-transition)",
+      "when": "the scene would normally run beat- or bar-locked motion",
+      "then": "it switches smoothly to onset- and energy-driven motion with no stall, jump or reset, and switches back once confidence returns; a unit spec on the pure mapping proves both directions"
+    },
+    {
+      "id": "AC4",
+      "given": "a set is playing",
+      "when": "songChangeCount increments, or the novelty and energy signals show a build followed by a drop",
+      "then": "the look changes automatically (palette, mode or structure) without any user input, and a unit spec on the pure director proves the transitions"
+    },
+    {
+      "id": "AC5",
+      "given": "the scene is running at any kick rate up to 200 BPM, including an active build and drop",
+      "when": "any global-brightness term changes (flash, ripple brightening, core density gain, drop burst)",
+      "then": "the summed large-area brightness increase is granted at most 3 times in any sliding 1-second window, proven by a spec that drives every brightness term with 200 BPM kick trains through a build and drop, and the intensity control scales it down or to 0"
+    },
+    {
+      "id": "AC6",
+      "given": "the user leaves the route, switches audio source or round-trips to it repeatedly",
+      "when": "the scene unmounts",
+      "then": "all GPU objects are disposed, analyser and rhythm taps are released and the WebGL context is freed, as checked by the existing e2e round-trip specs"
+    },
+    {
+      "id": "AC7",
+      "given": "the change is ready",
+      "when": "CI runs",
+      "then": "format, lint, typecheck, coverage at 95%, build, size, Lighthouse and e2e (with regenerated visual baselines) all pass"
+    },
+    {
+      "id": "AC8",
+      "given": "the default density on the reference projector laptop at 1080p",
+      "when": "the cloud is at maximum tension (build peak) and during a drop burst",
+      "then": "the debug-harness fps readout stays at or above 55 fps"
+    },
+    {
+      "id": "AC9",
+      "given": "the existing ControlPanel in its default state",
+      "when": "the page is shown fullscreen on a projector",
+      "then": "nothing but the scene covers the frame beyond one corner, checked manually"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "How should the plan handle the 5 requested ideas?",
+      "answer": "Lay out 5 distinct concepts as scored options; the user picks one, which gets the full plan and slices. The rest stay as alternatives for later runs.",
+      "decided_by": "user",
+      "rationale": "One feature per plan; five visualizers would be five plans."
+    },
+    {
+      "id": "D2",
+      "question": "Where is the visualizer shown?",
+      "answer": "Projector or big screen behind the DJ, fullscreen, read from across a room.",
+      "decided_by": "user",
+      "rationale": "Favors bold shapes, high contrast, little fine detail, no on-screen UI during the set."
+    },
+    {
+      "id": "D3",
+      "question": "Which music is it tuned for?",
+      "answer": "4/4 electronic (house, techno, DnB): steady tempo, builds, drops, long blends.",
+      "decided_by": "user",
+      "rationale": "Where the rhythm tracker is strongest."
+    },
+    {
+      "id": "D4",
+      "question": "How much does it run on its own?",
+      "answer": "Fully automatic; the settings panel is used only before the set, no live triggers.",
+      "decided_by": "user",
+      "rationale": "The DJ is busy mixing."
+    },
+    {
+      "id": "D5",
+      "question": "Which existing visualizer is the pattern to copy?",
+      "answer": "cubes for beat, bass and downbeat wiring; trio-color-wave for analyser-only sampling",
+      "decided_by": "repo-fact",
+      "rationale": "AGENTS.md names them as the reference implementations."
+    },
+    {
+      "id": "D6",
+      "question": "Is a photosensitivity limit in scope?",
+      "answer": "Yes: large-area flashes are capped at 3 per second with an intensity control",
+      "decided_by": "user",
+      "rationale": "User confirmed the framing including the 3-per-second flash cap; a projector at a public event is the case WCAG 2.3.1 exists for."
+    },
+    {
+      "id": "D7",
+      "question": "Which visual direction should the concepts take?",
+      "answer": "Mixed: spread the 5 across abstract geometry, particles, landscapes and stylised scenes",
+      "decided_by": "user",
+      "rationale": "Widest choice before picking one."
+    },
+    {
+      "id": "D8",
+      "question": "Which concept gets the build plan?",
+      "answer": "O4 Bass Ink",
+      "decided_by": "user",
+      "rationale": "Best balance of wow factor, projector readability and confidence; the other four stay as alternatives for later runs."
+    },
+    {
+      "id": "D9",
+      "question": "How is the one-of-a-kind look checked, given particle clouds are a known VJ look?",
+      "answer": "A look-pass checkpoint at the end of S2: a screen recording of a build, drop and track change is reviewed by the user before S3 starts",
+      "decided_by": "planner-assumption",
+      "rationale": "Distinctiveness rests on the interfering shockwaves and formation bursts, which only a human review can judge."
+    },
+    {
+      "id": "D10",
+      "question": "What drives build and drop detection?",
+      "answer": "A level-independent fast/slow energy ratio (as cubes uses for its probes), with novelty as confirmation only",
+      "decided_by": "planner-assumption",
+      "rationale": "Novelty lags a build by seconds and stays high after a drop; raw RMS depends on master level and capture gain (critic F2)."
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "robust",
+      "summary": "Bass Ink: a cloud of about 100k glowing points hanging in the dark like ink in water. Every kick sends a spherical shockwave rippling out through the cloud, hats make the surface glitter, and chroma tints it to the key's mood. A build pulls the cloud into a tight, trembling core; the drop blows it outward into a new formation (sphere, torus, double helix, flat galaxy disc), and a song change picks the next formation and palette.",
+      "approach": [
+        "Render one THREE.Points with a custom ShaderMaterial. Rest positions live in a static BufferAttribute built once per formation, and all motion is computed in the vertex shader from uniforms, so the CPU writes only a handful of floats per frame.",
+        "Kick shockwaves: a ring buffer of the last 8 kick start times and strengths in a uniform array (bandOnsets[0] rising edge). The shader displaces each point by a decaying radial wave per entry, so overlapping kicks interfere instead of resetting.",
+        "Hats (bandOnsets[2]) drive a per-point sparkle term from a hashed point id; mids (bandOnsets[1]) drive curl-noise turbulence amplitude.",
+        "A pure SetDirector reads novelty, a slow RMS energy envelope from the analyser and songChangeCount, and outputs a tension value 0..1 (build) plus a drop event. Tension shrinks the formation radius and raises the jitter; a drop cross-fades the rest positions to the next formation over one bar (or 2 s when tempoConfidence is low).",
+        "Beat lock is optional: when tempoConfidence passes the threshold, a slow breathing scale follows barPhase; below it the breathing runs on its own clock, eased so it never jumps.",
+        "A pure FlashLimiter caps large-area brightness boosts at 3 per second and scales them by the intensity control."
+      ],
+      "components": [
+        {
+          "name": "InkCloud",
+          "responsibility": "Points geometry, formation attributes, shader uniforms, dispose",
+          "location": "app/features/visualizers/bass-ink/inkCloud.ts"
+        },
+        {
+          "name": "inkShaders",
+          "responsibility": "GLSL vertex and fragment strings (shockwave, sparkle, curl noise)",
+          "location": "app/features/visualizers/meshes/inkShaders.ts"
+        },
+        {
+          "name": "formations",
+          "responsibility": "Pure generators for sphere, torus, helix and disc rest positions",
+          "location": "app/features/visualizers/bass-ink/formations.ts"
+        },
+        {
+          "name": "SetDirector",
+          "responsibility": "Pure tension, drop and song-change state machine from RhythmState and energy",
+          "location": "app/features/visualizers/bass-ink/setDirector.ts"
+        },
+        {
+          "name": "FlashLimiter",
+          "responsibility": "Pure 3-per-second cap and intensity scale for large flashes",
+          "location": "app/features/visualizers/bass-ink/flashLimiter.ts"
+        },
+        {
+          "name": "useBassInkScene / BassInkPage / bassInkControls",
+          "responsibility": "Wire useThreeScene, useRhythm, useAnalyser and ControlPanel",
+          "location": "app/features/visualizers/bass-ink/"
+        }
+      ],
+      "contracts": [
+        "SetDirector.update(state: RhythmState, energy: number, dtSeconds: number): DirectorCue, where DirectorCue is a mutable object with tension, dropAt, formationIndex and paletteIndex",
+        "FlashLimiter.request(strength: number, nowSeconds: number): number, returning the allowed flash strength"
+      ],
+      "pros": [
+        "Every kick reads as a huge full-frame ripple, ideal for a projector",
+        "Leans on bandOnsets, novelty and energy, which hold up through transitions",
+        "Almost all work runs on the GPU, so it stays cheap and allocation-free",
+        "Formations make drops and track changes unmistakable"
+      ],
+      "cons": [
+        "Custom shader is the riskiest code to test; unit specs cover only the pure parts",
+        "100k points on software WebGL in e2e may be slow; needs a lower point count in tests",
+        "Particle clouds are a known VJ look; the shockwave interference and formations are what make it distinct"
+      ],
+      "risks": [
+        "Point count too high for weak GPUs; mitigated by a density control",
+        "Build detection from novelty may fire on breakdowns as well as builds"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "high",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 3,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 3.8
+    },
+    {
+      "id": "O5",
+      "source": "lead",
+      "lens": "experience",
+      "summary": "Ghost Lighting Rig: a virtual club stage seen from the dancefloor, with a truss of moving-head beams cutting through haze, laser fans and a pixel LED wall behind, run by an automatic lighting designer. Like a real LD it picks a cue per phrase: chases that step on each beat, tight beams that speed up and narrow through a build, a full fan-out and laser sheet on the drop, slow sweeping washes in a breakdown, and a new colour scheme for each track.",
+      "approach": [
+        "Build the stage once: an InstancedMesh of 12-16 additive cone beams with a soft volumetric fake (gradient along the cone and a fresnel edge in a small ShaderMaterial), a laser fan made of thin additive planes, an LED wall as an InstancedMesh grid of quads, and a dark floor with a reflective fake.",
+        "A pure LightingDirector holds a cue library (chase, ballyhoo, fan, strobe-hit, wash, blackout-sting). It reads novelty, an energy envelope, bandOnsets and songChangeCount to classify the moment as intro, groove, build, drop or breakdown, and switches cues on the next bar line when tempoConfidence is good, or on the next kick when it is not.",
+        "Cues are pure functions of (cue time, beatPhase or onset clock, intensity) that write pan, tilt, dimmer and colour into preallocated Float32Arrays, which the beams read through instance attributes.",
+        "Chroma picks a 2-3 colour scheme per track (major-leaning keys warm, minor-leaning cool), applied at song changes.",
+        "Strobe-hit cues go through a FlashLimiter (3 per second cap, intensity control). Without tempo confidence the chase steps fall back to kick onsets."
+      ],
+      "components": [
+        {
+          "name": "StageRig",
+          "responsibility": "Beams, lasers, LED wall, floor; instance attribute updates; dispose",
+          "location": "app/features/visualizers/ghost-rig/stageRig.ts"
+        },
+        {
+          "name": "beamShaders",
+          "responsibility": "Volumetric-fake cone and laser shader strings",
+          "location": "app/features/visualizers/meshes/beamShaders.ts"
+        },
+        {
+          "name": "LightingDirector",
+          "responsibility": "Pure moment classifier and cue scheduler",
+          "location": "app/features/visualizers/ghost-rig/lightingDirector.ts"
+        },
+        {
+          "name": "cues",
+          "responsibility": "Pure cue functions writing fixture arrays",
+          "location": "app/features/visualizers/ghost-rig/cues.ts"
+        },
+        {
+          "name": "FlashLimiter",
+          "responsibility": "Pure flash cap and intensity scale",
+          "location": "app/features/visualizers/ghost-rig/flashLimiter.ts"
+        },
+        {
+          "name": "useGhostRigScene / GhostRigPage / ghostRigControls",
+          "responsibility": "Wiring and controls",
+          "location": "app/features/visualizers/ghost-rig/"
+        }
+      ],
+      "contracts": [
+        "LightingDirector.update(state: RhythmState, energy: number, nowSeconds: number): ActiveCue (mutable: cueId, cueStart, schemeIndex, moment)",
+        "Cue function signature (t: number, step: number, intensity: number, out: FixtureFrame) => void, where FixtureFrame holds preallocated pan, tilt, dimmer and colour arrays"
+      ],
+      "pros": [
+        "Instantly readable to a club crowd: it looks like a real light show, but impossible and endless",
+        "Phrase-aware cueing is the most 'made for the set' of all the concepts",
+        "Cue library is pure and very testable; new cues are cheap to add later"
+      ],
+      "cons": [
+        "Most art direction work: making fake volumetric beams look good takes iteration in npm run dev",
+        "Moment classification is heuristic and will misjudge some tracks",
+        "Large additive overdraw from many beams can cost fill rate on a projector at 1080p"
+      ],
+      "risks": [
+        "Looks cheap if the beam shader is weak; mitigated by a dev-time look pass before tests",
+        "Cue switches on a wrong bar line when barPhase is off after a transition; mitigated by the onset fallback"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 2,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 3.35
+    },
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Shockwave Wall: a full-frame mosaic of bold instanced slabs where every kick sends a shockwave ripple that punches tiles toward the camera, mids flip them, chroma sets the palette, and builds/drops/song changes re-pattern the whole wall (grid, radial rings, diagonal bars).",
+      "approach": [
+        "Copy the cubes route: app/features/visualizers/shockwave-wall/ with page, useShockwaveWallScene, controls, config, plus landing card entry in visualizations.ts and route registration.",
+        "One InstancedMesh (~32x18 box slabs, one MeshBasicMaterial with per-instance color), ortho-ish front camera so the wall fills the frame; setMatrixAt/setColorAt into preallocated buffers only.",
+        "Pure ShockwaveField: on bandOnsets[0] rising edge, spawn a ripple (fixed ring buffer of 4) with origin chosen by director; tile z-punch = sum of decaying ring envelopes; all runs on the kick frame.",
+        "Pure WallDirector (state machine idle/build/drop, patterns grid/rings/bars): novelty EMA rising with energy = build (tilt and gap widen, ripples speed up); sharp novelty+energy fall after build = drop (swap pattern, hue jump, one big punch); songChangeCount increment = palette and pattern change.",
+        "Pure motionClock: scroll phase uses barPhase when tempoConfidence>hi, free-runs on analyser energy below lo, with hysteresis and phase-continuous blend (no reset), so both directions are smooth.",
+        "FlashGovernor: luminance flash allowed at most every 340 ms (<=3/s); extra kicks still punch geometry. Intensity control scales flash gain, 0 disables.",
+        "Specs on motionClock, WallDirector, FlashGovernor, ShockwaveField; reuse useThreeScene, useAnalyser, useRhythm, disposeScene."
+      ],
+      "components": [
+        {
+          "name": "useShockwaveWallScene",
+          "responsibility": "Scene, InstancedMesh, render loop, refs only, disposal",
+          "location": "app/features/visualizers/shockwave-wall/useShockwaveWallScene.ts"
+        },
+        {
+          "name": "ShockwaveField",
+          "responsibility": "Ripple ring buffer to per-tile punch",
+          "location": "app/features/visualizers/shockwave-wall/shockwaveField.ts"
+        },
+        {
+          "name": "WallDirector",
+          "responsibility": "Build/drop/song-change look selection",
+          "location": "app/features/visualizers/shockwave-wall/wallDirector.ts"
+        },
+        {
+          "name": "motionClock + FlashGovernor",
+          "responsibility": "Confidence-gated phase; flash rate cap",
+          "location": "app/features/visualizers/shockwave-wall/"
+        }
+      ],
+      "contracts": [
+        "Driven by RhythmState: bandOnsets[0] kick ripple + flash; bandOnsets[1] tile flips; bandOnsets[2] edge sparkle; chroma[] argmax sets hue; novelty drives build/drop; songChangeCount re-themes; tempoConfidence gates barPhase/beatPhase scroll only. bpm unused.",
+        "Analyser energy (cubes-style FFT 2048) feeds overall tile scale and brightness floor.",
+        "New controls: flash intensity (0..1), palette set, density; no rhythmConfig or ControlPanel changes."
+      ],
+      "pros": [
+        "Reads from across a room: huge flat tiles, high contrast",
+        "Almost no dependence on bpm or barPhase; survives transitions",
+        "One draw call, reuses cubes patterns",
+        "All logic pure and unit-testable"
+      ],
+      "cons": [
+        "Less novel than particle or character ideas",
+        "Mosaic may feel like a LED wall, not a unique world"
+      ],
+      "risks": [
+        "Onset false positives from scattered bass cause extra punches",
+        "Drop detection from novelty needs tuning on real mixes",
+        "Visual baselines need deterministic seeded state"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 4.25
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "experience",
+      "summary": "Night Drive: an endless low-poly road-and-horizon landscape the crowd rides through, where each track is a journey leg (songChangeCount picks the biome and time of day), builds darken and gather storm and fog, the drop breaks the sky open in a full-frame sunrise burst, and kicks slam the horizon glow and sun across half the screen.",
+      "approach": [
+        "Scene: scrolling heightfield terrain (shader-displaced plane), huge sun/moon disc, sky gradient, mountain silhouettes, rain/fog layer; bold flat shapes, high contrast, no fine detail for projector reading.",
+        "Pure LandscapeDirector (no three.js): inputs novelty, energy (kick+mid+high onset EMA), songChangeCount, tempoConfidence; state machine CALM -> BUILD -> DROP -> AFTERGLOW; songChangeCount increment picks next biome (desert, neon city, ocean, alpine) and time of day with a 4 s eased crossfade.",
+        "Chroma: dominant pitch class (smoothed, hysteresis) maps to palette hue; minor/major-ish chroma skew shifts warm vs cool; palette lerps, never snaps.",
+        "Kick (bandOnsets[0]) hits on the same frame: sun scale punch, horizon glow flash, terrain ripple wave; flashes go through a FlashLimiter (max 3 large-area flashes/s, intensity control scales or disables).",
+        "Beat-locked motion (road dashes, sun pulse on beatPhase, bar-phase cloud sweep) weight = smoothstep on tempoConfidence; below threshold, motion follows onset/energy envelope with continuous speed so crossfade is stall-free and jump-free.",
+        "Build: novelty+energy rising raises fog, storm clouds, rain density, camera speed; drop: quick clear plus sunrise burst, lightning-style bloom limited by FlashLimiter.",
+        "Route, controls (intensity, biome lock optional, weather amount), card, specs; dispose via disposeScene; no per-frame allocation."
+      ],
+      "components": [
+        {
+          "name": "LandscapeDirector",
+          "responsibility": "Pure state machine: phase, biome, time of day, build amount from novelty/energy/songChangeCount",
+          "location": "app/features/visualizers/landscape/landscapeDirector.ts"
+        },
+        {
+          "name": "landscapeMapping",
+          "responsibility": "Pure: tempoConfidence blend weight, chroma to palette, FlashLimiter",
+          "location": "app/features/visualizers/landscape/landscapeMapping.ts"
+        },
+        {
+          "name": "useLandscapeScene",
+          "responsibility": "useThreeScene hook, shader terrain/sky, reads rhythm refs per frame",
+          "location": "app/features/visualizers/landscape/useLandscapeScene.ts"
+        },
+        {
+          "name": "LandscapePage + controls",
+          "responsibility": "Route, intensity and weather settings",
+          "location": "app/features/visualizers/landscape/"
+        }
+      ],
+      "contracts": [
+        "LandscapeDirector.update(dt, {novelty, energy, kick, songChangeCount, tempoConfidence}) -> {phase, biome, timeOfDay, buildAmount, beatWeight}",
+        "FlashLimiter.request(strength, now) -> allowed strength, max 3/s, scaled by intensity",
+        "Controls: intensity 0..1 (0 disables flashes), weather amount"
+      ],
+      "pros": [
+        "Tells the story of the set: journey per track, tension and release readable from across a room",
+        "Slow-changing biome and palette hide weak tempo lock; most motion is envelope-driven",
+        "Naturally low-detail, big-shape, projector friendly; gentle by default"
+      ],
+      "cons": [
+        "Kick reactions are less percussive than a strobe or geometry concept",
+        "Shader terrain and sky art direction needs iteration to avoid looking generic",
+        "Songs without clear builds get little weather variation"
+      ],
+      "risks": [
+        "songChangeCount may miss dotted-ratio changes; fall back to novelty spike plus chroma shift as a track-change cue",
+        "Fill-rate at 1080p with fog/rain on a mid GPU; keep to a few fullscreen shader passes",
+        "Biome pop at crossfade if assets differ too much; blend in shader"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 5
+      },
+      "total": 3.65
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "TWO DECKS: the frame is split by a glowing, kick-shaken seam between two giant domain-warped colour fields, the outgoing track's key-colour and the incoming track's, and the seam sweeps across as chroma drifts, then the new field floods the screen and becomes the next 'outgoing' at the handover.",
+      "approach": [
+        "Break the assumption 'one stream': MixTracker keeps two chroma signatures, A (settled, slow EMA) and B (fast EMA). Cosine distance d(A,B) over chroma[12] is the 'mix drift'.",
+        "Phases: SOLO (d low, field A fills frame), BLEND (d above enter threshold for ~2 s, or novelty spike: B freezes onto the new chroma, seam position = smoothed sigmoid of d), HANDOVER (songChangeCount increments, or d settles low again with B stable: B floods the frame over ~1.5 s, then A takes B's signature).",
+        "Each signature maps to a palette: dominant pitch class gives hue, chroma spread gives saturation/scale. Both fields are fbm domain-warped shaders on one fullscreen plane, no new dependency.",
+        "Kicks (bandOnsets[0]) fire a shockwave from the seam that crosses the whole frame on the same frame (AC2); mids and highs add grain and warp speed per side.",
+        "Beat-locked seam wobble uses beatPhase only when tempoConfidence passes a hysteresis gate; below it the wobble is driven by onset envelopes, crossfaded by a pure gain (AC3).",
+        "A pure FlashLimiter caps full-frame luminance kicks at 3 per second and scales by an intensity control (AC5). Build/drop: novelty rising plus energy gives seam tension (narrow, bright), a drop releases it as a wide bloom.",
+        "Wire per add-visualizer skill: card, route, useTwoDecksScene, controls (intensity, seam width, palette set), dispose in one pass."
+      ],
+      "components": [
+        {
+          "name": "MixTracker",
+          "responsibility": "Pure class: chroma + novelty + songChangeCount to phase, progress, signatures A/B",
+          "location": "app/features/visualizers/two-decks/mixTracker.ts"
+        },
+        {
+          "name": "twoDecksDirector",
+          "responsibility": "Pure: phase and build/drop to look (palette pair, seam tension, bloom); handles AC4",
+          "location": "app/features/visualizers/two-decks/twoDecksDirector.ts"
+        },
+        {
+          "name": "twoDecksSync + FlashLimiter",
+          "responsibility": "Pure: tempoConfidence gate and 3/s flash cap",
+          "location": "app/features/visualizers/two-decks/twoDecksSync.ts"
+        },
+        {
+          "name": "useTwoDecksScene",
+          "responsibility": "useThreeScene hook, fullscreen ShaderMaterial, uniform updates, disposal",
+          "location": "app/features/visualizers/two-decks/useTwoDecksScene.ts"
+        }
+      ],
+      "contracts": [
+        "MixTracker.update(chroma: Float32Array|number[], novelty: number, songChangeCount: number, dt: number): void; readonly phase, progress 0..1, sigA/sigB",
+        "TwoDecksLook = { paletteA, paletteB, seam: number, tension: number, bloom: number }",
+        "RhythmState read-only; no change to tracker or rhythmConfig"
+      ],
+      "pros": [
+        "Only concept that visualises the mix itself; matches DJ mental model of outgoing/incoming",
+        "Turns the tracker's weak spots (transitions, wobbly lock) into the main show instead of something to hide",
+        "Cheap GPU: one fullscreen shader, easy 60 fps; huge shapes read across a room"
+      ],
+      "cons": [
+        "Chroma is a mix of both decks, so it shows spectral drift, not true two-track separation",
+        "Looks more like one field when the DJ uses long same-key harmonic blends",
+        "Less literal than a character or tunnel; needs a legend-free, self-explanatory look"
+      ],
+      "risks": [
+        "Chroma noise causes false BLEND starts: mitigate with hysteresis, minimum dwell, and novelty confirmation",
+        "Dotted-ratio song change may not raise songChangeCount: handover also triggers on d settling, so it is a fallback not a dependency",
+        "Shader fbm cost on integrated GPUs: use half-res render target scale control"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 4,
+        "ux": 4,
+        "reversibility": 5
+      },
+      "total": 3.85
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "The user chose Bass Ink. Shockwave Wall (O1) scores higher because it is cheaper and nearly all reuse, but the request asked for one-of-a-kind animations, and O1 is the least distinctive. Bass Ink keeps O1's robustness (it leans on bandOnsets, novelty and energy, and gates beat lock on tempoConfidence), puts almost all motion on the GPU, and makes kicks, drops and track changes unmistakable from across a room.",
+  "design": {
+    "overview": "A new visualizer at /bass-ink built like cubes: a thin route module, a page, a scene hook that wires useThreeScene, useAnalyser and useRhythm, and framework-free pieces underneath. One THREE.Points with a custom ShaderMaterial holds two ping-pong rest-position attributes (A and B, chosen by a uniform) and a per-point id; the vertex shader computes kick shockwaves (displacement only), curl-noise turbulence, tension squeeze, breathing and the formation cross-fade from uniforms. Pure modules decide everything the music implies: a level-independent energy ratio, a confidence-gated motion clock, a SetDirector for build, drop and track-change cues with coalescing, a KickRing with a defined onset rule, and a BrightnessGovernor that every global-brightness term goes through. Point size and alpha scale down with tension so a squeezed core neither saturates to white nor blows the fill rate.",
+    "components": [
+      {
+        "name": "energyEnvelope",
+        "responsibility": "Pure: RMS into fast and slow envelopes and their ratio, so build and drop cues do not depend on master level or capture gain",
+        "location": "app/features/visualizers/bass-ink/energyEnvelope.ts"
+      },
+      {
+        "name": "motionClock",
+        "responsibility": "Pure: blends barPhase-locked breathing with a free-running clock by a smoothstep weight on tempoConfidence with hysteresis, phase-continuous both ways",
+        "location": "app/features/visualizers/bass-ink/motionClock.ts"
+      },
+      {
+        "name": "SetDirector",
+        "responsibility": "Pure state machine GROOVE, BUILD, DROP, AFTERGLOW driven by the energy ratio, confirmed by novelty; coalesces a songChangeCount increment near a drop into one transition; pre-picks the next formation at build start",
+        "location": "app/features/visualizers/bass-ink/setDirector.ts"
+      },
+      {
+        "name": "BrightnessGovernor",
+        "responsibility": "Pure: sliding 1-second window allowing at most 3 large-area brightness increases across all terms (flash, ripple brightening, core gain, drop burst), scaled by intensity",
+        "location": "app/features/visualizers/bass-ink/brightnessGovernor.ts"
+      },
+      {
+        "name": "kickRing",
+        "responsibility": "Pure: onset rule on the decaying bandOnsets[0] envelope (rise delta, refractory interval, strength floor) into a ring of 8 kick start times and strengths in a preallocated Float32Array",
+        "location": "app/features/visualizers/bass-ink/kickRing.ts"
+      },
+      {
+        "name": "formations",
+        "responsibility": "Pure generators writing sphere, torus, double helix and disc positions into a given Float32Array range from a seed, so a formation can be generated in chunks over several frames",
+        "location": "app/features/visualizers/bass-ink/formations.ts"
+      },
+      {
+        "name": "chromaPalette",
+        "responsibility": "Pure: smoothed dominant pitch class with a hysteresis margin and minimum dwell; the palette changes only at a director track-change transition, never continuously",
+        "location": "app/features/visualizers/bass-ink/chromaPalette.ts"
+      },
+      {
+        "name": "InkCloud",
+        "responsibility": "Class owning the Points geometry, ping-pong attributes, ShaderMaterial and uniforms; chunked next-formation fill, update and dispose; clamps gl_PointSize to the renderer range",
+        "location": "app/features/visualizers/bass-ink/inkCloud.ts"
+      },
+      {
+        "name": "inkShaders",
+        "responsibility": "GLSL strings: shockwave displacement sum (clamped), curl noise, sparkle from hashed id, soft points with size and alpha scaled by tension",
+        "location": "app/features/visualizers/meshes/inkShaders.ts"
+      },
+      {
+        "name": "useBassInkScene, BassInkPage, bassInkControls, bassInkConfig",
+        "responsibility": "Lifecycle wiring through refs, controls (flash intensity, density, turbulence, camera drift), every tunable constant, and a registerTelemetryProbe for director phase, tension, energy ratio and brightness grants",
+        "location": "app/features/visualizers/bass-ink/"
+      },
+      {
+        "name": "Route and card",
+        "responsibility": "Route module, route table entry, landing card entry and card images",
+        "location": "app/routes/bass-ink.tsx, app/routes.ts, app/features/landing/visualizations.ts, public/visualization-images/"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "SetDirector",
+        "kind": "module interface",
+        "definition": "new SetDirector(config); update(state: RhythmState, energy: EnergyEnvelope, nowSeconds: number): DirectorCue. DirectorCue is one mutable object reused every frame: phase (groove, build, drop, afterglow), tension 0..1, dropAt (seconds or -1), formationIndex, nextFormationIndex (picked at build start), paletteIndex, transitionStart, transitionSeconds (fixed 2 s, not bar-relative, so it looks the same across genres). Build enters on a rising energy ratio confirmed by novelty; drop fires on an energy-ratio surge after a build. A songChangeCount increment within coalesceSeconds of a drop or build merges into that transition; a new transition during a fade restarts from the current blend."
+      },
+      {
+        "id": "C2",
+        "name": "BrightnessGovernor",
+        "kind": "module interface",
+        "definition": "new BrightnessGovernor(maxPerSecond = 3); request(strength: number, nowSeconds: number, intensity: number): number returns the allowed brightness increase, using a sliding 1-second window of grant times, and 0 when the window is full or intensity is 0. Every global-brightness term in the scene calls it; ripples displace without brightening."
+      },
+      {
+        "id": "C3",
+        "name": "motionClock",
+        "kind": "module interface",
+        "definition": "createMotionClock(config); advance(clock, state: RhythmState, dtSeconds): number returns a continuous breathing phase 0..1; the beat-lock weight follows tempoConfidence with enter and exit thresholds and never resets the phase."
+      },
+      {
+        "id": "C4",
+        "name": "InkCloud",
+        "kind": "class interface",
+        "definition": "new InkCloud(pointCount, seed, maxPointSize); readonly object: Points; prepareFormation(index, seed) fills the inactive ping-pong attribute in chunks across subsequent update calls; beginTransition(startSeconds, seconds) cross-fades to it by uniform and swaps the active side at the end; a new target during a fade copies the current blend into the inactive side first, so nothing jumps; update(cue: DirectorCue, breathing: number, kicks: KickRing, palette: PalettePair, brightness: number, timeSeconds: number): void; dispose(): void. Never reallocates an attribute."
+      }
+    ],
+    "data": "No persisted data beyond the existing control storage, which also carries the density value e2e seeds low. All per-frame buffers (kick ring, envelopes, palette colours) are preallocated; formation attributes are ping-pong buffers filled in chunks, never reallocated.",
+    "ux": "Fullscreen dark scene with a slowly drifting orbit camera (createOrbitView, camera lock respected). Kicks ripple the cloud; hats glitter; a build squeezes the cloud into a dense trembling core; the drop bursts it into the next formation; a song change moves to the next formation and palette. The settings panel is the existing ControlPanel, used before the set.",
+    "accessibility": "All global-brightness terms go through the BrightnessGovernor (at most 3 increases per sliding second, WCAG 2.3.1); ripples displace without brightening, and additive gain is normalised by tension so a dense core does not saturate. The flash intensity control goes to 0 while geometry still reacts. The settings panel keeps the existing ControlPanel semantics, so axe checks hold.",
+    "security_privacy": "No new data leaves the browser; audio stays in the existing Web Audio graph.",
+    "observability": "Add Bass Ink to the debug harness flow (npm run debug:viz --viz bass-ink) so director phases, tension and flash grants can be recorded against real mixes, following docs/agents/debug-harness.md.",
+    "rollout": "A new route and card ship together in one PR as a feat release; rolling back is reverting the PR or a Cloudflare rollback. No flag is needed because the route is only reached from its card."
+  },
+  "test_strategy": {
+    "unit": "Co-located vitest specs for every pure module. SetDirector is driven by scripted sequences and by RhythmState-plus-energy traces captured from 2-3 reference mixes (saved as small fixtures in S1), covering build, drop, afterglow, a song change coalesced with a drop, and a restarted transition. motionClock in both directions across the confidence thresholds with no phase jump. A BrightnessGovernor spec plus a scene-level spec that sums every brightness driver over 200 BPM kick trains through a build and drop, with no window holding more than 3 grants. kickRing rise delta, refractory interval, floor and wraparound. chromaPalette with noisy and hovering chroma (no flicker). formations chunked fill matches a one-shot fill. InkCloud with the shared three.js renderer fake: no attribute reallocation, overlapping prepareFormation and beginTransition do not jump, dispose frees everything. Keeps coverage at 95%.",
+    "integration": "Page spec with renderWithProviders and the injected engine and tracker fakes: the page renders the canvas host and ControlPanel, controls update refs not state, unmount disposes the cloud and releases taps.",
+    "e2e": "Existing Playwright specs pick up the new entry from visualizations.ts. The e2e run seeds a low density through the existing control storage. The visual snapshot frame is fixed (idle cloud, tension 0, fixed seed, fixed time uniform, zero kicks); if software rasterisation flakes, the route gets a looser per-snapshot threshold rather than a skip. Regenerate Linux baselines with the Update visual snapshots workflow.",
+    "manual": "npm run dev with Stereo Mix on a real 4/4 DJ mix: watch a build, a drop and a long blend; check the console for WebGL warnings; check it on a projector from across a room with the panel in its default state (AC9). The S2 look-pass screen recording goes to the user for review (D9).",
+    "non_functional": "AC8: the debug-harness fps readout at maximum tension and during a drop burst at 1080p on the reference laptop, at or above 55 fps at the default density. npm run size within budget with the code in the route chunk; npm run lighthouse unchanged on /."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Software WebGL in e2e is slow with a large point count, and additive soft sprites can flake visual snapshots",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "e2e seeds a low density through control storage; the snapshot frame is fixed; a looser per-route snapshot threshold is the fallback"
+    },
+    {
+      "id": "K2",
+      "description": "Build and drop detection misjudges some tracks",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Level-independent energy ratio with novelty as confirmation, tuned against captured reference-mix traces with a measurable S3 target"
+    },
+    {
+      "id": "K3",
+      "description": "A track change with no novelty crossing (dotted-ratio change) is not detected, so the look does not change at that track change",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Not detected by design; the next drop still changes the formation. Coalescing only prevents double transitions when a drop and a song change coincide"
+    },
+    {
+      "id": "K4",
+      "description": "Scattered bass opens kick onsets and floods the screen with ripples",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "The kick ring has a minimum interval and strength floor; ripple amplitude is bounded by the shader sum clamp"
+    },
+    {
+      "id": "K5",
+      "description": "The look reads as a generic particle cloud",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "A dev-time look pass in S2 focuses on the interfering shockwaves and formation bursts before baselines are taken"
+    },
+    {
+      "id": "K6",
+      "description": "Fill-rate collapse at the build peak, when 100k additive sprites are squeezed into a small core",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "Point size and alpha scale down with tension, gl_PointSize is clamped, and AC8 gates S2 on measured fps at maximum tension"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Signal traces and pure set logic",
+      "objective": "Capture RhythmState and energy traces from 2-3 reference mixes with the offline rhythm pipeline, then ship the framework-free modules that decide everything the music implies, with specs that replay those traces",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC5"
+      ],
+      "contracts": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/setDirector.ts",
+        "app/features/visualizers/bass-ink/motionClock.ts",
+        "app/features/visualizers/bass-ink/brightnessGovernor.ts",
+        "app/features/visualizers/bass-ink/kickRing.ts",
+        "app/features/visualizers/bass-ink/energyEnvelope.ts",
+        "app/features/visualizers/bass-ink/chromaPalette.ts",
+        "app/features/visualizers/bass-ink/formations.ts",
+        "app/features/visualizers/bass-ink/bassInkConfig.ts",
+        "app/features/visualizers/bass-ink/fixtures/"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Ink cloud scene, route, card and telemetry",
+      "objective": "Render the cloud with ping-pong formations and kick shockwaves, wire it to S1, add controls, telemetry probe, route, landing card and images; exit when AC8 fps holds at maximum tension and the user has reviewed the look-pass recording",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC2",
+        "AC5",
+        "AC6",
+        "AC8",
+        "AC9"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/inkCloud.ts",
+        "app/features/visualizers/meshes/inkShaders.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "app/features/visualizers/bass-ink/BassInkPage.tsx",
+        "app/features/visualizers/bass-ink/bassInkControls.ts",
+        "app/routes/bass-ink.tsx",
+        "app/routes.ts",
+        "app/features/landing/visualizations.ts",
+        "public/visualization-images/"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Tune on real mixes and pass CI",
+      "objective": "Tune bassInkConfig with the debug harness on the reference mixes until drops are flagged within 2 s of their labelled times in at least 80 percent of cases, then seed e2e density, regenerate visual baselines and pass every gate",
+      "depends_on": [
+        "S2"
+      ],
+      "acceptance_refs": [
+        "AC3",
+        "AC4",
+        "AC7"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/bassInkConfig.ts",
+        "e2e/visualizers.ts",
+        "e2e/visual.spec.ts-snapshots/",
+        "docs/agents/debug-harness.md"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "What default point count holds AC8 on the target projector laptop?",
+      "owner": "implementer, measured as the S2 exit gate",
+      "blocking": false
+    },
+    {
+      "id": "Q2",
+      "question": "Which 2-3 DJ mixes (local WAVs with labelled drop times) are the reference set for traces and tuning?",
+      "owner": "user, before S1",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "design",
+        "finding": "songChangeCount and novelty are not independent signals, which undermines AC4, C1 and K3. In app/features/rhythm/rhythmAnalyzer.ts (applyBoundary, lines 261-267) a soft boundary (novelty >= NOVELTY_THRESHOLD = 1) increments songChangeCount, and boundary.ts line 36 says novelty fires on 'big section changes' as well as DJ blends. So a drop or breakdown can bump songChangeCount, and the SetDirector would see a drop and a song change for the same event (two formation and palette advances, or a double transition). K3's 'novelty spike' fallback is the same trigger, so it does not cover the real miss case (dotted-ratio change with no novelty crossing). The success metric 'visible change at each track change' cannot be separated from 'change at each section change'.",
+        "suggestion": "Add a coalescing rule to C1: a songChangeCount increment within N seconds of a drop (or build) is merged into one transition, and a transition already fading defers or restarts from the current blend. Cover it with a scripted-sequence spec. Restate K3 honestly: the plan does not detect a missed track change, it only avoids double firing.",
+        "resolution": "Changed: C1 now coalesces a songChangeCount increment near a drop or build into one transition and restarts from the current blend on overlap, with a spec; K3 restated honestly as not detected."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "assumption",
+        "finding": "Build and drop detection (AC4, K2, SetDirector) rests on novelty plus an analyser RMS envelope, and neither fits. Novelty compares the last 6 s against the previous 30 s (NOVELTY_RECENT_SECONDS, NOVELTY_PREVIOUS_SECONDS) and decays slowly (NOVELTY_DISPLAY_DECAY 0.995 per hop), so it lags a build by seconds and stays high after the drop. 'Rising novelty' is a poor build cue and 'novelty falling' a late drop cue. The energy input is raw time-domain RMS from the analyser, which depends on the DJ's master level, the Stereo Mix gain and the pre-gain. Thresholds tuned in S3 on files played through debug:viz will not transfer to live capture. AC4 is proven only by scripted RhythmState sequences, which pass by construction, so a detector that is wrong on real music still passes CI.",
+        "suggestion": "Make the energy cue level-independent (fast/slow ratio, as cubes does with its fast, slow and ratio probes) and drive build and drop mainly from that ratio, with novelty as confirmation only. Capture RhythmState plus energy traces from 2-3 real mixes with the debug harness before S1 and replay them as fixtures in the SetDirector spec. Add a bounded measurable target for S3 (for example drops flagged within X s on the reference mixes).",
+        "resolution": "Changed: build and drop run on a level-independent fast/slow energy ratio with novelty as confirmation (D10); S1 captures reference-mix traces as spec fixtures; S3 has a measurable drop-detection target."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "security",
+        "finding": "AC5 and D6 (WCAG 2.3.1) are only enforced for the term that goes through FlashLimiter (C2). In a 100k-point additive cloud, large-area luminance also changes through paths the limiter never sees: a ripple on every kick (up to about 3.3 per second at 200 BPM, deliberately ungated, see FlashLimiter responsibility), the build squeeze into a dense core (additive overdraw saturates toward white), the drop burst, and hat sparkle. The unit test proves only that the limiter grants at most 3 per second, not that the rendered frame obeys the cap. C2 is also inconsistent: the contract default is 1/3 s, the component text says 334 ms. At exactly 1/3 s a closed one-second window can hold 4 grants.",
+        "suggestion": "Route every global-brightness term (core density gain, drop burst, ripple brightening) through the limiter, or make ripples displace without brightening and normalise additive gain by local density. Fix the interval at 0.334 s or use a sliding-window count. Add a spec that sums the scene's brightness drivers over 200 BPM kick trains with an active build and drop, not just the limiter grants.",
+        "resolution": "Changed: C2 is a BrightnessGovernor with a sliding 1-second window that every global-brightness term goes through; ripples displace only; additive gain normalised by tension; AC5 now requires a scene-level spec summing all brightness drivers at 200 BPM through a build and drop."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "design",
+        "finding": "Fill-rate risk sits exactly at the build peak. 100k additive soft sprites squeezed into a 'tight, trembling core' (tension shrinks formation radius) multiply per-pixel overdraw in a small area at 1080p on a projector laptop. The 60 fps metric is not an AC, Q1 (default point count) is marked non-blocking, and K1 only considers software WebGL in e2e. Point size is also device-dependent (hardware point-size caps, devicePixelRatio), which affects 'bold shapes' across a room.",
+        "suggestion": "Make Q1 a gate for S2 completion, measured at maximum tension with the debug-harness fps readout. Scale point size and alpha down with tension (density), clamp gl_PointSize to the renderer's range, and add an fps check to AC2 or AC7 instead of leaving it only in success_metrics.",
+        "resolution": "Changed: point size and alpha scale with tension, gl_PointSize clamped; new AC8 fps at maximum tension gates S2; risk K6 added."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "design",
+        "finding": "Formation transitions are underspecified, against AC4 'no stall or visible jump'. The design holds two rest attributes (current and next) yet says buffers are 'rewritten in place at a drop or song change'. Generating 100k torus or helix points on the main thread and uploading about 1.2 MB the frame the drop hits causes a hitch at the most important moment. K3's mitigation advances the formation on every drop, so a drop followed by a song change (see F1) overwrites 'next' mid cross-fade, which pops. How next becomes current after the fade (copy, ping-pong, uniform swap) is not stated in C4.",
+        "suggestion": "Specify in C4: ping-pong attributes selected by a uniform, the next formation generated incrementally in the frames before it is needed (the director can pre-pick it at build start), and a rule for a new target during a fade. Test in the InkCloud spec that no attribute is reallocated and that overlapping setFormation calls do not jump.",
+        "resolution": "Changed: C4 specifies ping-pong attributes chosen by a uniform, chunked pre-generation from build start, and a copy-current-blend rule for a retarget mid-fade, with InkCloud specs."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC2 ('starts on that frame', 'visible across a room') is not observable as written, and kick detection is underspecified. bandOnsets[0] is a decaying envelope, not a pulse (rhythmAnalyzer.ts line 385: max(prev * 0.9, strength) per 10 ms hop), so 'rising edge' needs a rise threshold, a refractory interval and a strength floor. K4 mentions a minimum interval and strength floor, but kickRing's responsibility and the test strategy do not define them, and they do not exist in bassInkConfig. At low fps, or in a backgrounded or software-rendered tab, several onsets collapse into one sample.",
+        "suggestion": "Define the kickRing rule and its constants (rise delta, min interval, strength floor) in S1. Reword AC2 as testable: 'KickRing.update on a frame where bandOnsets[0] rises past the threshold records start time = that frame's time, and InkCloud.update uploads it in the same call'. Keep 'across a room' as a manual check.",
+        "resolution": "Changed: AC2 reworded to a testable KickRing and InkCloud rule; kickRing defines rise delta, refractory interval and strength floor in bassInkConfig."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "Slice order freezes C1-C3 in S1 before any real signal is observed, while S3 (size S) is expected to 'tune on recorded DJ mixes'. F1 and F2 show tuning is likely to change structure, not just thresholds, which reopens S1 modules and specs after the scene exists. The plan names no reference mixes, and the debug harness needs a local music folder. S3 also bundles open-ended tuning with a baseline regeneration that runs through a CI workflow. The telemetry probe for 'director phases, tension and flash grants' is a registerTelemetryProbe call inside the scene hook (as in cubes/useCubesScene.ts), i.e. an S2 change, but S3's draft_paths list only the docs file.",
+        "suggestion": "Add a signal-capture step before S1 (or at the start of S1) and use the traces as spec fixtures. Move the telemetry probe and its spec into S2. Give S3 an exit criterion and size it M, or split baselines and CI into their own slice.",
+        "resolution": "Changed: S1 starts with trace capture; telemetry probe moved into S2; S3 has an exit criterion and is size M; reference mixes are Q2."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "The e2e and visual-baseline path is hand-waved. K1 says 'the e2e fixture keeps the default low enough' and 'the scene clamps the count by renderer capabilities', but nothing in the plan says how the test run gets a low point count (software GL cannot be reliably detected from capabilities; no query param or stored control value is specified). e2e/visual.spec.ts pauses the page clock for deterministic frames, so the scene must produce a stable frame with a fixed seed and zero kicks. A 100k-point additive soft-sprite frame on software rasterisation is a likely source of cross-machine pixel flake, and the plan has no tolerance or fallback.",
+        "suggestion": "Name the mechanism now (for example a density value read from existing control storage, or a test-only default) and state the snapshot frame (idle cloud, tension 0, fixed seed, time uniform fixed). Plan a looser per-snapshot threshold for this route, or a lower-density fixture that is still a representative image.",
+        "resolution": "Changed: e2e seeds a low density through existing control storage (e2e/visualizers.ts in S3), the snapshot frame is fixed, and a looser per-route threshold is the named fallback."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "Key planner-assumption defaults are untested: the 8-slot kick ring (kicks sustain visible waves only while they are in the shader sum), 'one bar or 2 s' as the transition length (one bar is about 1.4 s at 174 BPM and about 2.7 s at 90 BPM, so the look differs by genre), and 'a sustained chroma shift advances the palette' (C chromaPalette) as a second song-change fallback. Chroma is smoothed and normalised per frame (rhythmAnalyzer.ts lines 394-396), so in minimal techno or sustained-bass house it will hover and flip dominant pitch class, and in long blends it moves slowly. The result is either palette flicker or no change.",
+        "suggestion": "State the chroma hysteresis margin and minimum dwell in bassInkConfig, spec them with a noisy-chroma sequence, and treat palette change as a song-change-only event (F1 coalescing) rather than a continuous drift.",
+        "resolution": "Changed: transition length fixed at 2 s; chroma hysteresis margin and dwell in bassInkConfig with a noisy-chroma spec; palette changes only at track-change transitions."
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "problem",
+        "finding": "Fit gap: the stated users are a DJ who leaves it alone and an audience across a room (D2 says fullscreen, no on-screen UI), yet the non-goals exclude any fullscreen or hide-UI mode and the success metrics are projector-based. The plan relies on whatever the existing page and ControlPanel already offer, without checking that the route is presentable on a projector. The decision rationale also overrides its own scoring (O1 scores 4.25 against O4's 3.8) because 'one-of-a-kind' was asked for, while K5 admits that 'particle clouds are a known VJ look'. Distinctiveness is therefore carried by a dev-time look pass with no acceptance check.",
+        "suggestion": "Add one manual acceptance item: 'with the existing panel in its default state, the page is usable on a projector without covering more than a corner'. Record the distinctiveness bet explicitly as a user-owned decision with a defined look-pass checkpoint (for example a screen recording reviewed before S3).",
+        "resolution": "Changed: AC9 manual projector check with the default panel; D9 records the distinctiveness bet with a user-reviewed look-pass recording at the end of S2."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "45387b4be47f8dbdf36d10c0fcffbcee49a0ffabaa951637e11e3e74f7579e9f",
+    "cards": {
+      "O1": "3bcbe820f3069bcb4c7118547c6f63bc4a25682b13411b1cd95c42ed809ada34",
+      "O2": "2ed102cdda5611e87ff8aa7223d5b96621d12467e4896d139d1f5aa44e38fab6",
+      "O3": "a02237bb1a656c4219b2370800485057b3e74dd563f17641c14e4972c69e2c44"
+    },
+    "critic_sha256": "f69fc76398fd590e3e7ea2e18d14b06170991ed0b0b686630e42ad4d741a3a1f",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R1",
+      "contracts_sha256": "64103b0db1d81d5e",
+      "acs_sha256": "cb1b0148096791fd"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "55177a05e2235636",
+      "base_revision": "f1a4ec34d230edb31e74f1e38efcd26f7209c6a3",
+      "risk": "R1",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "SetDirector",
+          "kind": "module interface",
+          "definition": "new SetDirector(config); update(state: RhythmState, energy: EnergyEnvelope, nowSeconds: number): DirectorCue. DirectorCue is one mutable object reused every frame: phase (groove, build, drop, afterglow), tension 0..1, dropAt (seconds or -1), formationIndex, nextFormationIndex (picked at build start), paletteIndex, transitionStart, transitionSeconds (fixed 2 s, not bar-relative, so it looks the same across genres). Build enters on a rising energy ratio confirmed by novelty; drop fires on an energy-ratio surge after a build. A songChangeCount increment within coalesceSeconds of a drop or build merges into that transition; a new transition during a fade restarts from the current blend."
+        },
+        {
+          "id": "C2",
+          "name": "BrightnessGovernor",
+          "kind": "module interface",
+          "definition": "new BrightnessGovernor(maxPerSecond = 3); request(strength: number, nowSeconds: number, intensity: number): number returns the allowed brightness increase, using a sliding 1-second window of grant times, and 0 when the window is full or intensity is 0. Every global-brightness term in the scene calls it; ripples displace without brightening."
+        },
+        {
+          "id": "C3",
+          "name": "motionClock",
+          "kind": "module interface",
+          "definition": "createMotionClock(config); advance(clock, state: RhythmState, dtSeconds): number returns a continuous breathing phase 0..1; the beat-lock weight follows tempoConfidence with enter and exit thresholds and never resets the phase."
+        },
+        {
+          "id": "C4",
+          "name": "InkCloud",
+          "kind": "class interface",
+          "definition": "new InkCloud(pointCount, seed, maxPointSize); readonly object: Points; prepareFormation(index, seed) fills the inactive ping-pong attribute in chunks across subsequent update calls; beginTransition(startSeconds, seconds) cross-fades to it by uniform and swaps the active side at the end; a new target during a fade copies the current blend into the inactive side first, so nothing jumps; update(cue: DirectorCue, breathing: number, kicks: KickRing, palette: PalettePair, brightness: number, timeSeconds: number): void; dispose(): void. Never reallocates an attribute."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Signal traces and pure set logic: Capture RhythmState and energy traces from 2-3 reference mixes with the offline rhythm pipeline, then ship the framework-free modules that decide everything the music implies, with specs that replay those traces",
+          "dependencies": [],
+          "base_revision": "f1a4ec34d230edb31e74f1e38efcd26f7209c6a3",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/setDirector.ts",
+            "app/features/visualizers/bass-ink/motionClock.ts",
+            "app/features/visualizers/bass-ink/brightnessGovernor.ts",
+            "app/features/visualizers/bass-ink/kickRing.ts",
+            "app/features/visualizers/bass-ink/energyEnvelope.ts",
+            "app/features/visualizers/bass-ink/chromaPalette.ts",
+            "app/features/visualizers/bass-ink/formations.ts",
+            "app/features/visualizers/bass-ink/bassInkConfig.ts",
+            "app/features/visualizers/bass-ink/fixtures/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 SetDirector (module interface): new SetDirector(config); update(state: RhythmState, energy: EnergyEnvelope, nowSeconds: number): DirectorCue. DirectorCue is one mutable object reused every frame: phase (groove, build, drop, afterglow), tension 0..1, dropAt (seconds or -1), formationIndex, nextFormationIndex (picked at build start), paletteIndex, transitionStart, transitionSeconds (fixed 2 s, not bar-relative, so it looks the same across genres). Build enters on a rising energy ratio confirmed by novelty; drop fires on an energy-ratio surge after a build. A songChangeCount increment within coalesceSeconds of a drop or build merges into that transition; a new transition during a fade restarts from the current blend.",
+            "C2 BrightnessGovernor (module interface): new BrightnessGovernor(maxPerSecond = 3); request(strength: number, nowSeconds: number, intensity: number): number returns the allowed brightness increase, using a sliding 1-second window of grant times, and 0 when the window is full or intensity is 0. Every global-brightness term in the scene calls it; ripples displace without brightening.",
+            "C3 motionClock (module interface): createMotionClock(config); advance(clock, state: RhythmState, dtSeconds): number returns a continuous breathing phase 0..1; the beat-lock weight follows tempoConfidence with enter and exit thresholds and never resets the phase."
+          ],
+          "acceptance": [
+            "AC2: Given a 4/4 track is playing, when bandOnsets[0] rises past the kick rise threshold on a frame (with the refractory interval and strength floor from bassInkConfig), then KickRing.update records that frame's time as the kick start and InkCloud.update uploads it in the same call, so a shockwave covering a large part of the frame starts on that frame (unit spec); readability across a room is a manual check",
+            "AC3: Given tempoConfidence is below the visualizer's threshold (start of a track or mid-transition), when the scene would normally run beat- or bar-locked motion, then it switches smoothly to onset- and energy-driven motion with no stall, jump or reset, and switches back once confidence returns; a unit spec on the pure mapping proves both directions",
+            "AC4: Given a set is playing, when songChangeCount increments, or the novelty and energy signals show a build followed by a drop, then the look changes automatically (palette, mode or structure) without any user input, and a unit spec on the pure director proves the transitions",
+            "AC5: Given the scene is running at any kick rate up to 200 BPM, including an active build and drop, when any global-brightness term changes (flash, ripple brightening, core density gain, drop burst), then the summed large-area brightness increase is granted at most 3 times in any sliding 1-second window, proven by a spec that drives every brightness term with 200 BPM kick trains through a build and drop, and the intensity control scales it down or to 0"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Ink cloud scene, route, card and telemetry: Render the cloud with ping-pong formations and kick shockwaves, wire it to S1, add controls, telemetry probe, route, landing card and images; exit when AC8 fps holds at maximum tension and the user has reviewed the look-pass recording",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "f1a4ec34d230edb31e74f1e38efcd26f7209c6a3",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/inkCloud.ts",
+            "app/features/visualizers/meshes/inkShaders.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "app/features/visualizers/bass-ink/BassInkPage.tsx",
+            "app/features/visualizers/bass-ink/bassInkControls.ts",
+            "app/routes/bass-ink.tsx",
+            "app/routes.ts",
+            "app/features/landing/visualizations.ts",
+            "public/visualization-images/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 InkCloud (class interface): new InkCloud(pointCount, seed, maxPointSize); readonly object: Points; prepareFormation(index, seed) fills the inactive ping-pong attribute in chunks across subsequent update calls; beginTransition(startSeconds, seconds) cross-fades to it by uniform and swaps the active side at the end; a new target during a fade copies the current blend into the inactive side first, so nothing jumps; update(cue: DirectorCue, breathing: number, kicks: KickRing, palette: PalettePair, brightness: number, timeSeconds: number): void; dispose(): void. Never reallocates an attribute."
+          ],
+          "acceptance": [
+            "AC1: Given an audio source has been chosen on /, when the user opens the new visualizer from its landing card, then the route renders exactly one canvas, its card appears on / with AVIF/WebP images, and the page logs no errors or WebGL-context warnings",
+            "AC2: Given a 4/4 track is playing, when bandOnsets[0] rises past the kick rise threshold on a frame (with the refractory interval and strength floor from bassInkConfig), then KickRing.update records that frame's time as the kick start and InkCloud.update uploads it in the same call, so a shockwave covering a large part of the frame starts on that frame (unit spec); readability across a room is a manual check",
+            "AC5: Given the scene is running at any kick rate up to 200 BPM, including an active build and drop, when any global-brightness term changes (flash, ripple brightening, core density gain, drop burst), then the summed large-area brightness increase is granted at most 3 times in any sliding 1-second window, proven by a spec that drives every brightness term with 200 BPM kick trains through a build and drop, and the intensity control scales it down or to 0",
+            "AC6: Given the user leaves the route, switches audio source or round-trips to it repeatedly, when the scene unmounts, then all GPU objects are disposed, analyser and rhythm taps are released and the WebGL context is freed, as checked by the existing e2e round-trip specs",
+            "AC8: Given the default density on the reference projector laptop at 1080p, when the cloud is at maximum tension (build peak) and during a drop burst, then the debug-harness fps readout stays at or above 55 fps",
+            "AC9: Given the existing ControlPanel in its default state, when the page is shown fullscreen on a projector, then nothing but the scene covers the frame beyond one corner, checked manually"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Tune on real mixes and pass CI: Tune bassInkConfig with the debug harness on the reference mixes until drops are flagged within 2 s of their labelled times in at least 80 percent of cases, then seed e2e density, regenerate visual baselines and pass every gate",
+          "dependencies": [
+            "S2"
+          ],
+          "base_revision": "f1a4ec34d230edb31e74f1e38efcd26f7209c6a3",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/bassInkConfig.ts",
+            "e2e/visualizers.ts",
+            "e2e/visual.spec.ts-snapshots/",
+            "docs/agents/debug-harness.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 SetDirector (module interface): new SetDirector(config); update(state: RhythmState, energy: EnergyEnvelope, nowSeconds: number): DirectorCue. DirectorCue is one mutable object reused every frame: phase (groove, build, drop, afterglow), tension 0..1, dropAt (seconds or -1), formationIndex, nextFormationIndex (picked at build start), paletteIndex, transitionStart, transitionSeconds (fixed 2 s, not bar-relative, so it looks the same across genres). Build enters on a rising energy ratio confirmed by novelty; drop fires on an energy-ratio surge after a build. A songChangeCount increment within coalesceSeconds of a drop or build merges into that transition; a new transition during a fade restarts from the current blend."
+          ],
+          "acceptance": [
+            "AC3: Given tempoConfidence is below the visualizer's threshold (start of a track or mid-transition), when the scene would normally run beat- or bar-locked motion, then it switches smoothly to onset- and energy-driven motion with no stall, jump or reset, and switches back once confidence returns; a unit spec on the pure mapping proves both directions",
+            "AC4: Given a set is playing, when songChangeCount increments, or the novelty and energy signals show a build followed by a drop, then the look changes automatically (palette, mode or structure) without any user input, and a unit spec on the pure director proves the transitions",
+            "AC7: Given the change is ready, when CI runs, then format, lint, typecheck, coverage at 95%, build, size, Lighthouse and e2e (with regenerated visual baselines) all pass"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}

@@ -2,13 +2,14 @@ import { useRef, useState } from 'react';
 import { cubesControls } from './cubesControls';
 import { useCubesScene } from './useCubesScene';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
+import { CUBES_ANALYSER } from './cubesAnalyser';
 import { useAnalyser } from '~/features/audio/useAudioState';
 import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
 
 export function CubesPage() {
     const containerRef = useRef<HTMLDivElement>(null);
-    const analyser = useAnalyser();
+    const analyser = useAnalyser(CUBES_ANALYSER);
     const rhythm = useRhythm();
     const { values, valuesRef, setValue, resetAll } = useControlValues(cubesControls);
     // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.

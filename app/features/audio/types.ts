@@ -16,7 +16,7 @@ export interface AudioGraph {
     audioContext: AudioContext;
     source: AudioNode;
     gainNode: GainNode;
-    // What the visualizations read: the input after normalization.
+    // The engine-owned tap: the input after normalization, with fixed settings (see ENGINE_TAP_SETTINGS).
     analyser: AnalyserNode;
     // Peak meters for the raw input (before the gain) and the normalized output.
     meter: AnalyserNode;
@@ -44,3 +44,43 @@ export const DEFAULT_NORMALIZE_SETTINGS: NormalizeSettings = {
     releaseTime: 0.4,
     noiseFloor: 0.004,
 };
+
+// The settings of one AnalyserNode. Every consumer that reads frequency or time-domain data declares its own.
+export interface AnalyserSettings {
+    fftSize: number;
+    smoothingTimeConstant: number;
+    minDecibels: number;
+    maxDecibels: number;
+}
+
+// The engine tap's fixed settings. Nothing outside the engine may change them, so what the tracker and the other
+// readers of the tap see never depends on which visualizer was opened before.
+export const ENGINE_TAP_SETTINGS: Readonly<AnalyserSettings> = Object.freeze({
+    fftSize: 2048,
+    smoothingTimeConstant: 0,
+    minDecibels: -100,
+    maxDecibels: -30,
+});
+
+// Assigns every setting on a node. A real AnalyserNode throws when the minimum is set at or above the current maximum
+// (or the maximum at or below the current minimum), so the end of the range that cannot collide with the old one goes
+// first: a new minimum at or above the old maximum means the maximum must move up before the minimum can follow.
+export function assignAnalyserSettings(node: AnalyserNode, settings: AnalyserSettings): void {
+    if (settings.minDecibels >= node.maxDecibels) {
+        node.maxDecibels = settings.maxDecibels;
+        node.minDecibels = settings.minDecibels;
+    } else {
+        node.minDecibels = settings.minDecibels;
+        node.maxDecibels = settings.maxDecibels;
+    }
+    node.fftSize = settings.fftSize;
+    node.smoothingTimeConstant = settings.smoothingTimeConstant;
+}
+
+export interface OwnedAnalyser {
+    // The consumer's node for the current source, or undefined while nothing is captured. A new source gives a new
+    // node (new AudioContext); the engine notifies `subscribe` listeners when that happens.
+    getNode: () => AnalyserNode | undefined;
+    // Disconnects the node and stops the engine recreating it. Safe to call twice.
+    release: () => void;
+}

@@ -7,5 +7,6 @@ export default [
     route("/cubes", "routes/cubesPage.tsx"),
     route("/trio-color-wave", "routes/trioColorWavePage.tsx"),
     route("/dancing-character", "routes/dancingCharacterPage.tsx"),
+    route("/bass-ink", "routes/bassInkPage.tsx"),
   ]),
 ] satisfies RouteConfig;

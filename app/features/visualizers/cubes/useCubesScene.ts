@@ -16,8 +16,6 @@ import { disposeScene } from '~/lib/three/disposeScene';
 const CAMERA_FOV = 50;
 const CAMERA_DISTANCE = 32;
 // Frequency data: 2048 samples gives ~23 Hz bins, enough to separate bass notes.
-const FFT_SIZE = 2048;
-const ANALYSER_SMOOTHING = 0.5;
 // The background flash is capped below full brightness so the cubes stay readable against it.
 const MAX_BACKGROUND_FLASH = 0.6;
 // Linear colors are encoded to sRGB for display, so a flash scaled linearly would look far brighter than its factor.
@@ -108,8 +106,6 @@ export function useCubesScene(
         }
 
         const bindAudio = (source: AnalyserNode) => {
-            source.fftSize = FFT_SIZE;
-            source.smoothingTimeConstant = ANALYSER_SMOOTHING;
             spectrum = new Uint8Array(source.frequencyBinCount);
             bins = bandBinsFor(source);
             bass?.dispose();

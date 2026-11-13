@@ -9,9 +9,18 @@ import { basename, extname, join } from 'node:path';
 import { concat, createRandom, runPipeline, silence, timeToLock } from '../app/features/rhythm/testSignals';
 import type { RunResult } from '../app/features/rhythm/testSignals';
 import type { BeatsPerBar } from '../app/features/rhythm/types';
+import { detectFromPcm } from '../app/features/rhythm/eval/detect';
+import {
+    buildEvalReport,
+    formatEvalReports,
+    formatTempoLine,
+    tempoFigures,
+} from '../app/features/rhythm/eval/evalReport';
+import { parseBeatSidecar } from '../app/features/rhythm/eval/sidecar';
 import { tempoStability } from './rhythm-tools/tempoStability';
 
 const USAGE = `Usage: npm run eval:rhythm -- <dataset-dir> [options]
+       npm run eval:rhythm -- <wav-dir> --alignment [--annotations <dir>] [--max-seconds <s>]
 
 Evaluates the rhythm tracker over labelled WAV files (16/24/32-bit PCM or 32/64-bit float, any channel count).
 
@@ -31,6 +40,12 @@ Options:
   --max-files <n>       Use at most n files, spread evenly over the dataset (default all).
   --max-seconds <s>     Only analyse the first s seconds of each file (default 30, 0 = whole file).
   --gap <s>             Silence between the songs in the gap test (default 2).
+  --alignment           Alignment mode: <wav-dir> holds WAV files directly (no genre folders). Each WAV with a
+                        <name>.beats.json sidecar (exact beat times, and per-band onset times for synthetic tracks) gets
+                        its alignment report: tempo ratio and lock time, beat error at the lock, and onset scores at
+                        50 and 20 ms. A WAV with only a <name>.bpm gets tempo ratio and lock time. Sidecars are looked
+                        up in --annotations, then next to the wav. The whole file is used unless --max-seconds is given.
+                        Make synthetic tracks with: npm run ground-truth -- <out-dir>
   --help                Show this text.`;
 
 // Tempo tolerance for Acc1 and Acc2, as a fraction of the true tempo.
@@ -51,6 +66,9 @@ interface Options {
     maxFiles: number;
     maxSeconds: number;
     gapSeconds: number;
+    alignment: boolean;
+    // Whether --max-seconds was given: the alignment mode otherwise reads whole files.
+    maxSecondsGiven: boolean;
 }
 
 interface Clip {
@@ -75,6 +93,8 @@ function parseArguments(argv: string[]): Options | undefined {
         maxFiles: Infinity,
         maxSeconds: 30,
         gapSeconds: 2,
+        alignment: false,
+        maxSecondsGiven: false,
     };
     for (let i = 0; i < argv.length; i++) {
         const argument = argv[i];
@@ -100,6 +120,10 @@ function parseArguments(argv: string[]): Options | undefined {
                 break;
             case '--max-seconds':
                 options.maxSeconds = Number(value());
+                options.maxSecondsGiven = true;
+                break;
+            case '--alignment':
+                options.alignment = true;
                 break;
             case '--gap':
                 options.gapSeconds = Number(value());
@@ -507,6 +531,58 @@ function evaluatePairs(clips: Clip[], options: Options): void {
     }
 }
 
+// ---- Alignment ----
+
+// Reports for every WAV directly in the folder that has a ground-truth sidecar. Detected beats, tempo and onsets come from
+// the real pipeline (see app/features/rhythm/eval/detect.ts).
+function evaluateAlignment(options: Options): void {
+    const wavs = listWavs(options.dataset);
+    if (wavs.length === 0) {
+        console.error(`No .wav files found in ${options.dataset}`);
+        process.exitCode = 1;
+        return;
+    }
+    console.log(`Alignment over ${wavs.length} files in ${options.dataset}`);
+    for (const path of wavs) {
+        const name = basename(path);
+        const beatsPath = findSidecar(path, '', options.annotations, '.beats.json');
+        const bpm = readAnnotation(path, '', options.annotations).bpm;
+        if (beatsPath === undefined && bpm === undefined) {
+            console.log(`\n${name}: no .beats.json or .bpm sidecar, skipped`);
+            continue;
+        }
+        const wav = readWav(readFileSync(path));
+        const limit =
+            options.maxSecondsGiven && options.maxSeconds > 0
+                ? Math.round(options.maxSeconds * wav.sampleRate)
+                : wav.samples.length;
+        const detected = detectFromPcm(wav.samples.subarray(0, limit), wav.sampleRate);
+        console.log('');
+        if (beatsPath !== undefined) {
+            try {
+                const sidecar = parseBeatSidecar(readFileSync(beatsPath, 'utf8'));
+                // A truncated run has nothing to say about the truth after its end.
+                const end = limit / wav.sampleRate;
+                const upTo = (times: number[]): number[] => times.filter((time) => time <= end);
+                sidecar.beats = upTo(sidecar.beats);
+                if (sidecar.onsets) {
+                    for (const band of Object.keys(sidecar.onsets) as (keyof typeof sidecar.onsets)[]) {
+                        sidecar.onsets[band] = upTo(sidecar.onsets[band]);
+                    }
+                }
+                // The report names the audio file that was actually analysed.
+                sidecar.track = name;
+                console.log(formatEvalReports([buildEvalReport(sidecar, detected)]).join('\n'));
+            } catch (error) {
+                console.error(`${name}: ${beatsPath}: ${error instanceof Error ? error.message : String(error)}`);
+                process.exitCode = 1;
+            }
+        } else if (bpm !== undefined) {
+            console.log(`${name} (tempo only, from .bpm)\n  ${formatTempoLine(tempoFigures(bpm, detected.tempo))}`);
+        }
+    }
+}
+
 function main(): void {
     let options: Options | undefined;
     try {
@@ -524,6 +600,10 @@ function main(): void {
     if (!existsSync(options.dataset) || !statSync(options.dataset).isDirectory()) {
         console.error(`Not a directory: ${options.dataset}`);
         process.exitCode = 1;
+        return;
+    }
+    if (options.alignment) {
+        evaluateAlignment(options);
         return;
     }
     const clips = loadClips(options);
