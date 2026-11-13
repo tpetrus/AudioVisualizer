@@ -135,8 +135,14 @@ def parse_args():
     }
 
 
+# The source material the app's body color control should tint, from the bone map's optional "skin_material" (the
+# default is a material already named "skin" in any case).
+SKIN_MATERIAL = {"name": None}
+
+
 def load_map(path):
     data = json.loads(path.read_text(encoding="utf-8"))
+    SKIN_MATERIAL["name"] = data.get("skin_material")
     for key in ("id", "source", "armature", "map"):
         if key not in data:
             fail(f"bone map has no '{key}'")
@@ -207,6 +213,12 @@ def place_bones(sources, joints):
     chain(SPINE)
     chain(NECK)
     for s in SIDES:
+        # The dance reads the elbow's bend axis from the rest pose, which a perfectly straight arm does not have. Nudge such
+        # an elbow back (+Y in Blender, since the sources face -Y) by 3 % of the arm, a bend the forearm then bends forward from.
+        shoulder, elbow, wrist = head[f"upperarm01{s}"], head[f"lowerarm01{s}"], head[f"wrist{s}"]
+        upper, fore = elbow - shoulder, wrist - elbow
+        if upper.cross(fore).length < 0.02 * upper.length * fore.length:
+            elbow.y += 0.03 * (wrist - shoulder).length
         if f"shoulder01{s}" not in head:
             head[f"shoulder01{s}"] = lerp(f"clavicle{s}", f"upperarm01{s}", 0.85)
         for twist, a, b in (("upperarm02", "upperarm01", "lowerarm01"), ("lowerarm02", "lowerarm01", "wrist"), ("upperleg02", "upperleg01", "lowerleg01"), ("lowerleg02", "lowerleg01", "foot")):
@@ -214,6 +226,9 @@ def place_bones(sources, joints):
                 head[f"{twist}{s}"] = lerp(f"{a}{s}", f"{b}{s}", 0.5)
     if "root" not in head:
         head["root"] = lerp("upperleg01L", "upperleg01R", 0.5)
+        # A rig whose lowest spine bone starts at the hips would leave the root bone with no length; drop the root a little.
+        if (head["root"] - head["spine05"]).length < 1e-3:
+            head["root"].z -= 0.03 * (head["head"].z - head["root"].z)
     # The pipeline reads the pelvis center from pelvisL (MakeHuman's pelvis bones start there and end at the hip joints).
     for s in SIDES:
         if f"pelvis{s}" not in head:
@@ -262,7 +277,10 @@ def bake_mesh(obj, levels):
     obj.matrix_basis = Matrix.Identity(4)
     obj.data.transform(world)
     for modifier in list(obj.modifiers):
-        if modifier.type == "SUBSURF":
+        if modifier.type == "SOLIDIFY":
+            with bpy.context.temp_override(object=obj, active_object=obj):
+                bpy.ops.object.modifier_apply(modifier=modifier.name)
+        elif modifier.type == "SUBSURF":
             modifier.show_viewport = True
             modifier.levels = min(levels, modifier.render_levels)
             if modifier.levels == 0:
@@ -335,7 +353,7 @@ def rebuild_materials(obj):
             fail(f"{obj.name} has an empty material slot")
         color = tuple(material.diffuse_color)
         # The app's body color control tints the material named "Skin", so a source's "skin" becomes that name.
-        if material.name.lower() == "skin" and material.name != "Skin" and "Skin" not in bpy.data.materials:
+        if (material.name.lower() == "skin" or material.name == SKIN_MATERIAL["name"]) and material.name != "Skin" and "Skin" not in bpy.data.materials:
             material.name = "Skin"
         material.use_nodes = True
         tree = material.node_tree

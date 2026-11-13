@@ -1,6 +1,8 @@
 import { BODY_MATERIAL_NAMES } from './dancingCharacterConfig';
 import dancesUrl from './assets/MakeHumanDances.glb?url';
 import modelUrl from './assets/MakeHumanDancer.glb?url';
+import marioDancesUrl from './assets/characters/mario/dances.glb?url';
+import marioModelUrl from './assets/characters/mario/model.glb?url';
 import warioDancesUrl from './assets/characters/wario/dances.glb?url';
 import warioModelUrl from './assets/characters/wario/model.glb?url';
 import mrIncredibleDancesUrl from './assets/characters/mr-incredible/dances.glb?url';
@@ -64,6 +66,19 @@ export const CHARACTER_REGISTRY: readonly CharacterEntry[] = [
             'Converted to glTF, rig rebuilt on the MakeHuman skeleton, materials rebuilt. Dances retargeted from CMU motion capture.',
         trademarkNote: 'Wario is a character of Nintendo; this is unofficial fan art.',
         urls: { model: warioModelUrl, dances: warioDancesUrl },
+        bodyMaterialNames: BODY_MATERIAL_NAMES,
+    },
+    {
+        id: 'mario',
+        title: 'Mario',
+        author: 'MrSparky6666',
+        license: 'CC-BY',
+        licenseVersion: '3.0',
+        sourceUrl: 'https://blendswap.com/blend/16234',
+        modifiedNote:
+            'Converted to glTF, rig rebuilt on the MakeHuman skeleton, materials rebuilt. Dances retargeted from CMU motion capture.',
+        trademarkNote: 'Mario is a character of Nintendo; this is unofficial fan art.',
+        urls: { model: marioModelUrl, dances: marioDancesUrl },
         bodyMaterialNames: BODY_MATERIAL_NAMES,
     },
 ];

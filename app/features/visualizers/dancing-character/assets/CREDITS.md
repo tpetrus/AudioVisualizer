@@ -152,5 +152,22 @@ hashed under `/assets/` with immutable caching.
 - Trademark: Wario is a character of Nintendo. This is unofficial fan art; the CC0 label cannot clear the underlying
   character rights, and the entry is removed on request.
 - Results: `model.glb` 2077164 bytes sha256 `0abba69c724dcb6dd7d08a769df3c0af966f461d700b0a53684032c8f7247afe`; `dances.glb`
-  196968 bytes sha256 `840dac7bc57f9af426612697b399a743140e8f1fbfcb6f45c2499f9e461c84ba`.
+  196968 bytes sha256 `2d8efd9bc3c7c520c0dcf17355062107f51d2ec7cec68f234d82bf711e21e7ee`.
+- Rebuild: as for Mr Incredible.
+
+## Characters/mario (Mario)
+
+- Files: `characters/mario/model.glb`, `dances.glb`, `bone-map.json`, `tuning.json`.
+- Source: "Simple Mario Model rig" by MrSparky6666, https://blendswap.com/blend/16234, file `Mario.blend` (saved with
+  Blender 2.75), snapshot 2026-11-12, sha256 `4e596a3d4ea46284d9522cf6c0eb44050ab39ef81cc52d36a0288bd03f3bfb30`.
+- License: CC-BY 3.0, as declared by the uploader (BlendSwap does not verify it). The archive's license note says the
+  file is fan art and may not be used commercially.
+- Modified: converted to glTF, rig rebuilt on the MakeHuman skeleton from the file's unnamed bones
+  (`scripts/blender-characters/convert.py` with `bone-map.json`), Solidify and Subdivision modifiers applied,
+  materials rebuilt as flat Principled colors, scaled to 1.68 m. The dances are the CMU clips above, retargeted to this
+  skeleton with `tuning.json`.
+- Trademark: Mario is a character of Nintendo. This is unofficial fan art; the CC license cannot clear the underlying
+  character rights, and the entry is removed on request.
+- Results: `model.glb` 2360712 bytes sha256 `d42b3875a95b8fd55157d4b0d81a25a32f4eec6915bb8aa9bb947827c2954d6b`; `dances.glb`
+  196968 bytes sha256 `86a2034cdc2aacf0a546e820c5c2986e0326ab3141ed42590ba7eac79646204d`.
 - Rebuild: as for Mr Incredible.
