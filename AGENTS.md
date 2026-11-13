@@ -20,12 +20,15 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Smoke tests against production (or `BASE_URL`) | `npm run test:smoke` |
 | Lighthouse budget on `/` (reads the existing build) | `npm run lighthouse` |
 | Offline rhythm evaluation over labelled WAVs | `npm run eval:rhythm -- <dataset-dir>` (no args prints usage) |
-| Play a local track through a visualizer and record its bass telemetry (dev only, see `docs/agents/debug-harness.md`) | `npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--headless]` |
-| Reprint the windowed summary of a recorded telemetry CSV | `npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S]` |
+| Play a local track through a visualizer and record its bass telemetry (dev only, see `docs/agents/debug-harness.md`) | `npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--no-normalize] [--headless]` |
+| Reprint the windowed summary of a recorded telemetry CSV | `npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S] [--reaction COLUMN]` |
 | Compare two or more recordings of one track on track time | `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` |
 | Replay a recording's bass-gate inputs through a named gate rule (dev only, see `docs/agents/debug-harness.md`) | `npm run replay:gate -- <telemetry.csv> --rule NAME` |
 | Run the rhythm pipeline over a WAV with `rhythmConfig` constants overridden (no app change) | `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` |
 | Print tempo-versus-dotted-rival evidence for a folder of WAVs with `.bpm` sidecars, or regenerate the derived fixtures | `npm run probe:rhythm -- <dir> [--write-fixtures <dir>]` |
+| Write the synthetic ground-truth tracks (WAV, `.beats.json`, `.bpm`) used to measure alignment | `npm run ground-truth -- <out-dir>` (no args prints usage) |
+| Print beat, tempo and onset alignment against `.beats.json` ground truth for a folder of WAVs | `npm run eval:rhythm -- <wav-dir> --alignment` |
+| Tap along to a local track to make its `.beats.json` (dev only, see `docs/agents/tap-along.md`) | `npm run tap:beats -- --dir <folder> --track <file> [--calibrate] [--force]` |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
@@ -110,6 +113,9 @@ Full detail and the reasons are in the docs below; these are the ones most often
 - `docs/agents/conventions.md`: code style, naming, TypeScript/React/three.js/Web Audio rules, with examples.
 - `docs/agents/debug-harness.md`: the dev-only harness for debugging how a visualizer reacts to a real track.
 - `docs/agents/rhythm-stability-results.md`: where tempo and bassline stability stands, known costs and what to refine next.
+- `docs/agents/audio-alignment-findings.md`: measured root causes of the visuals not following the music, and what each
+  later fix must beat. `docs/agents/audio-presentation-audit.md` has each visualizer's inputs, smoothing and reaction delay.
+- `docs/agents/tap-along.md`: making beat ground truth for a local track by tapping along.
 - `.agents/skills/add-visualizer/SKILL.md`: step-by-step for adding a new visualizer (the most common task).
 - `.agents/skills/react-router/SKILL.md`: React Router framework-mode reference.
 
