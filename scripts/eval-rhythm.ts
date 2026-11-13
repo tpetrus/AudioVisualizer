@@ -17,7 +17,7 @@ import {
     tempoFigures,
 } from '../app/features/rhythm/eval/evalReport';
 import { parseBeatSidecar } from '../app/features/rhythm/eval/sidecar';
-import { formatOnsetRates, onsetRates } from './rhythm-tools/onsetRates';
+import { alignmentLift, formatAlignmentLift, formatOnsetRates, onsetRates } from './rhythm-tools/onsetRates';
 import { tempoStability } from './rhythm-tools/tempoStability';
 
 const USAGE = `Usage: npm run eval:rhythm -- <dataset-dir> [options]
@@ -576,6 +576,7 @@ function evaluateAlignment(options: Options): void {
                 console.log(formatEvalReports([buildEvalReport(sidecar, detected)]).join('\n'));
                 if (sidecar.source === 'tapped') {
                     console.log(formatOnsetRates(onsetRates(sidecar.beats, detected.onsets)).join('\n'));
+                    console.log(formatAlignmentLift(alignmentLift(sidecar.beats, detected.onsets)));
                 }
             } catch (error) {
                 console.error(`${name}: ${beatsPath}: ${error instanceof Error ? error.message : String(error)}`);

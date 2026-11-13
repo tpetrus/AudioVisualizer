@@ -13,7 +13,9 @@ const goodLocal = (track: string, overrides: Partial<LocalResult> = {}): LocalRe
     track,
     noKick: false,
     perBeat: { kick: 1, bass: 1, snare: 1, highs: 2 },
-    coverage: 0.95,
+    lift: 0.5,
+    offsetMs: -20,
+    chance: 0.4,
     ...overrides,
 });
 const goodSynthetic: SyntheticResult = { track: 'a', f: { kick: 1, snare: 0.95 } };
@@ -102,14 +104,14 @@ describe('scorePoint', () => {
         expect(score.violations.map((entry) => entry.what)).toEqual(['synthetic a kick F']);
     });
 
-    it('flags local rates, the stricter kick bound on a no-kick track and coverage', () => {
+    it('flags local rates, the stricter kick bound on a no-kick track and lift', () => {
         const score = scorePoint(
             [],
             [
                 goodLocal('busy', { perBeat: { kick: 2.5, bass: 2.5, snare: 2.5, highs: 4.5 } }),
                 goodLocal('plain', { noKick: true, perBeat: { kick: 0.6, bass: 1, snare: 1, highs: 1 } }),
-                goodLocal('quiet', { coverage: 0.5 }),
-                goodLocal('none', { coverage: NaN }),
+                goodLocal('quiet', { lift: 0.05 }),
+                goodLocal('none', { lift: NaN }),
             ],
         );
         expect(score.violations.map((entry) => entry.what)).toEqual([
@@ -118,8 +120,8 @@ describe('scorePoint', () => {
             'local busy snare',
             'local busy highs',
             'local plain kick',
-            'local quiet coverage',
-            'local none coverage',
+            'local quiet lift',
+            'local none lift',
         ]);
         expect(score.worstSynthetic).toBeUndefined();
     });
@@ -155,15 +157,26 @@ describe('rankPoints', () => {
 
 describe('formatPoint', () => {
     it('prints one line per point plus one per local track with violations marked', () => {
-        const local = [goodLocal('l', { coverage: 0.5, noKick: true })];
+        const local = [goodLocal('l', { lift: 0.05, noKick: true })];
         const score = scorePoint([{ track: 'a', f: { kick: 0.5 } }], local);
         const lines = formatPoint('#1', [{ name: 'A', value: '1' }], score, local);
         expect(lines).toEqual([
             '#1 A=1: 3 violation(s), worst synthetic a/kick F 0.50, failing a kick F',
-            '    l (no kick): kick 1.00! bass 1.00 snare 1.00 highs 2.00 coverage 0.50!',
+            '    l (no kick): kick 1.00! bass 1.00 snare 1.00 highs 2.00 lift 0.05! offset -20 ms chance 0.40',
         ]);
         expect(formatPoint('base', [], scorePoint([], []), [])).toEqual([
             'base (none): 0 violation(s), worst synthetic n/a',
         ]);
+    });
+
+    it('prints n/a for a track with too few tapped beats', () => {
+        const local = [goodLocal('l', { lift: NaN, offsetMs: NaN, chance: NaN })];
+        const lines = formatPoint('#1', [], scorePoint([], local), local);
+        expect(lines[1]).toBe('    l: kick 1.00 bass 1.00 snare 1.00 highs 2.00 lift n/a!');
+    });
+
+    it('prints a positive offset with a plus sign', () => {
+        const local = [goodLocal('l', { offsetMs: 15 })];
+        expect(formatPoint('#1', [], scorePoint([], local), local)[1]).toContain('lift 0.50 offset +15 ms chance 0.40');
     });
 });

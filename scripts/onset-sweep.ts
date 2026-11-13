@@ -10,7 +10,7 @@ import { basename, extname, join, resolve } from 'node:path';
 import { parseBeatSidecar } from '../app/features/rhythm/eval/sidecar';
 import { applyOverrides, type Override } from './rhythm-tools/ablate';
 import { loadWithOverrides } from './rhythm-tools/ablatePlugin';
-import { onsetRates } from './rhythm-tools/onsetRates';
+import { alignmentLift, onsetRates } from './rhythm-tools/onsetRates';
 import {
     expandGrid,
     formatPoint,
@@ -29,7 +29,7 @@ const USAGE = `Usage: npm run sweep:onsets -- [--grid NAME=v1|v2|...]... [--set 
 Runs the band onset detector over every synthetic ground-truth track (scripts/ground-truth) and, with --dir, over every
 tapped WAV of a folder, once per grid point (the cartesian product of the --grid axes), and checks the acceptance bounds:
   synthetic: every labelled band F >= 0.9 at 50 ms
-  local:     kick, bass, snare <= 2 and highs <= 4 events per beat (kick <= 0.5 on --no-kick tracks), coverage >= 0.9
+  local:     kick, bass, snare <= 2 and highs <= 4 events per beat (kick <= 0.5 on --no-kick tracks), lift >= 0.15
 Prints the baseline (--set only) first, then the points ranked: no violations first, then fewer, then the larger worst
 margin. A "!" marks a violated figure. Not a tuner: it only reports.
 
@@ -88,11 +88,14 @@ async function evaluate(
     const detected = runner.runLocal(tracks.map((track) => track.input));
     const local = tracks.map((track, index): LocalResult => {
         const rates = onsetRates(track.beats, detected[index].onsets, seconds);
+        const { lift, offsetMs, chance } = alignmentLift(track.beats, detected[index].onsets, { maxSeconds: seconds });
         return {
             track: track.name,
             noKick: noKick.includes(track.name),
             perBeat: rates.perBeat,
-            coverage: rates.coverage,
+            lift,
+            offsetMs,
+            chance,
         };
     });
     return { score: scorePoint(synthetic, local), local };

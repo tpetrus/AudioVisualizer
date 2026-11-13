@@ -100,7 +100,9 @@ export function expandGrid(grid: readonly GridAxis[]): Override[][] {
 export const SYNTHETIC_MIN_F = 0.9;
 export const MAX_EVENTS_PER_BEAT: Record<OnsetBand, number> = { kick: 2, bass: 2, snare: 2, highs: 4 };
 export const MAX_KICK_ON_NO_KICK = 0.5;
-export const MIN_COVERAGE = 0.9;
+// Good tracks reach a lift of 0.3 to 0.7 and detectors that only fire often enough to hit beats by chance reach about 0.0
+// to 0.1, so 0.15 sits just above chance without demanding a perfect track.
+export const MIN_LIFT = 0.15;
 
 export interface SyntheticResult {
     track: string;
@@ -112,7 +114,10 @@ export interface LocalResult {
     track: string;
     noKick: boolean;
     perBeat: Record<OnsetBand, number>;
-    coverage: number;
+    // See alignmentLift: the lift over chance, the constant offset (ms) it was found at and the chance level.
+    lift: number;
+    offsetMs: number;
+    chance: number;
 }
 
 export interface Violation {
@@ -148,12 +153,12 @@ export function scorePoint(synthetic: readonly SyntheticResult[], local: readonl
             check(`synthetic ${track} ${band} F`, value, (value - SYNTHETIC_MIN_F) / SYNTHETIC_MIN_F);
         }
     }
-    for (const { track, noKick, perBeat, coverage } of local) {
+    for (const { track, noKick, perBeat, lift } of local) {
         for (const band of ONSET_BANDS) {
             const bound = noKick && band === 'kick' ? MAX_KICK_ON_NO_KICK : MAX_EVENTS_PER_BEAT[band];
             check(`local ${track} ${band}`, perBeat[band], (bound - perBeat[band]) / bound);
         }
-        check(`local ${track} coverage`, coverage, (coverage - MIN_COVERAGE) / MIN_COVERAGE);
+        check(`local ${track} lift`, lift, (lift - MIN_LIFT) / MIN_LIFT);
     }
     return { violations, worstMargin, worstSynthetic };
 }
@@ -193,14 +198,16 @@ export function formatPoint(
             `${failing.length === 0 ? '' : `, failing ${failing.map((entry) => entry.slice('synthetic '.length)).join('; ')}`}`,
     ];
     const bad = new Set(score.violations.map((entry) => entry.what));
-    for (const { track, noKick, perBeat, coverage } of local) {
+    for (const { track, noKick, perBeat, lift, offsetMs, chance } of local) {
         const bands = ONSET_BANDS.map((band) => {
             const mark = bad.has(`local ${track} ${band}`) ? '!' : '';
             return `${band} ${perBeat[band].toFixed(2)}${mark}`;
         });
-        const mark = bad.has(`local ${track} coverage`) ? '!' : '';
-        const cover = Number.isNaN(coverage) ? 'n/a' : coverage.toFixed(2);
-        lines.push(`    ${track}${noKick ? ' (no kick)' : ''}: ${bands.join(' ')} coverage ${cover}${mark}`);
+        const mark = bad.has(`local ${track} lift`) ? '!' : '';
+        const alignment = Number.isNaN(lift)
+            ? `n/a${mark}`
+            : `${lift.toFixed(2)}${mark} offset ${offsetMs > 0 ? '+' : ''}${offsetMs} ms chance ${chance.toFixed(2)}`;
+        lines.push(`    ${track}${noKick ? ' (no kick)' : ''}: ${bands.join(' ')} lift ${alignment}`);
     }
     return lines;
 }
