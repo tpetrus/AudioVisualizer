@@ -31,8 +31,10 @@ export function tempoFigures(labelBpm: number, tempo: readonly TempoSample[]): T
     return { tempoRatio: tempoRatio(tempo, labelBpm), lockSeconds: lockSeconds(tempo, labelBpm) };
 }
 
-// One entry per tolerance. A band is scored when the truth or the detections have something in it, so a band with
-// nothing on either side stays out of the report instead of reading as a perfect or a failed score.
+// One entry per tolerance. A band is scored only when the sidecar labels onsets in it. A band with no ground truth (a
+// click track has `kick: []`) has no recall to judge and every detection would count as a false positive, so scoring it
+// would print P 0.00 R 0.00 F 0.00 and read as a detector failure when the track simply has no such voice. It is left
+// out, like a band the pipeline cannot detect.
 function onsetReports(
     truth: Record<OnsetBand, number[]>,
     detected: Partial<Record<OnsetBand, number[]>>,
@@ -41,7 +43,7 @@ function onsetReports(
         const bands: OnsetReport['bands'] = {};
         for (const band of ONSET_BANDS) {
             const found = detected[band];
-            if (found === undefined || (found.length === 0 && truth[band].length === 0)) continue;
+            if (found === undefined || truth[band].length === 0) continue;
             bands[band] = scoreOnsets(truth[band], found, toleranceMs);
         }
         return { toleranceMs, bands };
@@ -83,7 +85,7 @@ function formatOnsetLine(report: OnsetReport): string {
             ? []
             : [`${band} P ${fixed(score.precision, 2)} R ${fixed(score.recall, 2)} F ${fixed(score.f, 2)}`];
     });
-    return `onsets at ${report.toleranceMs} ms: ${bands.length === 0 ? 'no bands scored' : bands.join(', ')}`;
+    return `onsets at ${report.toleranceMs} ms: ${bands.length === 0 ? 'no onsets to score' : bands.join(', ')}`;
 }
 
 // Printable lines for the reports, one block per report. A tapped track's beat error is printed next to its tap noise

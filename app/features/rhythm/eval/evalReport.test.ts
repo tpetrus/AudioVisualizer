@@ -38,9 +38,20 @@ describe('buildEvalReport', () => {
         expect(loose.bands.highs).toBeUndefined();
     });
 
-    it('scores a band that has detections but no truth', () => {
-        const report = buildEvalReport(sidecar, { beats: [], tempo: [], onsets: { highs: [1, 2] } });
-        expect(report.onsets[1].bands.highs).toEqual({ precision: 0, recall: 0, f: 0 });
+    it('leaves out a band with detections but no truth, and prints no score for it', () => {
+        const report = buildEvalReport(sidecar, { beats: [], tempo: [], onsets: { highs: [1, 2], kick: [1] } });
+        expect(report.onsets[1].bands.highs).toBeUndefined();
+        expect(report.onsets[1].bands.kick).toBeDefined();
+        const text = formatEvalReports([report]).join('\n');
+        expect(text).toContain('kick P');
+        expect(text).not.toContain('highs');
+    });
+
+    it('prints that there are no onsets to score when every band is empty', () => {
+        const empty = { ...sidecar, onsets: { kick: [], bass: [], snare: [], highs: [] } };
+        const report = buildEvalReport(empty, { beats: [], tempo: [], onsets: { kick: [1], snare: [2], highs: [3] } });
+        expect(report.onsets.every((entry) => Object.keys(entry.bands).length === 0)).toBe(true);
+        expect(formatEvalReports([report]).join('\n')).toContain('onsets at 50 ms: no onsets to score');
     });
 
     it('leaves out what a run cannot give', () => {
@@ -95,7 +106,7 @@ describe('formatEvalReports', () => {
             'drums.wav (synthetic)',
             '  tempo ratio 1.000, locked at 3.3 s',
             '  beat error median 4.0 ms, p95 11.5 ms, bias -2.3 ms',
-            '  onsets at 50 ms: no bands scored',
+            '  onsets at 50 ms: no onsets to score',
             '  onsets at 20 ms: kick P 1.00 R 0.50 F 0.67',
             '  reaction offset median +12.0 ms',
         ]);
