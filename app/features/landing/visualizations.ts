@@ -4,4 +4,5 @@ export const VISUALIZATIONS = [
     { to: '/cubes', title: 'Cubes', image: '/visualization-images/cubes.png' },
     { to: '/trio-color-wave', title: 'Trio color wave', image: '/visualization-images/trio-color-wave.png' },
     { to: '/dancing-character', title: 'Dancing character', image: '/visualization-images/dancing-character.png' },
+    { to: '/bass-ink', title: 'Bass ink', image: '/visualization-images/bass-ink.png' },
 ];

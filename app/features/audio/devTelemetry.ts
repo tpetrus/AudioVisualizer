@@ -17,6 +17,16 @@ export interface VizTelemetryHook {
     reset(capacitySeconds?: number): void;
     playback(): { position: number; duration: number; ended: boolean } | null;
     seek(seconds: number): void;
+    // The engine's volume normalization, so a run can compare with it off. Setting it saves it to storage like the
+    // settings panel does; the harness runs in a fresh browser profile, so nothing of the developer's is changed.
+    normalize(): boolean;
+    setNormalize(enabled: boolean): void;
+}
+
+// The part of the rhythm tracker's state the recorder reads. Passed in by the overlay rather than imported, so this
+// module keeps depending on the audio engine alone.
+export interface TelemetryOnsets {
+    readonly bandOnsets: ArrayLike<number>;
 }
 
 declare global {
@@ -36,8 +46,10 @@ const ROWS_PER_SECOND = 120;
 const DEFAULT_CAPACITY_SECONDS = 600;
 const BASS_CUTOFF_HZ = 120;
 const BASS_FFT_SIZE = 4096;
-// t, dt, fps, bassRaw, bassPost, gain
-const BASE_COLUMNS = ['t', 'dt', 'fps', 'bassRaw', 'bassPost', 'gain'] as const;
+// t, dt, fps, bassRaw, bassPost, gain, then the tracker's per-band onset strengths (kick, mid, high) exactly as the
+// visualizers read them in `RhythmState.bandOnsets`, 0 while no tracker is attached.
+const BASE_COLUMNS = ['t', 'dt', 'fps', 'bassRaw', 'bassPost', 'gain', 'onsetKick', 'onsetMid', 'onsetHigh'] as const;
+const ONSET_COLUMNS = 3;
 
 interface Probe {
     readonly name: string;
@@ -58,6 +70,7 @@ interface Recorder {
     engine: AudioEngine;
     raw: BassTap | undefined;
     post: BassTap | undefined;
+    onsets: TelemetryOnsets | undefined;
     unsubscribe: () => void;
 }
 
@@ -103,6 +116,8 @@ export function tickTelemetry(dtSeconds: number): void {
     rows[offset + 3] = raw ? readBass(raw) : 0;
     rows[offset + 4] = readBass(post);
     rows[offset + 5] = engine.getGain();
+    const onsets = recorder.onsets?.bandOnsets;
+    for (let band = 0; band < ONSET_COLUMNS; band++) rows[offset + 6 + band] = onsets ? (onsets[band] ?? 0) : 0;
 
     let at = offset + BASE_COLUMNS.length;
     for (const probe of probes) {
@@ -113,10 +128,10 @@ export function tickTelemetry(dtSeconds: number): void {
     rowCount++;
 }
 
-export function attachTelemetry(engine: AudioEngine): () => void {
+export function attachTelemetry(engine: AudioEngine, onsets?: TelemetryOnsets): () => void {
     if (!import.meta.env.DEV) return () => {};
     detach();
-    const current: Recorder = { engine, raw: undefined, post: undefined, unsubscribe: () => {} };
+    const current: Recorder = { engine, raw: undefined, post: undefined, onsets, unsubscribe: () => {} };
     recorder = current;
     current.unsubscribe = engine.subscribe(() => bindTaps(current));
     bindTaps(current);
@@ -141,6 +156,8 @@ export function attachTelemetry(engine: AudioEngine): () => void {
                 : null;
         },
         seek: (seconds) => getActivePlayback()?.seek(seconds),
+        normalize: () => engine.getNormalize(),
+        setNormalize: (enabled) => engine.setNormalize(enabled),
     };
 
     return () => {

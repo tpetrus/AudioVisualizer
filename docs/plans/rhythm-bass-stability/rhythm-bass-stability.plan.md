@@ -1,0 +1,235 @@
+# Stabilize bassline and tempo tracking in visualizers
+> Double-diamond plan `rhythm-bass-stability` revision 1 | status **final** | lane full | risk R2 | base bd3955798a0b | updated 2026-11-05T23:27:03.630Z
+_Generated from plan.json by dd_plan.py. Edit plan.json, not this file._
+## Request
+
+> <task>
+> Resolve bassline, tempo and dancing tracking inconsistencies in visualizations
+> </task>
+> 
+> <context>
+> -If a song has a steady, uninterupted tempo, but additional notes are added in, the visualizers will react with a fast/slower tempo to try and match the temporary 'decorative' notes
+> </context>
+> 
+> <requirements>
+> -Use the new built-in debugger
+> -Use audio samples that ive gathered for you to test against (these samples have a steady tempo and the dancing-character visualization should be dancing at a consistent tempo for the whole trackso we should be testing on any deviations from it and devise a solution)
+> -Determine the cause of the inconsistencies
+> -Come up with a plan to resolve the inconsistencies and strengthen the audiovisualizer audio engine for future visualizations
+> </requirements>
+> 
+> <scope-and-non-goals>
+> -for now, we focus on only the bassline, but note other findings that may be causing awkwardness for future resolution
+> </scope-and-non-goals>
+> 
+> <verification>
+> -source of issue is identified. if not identified, establish leads and potential other causes
+> </verification>
+
+## Problem
+
+On tracks with a constant tempo, added decorative notes make the visualizers react as if the tempo sped up or slowed down. The dancing character is the clearest case. Code reading points to six hypotheses, none measured yet. H1: the onset envelope scales the kick, mid and high bands each by its own recent peak and weights them equally (rhythmConfig.ts:40-44, rhythmAnalyzer.ts:118-123), so a quiet decoration gets as strong a vote as the kick. H2: each declared beat takes the strongest peak within +-0.2 of a period and moves phase by 0.4 and period by 0.1 of the error (beatTracker.ts:179-199), and that period is published directly as state.bpm (rhythmAnalyzer.ts:256), so at 120 BPM a single decoration can change the reported bpm by about 2 percent and the dance speed follows it (dancingCharacterSync.ts:165-168). H3: the tempo estimate can move to a faster pulse at half or a third of the lag when that peak scores 0.7 of the winner, and a challenger replaces the held tempo after 4 estimates, about 1 second (tempo.ts:175-191, rhythmConfig.ts:74-84); a move of more than 12 percent also rebuilds the beat grid (beatTracker.ts:87-90). H4: band-balance novelty or a 5 percent tempo jump held 3 seconds raises a soft song change (rhythmAnalyzer.ts:231-238, rhythmConfig.ts:168-171), which clears the dance lock and forgets the learned bassline (dancingCharacterSync.ts:136-140, dancingCharacterBassGate.ts:110-112). H5: the bass gate's bumps come from the beat clock rather than from kicks (dancingCharacterBassGate.ts:182-192), so any clock error reaches the bass pulse, and the kick band has no privileged role in setting that clock. H6: the dance also depends on tempoConfidence, meterConfidence and barPhase (dancingCharacterSync.ts:145-193, rhythmAnalyzer.ts:176-183), so a confidence dip or a downbeat correction can make the dancer jump with a perfectly steady bpm.
+
+**Users:** A listener watching dancing-character or another visualizer on a steady track; A developer building future visualizers on the shared audio and rhythm engine
+
+**Evidence:**
+- User report: visualizers follow temporary decorative notes on a steady track
+- Code reading, verified by the lead: H1 to H5 in the problem statement, with file and line references
+- Telemetry gap: the dancing-character probe has no bpm, beat phase, beat count, song change or grid epoch columns (useDancingCharacterScene.ts:97), so the harness cannot yet measure tempo deviation
+- No harness run has been made: this planning session may not run it, so H1 to H5 are unmeasured hypotheses
+
+## Goals
+
+- Establish by measurement which mechanisms cause tempo deviation on the samples in .debug-in, or record the remaining leads
+- Keep reported tempo and dance timing constant on constant-tempo tracks while decorative notes play
+- Make the same clip produce the same dance every time it is played
+- Make the bassline the anchor of the steady pulse in the shared engine, so every visualizer that reads it benefits
+- Give future visualizers a documented shared bass and beat surface instead of imports across visualizer folders
+
+## Non-goals
+
+- Fixing mid or high band visual reactions; those findings are recorded for later
+- Following genuine mid-song tempo changes better than today; the user's samples all have a constant tempo
+- Improving meter (3 versus 4) detection or downbeat accuracy, beyond not regressing them
+- Upgrading three.js or changing dance animation clips
+- Shipping the debug harness to production
+
+## Success metrics
+
+- Tempo deviation on each .debug-in track after lock against its .bpm sidecar, measured before and after the fix, target within 1 percent
+- Count of false song changes and beat grid rebuilds per track, target zero
+- Share of post-lock time the dance lock and bass gate stay held, target above 99 percent
+- Spread across 4 runs of the same clip in chosen octave, beat times and dance position, target as in AC10
+- npm run eval:rhythm and the existing rhythm specs show no regression
+
+## Constraints
+
+- Measurement uses npm run debug:viz and npm run debug:summary as documented in docs/agents/debug-harness.md
+- Harness additions stay DEV-only behind import.meta.env.DEV, and the production grep check in the harness doc stays clean
+- Bundle budgets in .size-limit.json may only be raised in the same PR with a stated reason (AGENTS.md); headroom was about 0.3 kB when the harness was frozen
+- No per-frame or per-audio-frame allocation; logic stays outside React; named exports only; 95 percent coverage
+- three.js stays pinned
+
+## Acceptance criteria
+
+| ID | Given | When | Then |
+| --- | --- | --- | --- |
+| AC1 | the debug harness running dancing-character on any track | npm run debug:viz finishes | telemetry.csv has every C1 column, the summary prints per-window bpm deviation and event counts, deviation is octave-normalized against the track's .bpm sidecar, a track with no sidecar is reported without a pass or fail, and the production grep check finds nothing |
+| AC2 | every audio file in .debug-in on the unchanged tracker | the baseline is recorded before any fix is written | a committed findings document lists each deviation window with the hypothesis H1 to H6 it supports, marks each hypothesis confirmed, rejected or open, names further leads for anything unexplained, states which datasets eval:rhythm runs on, and states which later fix slices proceed |
+| AC3 | a synthetic constant-tempo signal with decorative off-beat notes in the kick, mid and high bands, with parameters fitted to the deviations measured in the baseline, including a true tempo that falls between autocorrelation lag bins | it is run through the rhythm analyzer in a unit spec | after lock the reported bpm stays within 1 percent of the true tempo, songChangeCount and the grid epoch do not increase, the bass gate stays open, and the spec fails on the unchanged tracker; if no fitted signal fails on the unchanged tracker, that is recorded as a finding and the spec is not weakened |
+| AC4 | every audio file in .debug-in with a .bpm sidecar, on the fixed tracker | each is recorded with the harness | after lock the reported bpm, octave-normalized to the sidecar, stays within 1 percent of it for at least 98 percent of the time, with zero song changes and zero grid rebuilds |
+| AC5 | dancing-character on those same tracks, with post-lock meaning after tempoLocked has first held for 2 seconds | decorative notes play after lock | tempoLocked and gateOpen stay 1 for at least 99 percent of post-lock time, and at least 95 percent of intervals between bass bumps are within 10 percent of a whole number of beat periods |
+| AC6 | a real song change as a silence or a crossfade to another tempo, and a kickless constant-tempo signal, as named synthetic fixtures | they reach the fixed tracker | existing boundary specs still pass, the new tempo is reported no later than on the unchanged tracker, the kickless signal still locks, and npm run eval:rhythm shows no regression on the datasets named in the findings |
+| AC7 | a developer writing a new visualizer | they read docs/agents/architecture.md and the shared module | they find one documented shared surface for steady tempo, beat phase and bass pulse, and no visualizer imports bass or beat code from another visualizer's folder |
+| AC8 | the finished change | the repository checks run | format, lint, typecheck, test:coverage, build, size and test:e2e all pass, and cubes and trio-color-wave are checked in the harness for changed behaviour |
+| AC9 | findings outside the bassline scope | the investigation ends | they are listed in the findings document as later work with file references, and no fix for them is included |
+| AC10 | one clip from .debug-in played 4 times from its start, in fresh page loads and by re-selecting it in one page | the 4 telemetry recordings are compared on track time by a repeatability report | after lock all runs choose the same tempo octave and meet the spread targets confirmed at the baseline review, starting from: reported bpm within 1 percent, beat times within 40 ms, dance position within 5 percent of a loop, and lock within 2 seconds of the other runs |
+
+## Decisions
+
+| ID | Question | Answer | Decided by | Rationale |
+| --- | --- | --- | --- | --- |
+| D1 | How are measurements obtained, given this planning session cannot run the harness? | The first slices of the plan add telemetry and run the harness; causes in this plan are code-derived hypotheses until then | user | Chosen by the user in round 1 |
+| D2 | Which samples form the test set? | Every audio file in .debug-in, which currently holds Untitled Bounce.wav; more are coming | user | Chosen by the user in round 1 |
+| D3 | What counts as correct behaviour? | The user only adds sound bites with a constant tempo, so any perceived tempo change while testing one is a defect to debug | user | User's own words in round 1 |
+| D4 | How far do fixes reach? | The shared engine, so all visualizers using it benefit | user | Chosen by the user in round 1 |
+| D5 | Which fixes come first? | Bassline-related causes only; other findings are recorded for later | user | Stated scope in the request |
+| D6 | What tempo tolerance applies after lock? | Within 1 percent of the true tempo | user | Chosen by the user in round 2 |
+| D7 | How do tests know each sample's true tempo? | A .bpm sidecar next to each track, in the format eval:rhythm already reads | user | Chosen by the user in round 2; it also catches a tracker that holds steady at the wrong tempo |
+| D8 | Is run-to-run consistency a goal? | Yes: running the same clip 4 times should give the same dance every time | user | Added by the user at the framing checkpoint |
+| D9 | What numbers define the same dance? | After lock: same octave, bpm within 1 percent, beat times within 40 ms, dance position within 5 percent of a loop, lock within 2 seconds across runs; these are confirmed or adjusted at the baseline review | planner assumption (confirm) | The user set the goal but no numbers; real-time playback may limit what is reachable, so the baseline informs the final targets |
+| D10 | How are post-lock time and even bass bumps defined? | Post-lock starts once tempoLocked has held for 2 seconds; at least 95 percent of bump intervals must be within 10 percent of a whole number of beat periods | planner assumption (confirm) | AC5 needs observable numbers; whole-number multiples allow a bassline that does not play on every beat |
+
+## Options considered
+
+Weights: fit 30%, risk 25%, effort 20%, ux 15%, reversibility 10%. Scores 1-5, higher is better.
+
+| ID | Lens | Summary | fit | risk | effort | ux | reversibility | Covers all ACs | Total |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| O1 | minimal | Add DEV telemetry columns and a repeatability report, record a baseline, then apply the smallest in-place fixes (kick-weighted onset, bpm latch, boundary guard) chosen by which of H1-H5 the baseline confirms. | 5 | 3 | 3 | 2 | 5 | yes | 3.65 |
+| O2 | robust | Measure first via DEV telemetry and a repeatability report, then make the kick-weighted, publish-stable tempo clock a shared engine surface (rhythm/steadyPulse) that dancing-character and future visualizers consume, with each fix gated on its hypothesis being confirmed. | 3 | 3 | 1 | 4 | 3 | yes | 2.75 |
+| O3 | contrarian | Stop making the detector immune to decoration; add a separate latched 'steady pulse' layer in the shared engine that publishes a held tempo and a flywheel beat clock, anchored on kick-band evidence, and leaves the existing tracker untouched so eval:rhythm cannot regress. | 2 | 3 | 3 | 3 | 4 | no | 2.8 |
+| **O4** (chosen) | hybrid | Hybrid of O1, O2 and O3: measure first, then keep one tempo source by putting O3's held tempo and flywheel clock inside RhythmAnalyzer, so state.bpm and beatPhase themselves become steady. Add O1's in-place onset and boundary fixes and O2's repeatability work and shared surface, each gated on its hypothesis being confirmed. | 4 | 3 | 2 | 5 | 4 | yes | 3.5 |
+
+## Decision
+
+**O4**: Hybrid of O1, O2 and O3: measure first, then keep one tempo source by putting O3's held tempo and flywheel clock inside RhythmAnalyzer, so state.bpm and beatPhase themselves become steady. Add O1's in-place onset and boundary fixes and O2's repeatability work and shared surface, each gated on its hypothesis being confirmed.
+
+O1 scores highest because it is cheap and fits as is, but it leaves repeatability (D8) unplanned and makes the bass only a weight, which misses the anchor goal. O2 covers those at the highest cost and adds a facade plus a second state field. O3 leaves two tempo sources and does not meet AC3 as worded. O4 takes O1's in-place fixes, O3's flywheel inside the analyzer so one tempo source remains, and O2's repeatability work. Its slices are gated, so if the baseline rejects a hypothesis the work shrinks towards O1.
+
+**Approach:**
+- Move the bass modules out of cubes and dancing-character in a pure rename, so later slices do not churn
+- Add DEV telemetry, sidecar deviation and a 4-run repeatability report, then record the baseline and commit findings before any fix
+- Record the failing decoration spec and regression fixtures against the unchanged tracker
+- Apply onset weighting, faster-pulse takeover and soft boundary fixes only for hypotheses the baseline confirms
+- Add a pure steady clock owned by RhythmAnalyzer only if the findings still require it after input fixes; it holds a period averaged from beat intervals and applies small corrections favouring kick-band evidence
+- Remove the repeatability causes the report finds, sized at the baseline review
+
+## Design
+
+Measure first. Telemetry and reports make tempo deviation and repeatability visible, and the baseline records which hypotheses hold; later slices are confirmed or dropped against those findings. Input causes come first, because a held clock fed a bad estimate would latch it: onset band weights (H1), faster-pulse takeover while locked (H3), soft boundaries while the tempo is still supported (H4), and confidence or bar phase jumps (H6). If the findings still show beat-level wobble (H2, H5), the published clock is separated from the raw detector: BeatTracker keeps detecting, and a pure steady clock owned by RhythmAnalyzer turns its beats into state.bpm and beatPhase. After lock, its period is averaged from measured beat intervals rather than copied from the tempo estimate, which is limited by lag bins of about 2 percent at 120 BPM; it uses a deadband of 0.3 percent, well inside the 1 percent tolerance. Phase corrections are small, favour kick-band evidence and ignore outliers, so kick-band decorations are covered as well as mid and high ones. The bass gate keeps its clock-driven bumps, which become steady once the clock is. Code check: cubes reads downbeatCount and RhythmStats reads bpm and beatPhase, so the change reaches them, and the context brief's statement that only dancing-character reads rhythm state is wrong. trio-color-wave was not seen reading rhythm state in the search, and the final slice confirms this.
+
+### Components
+| Name | Responsibility | Location |
+| --- | --- | --- |
+| Steady clock | Held period and flywheel phase; pure and allocation-free | app/features/rhythm/steadyClock.ts |
+| RhythmAnalyzer | Feeds the steady clock and publishes its output to state | app/features/rhythm/rhythmAnalyzer.ts |
+| Onset and boundary tuning | Confirmed input-side fixes only | app/features/rhythm/rhythmConfig.ts, tempo.ts, boundary.ts |
+| DEV telemetry and reports | New probe columns, deviation summary, repeatability report | useDancingCharacterScene.ts, devTelemetrySummary.ts, scripts/debug-visualizer/ |
+| Findings document | Baseline numbers, hypothesis verdicts, later-work list | docs/agents/rhythm-findings.md |
+| Shared bass surface | BassPulse and bass gate moved out of visualizer folders | app/features/rhythm/ |
+
+### Contracts (freeze before dependent work)
+
+- **C1 Telemetry columns** (dev-harness): The dancing-character probe adds bpm, rawBeatBpm, rawTempoBpm, tempoConfidence, meterConfidence, beatsPerBar, beatPhase, barPhase, beatCount, songChanges, gridEpoch, timeScale, clipPhase, phaseNudge, meterLocked, bumpCount and kickPhaseOffset (the latest kick's phase minus the learned kick place). This changes the frozen C2 contract in docs/agents/debug-harness.md, so the doc and every consumer change together. Values are read through existing or minimal read-only accessors, and any production delta is measured with npm run size.
+- **C2 Report commands** (cli): npm run debug:summary reads a sidecar named after the track and prints per-window bpm deviation and event counts. A new repeatability command takes 2 or more telemetry CSVs and prints the AC10 comparison on track time. Beat times are computed from t and beatPhase rather than from counter changes, so frame rate does not limit their accuracy. Both are pure functions over parsed tables.
+- **C3 RhythmState meaning** (module-api): Fields and types stay the same. If the steady clock ships, state.bpm and state.beatPhase become its output once a beat is locked, and barPhase is anchored to the same clock. Its period is averaged from measured beat intervals with a 0.3 percent deadband. Published phase never steps by more than 0.02 of a beat per declared beat, apart from a grid rebuild or a reset. Raw values stay internal to the analyzer. Hard resets clear the clock, and real song changes still release it.
+- **C4 Shared bass and beat surface** (module-api): BassPulse and the bass gate are exported from app/features/rhythm with behaviour unchanged by the move and covered by their existing specs, which move with them. docs/agents/architecture.md documents them with useRhythm and tracker.state. No visualizer imports bass or beat code from another visualizer's folder.
+
+### Data
+
+No persisted data. Telemetry stays in git-ignored .debug-out. Sample audio stays in .debug-in; whether it is committed is the user's call.
+
+### UX
+
+Viewers should see a dance and bass pulse that hold steady through decorations and repeat from run to run. The on-screen BPM readout in RhythmStats also stops wobbling. No new controls.
+
+### Accessibility
+
+No UI changes. Existing axe checks in e2e still apply.
+
+### Security and privacy
+
+Everything stays client-side. Harness code stays DEV-only, and no audio leaves the machine.
+
+### Observability
+
+The harness is the observability tool: per-window deviation, event counts and the repeatability report, recorded in the findings document before and after each fix.
+
+### Rollout and rollback
+
+One pull request per slice, using Conventional Commit titles; any change under app/ needs a releasing type. Cloudflare previews each PR and deploys main. S1 to S4 do not change production behaviour. S3 is a review point where the user confirms which of S5, S6 and S7 proceed, their size and the AC10 targets. Each PR that grows the bundle states its size delta, and any budget raise is made in that same PR. Rollback is a Cloudflare rollback or a revert of that slice.
+
+## Test strategy
+
+- **Unit:** Pure specs for the steady clock, onset weighting, boundary guard and report functions. Decoration signals are added to testSignals.ts covering off-beat notes in the kick, mid and high bands, plus a tempo that falls between lag bins, a kickless signal and a crossfade fixture. The new spec is recorded as it.fails on the unchanged tracker and .fails is removed by the fix. A spec asserts the phase step limit in C3 and that the gate stays open on the decoration signal.
+- **Integration:** RhythmAnalyzer spec runs decoration signals end to end. Existing boundary and meter specs stay green. npm run eval:rhythm runs before and after on the datasets named in the findings, including .debug-in WAVs with sidecars, as a fast offline check.
+- **End-to-end:** npm run test:e2e after build. Existing specs cover rendering, context release and no console errors.
+- **Manual:** npm run debug:viz on each .debug-in track 4 times with dancing-character, in fresh loads and by re-selecting in one page, plus cubes and trio-color-wave once after the clock or input fixes and again at the end. Watch the dancer in npm run dev, because the numbers cannot show whether it looks right.
+- **Non-functional:** npm run size, the production grep from the harness doc, no per-frame allocation, and fps above the harness's 50 fps reliability floor for any run counted as evidence.
+
+## Risks
+
+| ID | Risk | Likelihood | Impact | Mitigation |
+| --- | --- | --- | --- | --- |
+| K1 | The findings reject the leading hypotheses, so the fix slices no longer apply | medium | medium | S3 is a review point. Rejected hypotheses drop their fixes, and new leads become revised slices, which still satisfies the stated verification. |
+| K2 | One sample today lets the tuning overfit | high | medium | Synthetic decoration specs, plus eval:rhythm and any further samples the user adds, must also pass before a fix counts as done. |
+| K3 | A held tempo latches the wrong octave or value and stays there | medium | high | AC4 checks against the .bpm sidecar, and the clock releases when raw evidence disagrees for a sustained time. |
+| K4 | Holding the tempo delays recovery after a real song change | medium | medium | AC6 and existing boundary specs; hard and confirmed soft boundaries release the clock. |
+| K5 | Kick weighting hurts music with no kick | medium | medium | Mid and high bands are down-weighted rather than removed, and eval:rhythm guards it. |
+| K6 | Bundle budget has almost no headroom | high | low | S2 records entry, total and CSS size against .size-limit.json. A PR that needs more raises the budget itself with the reason stated, as AGENTS.md allows. |
+| K7 | Exact repeatability is limited by real-time playback, such as audio block alignment and when the dance clip starts | medium | medium | The report shows actual spread first. The AC10 numbers are a planner assumption the user can adjust after the baseline. |
+| K8 | AC4, AC5 and AC10 cannot be evaluated until .bpm sidecars exist | medium | medium | Trevor supplies a sidecar per track before the S3 baseline; tracks without one are reported without a pass or fail. |
+
+## Delivery slices
+
+| ID | Slice | Depends on | ACs | Contracts | Risk | Size | Draft paths |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| S1 | Move bass modules to shared surface: Pure rename of BassPulse and the bass gate into app/features/rhythm with no behaviour change, so later slices do not churn |  | AC7 | C4 | R1 | S | app/features/visualizers/cubes/bassPulse.ts, app/features/visualizers/dancing-character/dancingCharacterBassGate.ts, app/features/rhythm/ |
+| S2 | Telemetry and reports: Make tempo deviation, tracker events and run-to-run differences measurable in the harness, and record current bundle sizes | S1 | AC1 | C1, C2 | R1 | M | app/features/visualizers/dancing-character/useDancingCharacterScene.ts, app/features/audio/devTelemetrySummary.ts, scripts/debug-visualizer/, docs/agents/debug-harness.md, .size-limit.json |
+| S3 | Baseline, findings and review: Record every .debug-in sample 4 times on the unchanged tracker, map deviations to H1 to H6, list later-work findings, name eval datasets, then have the user confirm which fix slices proceed and the AC10 targets | S2 | AC2, AC9 | C2 | R0 | M | docs/agents/rhythm-findings.md |
+| S4 | Failing specs and regression fixtures: Reproduce the measured defect with fitted synthetic decorations, and add kickless and crossfade fixtures | S3 | AC3, AC6 |  | R0 | S | app/features/rhythm/testSignals.ts, app/features/rhythm/rhythmAnalyzer.test.ts |
+| S5 | Confirmed input fixes: Fix only the confirmed causes among onset weighting, faster-pulse takeover, false soft boundaries and confidence or bar phase jumps | S4 | AC3, AC4, AC5, AC6 | C3 | R2 | M | app/features/rhythm/rhythmConfig.ts, app/features/rhythm/rhythmAnalyzer.ts, app/features/rhythm/tempo.ts, app/features/rhythm/boundary.ts, app/features/visualizers/dancing-character/dancingCharacterSync.ts |
+| S6 | Steady published clock: If the re-measured findings still show beat-level wobble, publish a held tempo and flywheel phase, then check cubes and trio-color-wave in the harness | S5 | AC3, AC4, AC5, AC6 | C3 | R2 | L | app/features/rhythm/steadyClock.ts, app/features/rhythm/rhythmAnalyzer.ts, app/features/rhythm/rhythmConfig.ts, .size-limit.json |
+| S7 | Repeatable dance: If the report shows spread beyond the confirmed targets, remove the causes it names; candidates include state carried over on re-select, AGC warm-up and dance clip start position. Sized at the S3 review | S6 | AC10 | C2, C3 | R2 | M | app/features/visualizers/dancing-character/dancingCharacterSync.ts, app/features/rhythm/rhythmTracker.ts, app/features/audio/audioEngine.ts |
+| S8 | Final checks and documentation: Re-record all samples, update findings and architecture docs, check cubes and trio-color-wave, and run all repository checks | S7 | AC7, AC8 | C4 | R1 | S | docs/agents/architecture.md, docs/agents/rhythm-findings.md |
+
+## Open questions
+
+| ID | Question | Owner | Blocking |
+| --- | --- | --- | --- |
+| Q1 | Should cubes and trio-color-wave later adopt the steady beat for their bass reactions? They keep their own BassPulse-style reaction in this work. | Trevor | no |
+| Q2 | After the baseline, do the AC10 repeatability numbers need adjusting? Answered at the S3 review, before S7 starts. | Trevor | no |
+| Q3 | AGENTS.md says rhythm specs use it.fails, but none exist in app/. Correct the doc in S4 when the new it.fails spec lands? | Implementer of S4 | no |
+| Q4 | What is the true tempo of each .debug-in sample? A .bpm sidecar per track is needed before the S3 baseline. | Trevor | no |
+
+## Critic pre-mortem
+
+Passes: 1. Verdict: sound with fixes
+
+| ID | Severity | Finding | Resolution |
+| --- | --- | --- | --- |
+| F1 | high | AC1, AC4, D7 and the first success metric all measure against a .bpm sidecar, but .debug-in holds only 'Untitled Bounce.wav' and no slice creates or requests the sidecar. No slice says what happens when a track has no sidecar. The sidecar value is also one octave-ambiguous number, while the dance normalizes octave on its own (dancingCharacterSync.ts:165), so 'within 1 percent' needs an octave rule that the plan does not give. | Changed: AC1 and AC4 are octave-normalized, a missing sidecar is report-only, Q4 and K8 ask Trevor for sidecars before the baseline. |
+| F2 | high | S4 (the L, R2 steady clock) is built unconditionally before S5 (the input fixes), although S5 is the only slice gated on which hypotheses the baseline confirms. S4 lists AC4 and AC5 as acceptance, but those depend on tempo input quality (H1, H3) and on false soft song changes (H4), which are fixed in S5. A held clock fed a corrupted or wrong-octave estimate latches it (K3 says so), so S4 cannot honestly meet AC4/AC5 alone if the baseline shows H1/H3/H4 dominate. S4's draft_paths also omit boundary.ts and dancingCharacterSync.ts, which H4 needs for AC5. | Changed: input fixes now come before the clock, and the clock is conditional on re-measured findings. Draft paths include boundary.ts and dancingCharacterSync.ts. |
+| F3 | high | The design sets a 1 percent deadband on the held period while D6/AC4 allow exactly 1 percent deviation. A period that sits at the deadband edge is a pass or fail by rounding, so the held tempo has no margin. HOP_SECONDS is 0.01 (rhythmConfig.ts:10), so one autocorrelation lag bin is about 2 percent at 120 BPM. If the held period is seeded from the tempo estimate rather than from averaged beat intervals, 1 percent is not reachable even with a perfect hold. The plan does not say what feeds the held period. | Changed: deadband is 0.3 percent, the period is averaged from measured beat intervals, and AC3 includes a tempo between lag bins. |
+| F4 | high | The dance does not only follow state.bpm. computeDanceTiming (dancingCharacterSync.ts:145-193) also locks and unlocks on tempoConfidence, enters meter lock on meterConfidence, and nudges clip position from barPhase when the bar is 4 beats, using rhythm.barPhase derived from meter.barPosition(anchorBeatIndex) (rhythmAnalyzer.ts:177-183). C3 steadies only bpm and beatPhase, and the C1 columns omit tempoConfidence, meterConfidence, barPhase and the meterLocked/barLocked states. A downbeat correction or meter shrink can shift barPhase and make the dancer jump with a perfectly steady bpm. This is an unlisted candidate cause (a sixth hypothesis) that the baseline cannot see. | Changed: H6 added, C1 gained the confidence, bar and nudge columns, and C3 anchors barPhase to the clock. |
+| F5 | high | Size budget handling is placed too late. Headroom is about 0.3 kB, S1 adds production-visible accessors and S4 adds steadyClock.ts to the entry bundle, but only S7 lists .size-limit.json in its draft_paths. K6 says the raise happens in the same PR as the cause, and CI size would fail the S4 PR (one PR per slice per the rollout). The plan also never says which budget (entry 133 kB, total 312 kB) is at risk. | Changed: S2 records sizes, .size-limit.json is in the S2 and S6 draft paths, and any raise lands in the PR that causes it. |
+| F6 | medium | Contract gap on phase between the flywheel and the bass gate. dancingCharacterBassGate.ts:158 reads rhythm.beatPhase to learn the kick phase and closes the gate on off-phase kicks. C3 says the clock makes small, kick-favoured phase corrections and ignores outliers, and C4 says the gate keeps its current behaviour. If the clock slews slowly, a steady offset from the true kick phase makes the gate see kicks as off-phase and close, which is the reverse of AC5. The plan gives no spec or telemetry for the offset between the published phase and the kick onsets, and updatePhase extrapolates from anchorTime/anchorPeriod so changing those on each beat can also step the phase. | Changed: C3 limits phase steps to 0.02 of a beat, kickPhaseOffset is a column, and AC3 requires the gate to stay open. |
+| F7 | medium | AC5 is not observable as written. 'Bass bumps stay evenly spaced' has no threshold and no telemetry column for bump times (C1 lists none), and 'post-lock time' is not defined (which lock: tempoLocked in the probe, beat.locked, or the first beat). AC3 also says the spec 'fails on the unchanged tracker', but nothing says what to do if hand-built synthetic decorations do not reproduce the real-file deviation (the spec passes on the old code), so the spec could be green and meaningless. | Changed: AC5 defines post-lock and a bump spacing threshold, bumpCount is a column, AC3 uses fitted signals and records a failure to reproduce as a finding. |
+| F8 | medium | S6 (AC10 repeatability) is an open-ended 'remove the causes the report finds' slice sized M, dependent only on S4, with draft_paths of the whole app/features/rhythm/ folder. Known candidates from the plan itself (AudioContext start offset, AGC warm-up, wall-clock vs track time, state carried over when re-selecting in one page) can each touch the audio engine, not just rhythm. AC10 numbers (40 ms, 5 percent of a loop, 2 s lock spread) are a planner-assumption (D9) with analysis already about 100 ms behind real time, and the plan treats them as pass/fail ACs while K7 admits they may be unreachable. Q2 is non-blocking though S6 cannot finish without an answer. | Changed: S7 is conditional and sized at the S3 review, AC10 targets are confirmed there, and its paths include the audio engine. Q2 stays non-blocking because the plan answers it at that review. |
+| F9 | medium | AC6 and the regression metric rely on 'any dataset run before and after' with npm run eval:rhythm, but the plan does not say which labelled datasets exist in the repo or on the user's machine. If the only labelled data is the one .debug-in file, eval:rhythm cannot detect the kickless-music regression named in K5 or the slower new-tempo reporting in K4. The 'no later than today' crossfade criterion has no named test fixture either. | Changed: findings must name the eval datasets, and S4 adds kickless and crossfade fixtures named in AC6. |
+| F10 | low | C3 changes the meaning of state.bpm and beatPhase for every reader, including the on-screen RhythmStats readout and cubes' downbeatCount (stated in the design), yet only S7 checks other visualizers, after all behaviour changes have merged. The move of bassPulse and the gate (S7) comes after S4-S6 edit the same area, creating avoidable merge churn, and C4 'current behaviour' is not tested by any named spec. | Changed: the pure rename is now S1, and cubes and trio-color-wave are checked in S6 and S8. |
+
+## Hand-off
+
+A verified-diamond draft DAG with 8 task(s) and 4 contract(s) to freeze first is embedded in plan.json under `handoff.verified_diamond` (plan hash `dc1e7b009a1176ea`).

@@ -1,0 +1,1456 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "audio-engine-alignment-20261113t151328z-48208a83",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-13T15:13:28.793Z",
+  "updated": "2026-11-13T15:26:28.215Z",
+  "feature": {
+    "slug": "audio-engine-alignment",
+    "title": "Audio engine music alignment research",
+    "request": "<task>\n-research how we can make the audio engine work better\n</task>\n\n<context>\n-currently the audio data processing isnt aligning well to music\n-we have done multiple passes to try and align it with our tracks in /debug-in, and improved it, but it still isnt aligning to audio the way youd expect a visualizer to\n</context>\n\n<requirements>\n-research tweaks to existing data processing\n-research new data processors we can use\n-research additional hooks that will help us 'lock in' to specific audio data and visualize it\n</requirements>\n\n<scope-and-non-goals>\n-this should not include accepting new audio sources, we will leave that alone\n</scope-and-non-goals>\n\n<verification>\n-we have found the root cause of inconsistencies and issues with audio analysis\n-we have found solutions to these problems\n</verification>"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6"
+  },
+  "problem": {
+    "statement": "Visualizers do not track the music the way a listener expects: the beat pulse locks to the wrong tempo or drifts, hits are missed or fire on non-events, and motion follows loudness without telling musical parts apart. Several tuning passes against the debug tracks improved results but did not find the cause, because alignment itself (beat times, onset times, audio-to-pixel delay) has never been measured against ground truth, and analysis is split between a shared rhythm tracker and separate per-visualizer spectrum code that reads one shared, mutable analyser.",
+    "users": [
+      "People watching a visualizer react to their own music",
+      "The developer tuning analysis and building new visualizers"
+    ],
+    "evidence": [
+      "User report: symptoms are wrong or drifting beat, misses or false hits, and flat non-musical motion, and they vary from visualizer to visualizer",
+      "docs/agents/rhythm-stability-results.md: syncopation-no-kick holds 180 for a 135 track; lonley locked 187.5 for 140 in 2 of 3 plays with the gate opening after 9.1 s; syncopationbass rebuilds the grid 196 to 98 near 29 s. The wrong locks are 4:3 and 2:1 ratios of the true tempo",
+      "Same doc: live lock takes about 5 s for tempo and 11-13 s for meter; offline tempo accuracy 66.7 to 83.3 percent; the bass gate opens on 4 of 5 random patterns; summer2000 clip repeat spread 0.463 against a 0.05 target",
+      "audioEngine.ts creates the shared analyser with Web Audio defaults (smoothing 0.8, -100 to -30 dB); cubes sets smoothing 0.5, trio-color-wave sets -90 to -20 dB, bass-ink sets only fftSize, so what one visualizer reads depends on which was opened before it",
+      "Rhythm features are posted in batches of 8 frames (80 ms) and analysis runs about 100 ms behind; baseLatency and outputLatency are displayed but never compensated",
+      "devTelemetry.ts records bass from its own analyser (FFT 4096, smoothing 0), which is not the input BassPulse or the visualizers actually use",
+      "Not measurable today: beat times against ground truth, onset timing, end-to-end audio-to-pixel latency",
+      "Each visualizer computes its own bands (cubes bands.ts, bass-ink spectrumField.ts and motionClock.ts, trio-color-wave config); only BassPulse and the bass gate are shared"
+    ]
+  },
+  "goals": [
+    "Name the root causes of misalignment with a measured verdict for each hypothesis, not a guess",
+    "Make alignment measurable: beat-time error, onset hit and false-hit rate, and reaction delay per visualizer, on the debug tracks and on synthetic tracks with exact known times",
+    "Build one shared audio analysis hub that computes every feature once (band energy, per-band onsets for kick, bass, snare and highs, beat and bar phase with confidence, section changes), time-stamped in audio time, from which each visualizer takes what it wants, so new visualizers do not re-derive analysis",
+    "Put immediate hit reaction first: per-band onsets must work from the first second and without a tempo lock; the beat grid is an enhancement on top",
+    "Fix the confirmed causes in the existing processing (analyser configuration, latency handling, tempo ratio errors, lock time)",
+    "Evaluate new processors (onset detection per band, alternative tempo trackers, candidate libraries) against the same measurements",
+    "Audit how each visualizer presents the analysis (smoothing, catch-up, thresholds), fix presentation-side lag separately from analysis-side error, and move visualizers onto the hub"
+  ],
+  "non_goals": [
+    "Accepting new audio sources or changing the source picker",
+    "Redesigning how any visualizer looks beyond its reaction timing and mapping",
+    "Upgrading three.js or other pinned dependencies",
+    "Server-side or offline pre-analysis of tracks for production use; everything stays live and client-side",
+    "Adopting a library or model without a measured win over the hand-written pipeline"
+  ],
+  "success_metrics": [
+    "Every listed hypothesis has a verdict (confirmed, rejected, minor or not measurable with the reason) backed by a number from a recorded run",
+    "All six debug tracks lock to the labelled tempo within 2 percent, with no 4:3 or 2:1 lock held past 10 s",
+    "On synthetic tracks: median beat-time error within 20 ms and per-band onset F-measure at least 0.9 at 50 ms, also reported at 20 ms",
+    "On tapped real tracks: beat error and tempo are reported next to the measured tap-noise floor; there is no onset F target on real tracks because they have no onset ground truth",
+    "Harness click-track reaction offset within 30 ms plus one frame, with the display delay at 0 ms",
+    "What a visualizer reads does not depend on which visualizer was opened before it",
+    "No visualizer keeps private band-energy or onset derivation that the hub provides; raw-spectrum consumers keep their own analyser",
+    "No regression on the tracks that pass today (imyourgirl, syncopationbass2, summer2000)"
+  ],
+  "constraints": [
+    "Client-side only, Web Audio API; no server",
+    "No per-frame allocation; logic outside React; named exports; reuse useAnalyser and useRhythm (AGENTS.md)",
+    "Worklet stays a thin shell with analysis in pure modules",
+    "Coverage stays at 95 percent; bundle budget in .size-limit.json is 329 kB total JS and 133 kB entry, raised only on purpose with the reason stated",
+    "No DSP or ML dependency exists today; a new one needs a measured win. essentia.js is AGPL-3.0, which is a licensing constraint to weigh",
+    "Uncommitted bass-ink work on feat/bass-ink touches per-visualizer analysis and must not be clobbered",
+    "Debug tracks are local files; ground-truth annotations must be creatable without shipping the audio"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "synthetic click and drum tracks with exact known beat and per-band onset times, and the debug tracks with tapped beat sidecar files",
+      "when": "the offline evaluation and the live harness summary are run on a track",
+      "then": "each reports beat-time error in ms (median and p95), tempo ratio to the label and lock time for every track, per-band onset precision, recall and F-measure at 20 ms and 50 ms for synthetic tracks only, and the tap-noise floor (spread of repeated taps on a click track) beside every tapped-track figure"
+    },
+    {
+      "id": "AC2",
+      "given": "the list of root-cause hypotheses (shared analyser state, smoothing, AGC, batching and latency, tempo ratio errors, slow lock, gate false opens, per-visualizer duplication, presentation lag)",
+      "when": "the diagnosis slice is complete",
+      "then": "a findings document gives each hypothesis a verdict with the measurement and track it came from, and ranks the confirmed causes by measured effect"
+    },
+    {
+      "id": "AC3",
+      "given": "two visualizers that want different analyser settings",
+      "when": "they are opened one after the other in either order",
+      "then": "a unit test shows each consumer's node carries exactly the settings it declares and no consumer can change another's node or the engine's fixed tap, and an offline deterministic run gives band energy within 1 dB in both orders"
+    },
+    {
+      "id": "AC4",
+      "given": "a click track with known click times played through the dev harness with the display delay at 0 ms",
+      "when": "a visualizer's onset reaction is recorded from scene state",
+      "then": "the median offset between click and reaction in track time is reported and is within 30 ms plus one animation frame, with the frame-quantisation allowance stated"
+    },
+    {
+      "id": "AC5",
+      "given": "the six debug tracks and their labelled tempos",
+      "when": "each is played live three times and evaluated offline",
+      "then": "every play locks within 2 percent of the label with no 4:3 or 2:1 lock held past 10 s, the three currently passing tracks still pass, and median beat error is within 20 ms on the synthetic tracks"
+    },
+    {
+      "id": "AC6",
+      "given": "a visualizer that needs band energy, band onsets, beat phase or beat confidence",
+      "when": "it reads them from the shared analysis hub",
+      "then": "the values carry audio-time stamps, are computed once for all consumers, onsets are available without a tempo lock, and every visualizer's private band-energy and onset derivation is replaced by hub reads, where each migration passes the migration check: click-track reaction offset not worse than its baseline by more than 10 ms and synthetic-drum onset F not lower. Visualizers that need a raw or fine spectrum keep a per-consumer analyser for that only"
+    },
+    {
+      "id": "AC7",
+      "given": "every visualizer in the landing list",
+      "when": "the presentation audit is complete",
+      "then": "a table lists for each its analysis inputs, its smoothing and catch-up time constants and its measured reaction delay, and each delay above the stated target has a fix or a recorded reason"
+    },
+    {
+      "id": "AC8",
+      "given": "a candidate processor or library",
+      "when": "it is compared with the current pipeline on the AC1 measurements",
+      "then": "it is adopted only if it wins by the stated margin, and the decision with its numbers, bundle cost and licence is recorded"
+    },
+    {
+      "id": "AC9",
+      "given": "production capture, where the listener hears the source directly and the page cannot observe when sound reaches them",
+      "when": "the timing slice is complete",
+      "then": "the findings document gives a capture-delay estimate for tab capture and for an input device with the method used (loopback recording of a click against the captured stream), or states it could not be measured, and a user sync offset setting exists as the fallback; no production latency figure is claimed as guaranteed"
+    },
+    {
+      "id": "AC10",
+      "given": "the hub and the reference migration are merged",
+      "when": "a developer reads the add-visualizer skill, architecture and conventions docs",
+      "then": "they describe the hub as the way to get audio features, with the snapshot fields and when a private analyser is still appropriate"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "What does the plan deliver?",
+      "answer": "A measured diagnosis first, then ordered fix slices; later slices stay conditional on what the measurements show",
+      "decided_by": "user",
+      "rationale": "Earlier passes improved things without finding the cause"
+    },
+    {
+      "id": "D2",
+      "question": "Does the audit cover only analysis, or also presentation?",
+      "answer": "Both: how the audio is analysed and how each visualizer presents it",
+      "decided_by": "user",
+      "rationale": "Symptoms vary from visualizer to visualizer"
+    },
+    {
+      "id": "D3",
+      "question": "Are new runtime dependencies allowed?",
+      "answer": "Only when the evaluation shows a clear win; the size budget is then raised on purpose",
+      "decided_by": "user",
+      "rationale": "Hand-written DSP stays the default"
+    },
+    {
+      "id": "D4",
+      "question": "Are new audio sources in scope?",
+      "answer": "No",
+      "decided_by": "user",
+      "rationale": "Stated in the request"
+    },
+    {
+      "id": "D5",
+      "question": "Is there one analyser configuration all visualizers share?",
+      "answer": "No. The engine leaves the shared analyser at defaults and visualizers overwrite fftSize, smoothing and dB range on it",
+      "decided_by": "repo-fact",
+      "rationale": "audioEngine.ts, useCubesScene.ts, trioColorWaveConfig.ts, useBassInkScene.ts"
+    },
+    {
+      "id": "D6",
+      "question": "What are the numeric targets?",
+      "answer": "Stricter than first proposed: tempo within 2 percent, median beat error within 20 ms, onset F-measure 0.9 at 50 ms, reaction offset within 30 ms after compensation",
+      "decided_by": "user",
+      "rationale": "User chose the stricter targets; this may need more tracker work or a library, which D3 allows when measured"
+    },
+    {
+      "id": "D7",
+      "question": "How is ground truth made?",
+      "answer": "Synthetic click and drum tracks with exact times, plus a dev-only tap-along tool that saves beat sidecars for the real debug tracks",
+      "decided_by": "user",
+      "rationale": "Exact where it matters and cheap for real tracks"
+    },
+    {
+      "id": "D8",
+      "question": "Which comes first, hit reaction or beat grid?",
+      "answer": "Hit reaction first; the beat grid is an enhancement on top",
+      "decided_by": "user",
+      "rationale": "Onsets work from the first second and on music without a steady tempo"
+    },
+    {
+      "id": "D9",
+      "question": "What is the end state for analysis code?",
+      "answer": "One solid audio analysis hub that visualizers take what they want from, so analysis is not reinvented per visualizer",
+      "decided_by": "user",
+      "rationale": "Stated at the framing checkpoint"
+    },
+    {
+      "id": "D10",
+      "question": "Does the app play the captured audio itself, so that AudioContext output latency applies to what the listener hears?",
+      "answer": "No in production: audioEngine.ts only feeds the captured stream into gain and analysers and never connects to context.destination. Only the dev file source (devFileSource.ts) plays through the destination. The listener hears the original source, so the delay to compensate is capture plus analysis delay, not outputLatency, and the dev harness has a different timing path from production",
+      "decided_by": "repo-fact",
+      "rationale": "Search for destination connections in app/: only devFileSource.ts line 42"
+    },
+    {
+      "id": "D11",
+      "question": "Is a deliberate display delay (look-ahead) part of the design?",
+      "answer": "Only as a measured experiment with a default of 0 ms. Keep rule: adopt only if synthetic onset F rises by at least 0.05 or median beat error falls by at least a quarter, and the added delay is 80 ms or less; AC4 is always reported at 0 ms",
+      "decided_by": "planner-assumption",
+      "rationale": "D8 puts immediate hit reaction first, and the capture delay already makes the picture late; adding more delay must earn its place"
+    },
+    {
+      "id": "D12",
+      "question": "Where do the strict targets (20 ms beat error, onset F 0.9) apply?",
+      "answer": "As pass or fail gates on synthetic tracks, where ground truth is exact. Real tracks are reported with the tap-noise floor and gated on tempo and lock only",
+      "decided_by": "planner-assumption",
+      "rationale": "Critic F1 and F5: taps are noisier than 20 ms and real tracks have no onset annotations, so a real-track gate could never be shown to pass or fail"
+    },
+    {
+      "id": "D13",
+      "question": "Do the new hub bands replace the worklet's existing three-band flux?",
+      "answer": "No. The worklet already computes three-band flux (kick, mid, high) in a packed frame that the tracker, eval scripts, replay fixtures and tests consume. The hub bands and onset events are an additional output in a versioned message; the tracker's input is unchanged until S6 changes it on purpose",
+      "decided_by": "repo-fact",
+      "rationale": "rhythmConfig.ts BAND_COUNT 3 and FRAME_STRIDE, per the critic's reading of the code"
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Extend the existing worklet, RhythmTracker and eval scripts into a thin AudioHub (per-band onsets from the existing flux features, audio-time stamps, engine-owned analyser config) and migrate visualizers onto it, with no new dependency.",
+      "approach": [
+        "Measure first: add synthetic click/drum WAV generator plus tap sidecar JSON to scripts/eval:rhythm; report beat error median/p95, tempo ratio, lock time, per-band onset P/R/F at 50 ms; extend debug:summary to print the same live; write findings doc with verdict per hypothesis.",
+        "Analyser: audioEngine owns one analyser at a fixed config and hands each visualizer its own private AnalyserNode (createAnalyser per consumer, settings applied once) so order cannot matter; telemetry reads the same node config.",
+        "Latency: stamp each worklet batch with its audio frame time (currentTime of frame start); hub subtracts the known 80 ms batch and window delay and adds outputLatency (guarded when missing, Safari) to get audible time; reduce BATCH_FRAMES to 2 if the click offset needs it.",
+        "Onsets: add per-band spectral flux with adaptive-median peak picking in the existing pure rhythm extractor (kick, bass, snare, highs), emitted without tempo lock.",
+        "Tempo: add a metrical-ratio score (2:1, 4:3, 3:2) with a perceptual prior to RhythmAnalyzer; tune against eval until 2 percent target; keep BassPulse gate unless eval shows false opens.",
+        "Hub: audioHub.ts composes RhythmTracker, onsets and band energy into one frame snapshot (preallocated); useAudioHub wraps useRhythm; migrate cubes, bass-ink, trio-color-wave off private bands/onsets; update add-visualizer skill and architecture doc.",
+        "Presentation audit table from the harness per visualizer; fix time constants above target."
+      ],
+      "components": [
+        {
+          "name": "audioHub",
+          "responsibility": "Single per-frame feature snapshot with audio-time stamps",
+          "location": "app/features/audio/audioHub.ts"
+        },
+        {
+          "name": "bandOnsets",
+          "responsibility": "Per-band flux onset picking, lock independent",
+          "location": "app/features/rhythm/bandOnsets.ts"
+        },
+        {
+          "name": "eval ground truth",
+          "responsibility": "Synthetic tracks, sidecars, metrics",
+          "location": "scripts/ (eval:rhythm extension)"
+        },
+        {
+          "name": "per-consumer analyser",
+          "responsibility": "Declared settings per visualizer",
+          "location": "app/features/audio/audioEngine.ts"
+        }
+      ],
+      "contracts": [
+        "AudioHubFrame { audioTime, bands[], onsets[band]{time,strength}, beatPhase, barPhase, confidence }",
+        "audioEngine.createAnalyser(settings) returns an isolated AnalyserNode",
+        "Sidecar JSON: { beats: number[], tempo: number }",
+        "Worklet message adds frameTime (audio seconds)"
+      ],
+      "pros": [
+        "Reuses worklet, tracker, BassPulse, harness; no dependency or bundle raise",
+        "Measurement lands first and gates each later change",
+        "Onsets ship before the beat grid, per D8"
+      ],
+      "cons": [
+        "Hand-written tempo scoring may miss 2 percent on syncopation-no-kick; library fallback deferred",
+        "Per-consumer analysers cost extra FFTs rather than one shared one",
+        "Coverage 95 percent needs tests for every new pure module"
+      ],
+      "risks": [
+        "outputLatency unreliable on Safari",
+        "bass-ink uncommitted files conflict on migration",
+        "Per-band flux on 10 ms hop may false-fire on noisy highs"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 3,
+        "effort": 2,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 3.5
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Build one worklet-side, audio-time-stamped feature pipeline (the hub) fed by an engine-owned fixed-config analysis tap, with an explicit latency model and a ground-truth regression suite that gates every later change.",
+      "approach": [
+        "Slice 1, measure first: pure offline evaluator (scripts/eval) plus synthetic click/drum generators and a dev tap-along tool writing sidecars (*.beats.json, gitignored audio); report beat error median/p95, tempo ratio, lock time, per-band onset P/R/F at 50 ms; findings doc with a verdict per hypothesis.",
+        "Slice 2, isolate settings: audioEngine owns a fixed hub tap (FFT 2048, smoothing 0, fixed dB range, pre-AGC or AGC-gain-logged). Visualizers request a private AnalyserNode via useAnalyser({fftSize,smoothing,minDb,maxDb}) wired to the gain node, so reads never depend on open order (AC3).",
+        "Slice 3, hit reaction: extend the existing worklet pure module with per-band log-magnitude spectral flux (kick, bass, snare, highs), adaptive-median threshold peak picking, no tempo needed; emit events with frame time in audio-clock seconds (currentTime of the window centre).",
+        "Slice 4, latency model: LatencyModel = window centre offset + batch delay + baseLatency + outputLatency (getOutputTimestamp where reliable, calibrated constant for Safari); hub exposes audibleTime-aligned reads; click-track harness measures residual offset and documents it (AC4).",
+        "Slice 5, tempo: add a comb-filter or integer-ratio scoring stage with perceptual prior over the flux curve; evaluate against current tracker, plus gate on onset density rather than bass scatter; adopt a library only on a measured win and AGPL review (AC5, AC8).",
+        "Slice 6, hub contract and migration: AudioHub snapshot read per frame with no allocation; migrate cubes, bass-ink, trio-color-wave off private band/onset code one at a time, each gated by the eval suite; update add-visualizer skill and architecture doc (AC6, AC7).",
+        "CI: eval suite with synthetic tracks runs in vitest; real-track sidecar checks run locally via npm script."
+      ],
+      "components": [
+        {
+          "name": "AudioHub",
+          "responsibility": "Single feature snapshot: band energy, band onsets, beat/bar phase, confidence, section change, all audio-time stamped",
+          "location": "app/features/audio/hub/"
+        },
+        {
+          "name": "OnsetExtractor",
+          "responsibility": "Per-band spectral flux and peak picking, pure module called by the worklet",
+          "location": "app/features/rhythm/onsets.ts"
+        },
+        {
+          "name": "LatencyModel",
+          "responsibility": "Maps audio time to audible time, reports residual",
+          "location": "app/features/audio/latencyModel.ts"
+        },
+        {
+          "name": "Eval harness",
+          "responsibility": "Ground truth generators, sidecars, metrics, regression thresholds",
+          "location": "scripts/eval/, app/features/rhythm/eval/"
+        },
+        {
+          "name": "Analyser factory",
+          "responsibility": "Per-consumer analyser with declared settings",
+          "location": "app/features/audio/useAnalyser.ts, audioEngine.ts"
+        }
+      ],
+      "contracts": [
+        "AudioHubSnapshot { t: number; bands: Float32Array; onsets: {band, time, strength}[] ring; beat: {phase, bar, confidence, tempo}|null; section: number }",
+        "useAnalyser(options: {fftSize, smoothing, minDb, maxDb}) returns a dedicated node",
+        "Beat sidecar: {track, beats: number[] seconds, tempo, offsetMs}",
+        "Worklet message adds frameTime and onset events"
+      ],
+      "pros": [
+        "Fixes the cause class (shared mutable analyser, duplicated analysis, uncompensated latency) structurally",
+        "Every change is gated by ground truth",
+        "Onsets independent of lock",
+        "Clear contract for new visualizers"
+      ],
+      "cons": [
+        "Largest effort; touches every visualizer",
+        "Per-consumer analysers add small CPU cost",
+        "Contradicts nothing decided, but defers visible gains to slices 3-4"
+      ],
+      "risks": [
+        "Migration may regress bass-ink uncommitted work; rebase after it lands",
+        "outputLatency inconsistent on Safari",
+        "Hitting 20 ms median and F 0.9 may need a library",
+        "Coverage 95 percent and bundle budget pressure"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Stop chasing causal low-latency analysis: render every visualizer on a fixed, calibrated display delay (about 80 ms) so onset picking and beat scoring can use a short look-ahead window, make per-band onsets the primary hub signal and derive the grid only from onset history.",
+      "approach": [
+        "Repo check: audioEngine.ts never connects to context.destination (only getDisplayMedia/getUserMedia into gain and analysers), so the app cannot delay the sound the listener hears. Delaying the audio is impossible; delaying the picture is possible. The assumption broken is that features must be ready at the instant the sound is heard.",
+        "Hub keeps a ring of per-band flux in audio time. Features for audio time t are finalised at t + LOOKAHEAD (default 80 ms, 8 hops) and consumed by visualizers at renderTime = audioNow - LOOKAHEAD - outputLatency.",
+        "Onsets: per-band spectral flux with a centred adaptive threshold (median plus mean over +/-3 frames) and local-maximum check over +/-3 frames. This is the non-causal picker that live causal code cannot use; no tempo lock needed, works from second one.",
+        "Grid: replace the hand-tuned tracker's input with the onset-strength history. Score integer ratios (1/2, 2/3, 3/4, 1, 4/3, 3/2, 2) against a perceptual prior with a comb bank over the last 6 s, and re-fit phase retrospectively, so 4:3 and 2:1 locks lose to the true tempo.",
+        "Calibrate LOOKAHEAD plus constant offset with a click-track tap test in the dev harness; store in settings, expose as a slider. AC4 is measured on render-time-shifted reactions.",
+        "Move analyser settings into hub-owned fixed configuration; visualizers read hub features only (AC3, AC6).",
+        "Keep the existing tracker behind a flag until eval:rhythm shows the new path wins (AC8)."
+      ],
+      "components": [
+        {
+          "name": "AnalysisHub",
+          "responsibility": "Owns the analyser config, band flux ring, lookahead-delayed feature timeline, audio-time stamps",
+          "location": "app/features/analysis/analysisHub.ts"
+        },
+        {
+          "name": "LookaheadOnsetPicker",
+          "responsibility": "Centred adaptive threshold peak picking per band",
+          "location": "app/features/analysis/onsetPicker.ts"
+        },
+        {
+          "name": "OnsetGridTracker",
+          "responsibility": "Tempo ratio scoring and phase fit from onset history",
+          "location": "app/features/analysis/gridFromOnsets.ts"
+        },
+        {
+          "name": "DisplayClock",
+          "responsibility": "Maps frame time to audio time minus lookahead and output latency; calibration offset",
+          "location": "app/features/analysis/displayClock.ts"
+        }
+      ],
+      "contracts": [
+        "hub.read(renderTime): { bands, onsets[band] events with audioTime, beatPhase, beatConfidence, section }",
+        "DisplayClock.renderAudioTime(): audioNow - lookaheadMs - outputLatency - calibrationMs",
+        "Settings: displayDelayMs (default 80, range 0-200)"
+      ],
+      "pros": [
+        "Non-causal picking raises onset F-measure without new dependencies",
+        "Ratio errors fixed at the source, with a smaller tracker to maintain",
+        "One calibrated constant makes AC4 measurable and honest",
+        "Ring plus lookahead removes the batch-of-8 jitter"
+      ],
+      "cons": [
+        "Every reaction is 80 ms or more late versus what is heard; visuals lag sound",
+        "Cannot improve the first-second response below the lookahead",
+        "Rewrites the tracker, which is larger than tuning it and risks the three passing tracks",
+        "Goal D8 'immediate' is bent: hits are prompt but not instant"
+      ],
+      "risks": [
+        "Perceptual tolerance: visual lag past about 100 ms feels late (mitigate: 60-80 ms default and the slider)",
+        "Live capture latency varies by source and browser; outputLatency is unreliable on Safari",
+        "Ratio prior may overfit the six debug tracks"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 2,
+        "risk": 2,
+        "effort": 1,
+        "ux": 3,
+        "reversibility": 3
+      },
+      "total": 2.05
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "O2's structure (measurement first, per-consumer analysers, one worklet-side time-stamped feature pipeline, a hub contract, gated migration) with O1's reuse of the existing worklet, tracker and scripts, and two things from O3: the corrected timing model (the app does not play the audio, so capture and analysis delay is what matters) and an optional look-ahead display delay kept as a measured experiment defaulting to 0.",
+      "approach": [
+        "Measure first: synthetic click and drum generators, tapped beat sidecars, beat and per-band onset metrics in eval:rhythm and debug:summary, telemetry that records the signals visualizers actually read",
+        "Run the baseline and write the findings document: one verdict per hypothesis, plus a per-visualizer presentation table",
+        "Isolate analyser settings: each consumer gets its own AnalyserNode with declared settings; the engine no longer exposes a mutable shared one",
+        "Per-band onsets (kick, bass, snare, highs) by spectral flux with adaptive threshold in the existing pure extractor, stamped in audio time, emitted with no tempo lock",
+        "Timing model: stamp every frame with audio time, cut the 80 ms batch, model capture and analysis delay separately for production (no destination) and the dev harness (plays through destination), measure the click offset, and try a 0-80 ms look-ahead as an experiment",
+        "Tempo: score metrical ratios (2:1, 4:3, 3:2) with a tempo prior on the onset-strength curve, shorten lock time, compare with at least one candidate library under the AC8 gate; the current tracker stays until the new path wins",
+        "Hub: one preallocated snapshot per frame (band energy, band onsets, beat and bar phase, confidence, tempo, section change), read through one hook; migrate cubes first as the reference, then the other visualizers, then update the docs and the add-visualizer skill"
+      ],
+      "components": [
+        {
+          "name": "Ground truth and metrics",
+          "responsibility": "Synthetic tracks, sidecars, tap-along tool, beat and onset metrics",
+          "location": "scripts/, app/features/rhythm/eval/"
+        },
+        {
+          "name": "Analyser factory",
+          "responsibility": "Per-consumer analyser with declared settings",
+          "location": "app/features/audio/audioEngine.ts, useAnalyser"
+        },
+        {
+          "name": "Band onset extractor",
+          "responsibility": "Per-band flux and peak picking in audio time",
+          "location": "app/features/rhythm/bandOnsets.ts"
+        },
+        {
+          "name": "Timing model",
+          "responsibility": "Maps feature time to render time; production and harness paths",
+          "location": "app/features/audio/timingModel.ts"
+        },
+        {
+          "name": "AudioHub",
+          "responsibility": "Single per-frame feature snapshot for all visualizers",
+          "location": "app/features/audio/hub/"
+        }
+      ],
+      "contracts": [
+        "BeatSidecar file",
+        "EvalReport metrics",
+        "Worklet feature message with frameTime and onset events",
+        "useAnalyser(options) returns a dedicated node",
+        "AudioHubSnapshot",
+        "TimingModel"
+      ],
+      "pros": [
+        "Fixes the cause classes structurally: unmeasured alignment, shared mutable analyser, duplicated analysis, batching delay, ratio locks",
+        "Every later slice is gated by ground truth, so no more blind passes",
+        "Hit reaction ships before the grid work, per D8",
+        "Does not compensate with outputLatency in production, which would be wrong for this app",
+        "Look-ahead is available if it measures well, without committing to late visuals"
+      ],
+      "cons": [
+        "Large: eight slices and every visualizer is touched",
+        "Per-consumer analysers cost extra FFTs",
+        "The strict targets (20 ms, F 0.9) may still need a library, decided only at the tempo slice"
+      ],
+      "risks": [
+        "Capture delay differs by source and browser and cannot be read from an API",
+        "Migration collides with the uncommitted bass-ink work",
+        "Tapped beats carry the tapper's own timing error"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 4
+      },
+      "total": 3.75
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O4 keeps O2's structural fixes and regression gate, which address why earlier passes did not converge, while reusing the existing worklet, tracker and scripts as O1 does. It takes O3's repository finding that the app never plays the audio, which makes outputLatency compensation (proposed by O1 and O2) wrong for production, and keeps O3's look-ahead only as an experiment because D8 asks for immediate reaction. O3 alone rewrites the tracker and commits to late visuals; O1 alone leaves the hub thin and the tempo fix without a fallback.",
+  "design": {
+    "overview": "Two stages. Stage one makes alignment measurable and produces a findings document with a verdict per hypothesis. Stage two fixes what the measurements confirm, in an order that puts hit reaction first, and ends with one AudioHub that every visualizer reads. The worklet stays the single place where audio is analysed at a fixed rate: it emits per-frame band energy and per-band onset events stamped with audio time. The main thread turns those into a preallocated snapshot each animation frame using a timing model, and the rhythm tracker consumes the same onset-strength curve. Visualizers that still need a raw spectrum get a private analyser with their own settings. Slices after the diagnosis are conditional: a hypothesis the baseline rejects drops its fix, recorded in the findings document.",
+    "components": [
+      {
+        "name": "Synthetic track generator",
+        "responsibility": "Writes click and drum-pattern WAVs with exact beat and per-band onset times and matching sidecars, including 4:3 and 2:1 trap patterns, a no-kick pattern and several tempos",
+        "location": "scripts/ground-truth/"
+      },
+      {
+        "name": "Tap-along tool",
+        "responsibility": "Dev-only harness mode that plays a debug track and saves tapped beats as a sidecar, with a constant tap-offset correction and a tap-noise floor estimated from a click track",
+        "location": "dev-only module next to app/features/audio/devFileSource.ts, scripts/"
+      },
+      {
+        "name": "Alignment metrics",
+        "responsibility": "Pure functions: beat error median and p95, tempo ratio, lock time, onset precision, recall and F-measure at a tolerance",
+        "location": "app/features/rhythm/eval/"
+      },
+      {
+        "name": "Harness instrumentation",
+        "responsibility": "Dev-only: records each visualizer's reaction value from scene state with track time, records the signals visualizers actually read, and offers an AGC bypass switch for ablations",
+        "location": "app/features/audio/devTelemetry.ts and the debug harness scripts"
+      },
+      {
+        "name": "Engine analysis tap",
+        "responsibility": "One engine-owned analyser with fixed configuration that nothing outside the engine may change; the rhythm worklet, the hub and telemetry attach to it; recreated by the engine for each new AudioContext",
+        "location": "app/features/audio/audioEngine.ts"
+      },
+      {
+        "name": "Analyser factory",
+        "responsibility": "Creates one AnalyserNode per consumer with declared settings; the owning consumer may change its own node's settings at runtime (trio-color-wave controls do); the engine recreates consumer nodes on source change and frees them on release, stable under StrictMode double-mount",
+        "location": "app/features/audio/audioEngine.ts and its React binding"
+      },
+      {
+        "name": "Band onset extractor",
+        "responsibility": "Additional worklet output: hub band energy and per-band onset events by log-magnitude spectral flux with an adaptive median threshold; a longer window for the low bands if 1024 points cannot separate kick from bass",
+        "location": "app/features/rhythm/bandOnsets.ts, called by the worklet extractor"
+      },
+      {
+        "name": "Timing model",
+        "responsibility": "Feature time to render time: window centre, hop, batch and capture delay; separate constants for production capture and the dev file source; optional display delay and user sync offset",
+        "location": "app/features/audio/timingModel.ts"
+      },
+      {
+        "name": "Tempo ratio scoring",
+        "responsibility": "Scores metrical-ratio rivals with a tempo prior on the onset-strength curve and shortens lock",
+        "location": "app/features/rhythm/rhythmAnalyzer.ts and rhythmConfig.ts"
+      },
+      {
+        "name": "AudioHub",
+        "responsibility": "Composes band energy, onsets, beat state and section change into one snapshot; owns no React state",
+        "location": "app/features/audio/hub/"
+      },
+      {
+        "name": "useAudioHub",
+        "responsibility": "Thin hook returning the hub for a scene to read through a ref each frame",
+        "location": "app/features/audio/hub/"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "BeatSidecar",
+        "kind": "file format",
+        "definition": "JSON next to a track: { track, tempo, beats: seconds[], onsets: { kick: seconds[], bass: seconds[], snare: seconds[], highs: seconds[] } optional, source: synthetic or tapped, tapOffsetMs }. Audio files stay local and gitignored; synthetic sidecars and generators are committed."
+      },
+      {
+        "id": "C2",
+        "name": "EvalReport",
+        "kind": "data shape",
+        "definition": "Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+      },
+      {
+        "id": "C3",
+        "name": "WorkletFeatureMessage",
+        "kind": "message",
+        "definition": "Versioned batch message. The existing packed three-band frame the tracker consumes is unchanged. Added beside it: frameTime (audio-clock seconds of each frame's window centre), hub band energy per frame, and onset events { band, time, strength }. Replay fixtures and eval scripts are updated for the new version in the same slice. Batch size becomes a config value measured in S5."
+      },
+      {
+        "id": "C4",
+        "name": "Analyser request",
+        "kind": "API",
+        "definition": "Two parts. engine.getAnalyser() and useAnalyser() with no options keep returning the engine-owned tap, now with fixed settings that callers must not set (the tracker, hub, telemetry and source panel read it). useAnalyser(options: { fftSize, smoothingTimeConstant, minDecibels, maxDecibels }) returns a node owned by that consumer, which may change its own settings later; BassPulse and every visualizer that sets analyser properties move to an owned node. The engine recreates owned nodes when the source and its AudioContext change."
+      },
+      {
+        "id": "C5",
+        "name": "AudioHubSnapshot",
+        "kind": "API",
+        "definition": "Preallocated, updated in place by hub.update(renderTime): { time, bands: Float32Array (sub, kick, bass, lowMid, mid, highs), onsets: per-band { lastTime, strength, sinceSeconds, count }, beat: { phase, barPhase, tempo, confidence, locked }, section: { changeCount, lastChangeTime } }. Onset fields are valid without a tempo lock."
+      },
+      {
+        "id": "C6",
+        "name": "TimingModel",
+        "kind": "API",
+        "definition": "renderTime(audioNow) = audioNow - displayDelayMs - userSyncOffsetMs; featureDelay = window centre + hop + batch + captureDelay(source kind). captureDelay for the dev file source is measured in the harness and uses outputLatency there only. For production capture it is an estimate from a loopback recording, or zero with the user sync offset when it cannot be measured."
+      }
+    ],
+    "data": "No persisted user data. Sidecars and synthetic generators live in the repository; debug audio stays local. An optional display delay setting, if adopted, goes through the existing storage module.",
+    "ux": "Viewers see no new controls unless the look-ahead experiment is adopted, in which case one sync offset control is added to the existing ControlPanel. The developer gets one documented hub to read from when building a visualizer.",
+    "accessibility": "No new UI by default. Reaction changes must not introduce full-screen flashing faster than three per second; the presentation audit checks onset-driven effects against that.",
+    "security_privacy": "All analysis stays in the browser. No audio or annotations leave the machine. No credentials involved.",
+    "observability": "Dev telemetry CSV gains hub columns (band energy, onset events, beat confidence, feature and render time). debug:summary prints the EvalReport. The findings document records baseline and after numbers per slice.",
+    "rollout": "One pull request per slice, each with before and after EvalReport numbers in the description. S1 and S2 change no shipped behaviour. The new tempo scoring sits beside the current tracker and replaces it only when the eval shows a win on all six tracks with no regression. Visualizers migrate one at a time, cubes first; each migration regenerates visual baselines if needed and is checked on the Cloudflare preview. Rollback is a Cloudflare deployment rollback followed by a revert pull request. The uncommitted bass-ink work is committed or merged before any slice touches bass-ink."
+  },
+  "test_strategy": {
+    "unit": "Vitest specs beside each pure module: metrics against hand-computed cases, band onsets against synthetic signals with known event times, timing model arithmetic, ratio scoring on trap patterns (4:3, 2:1, no kick), hub snapshot updated in place with no allocation, analyser factory isolation with the Web Audio fakes. Coverage stays at 95 percent.",
+    "integration": "Synthetic regression suite in vitest runs the worklet extractor and tracker offline over generated tracks and asserts EvalReport thresholds, so later changes cannot regress alignment silently. eval:rhythm runs the same over the local debug tracks with sidecars.",
+    "e2e": "Existing Playwright suite stays green. One added check opens two visualizers in both orders and confirms each gets its declared analyser settings.",
+    "manual": "debug:viz on each debug track three times before and after each slice, compared with debug:repeat; click track through the harness for the reaction offset; one check with real tab capture and one with an input device, since the harness timing path differs from production; watch each visualizer in npm run dev.",
+    "non_functional": "No per-frame allocation in hub reads; worklet CPU measured before and after adding band onsets; bundle size checked with npm run size, and any raise is justified in the pull request."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Capture delay for tab audio and input devices is not exposed by any API and varies by browser and source, so the reaction offset measured in the dev harness (which plays through the destination) does not transfer to production",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "Model the two paths separately; measure production capture with a click played in another tab and with an input device in S5; document the residual constant; keep the optional sync offset as the fallback"
+    },
+    {
+      "id": "K2",
+      "description": "Hand-written tempo scoring does not reach 2 percent on all six tracks or 20 ms beat error",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "AC8 comparison against a candidate library in S6; onsets already give hit reaction without a lock, so a weaker grid degrades gracefully; targets revisited with the user using baseline numbers"
+    },
+    {
+      "id": "K3",
+      "description": "Ratio prior and thresholds overfit the six debug tracks",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Synthetic trap patterns at several tempos in the regression suite; ablate:rhythm on held-out tracks; prefer structural scoring to per-track constants"
+    },
+    {
+      "id": "K4",
+      "description": "Bass-ink was tuned recently and reads a full spectrum; the session's starting git status listed modified bass-ink files and an untracked spectrumField.ts, while the critic found the tree clean with those changes committed. Migration can undo that tuning either way",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Check git status at the start of S3 and S8 and land any uncommitted work first; bass-ink keeps its own analyser for the spectrum and migrates last; re-verify its motion and spectrum feel with debug:viz after migration"
+    },
+    {
+      "id": "K5",
+      "description": "Tapped beats carry human timing error larger than the 20 ms target",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "Estimate and remove the constant tap offset with a click track; use the median across the track; judge the 20 ms target on synthetic tracks and treat tapped tracks as a looser check"
+    },
+    {
+      "id": "K6",
+      "description": "Per-consumer analysers and band onsets raise CPU on low-end machines, and new code pushes the bundle past 329 kB",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Visualizers move to hub features and drop private analysers where they can; measure worklet time; raise the budget only with the reason stated"
+    },
+    {
+      "id": "K7",
+      "description": "Changing reaction timing alters how visualizers look and breaks visual baselines",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Regenerate baselines per migration through the existing workflow and review them in the diff"
+    },
+    {
+      "id": "K8",
+      "description": "Changing the worklet message and frame layout breaks the tracker, replay fixtures and eval scripts, and regresses the three passing tracks",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "Hub output is additive and the message is versioned; the tracker input stays byte-identical in S4, shown by the existing replay fixtures passing unchanged"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Alignment metrics and synthetic ground truth",
+      "objective": "Pure metric functions, synthetic click and drum generators with sidecars, and EvalReport output in eval:rhythm and debug:summary. No shipped behaviour changes.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "scripts/ground-truth/",
+        "app/features/rhythm/eval/",
+        "scripts/"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Baseline and root-cause findings",
+      "objective": "Run the baseline on synthetic and debug tracks, test each hypothesis with ablations (analyser order dependence, smoothing, AGC, batching, ratio locks, lock time, gate false opens, duplication), and write the findings document with verdicts and ranking. Decides Q2 and confirms or drops later slices.",
+      "depends_on": [
+        "S1",
+        "S9"
+      ],
+      "acceptance_refs": [
+        "AC2"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R0",
+      "size": "M",
+      "draft_paths": [
+        "docs/agents/audio-alignment-findings.md",
+        "docs/agents/rhythm-stability-results.md"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Fixed engine tap and per-consumer analysers",
+      "objective": "The engine tap gets fixed settings; a factory gives each consumer an owned node. Every current caller is moved or confirmed: rhythmTracker, BassPulse, devTelemetry, useAudioState, ActiveSourcePanel and the cubes, bass-ink, trio-color-wave and dancing-character pages. Owned nodes survive source changes and StrictMode double-mount.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC3"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/audio/audioEngine.ts",
+        "app/features/audio/",
+        "app/features/rhythm/rhythmTracker.ts",
+        "app/features/rhythm/bassPulse.ts",
+        "app/features/visualizers/cubes/",
+        "app/features/visualizers/bass-ink/",
+        "app/features/visualizers/trio-color-wave/",
+        "app/features/visualizers/dancing-character/",
+        "app/test/",
+        "e2e/"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Per-band onsets as an added worklet output",
+      "objective": "Hub band energy and kick, bass, snare and highs onset events stamped in audio time, emitted without a tempo lock, in a versioned message beside the unchanged tracker frame; replay fixtures and eval scripts updated; synthetic regression specs assert onset F. Starts after Q2 is decided.",
+      "depends_on": [
+        "S1",
+        "S2"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC6"
+      ],
+      "contracts": [
+        "C3"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "app/features/rhythm/bandOnsets.ts",
+        "app/features/rhythm/rhythmProcessor.worklet.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "app/features/rhythm/types.ts",
+        "scripts/rhythm-tools/",
+        "scripts/"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Timing model and reaction offset",
+      "objective": "Frame time stamps drive render-time reads, the batch delay is reduced, the harness click-track offset is brought within target at 0 ms display delay, production capture delay is estimated or declared unmeasurable with a user sync offset as fallback, and the look-ahead experiment is adopted or dropped by the D11 rule.",
+      "depends_on": [
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC4",
+        "AC9"
+      ],
+      "contracts": [
+        "C3",
+        "C6"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/audio/timingModel.ts",
+        "app/features/audio/storage.ts",
+        "app/features/rhythm/rhythmTracker.ts",
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "docs/agents/audio-alignment-findings.md"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Tempo ratio scoring, lock time and candidate comparison",
+      "objective": "Metrical-ratio scoring with a tempo prior on the onset-strength curve, faster lock, a gate that does not open on scattered bass, and a recorded comparison with one candidate library under the adoption gate; the current tracker is replaced only on a measured win.",
+      "depends_on": [
+        "S5"
+      ],
+      "acceptance_refs": [
+        "AC5",
+        "AC8"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "app/features/rhythm/bassPulse.ts",
+        "docs/agents/audio-alignment-findings.md"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "AudioHub contract, reference migration and docs",
+      "objective": "The hub snapshot and hook, cubes migrated off its private band code as the reference and passing the migration check, and the add-visualizer skill, architecture and conventions docs describing the hub.",
+      "depends_on": [
+        "S3",
+        "S5"
+      ],
+      "acceptance_refs": [
+        "AC6",
+        "AC10"
+      ],
+      "contracts": [
+        "C5",
+        "C6"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/audio/hub/",
+        "app/features/visualizers/cubes/",
+        "docs/agents/architecture.md",
+        "docs/agents/conventions.md",
+        ".agents/skills/add-visualizer/SKILL.md"
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "Migrate remaining visualizers and close the audit",
+      "objective": "Every other visualizer reads the hub for band energy and onsets, one pull request per visualizer, each passing the migration check; raw-spectrum consumers keep their owned analyser; each reaction delay above target from the audit is fixed or has a recorded reason. Bass-ink goes last.",
+      "depends_on": [
+        "S6",
+        "S7",
+        "S10"
+      ],
+      "acceptance_refs": [
+        "AC6",
+        "AC7"
+      ],
+      "contracts": [
+        "C5"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "app/features/visualizers/",
+        "e2e/visual.spec.ts-snapshots/",
+        "docs/agents/audio-alignment-findings.md"
+      ]
+    },
+    {
+      "id": "S9",
+      "title": "Tap-along tool and harness instrumentation",
+      "objective": "Dev-only tap-along mode with tap-offset correction and tap-noise floor, tapped sidecars for the six debug tracks, per-visualizer reaction recording from scene state, telemetry of the signals visualizers read, and an AGC bypass switch for ablations.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC1"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/audio/devTelemetry.ts",
+        "app/features/audio/devFileSource.ts",
+        "scripts/"
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Presentation audit",
+      "objective": "For every visualizer in the landing list, record its analysis inputs, smoothing and catch-up time constants and its measured click-track reaction delay as the baseline for the migration check, and list the fixes.",
+      "depends_on": [
+        "S9"
+      ],
+      "acceptance_refs": [
+        "AC7"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R0",
+      "size": "M",
+      "draft_paths": [
+        "docs/agents/audio-alignment-findings.md"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "AGENTS.md and the results doc mention it.fails rhythm specs, but none exist in app/ or scripts/. Were they removed or renamed, and should the docs be corrected?",
+      "owner": "developer, during S2",
+      "blocking": false
+    },
+    {
+      "id": "Q2",
+      "question": "Should the engine tap and the worklet sit before or after the automatic gain control? The worklet takes its input after it today. Decided from the AGC ablation in S2 and recorded before S4 starts; moving it implies retuning thresholds",
+      "owner": "S2 findings; a gate on S4",
+      "blocking": false
+    },
+    {
+      "id": "Q3",
+      "question": "Which candidate library is compared in S6, given that essentia.js is AGPL-3.0?",
+      "owner": "developer, at the start of S6",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "The F-measure 0.9 target for kick and bass onsets 'on the tapped real tracks' (success_metrics) cannot be measured. C1 makes per-band onsets optional in the sidecar and the tap-along tool (D7) records beats only, so real tracks have no kick or bass onset ground truth. A beat tap is not a kick annotation, and syncopated or no-kick tracks have beats with no kick. A 50 ms tolerance is also looser than the 30 ms AC4 target and than the human tap error in K5, so the real-track F would reflect tap noise, not the detector. AC1 only requires reporting the figure, so nothing ever fails.",
+        "suggestion": "Limit the F >= 0.9 gate to synthetic tracks. For real tracks require only the beat-error and tempo metrics against taps, and drop the 'tapped real tracks' clause from the onset target. Or add a separate annotation step for kick onsets, for example by sparse manual labelling of a 20 s excerpt. Report F at 20 ms and 50 ms.",
+        "resolution": "Changed: the onset F 0.9 gate applies to synthetic tracks only and is reported at 20 ms and 50 ms; real tracks are gated on tempo and lock and report beat error beside the tap-noise floor (AC1, success metrics, D12)."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC4 (reaction within 30 ms of the click) is measurable only for the analysis side in the dev harness, which plays through context.destination (devFileSource.ts:42). Production capture delay is not exposed (K1). The plan's measurement of it, 'a click played in another tab and with an input device' (S5), names no external reference. The page cannot observe when sound reached the user's ears, so the number cannot be produced. Per-frame rAF quantisation (about 16.7 ms at 60 fps, 33 ms at 30 fps) also consumes much of a 30 ms budget, and the reaction is probably read from scene state rather than displayed pixels. The criterion therefore passes in the harness while production stays unknown, and the plan's own risk (K1) is rated high. C6 captureDelay is a 'measured constant' with no measurement method.",
+        "suggestion": "Split AC4 into AC4a, analysis-plus-render delay on the click track in the harness (testable, state the frame-quantisation allowance), and AC4b, production capture delay, which is documented as an estimate with an explicit method (loopback recording of a click played in another tab against the captured stream timestamp) or declared unmeasurable and handled by the user sync offset. Do not name 30 ms as a production guarantee.",
+        "resolution": "Changed: AC4 is now the harness measurement at 0 ms display delay with a one-frame allowance; new AC9 covers production capture delay as an estimate with a stated loopback method or a declared gap plus a user sync offset. C6 states where each constant comes from. No production figure is guaranteed."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "design",
+        "finding": "S3 and C4 break existing contracts that the plan does not list. engine.getAnalyser() is used by rhythmTracker.ts:84 (as the source-identity and context signal and as the worklet's input), devTelemetry.ts:213, useAudioState.ts, and the pages for Cubes, BassInk, TrioColorWave, DancingCharacter and ActiveSourcePanel. useAnalyser() is a useSyncExternalStore of that shared node. S3 draft_paths list only cubes, trio-color-wave and the audio folder. rhythmTracker.ts, BassPulse (which sets fftSize and filters off the shared node), the bass-ink and dancing-character pages and ActiveSourcePanel are omitted. 'The engine no longer exposes a mutable shared one' removes the node the tracker is attached to. The per-consumer node must also be re-created for every new AudioContext, because startSource creates a context per source, and be stable under StrictMode double-mount. Neither lifecycle is specified. C4 says 'settings applied once at creation', but trioColorWaveSheet.ts:66,105 changes fftSize and smoothing at runtime from user controls.",
+        "suggestion": "Split the engine API. Keep a read-only engine-owned tap (fixed config, used by the tracker, hub and telemetry) and add a factory for per-consumer nodes. Name every current getAnalyser/useAnalyser caller in S3, including the tracker, bassPulse, bass-ink and dancing-character. Allow setters on the owned node (trio-color-wave) or recreate the node when settings change. Say who recreates nodes on source change.",
+        "resolution": "Changed: the engine keeps a fixed, engine-owned tap for the tracker, hub, telemetry and source panel, and a factory adds owned per-consumer nodes whose owner may change settings at runtime. C4 and S3 now name every caller, the recreate-on-source-change rule and StrictMode stability."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "Slice sizes and ordering understate the work. S1 (L) packs the generators, a tap-along dev tool, the metrics library, eval and debug:summary changes and telemetry. S2 (M) is nine ablations plus a per-visualizer presentation audit (AC7) plus the findings document. Measuring per-visualizer reaction delay needs per-visualizer instrumentation, which S1 does not provide because it covers devTelemetry only. S8 (L) migrates every remaining visualizer, fixes audit findings and regenerates visual baselines. The ablations in S2 also need ways to bypass the AGC and per-consumer analysers, and S1 does not list them. S3 is a small, repo-fact fix (D5, decided_by repo-fact) and the isolation test needs no measurements, yet it is gated behind the full S2. S5 and S6 both edit rhythmAnalyzer.ts and rhythmConfig.ts and share only S4 as a dependency, so they will conflict if run in parallel. S4 needs S2's Q2 answer on whether the tap sits before or after the AGC, yet the worklet takes its input after the AGC today.",
+        "suggestion": "Move the AC7 audit and per-visualizer instrumentation into their own slice or into S8. Add AGC bypass and reaction recording hooks to S1 explicitly. Let S3 depend on S1 only, or start it in parallel. Order S6 after S5 or fix the file ownership. Decide the AGC tap point (Q2) as a gate on S4 and note the retune it implies.",
+        "resolution": "Changed: S1 split into S1 (metrics, generators) and S9 (tap tool, reaction recording, AGC bypass, telemetry); the audit moved to its own slice S10; S3 depends on S1 only; S6 now follows S5 so the two never edit the tracker in parallel; Q2 gates S4; docs moved to S7; S8 is one pull request per visualizer."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "The 20 ms median beat error target cannot be shown on real tracks as designed. The hop is 10 ms and the window is about 21 ms centred at FFT/2, so quantisation alone is up to ±5 ms and the window centre adds latency. Human tap error is larger than 20 ms (K5), and the click-offset correction only removes the constant part, not the variance. The plan defers judging 20 ms to synthetic tracks (K5) but the success_metrics and AC5 still read as a real-track target. The 2:1 and 4:3 trap patterns on synthetic tracks may also be easier than real music, which makes a pass on them weak evidence for K3.",
+        "suggestion": "Restate the 20 ms target as a synthetic-track target with the tapped-track figure reported with its tap-noise estimate. Add a tap-noise floor (the spread of repeated taps on the same click track) to the report so a tapped-track number can be read.",
+        "resolution": "Changed: 20 ms is a synthetic-track gate; tapped-track figures are reported with the tap-noise floor (AC1, AC5, D12). Synthetic patterns cover several tempos; K3 keeps held-out tracks."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "design",
+        "finding": "The plan treats the existing worklet as having no per-band onsets, but it already computes three-band flux (BAND_COUNT 3: kick, mid, high; rhythmConfig.ts:16) and a packed frame layout (FRAME_STRIDE) that the tracker, eval scripts, replay fixtures and tests consume. S4 splits this into kick, bass, snare and highs, with raw band energy and onset events added to the message (C3). That changes FRAME_STRIDE and the FrameBatch message, which cascades through rhythmAnalyzer, replay fixtures (scripts/rhythm-tools) and eval-rhythm. Moving the peak picking into the worklet also changes what tempo analysis sees if the 'same onset-strength curve' is reused. The plan lists none of this and the three passing tracks are at risk. Sub-100 Hz bass versus kick separation at 1024 FFT at 48 kHz (47 Hz bins) is also thin.",
+        "suggestion": "State whether the new bands are an additional output (kept separate from the flux the tracker uses) or a replacement. Version the FrameBatch layout and update replay fixtures in S4. Check that bass and kick can be separated at 1024 points, or use a longer window for the low bands.",
+        "resolution": "Changed: hub bands and onset events are an additional, versioned output; the tracker frame is unchanged in S4 and replay fixtures must pass unchanged (C3, D13, K8). S4 checks kick and bass separation and may use a longer window for low bands."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "The risk premise is stale. K4, Q-less constraints and the rollout assert uncommitted bass-ink analysis work, but the session git status shows only .gitignore and docs/plans/ changed, and the commit log has the bass-ink changes (8d43b34 'ripple the music's spectrum', e332249, 4ad69ed). spectrumField.ts is present and tracked. The conflict is therefore not with an uncommitted tree. It is with a freshly tuned design that reads a full spectrum.",
+        "suggestion": "Recheck git status at S3 and S8 start and drop the 'commit first' step if the tree is clean. Replace K4 with a note about bass-ink's recent tuning commits and require its motion and spectrum feel to be re-verified after migration.",
+        "resolution": "Changed: K4 rewritten. The session-start status showed uncommitted bass-ink files, the critic saw a clean tree; S3 and S8 recheck git status, and bass-ink's feel is re-verified after migration."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC6 and the success metric 'no visualizer keeps private band or onset analysis that the hub already provides' conflict with the visualizers that need a full or fine spectrum. Bass-ink's spectrumField needs a per-bin spectrum, and trio-color-wave uses FFT 1024 to 4096 with user-set dB ranges. The hub offers six bands. AC6 also asks for 'equal or better measured alignment' per migrated visualizer but defines no measure, no threshold and no way to record a reaction for each one, so this clause cannot fail. The test is bundled with the documentation requirement, so it is not independently testable.",
+        "suggestion": "Say explicitly that raw-spectrum consumers keep a per-consumer analyser and that only band and onset derivations move to the hub. Define the migration check, for example reaction offset not worse than baseline by more than X ms on the click track and F not lower on the synthetic drums. Split the docs requirement into its own criterion.",
+        "resolution": "Changed: AC6 says raw-spectrum consumers keep an owned analyser and defines the migration check (offset within 10 ms of baseline, synthetic onset F not lower); docs are the separate AC10; S10 records the per-visualizer baselines."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "data",
+        "finding": "AC3 asks for 'identical telemetry for the same track in both orders'. Live play through the dev file source is not deterministic (AGC timing runs on a setInterval at 30 ms, the context clock starts at different times, worklet batching jitters), so the identical-telemetry check cannot be byte-exact and will either flake or be loosened silently. The unit test with Web Audio fakes proves the settings but not the behaviour, since the fakes do not model shared state.",
+        "suggestion": "Replace 'identical' with a tolerance (for example band energy within 1 dB after aligning on the first onset), or run the order test offline with a deterministic fake. Keep the unit assertion that each consumer's node settings equal its declaration.",
+        "resolution": "Changed: AC3 now needs the unit assertion on node settings plus an offline deterministic run with band energy within 1 dB in both orders."
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "assumption",
+        "finding": "D11 (look-ahead display delay as an experiment) is a planner-assumption that sits inside S5 and AC4. Adding delay lowers apparent onset error against a causal estimate but increases the lag against what the listener hears, so the AC4 number can improve while the experience gets worse. The success criteria do not say what delay is acceptable. Any extra gate on pixel timing relative to the heard sound is unmeasurable in production (F2).",
+        "suggestion": "Make the experiment's keep-or-drop rule explicit: adopt only if onset F or beat-phase error improves by a stated margin and the total delay stays under a stated limit (for example 100 ms), and report AC4 with the delay at 0 ms as the headline number.",
+        "resolution": "Changed: D11 has an explicit keep rule (F up 0.05 or beat error down a quarter, added delay 80 ms or less) and AC4 is always reported at 0 ms."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "fb4c0116b79c6f9b610615b5c60648e012a4f5dd62e6fcff36a7cfd14afc936f",
+    "cards": {
+      "O1": "1f315fb5581f18cfe936fd950378c6b8b5cf092650ccf84c9b6175f62769e205",
+      "O2": "1dbd14a01fe9836514b700555e85d681226ae7d7c8082ea40c01aeb2ea2999fe",
+      "O3": "361f6b02da610f974ec42f707022d8618a3e23e2337aa9b8490a15d4be20f89b"
+    },
+    "critic_sha256": "646d60aba54506eb3d7b7953f903dfba128b900cd62b08f03a324da16179d375",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "7f6c133956dcf42e",
+      "acs_sha256": "b7f212ab5ee174b1"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "0af981b67fb281de",
+      "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "BeatSidecar",
+          "kind": "file format",
+          "definition": "JSON next to a track: { track, tempo, beats: seconds[], onsets: { kick: seconds[], bass: seconds[], snare: seconds[], highs: seconds[] } optional, source: synthetic or tapped, tapOffsetMs }. Audio files stay local and gitignored; synthetic sidecars and generators are committed."
+        },
+        {
+          "id": "C2",
+          "name": "EvalReport",
+          "kind": "data shape",
+          "definition": "Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+        },
+        {
+          "id": "C4",
+          "name": "Analyser request",
+          "kind": "API",
+          "definition": "Two parts. engine.getAnalyser() and useAnalyser() with no options keep returning the engine-owned tap, now with fixed settings that callers must not set (the tracker, hub, telemetry and source panel read it). useAnalyser(options: { fftSize, smoothingTimeConstant, minDecibels, maxDecibels }) returns a node owned by that consumer, which may change its own settings later; BassPulse and every visualizer that sets analyser properties move to an owned node. The engine recreates owned nodes when the source and its AudioContext change."
+        },
+        {
+          "id": "C3",
+          "name": "WorkletFeatureMessage",
+          "kind": "message",
+          "definition": "Versioned batch message. The existing packed three-band frame the tracker consumes is unchanged. Added beside it: frameTime (audio-clock seconds of each frame's window centre), hub band energy per frame, and onset events { band, time, strength }. Replay fixtures and eval scripts are updated for the new version in the same slice. Batch size becomes a config value measured in S5."
+        },
+        {
+          "id": "C6",
+          "name": "TimingModel",
+          "kind": "API",
+          "definition": "renderTime(audioNow) = audioNow - displayDelayMs - userSyncOffsetMs; featureDelay = window centre + hop + batch + captureDelay(source kind). captureDelay for the dev file source is measured in the harness and uses outputLatency there only. For production capture it is an estimate from a loopback recording, or zero with the user sync offset when it cannot be measured."
+        },
+        {
+          "id": "C5",
+          "name": "AudioHubSnapshot",
+          "kind": "API",
+          "definition": "Preallocated, updated in place by hub.update(renderTime): { time, bands: Float32Array (sub, kick, bass, lowMid, mid, highs), onsets: per-band { lastTime, strength, sinceSeconds, count }, beat: { phase, barPhase, tempo, confidence, locked }, section: { changeCount, lastChangeTime } }. Onset fields are valid without a tempo lock."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Alignment metrics and synthetic ground truth: Pure metric functions, synthetic click and drum generators with sidecars, and EvalReport output in eval:rhythm and debug:summary. No shipped behaviour changes.",
+          "dependencies": [],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/ground-truth/",
+            "app/features/rhythm/eval/",
+            "scripts/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 BeatSidecar (file format): JSON next to a track: { track, tempo, beats: seconds[], onsets: { kick: seconds[], bass: seconds[], snare: seconds[], highs: seconds[] } optional, source: synthetic or tapped, tapOffsetMs }. Audio files stay local and gitignored; synthetic sidecars and generators are committed.",
+            "C2 EvalReport (data shape): Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+          ],
+          "acceptance": [
+            "AC1: Given synthetic click and drum tracks with exact known beat and per-band onset times, and the debug tracks with tapped beat sidecar files, when the offline evaluation and the live harness summary are run on a track, then each reports beat-time error in ms (median and p95), tempo ratio to the label and lock time for every track, per-band onset precision, recall and F-measure at 20 ms and 50 ms for synthetic tracks only, and the tap-noise floor (spread of repeated taps on a click track) beside every tapped-track figure"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Baseline and root-cause findings: Run the baseline on synthetic and debug tracks, test each hypothesis with ablations (analyser order dependence, smoothing, AGC, batching, ratio locks, lock time, gate false opens, duplication), and write the findings document with verdicts and ranking. Decides Q2 and confirms or drops later slices.",
+          "dependencies": [
+            "S1",
+            "S9"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/audio-alignment-findings.md",
+            "docs/agents/rhythm-stability-results.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 EvalReport (data shape): Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+          ],
+          "acceptance": [
+            "AC2: Given the list of root-cause hypotheses (shared analyser state, smoothing, AGC, batching and latency, tempo ratio errors, slow lock, gate false opens, per-visualizer duplication, presentation lag), when the diagnosis slice is complete, then a findings document gives each hypothesis a verdict with the measurement and track it came from, and ranks the confirmed causes by measured effect"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Fixed engine tap and per-consumer analysers: The engine tap gets fixed settings; a factory gives each consumer an owned node. Every current caller is moved or confirmed: rhythmTracker, BassPulse, devTelemetry, useAudioState, ActiveSourcePanel and the cubes, bass-ink, trio-color-wave and dancing-character pages. Owned nodes survive source changes and StrictMode double-mount.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/audio/audioEngine.ts",
+            "app/features/audio/",
+            "app/features/rhythm/rhythmTracker.ts",
+            "app/features/rhythm/bassPulse.ts",
+            "app/features/visualizers/cubes/",
+            "app/features/visualizers/bass-ink/",
+            "app/features/visualizers/trio-color-wave/",
+            "app/features/visualizers/dancing-character/",
+            "app/test/",
+            "e2e/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 Analyser request (API): Two parts. engine.getAnalyser() and useAnalyser() with no options keep returning the engine-owned tap, now with fixed settings that callers must not set (the tracker, hub, telemetry and source panel read it). useAnalyser(options: { fftSize, smoothingTimeConstant, minDecibels, maxDecibels }) returns a node owned by that consumer, which may change its own settings later; BassPulse and every visualizer that sets analyser properties move to an owned node. The engine recreates owned nodes when the source and its AudioContext change."
+          ],
+          "acceptance": [
+            "AC3: Given two visualizers that want different analyser settings, when they are opened one after the other in either order, then a unit test shows each consumer's node carries exactly the settings it declares and no consumer can change another's node or the engine's fixed tap, and an offline deterministic run gives band energy within 1 dB in both orders"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Per-band onsets as an added worklet output: Hub band energy and kick, bass, snare and highs onset events stamped in audio time, emitted without a tempo lock, in a versioned message beside the unchanged tracker frame; replay fixtures and eval scripts updated; synthetic regression specs assert onset F. Starts after Q2 is decided.",
+          "dependencies": [
+            "S1",
+            "S2"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/bandOnsets.ts",
+            "app/features/rhythm/rhythmProcessor.worklet.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "app/features/rhythm/types.ts",
+            "scripts/rhythm-tools/",
+            "scripts/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 WorkletFeatureMessage (message): Versioned batch message. The existing packed three-band frame the tracker consumes is unchanged. Added beside it: frameTime (audio-clock seconds of each frame's window centre), hub band energy per frame, and onset events { band, time, strength }. Replay fixtures and eval scripts are updated for the new version in the same slice. Batch size becomes a config value measured in S5."
+          ],
+          "acceptance": [
+            "AC1: Given synthetic click and drum tracks with exact known beat and per-band onset times, and the debug tracks with tapped beat sidecar files, when the offline evaluation and the live harness summary are run on a track, then each reports beat-time error in ms (median and p95), tempo ratio to the label and lock time for every track, per-band onset precision, recall and F-measure at 20 ms and 50 ms for synthetic tracks only, and the tap-noise floor (spread of repeated taps on a click track) beside every tapped-track figure",
+            "AC6: Given a visualizer that needs band energy, band onsets, beat phase or beat confidence, when it reads them from the shared analysis hub, then the values carry audio-time stamps, are computed once for all consumers, onsets are available without a tempo lock, and every visualizer's private band-energy and onset derivation is replaced by hub reads, where each migration passes the migration check: click-track reaction offset not worse than its baseline by more than 10 ms and synthetic-drum onset F not lower. Visualizers that need a raw or fine spectrum keep a per-consumer analyser for that only"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Timing model and reaction offset: Frame time stamps drive render-time reads, the batch delay is reduced, the harness click-track offset is brought within target at 0 ms display delay, production capture delay is estimated or declared unmeasurable with a user sync offset as fallback, and the look-ahead experiment is adopted or dropped by the D11 rule.",
+          "dependencies": [
+            "S4"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/audio/timingModel.ts",
+            "app/features/audio/storage.ts",
+            "app/features/rhythm/rhythmTracker.ts",
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "docs/agents/audio-alignment-findings.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 WorkletFeatureMessage (message): Versioned batch message. The existing packed three-band frame the tracker consumes is unchanged. Added beside it: frameTime (audio-clock seconds of each frame's window centre), hub band energy per frame, and onset events { band, time, strength }. Replay fixtures and eval scripts are updated for the new version in the same slice. Batch size becomes a config value measured in S5.",
+            "C6 TimingModel (API): renderTime(audioNow) = audioNow - displayDelayMs - userSyncOffsetMs; featureDelay = window centre + hop + batch + captureDelay(source kind). captureDelay for the dev file source is measured in the harness and uses outputLatency there only. For production capture it is an estimate from a loopback recording, or zero with the user sync offset when it cannot be measured."
+          ],
+          "acceptance": [
+            "AC4: Given a click track with known click times played through the dev harness with the display delay at 0 ms, when a visualizer's onset reaction is recorded from scene state, then the median offset between click and reaction in track time is reported and is within 30 ms plus one animation frame, with the frame-quantisation allowance stated",
+            "AC9: Given production capture, where the listener hears the source directly and the page cannot observe when sound reaches them, when the timing slice is complete, then the findings document gives a capture-delay estimate for tab capture and for an input device with the method used (loopback recording of a click against the captured stream), or states it could not be measured, and a user sync offset setting exists as the fallback; no production latency figure is claimed as guaranteed"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S6",
+          "objective": "Tempo ratio scoring, lock time and candidate comparison: Metrical-ratio scoring with a tempo prior on the onset-strength curve, faster lock, a gate that does not open on scattered bass, and a recorded comparison with one candidate library under the adoption gate; the current tracker is replaced only on a measured win.",
+          "dependencies": [
+            "S5"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "app/features/rhythm/bassPulse.ts",
+            "docs/agents/audio-alignment-findings.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 EvalReport (data shape): Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+          ],
+          "acceptance": [
+            "AC5: Given the six debug tracks and their labelled tempos, when each is played live three times and evaluated offline, then every play locks within 2 percent of the label with no 4:3 or 2:1 lock held past 10 s, the three currently passing tracks still pass, and median beat error is within 20 ms on the synthetic tracks",
+            "AC8: Given a candidate processor or library, when it is compared with the current pipeline on the AC1 measurements, then it is adopted only if it wins by the stated margin, and the decision with its numbers, bundle cost and licence is recorded"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S7",
+          "objective": "AudioHub contract, reference migration and docs: The hub snapshot and hook, cubes migrated off its private band code as the reference and passing the migration check, and the add-visualizer skill, architecture and conventions docs describing the hub.",
+          "dependencies": [
+            "S3",
+            "S5"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/audio/hub/",
+            "app/features/visualizers/cubes/",
+            "docs/agents/architecture.md",
+            "docs/agents/conventions.md",
+            ".agents/skills/add-visualizer/SKILL.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C5 AudioHubSnapshot (API): Preallocated, updated in place by hub.update(renderTime): { time, bands: Float32Array (sub, kick, bass, lowMid, mid, highs), onsets: per-band { lastTime, strength, sinceSeconds, count }, beat: { phase, barPhase, tempo, confidence, locked }, section: { changeCount, lastChangeTime } }. Onset fields are valid without a tempo lock.",
+            "C6 TimingModel (API): renderTime(audioNow) = audioNow - displayDelayMs - userSyncOffsetMs; featureDelay = window centre + hop + batch + captureDelay(source kind). captureDelay for the dev file source is measured in the harness and uses outputLatency there only. For production capture it is an estimate from a loopback recording, or zero with the user sync offset when it cannot be measured."
+          ],
+          "acceptance": [
+            "AC6: Given a visualizer that needs band energy, band onsets, beat phase or beat confidence, when it reads them from the shared analysis hub, then the values carry audio-time stamps, are computed once for all consumers, onsets are available without a tempo lock, and every visualizer's private band-energy and onset derivation is replaced by hub reads, where each migration passes the migration check: click-track reaction offset not worse than its baseline by more than 10 ms and synthetic-drum onset F not lower. Visualizers that need a raw or fine spectrum keep a per-consumer analyser for that only",
+            "AC10: Given the hub and the reference migration are merged, when a developer reads the add-visualizer skill, architecture and conventions docs, then they describe the hub as the way to get audio features, with the snapshot fields and when a private analyser is still appropriate"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S8",
+          "objective": "Migrate remaining visualizers and close the audit: Every other visualizer reads the hub for band energy and onsets, one pull request per visualizer, each passing the migration check; raw-spectrum consumers keep their owned analyser; each reaction delay above target from the audit is fixed or has a recorded reason. Bass-ink goes last.",
+          "dependencies": [
+            "S6",
+            "S7",
+            "S10"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/",
+            "e2e/visual.spec.ts-snapshots/",
+            "docs/agents/audio-alignment-findings.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C5 AudioHubSnapshot (API): Preallocated, updated in place by hub.update(renderTime): { time, bands: Float32Array (sub, kick, bass, lowMid, mid, highs), onsets: per-band { lastTime, strength, sinceSeconds, count }, beat: { phase, barPhase, tempo, confidence, locked }, section: { changeCount, lastChangeTime } }. Onset fields are valid without a tempo lock."
+          ],
+          "acceptance": [
+            "AC6: Given a visualizer that needs band energy, band onsets, beat phase or beat confidence, when it reads them from the shared analysis hub, then the values carry audio-time stamps, are computed once for all consumers, onsets are available without a tempo lock, and every visualizer's private band-energy and onset derivation is replaced by hub reads, where each migration passes the migration check: click-track reaction offset not worse than its baseline by more than 10 ms and synthetic-drum onset F not lower. Visualizers that need a raw or fine spectrum keep a per-consumer analyser for that only",
+            "AC7: Given every visualizer in the landing list, when the presentation audit is complete, then a table lists for each its analysis inputs, its smoothing and catch-up time constants and its measured reaction delay, and each delay above the stated target has a fix or a recorded reason"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S9",
+          "objective": "Tap-along tool and harness instrumentation: Dev-only tap-along mode with tap-offset correction and tap-noise floor, tapped sidecars for the six debug tracks, per-visualizer reaction recording from scene state, telemetry of the signals visualizers read, and an AGC bypass switch for ablations.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/audio/devTelemetry.ts",
+            "app/features/audio/devFileSource.ts",
+            "scripts/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 BeatSidecar (file format): JSON next to a track: { track, tempo, beats: seconds[], onsets: { kick: seconds[], bass: seconds[], snare: seconds[], highs: seconds[] } optional, source: synthetic or tapped, tapOffsetMs }. Audio files stay local and gitignored; synthetic sidecars and generators are committed.",
+            "C2 EvalReport (data shape): Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+          ],
+          "acceptance": [
+            "AC1: Given synthetic click and drum tracks with exact known beat and per-band onset times, and the debug tracks with tapped beat sidecar files, when the offline evaluation and the live harness summary are run on a track, then each reports beat-time error in ms (median and p95), tempo ratio to the label and lock time for every track, per-band onset precision, recall and F-measure at 20 ms and 50 ms for synthetic tracks only, and the tap-noise floor (spread of repeated taps on a click track) beside every tapped-track figure"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S10",
+          "objective": "Presentation audit: For every visualizer in the landing list, record its analysis inputs, smoothing and catch-up time constants and its measured click-track reaction delay as the baseline for the migration check, and list the fixes.",
+          "dependencies": [
+            "S9"
+          ],
+          "base_revision": "e33224936a354f882bbaeb070816c310bd6eefd6",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/audio-alignment-findings.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 EvalReport (data shape): Per track: tempoRatio, lockSeconds, beatErrorMs { median, p95 }, onsets per band { precision, recall, f } at toleranceMs, reactionOffsetMs for click tracks. Printed by eval:rhythm and debug:summary and asserted by the synthetic regression specs."
+          ],
+          "acceptance": [
+            "AC7: Given every visualizer in the landing list, when the presentation audit is complete, then a table lists for each its analysis inputs, its smoothing and catch-up time constants and its measured reaction delay, and each delay above the stated target has a fix or a recorded reason"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 2,
+    "lane_changes": []
+  }
+}
