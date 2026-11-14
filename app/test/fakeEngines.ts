@@ -31,6 +31,7 @@ export class FakeAudioEngine {
     private analyser: AnalyserNode | undefined;
     private normalizeSettings: NormalizeSettings = { ...DEFAULT_NORMALIZE_SETTINGS };
     private normalize = true;
+    private syncOffsetMs = 0;
     saved: SavedSource | undefined = undefined;
     level = 0;
     outputLevel = 0;
@@ -65,6 +66,7 @@ export class FakeAudioEngine {
     readonly getIsCapturing = () => this.analyser !== undefined;
     readonly getNormalizeOptions = () => this.normalizeSettings;
     readonly getNormalize = () => this.normalize;
+    readonly getSyncOffsetMs = () => this.syncOffsetMs;
     get savedSource(): SavedSource | undefined {
         return this.saved;
     }
@@ -82,6 +84,11 @@ export class FakeAudioEngine {
     readonly stopCapture = vi.fn(() => this.setAnalyser(undefined));
     readonly setNormalize = vi.fn((enabled: boolean) => {
         this.normalize = enabled;
+        this.notify();
+    });
+    // Stores the value as given: the clamp belongs to the real engine and has its own spec.
+    readonly setSyncOffsetMs = vi.fn((value: number) => {
+        this.syncOffsetMs = value;
         this.notify();
     });
     readonly updateNormalizeOptions = vi.fn((changes: Partial<NormalizeSettings>) => {
