@@ -104,6 +104,50 @@ do not: the worklet posts features in batches of 8 frames (80 ms), which matches
   by 100, 500 and 1000 ms) should become a regression spec: the beat position must not move by more than the tolerance.
 - **S7, S8, the hub:** still wanted for cause 10, but it does not fix a measured error by itself.
 
+## S4b: band onsets on real music
+S4 met the synthetic onset target, but on the six tapped debug tracks the detector fired 6.6 to 16.1 events per beat
+across its four bands (up to 6.7 per beat in the bass band alone). Its 0.95 to 1.00 "beats with an onset within 50 ms"
+was chance: at that rate almost any time has an event within 50 ms. S4b changed three things and how they are measured.
+
+- **Detector.** A floor that follows the music (a multiple of each range's running mean, `BAND_ONSET_NOISE_FACTOR`), a
+  refractory time per range, and a low-end rise measured against two frames back (`LOW_ONSET_LAG_FRAMES`), so the
+  ripple of a held pad chord is not a hit. The look-ahead stays at 2 frames, which keeps the 30 ms reaction target.
+- **Metric.** Raw beat coverage is replaced by lift: coverage of the tapped beats (smoothed into a grid, at the best
+  offset within ±100 ms) minus the mean coverage at shifts of 0.1 to 0.9 of a beat. 0 means the events are unrelated
+  to the beat. `npm run eval:rhythm -- <dir> --alignment` prints it beside the events per beat.
+- **Tools and tracks.** `npm run sweep:onsets` runs the detector over every synthetic and tapped track per grid point
+  of `rhythmConfig.ts` overrides and checks the bounds below. Two new synthetic tracks have unlabelled distractors:
+  `pad-lead-groove-110` (pad chords and a vibrato lead over drums) and `bassline-kick-120` (a pitched bassline between
+  kicks).
+
+Bounds: every labelled synthetic band F ≥ 0.9 at 50 ms; on tapped tracks at most 2 events per beat in kick, bass and
+snare and 4 in highs (kick ≤ 0.5 on a track without one), and lift ≥ 0.15. Events per beat now (first 60 s):
+
+| Track | Kick | Bass | Snare | Highs | Lift |
+|---|---|---|---|---|---|
+| imyourgirl | 1.15 | 0.31 | **2.20** | 1.75 | 0.51 |
+| lonley | 0.93 | 0.42 | 1.03 | 2.65 | 0.30 |
+| summer2000 | 1.60 | 0.78 | 0.48 | 0.67 | 0.17 |
+| syncopation-no-kick | **0.67** | 0.53 | **2.39** | 2.66 | **0.10** |
+| syncopationbass | 1.02 | 0.85 | 1.40 | 1.33 | 0.45 |
+| syncopationbass2 | 1.02 | 0.05 | 1.00 | 1.36 | 0.78 |
+
+Known weaknesses (bold above, and `it.fails` in `scripts/ground-truth/alignment.test.ts`):
+- **Kick versus bass is not solved.** On `bassline-kick-120` kick F is 0.76 and bass F 0.83. The track without a kick
+  still gets 0.67 kicks per beat, and `syncopationbass2`, which has a bassline, gets almost no bass events. A longer
+  look-ahead for the classifier (4 or 5 frames) fixed the synthetic tracks partly but labelled nearly every real low-end
+  hit a kick, so it was not kept. The classifier's cue fits the synthetic kick (a sine sweep with no click) and does
+  not carry over to real drums. The next attempt needs labelled real music: separate drum and bass stems mixed
+  together give exact per-band labels, or a tap-along pass per band.
+- **Repeated bass notes.** `no-kick-124` bass recall fell from 1.00 to 0.51: the notes raise the running mean they are
+  compared against, so every other one falls under the floor. Capping the mean's update at the threshold brought the
+  pad false events back.
+- **Snare rate** is above 2 per beat on `imyourgirl` and `syncopation-no-kick`, and lift on `syncopation-no-kick` is
+  0.10.
+
+No visualizer reads these onset events yet (the `RhythmState.bandOnsets` values they use come from the tracker's
+older three-band flux), so none of this changes what is on screen.
+
 ## Limits of this evidence
 - One tapper. The noise floor is 26 ms, and `summer2000` was hard to tap.
 - The live beat error on `lonley` (17 to 20 ms) and the offline one (197 ms) disagree. That is cause 2 showing up, not

@@ -272,11 +272,35 @@ export const BAND_ONSET_PAST_FRAMES = 2;
 // the same instant, so a weak low-end onset is dropped when the snare range is active and kept otherwise: a kick or bass
 // note that sounds without a hi-hat must still count.
 export const LOW_ONSET_WEAK_FRACTION = 0.25;
-// A low-end onset within this many frames of the previous low-end event is a ripple of that hit, not a new note, unless
-// it is nearly as strong: a drum's body keeps moving for a few frames after the attack (its pitch falls, a struck string
-// rings and beats), while real notes follow each other no faster than sixteenth notes at 200 BPM (75 ms). Eight frames
-// is 80 ms, just past that.
-export const LOW_ONSET_REFRACTORY_FRAMES = 8;
-// What fraction of the previous low-end event's strength a low-end onset inside the refractory span needs to count as a
-// second hit. A ripple is a fraction of the hit it follows; a hit struck on purpose is of the same order.
-export const LOW_ONSET_REFRACTORY_FRACTION = 0.6;
+// Time constant in seconds of each range's running mean of detection values, the noise floor of its adaptive
+// threshold. About a bar at 120 BPM: slow enough that one hit hardly moves it, fast enough to follow a change in how
+// busy the music is.
+export const BAND_ONSET_MEAN_SECONDS = 0.5;
+// An onset must be this many times the running mean of its range. Real music keeps every range moving (sustained
+// notes ripple, a snare's noise rustles), so a hit has to stand out of that; a value of 1 would accept anything above
+// average. Silence and sparse synthetic grooves have a tiny mean, so there the fixed floor decides.
+export const BAND_ONSET_NOISE_FACTOR = [3, 3, 3] as const;
+// A range's event within this many frames of its previous event is a ripple of that hit, not a new one, unless it is
+// nearly as strong: a drum's body keeps moving for a few frames after the attack (its pitch falls, a struck string rings
+// and beats), a snare's noise tail flickers and a hi-hat's ring rustles, while real notes follow each other no faster
+// than sixteenth notes at 200 BPM (75 ms). Eight frames is 80 ms, just past that; hats and snare hits are shorter.
+export const BAND_ONSET_REFRACTORY_FRAMES = [8, 6, 5] as const;
+// What fraction of the previous event's strength an event inside the refractory span needs to count as a second hit.
+// A ripple is a fraction of the hit it follows; a hit struck on purpose is of the same order.
+export const BAND_ONSET_REFRACTORY_FRACTION = [0.6, 0.6, 0.6] as const;
+// What the classifier of a low-end onset looks at: how much the log level of the low end's bins from the bass band
+// (HUB_BAND_EDGES_HZ[2], 130 Hz) up to the top of the low end (300 Hz) rose from the frame before the onset to the onset
+// frame itself, and how much of that rise is left two frames later. A drum's attack spreads over those bins and the
+// spread is gone two frames on (synthetic kicks keep 2 to 25 percent), a bass note's harmonics keep sounding (90 to 180
+// percent). It is a kick when the rise at the onset reaches the minimum below and no more than the settled fraction of it
+// is left; a note with too little up there to judge (a bare sine bass) is a bass note, which a drum never is: the skirt
+// of a drum attack is at least 1, and 0.5 is half of the smallest measured.
+export const LOW_ONSET_KICK_MIN_SKIRT = 0.5;
+export const LOW_ONSET_KICK_MAX_SETTLED = 0.8;
+
+// How many frames back the low end's detection function and the kick/bass classifier look for the level a bin rose from.
+// One frame (the plain flux) counts every small ripple of a sustained chord as a rise: a pad held at 174 to 330 Hz gave
+// a false bass event about every 120 ms (27 on the pad-lead-groove-110 track) while a drum hit, which steps up and stays
+// up, rises just as much from two frames back. Three or more frames smear the onset's time and the classifier's
+// baseline too far; two cleared the pad while keeping the drum onsets within the 50 ms the evaluation allows.
+export const LOW_ONSET_LAG_FRAMES = 2;
