@@ -56,10 +56,11 @@ const RING_MASK = RING - 1;
 //
 // Each frame it measures the energy of the six hub bands and one detection function per range: the mean positive rise
 // of log magnitude per bin, like the flux of the extractor but over finer ranges. The low end's rise is measured
-// against LOW_ONSET_LAG_FRAMES frames back instead of the previous frame, so the ripple of a held chord is not a hit. A frame is an onset when its value is
-// the largest among the ONSET_LOOKAHEAD_FRAMES frames after it and BAND_ONSET_PAST_FRAMES before it, and it is both
-// above a floor that follows the music (a fixed minimum, a fraction of the range's recent loudest hit and a multiple of
-// its running mean) and not a ripple of the range's previous hit. The decision is therefore made
+// against LOW_ONSET_LAG_FRAMES frames back instead of the previous frame, so the ripple of a held chord is not a hit.
+// A frame is an onset when its value is the largest among the ONSET_LOOKAHEAD_FRAMES frames after it and
+// BAND_ONSET_PAST_FRAMES before it, and it is both above a floor that follows the music (a fixed minimum, a fraction of
+// the range's recent loudest hit and a multiple of its running mean) and not a ripple of the range's previous hit. The
+// decision is therefore made
 // ONSET_LOOKAHEAD_FRAMES frames after the onset frame, and the event carries the time of the onset frame itself.
 export class BandOnsets {
     // Energy per hub band of the newest frame: the mean of the log magnitude over the band's bins.
