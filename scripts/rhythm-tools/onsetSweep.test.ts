@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
     expandGrid,
     formatPoint,
+    isBaselinePoint,
     parseSweepArguments,
     rankPoints,
     scorePoint,
+    splitGridValues,
     type LocalResult,
     type SyntheticResult,
 } from './onsetSweep';
@@ -66,6 +68,37 @@ describe('parseSweepArguments', () => {
         [['--grid', 'A=1', '--set', 'A=2'], 'twice'],
     ])('rejects %j', (argv, message) => {
         expect(() => parseSweepArguments(argv)).toThrow(message);
+    });
+});
+
+describe('grid value separators', () => {
+    it('splits on commas outside lists and keeps list commas', () => {
+        expect(splitGridValues('[3,3,3],[2,2,2]')).toEqual(['[3,3,3]', '[2,2,2]']);
+        expect(splitGridValues('[3,3,3]')).toEqual(['[3,3,3]']);
+        expect(splitGridValues('1,2|(3,4)')).toEqual(['1', '2', '(3,4)']);
+    });
+
+    it('accepts the comma form and a repeated --grid, and still accepts the pipe', () => {
+        const axis = (values: string[]) => ({ grid: [{ name: 'A', values }] });
+        expect(parseSweepArguments(['--grid', 'A=1,2'])).toMatchObject(axis(['1', '2']));
+        expect(parseSweepArguments(['--grid', 'A=1|2'])).toMatchObject(axis(['1', '2']));
+        expect(parseSweepArguments(['--grid', 'A=1', '--grid', 'A=2'])).toMatchObject(axis(['1', '2']));
+        expect(parseSweepArguments(['--grid', 'A=[3,3,3],[2,2,2]'])).toMatchObject(axis(['[3,3,3]', '[2,2,2]']));
+    });
+
+    it('rejects an empty comma entry', () => {
+        expect(() => parseSweepArguments(['--grid', 'A=1,'])).toThrow('NAME=v1');
+    });
+});
+
+describe('isBaselinePoint', () => {
+    const fixed = [{ name: 'A', value: '1' }];
+    it('is true only for the fixed overrides themselves', () => {
+        expect(isBaselinePoint([], [])).toBe(true);
+        expect(isBaselinePoint(fixed, fixed)).toBe(true);
+        expect(isBaselinePoint([{ name: 'A', value: '2' }], fixed)).toBe(false);
+        expect(isBaselinePoint([{ name: 'B', value: '1' }], fixed)).toBe(false);
+        expect(isBaselinePoint([...fixed, { name: 'B', value: '1' }], fixed)).toBe(false);
     });
 });
 

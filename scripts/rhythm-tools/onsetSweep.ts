@@ -20,6 +20,33 @@ export interface SweepArguments {
     top: number;
 }
 
+// Splits on '|' and on ',' outside [ ] and ( ), so `[3,3,3],[2,2,2]` is two list values and `[3,3,3]` stays one. The comma
+// exists because npm on Windows runs scripts through cmd.exe, which turns '|' into '^'.
+export function splitGridValues(text: string): string[] {
+    const values: string[] = [];
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === '[' || char === '(') depth++;
+        else if (char === ']' || char === ')') depth--;
+        else if (char === '|' || (char === ',' && depth <= 0)) {
+            values.push(text.slice(start, i));
+            start = i + 1;
+        }
+    }
+    values.push(text.slice(start));
+    return values;
+}
+
+// True when a grid point applies exactly the fixed overrides, so its run equals the baseline's and can be reused.
+export function isBaselinePoint(point: readonly Override[], fixed: readonly Override[]): boolean {
+    return (
+        point.length === fixed.length &&
+        point.every((entry, index) => entry.name === fixed[index].name && entry.value === fixed[index].value)
+    );
+}
+
 export function parseSweepArguments(argv: readonly string[]): SweepArguments | undefined {
     if (argv.length === 0 || argv.includes('--help') || argv.includes('-h')) {
         return undefined;
@@ -39,12 +66,19 @@ export function parseSweepArguments(argv: readonly string[]): SweepArguments | u
                 const text = value();
                 const at = text.indexOf('=');
                 const name = at < 0 ? '' : text.slice(0, at).trim();
-                const values = at < 0 ? [] : text.slice(at + 1).split('|');
+                const values = at < 0 ? [] : splitGridValues(text.slice(at + 1));
                 if (values.length === 0 || values.some((entry) => entry.trim() === '')) {
-                    throw new Error(`--grid needs NAME=v1|v2|..., got "${text}"`);
+                    throw new Error(`--grid needs NAME=v1|v2|... or NAME=v1,v2,..., got "${text}"`);
                 }
                 // parseOverride validates the name and that each value holds only numbers, arithmetic and lists.
-                result.grid.push({ name, values: values.map((entry) => parseOverride(`${name}=${entry}`).value) });
+                const parsed = values.map((entry) => parseOverride(`${name}=${entry}`).value);
+                // A repeated NAME adds values to its axis, so the grid can be built without '|' (cmd.exe mangles it).
+                const existing = result.grid.find((axis) => axis.name === name);
+                if (existing === undefined) {
+                    result.grid.push({ name, values: parsed });
+                } else {
+                    existing.values.push(...parsed);
+                }
                 break;
             }
             case '--set':
