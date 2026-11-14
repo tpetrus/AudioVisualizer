@@ -475,6 +475,23 @@ describe('RhythmTracker', () => {
             // An explicit time wins over the context clock.
             harness.tracker.updatePhase(0);
             expect(state.beatPhase).toBe(0);
+
+            // A zero offset reads exactly at the context clock, as before the sync setting existed.
+            const now = latest + 0.1;
+            harness.tracker.updatePhase(now);
+            const atNow = { beatPhase: state.beatPhase, nextBeatTime: state.nextBeatTime };
+            harness.tracker.updatePhase();
+            expect({ beatPhase: state.beatPhase, nextBeatTime: state.nextBeatTime }).toEqual(atNow);
+
+            // A +100 ms offset reads 100 ms earlier in audio time. An explicit time ignores the offset.
+            harness.engine.setSyncOffsetMs(100);
+            harness.tracker.updatePhase(now - 0.1);
+            const atEarlier = { beatPhase: state.beatPhase, nextBeatTime: state.nextBeatTime };
+            expect(atEarlier.beatPhase).not.toBe(atNow.beatPhase);
+            harness.tracker.updatePhase(now);
+            expect({ beatPhase: state.beatPhase, nextBeatTime: state.nextBeatTime }).toEqual(atNow);
+            harness.tracker.updatePhase();
+            expect({ beatPhase: state.beatPhase, nextBeatTime: state.nextBeatTime }).toEqual(atEarlier);
         });
     });
 
@@ -494,6 +511,24 @@ describe('RhythmTracker', () => {
 
             expect(harness.tracker.state.beatPhase).toBeUndefined();
             expect(harness.tracker.state.barPhase).toBeUndefined();
+        });
+
+        it('reads at render time after each worklet message, and an explicit time ignores the offset', async () => {
+            const analyser = createAnalyser();
+            analyser.context.currentTime = 3;
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            const phase = vi.spyOn(harness.tracker.analysis!, 'updatePhase');
+            harness.engine.setSyncOffsetMs(-150);
+
+            await deliver(node, flatBatch(), () => phase.mock.calls.length);
+            expect(phase).toHaveBeenLastCalledWith(3.15);
+
+            harness.tracker.updatePhase(7);
+            expect(phase).toHaveBeenLastCalledWith(7);
+            harness.tracker.updatePhase();
+            expect(phase).toHaveBeenLastCalledWith(3.15);
         });
 
         it('accepts an explicit time before start() as a harmless no-op', () => {

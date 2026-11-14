@@ -5,6 +5,7 @@ import { useLevelMeter } from '../useLevelMeter';
 import { outlineButton, primaryButton } from './buttonStyles';
 import { NormalizeSettings } from './NormalizeSettings';
 import { SilenceWarning } from './SilenceWarning';
+import { SyncOffsetSetting } from './SyncOffsetSetting';
 
 interface ActiveSourcePanelProps {
     onChooseSource: () => void;
@@ -51,6 +52,7 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
             </div>
 
             <NormalizeSettings />
+            <SyncOffsetSetting />
 
             {silent && <SilenceWarning />}
 
