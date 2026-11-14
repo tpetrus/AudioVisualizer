@@ -124,10 +124,14 @@ describe('rhythm processor worklet', () => {
         expect(second.message.count).toBe(BATCH_FRAMES);
     });
 
-    it('does not post a partial batch on its own', async () => {
+    // One frame short of a batch, so the specs below hold for any batch size. A batch of one frame is never partial.
+    const PARTIAL_FRAMES = BATCH_FRAMES - 1;
+    const partialSeconds = (FIRST_FRAME_END + (PARTIAL_FRAMES - 1) * HOP) / SAMPLE_RATE;
+
+    it.skipIf(PARTIAL_FRAMES < 1)('does not post a partial batch on its own', async () => {
         const harness = await loadProcessor();
-        // Three frames' worth of audio: not enough to fill a batch.
-        play(harness, [sine(440, (FIRST_FRAME_END + 2 * HOP) / SAMPLE_RATE, 0.5, SAMPLE_RATE)]);
+        // Not enough audio to fill a batch.
+        play(harness, [sine(440, partialSeconds, 0.5, SAMPLE_RATE)]);
         expect(harness.posted()).toHaveLength(0);
     });
 
@@ -170,10 +174,10 @@ describe('rhythm processor worklet', () => {
         });
     });
 
-    it('flushes the frames it has and starts over when blocks were skipped', async () => {
+    it.skipIf(PARTIAL_FRAMES < 1)('flushes the frames it has and starts over when blocks were skipped', async () => {
         const harness = await loadProcessor();
-        // Three frames, so a partial batch is waiting when the gap comes.
-        play(harness, [sine(440, (FIRST_FRAME_END + 2 * HOP) / SAMPLE_RATE, 0.5, SAMPLE_RATE)], 120);
+        // A partial batch is waiting when the gap comes.
+        play(harness, [sine(440, partialSeconds, 0.5, SAMPLE_RATE)], 120);
         expect(harness.posted()).toHaveLength(0);
 
         // The context clock jumps ahead: the audio thread dropped some blocks.
@@ -183,7 +187,7 @@ describe('rhythm processor worklet', () => {
 
         const batches = harness.posted();
         // The first message is the flushed partial batch from before the gap.
-        expect(batches[0].message.count).toBe(3);
+        expect(batches[0].message.count).toBe(PARTIAL_FRAMES);
         // After the gap, timing starts again from the new clock, with a fresh window.
         expect(batches[1].message.time0).toBeCloseTo((resumeAt + FIRST_FRAME_END - FFT_SIZE / 2) / SAMPLE_RATE, 10);
     });

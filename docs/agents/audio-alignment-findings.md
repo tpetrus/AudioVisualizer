@@ -160,13 +160,13 @@ reacts to only half the hits and its figures are not used), frame allowance ±18
 | `BATCH_FRAMES` | click-120 median / p95 | drums-128 median / p95 | Messages per second |
 |---|---|---|---|
 | 8 (before) | 40 / 80 ms | 56 / 91 ms | 12 |
-| **4 (now)** | **31 / 51 ms** | **35 / 50 ms** | 25 |
-| 2 | 20 / 31 ms | 23 / 36 ms | 50 |
+| 4 | 31 / 51 ms | 35 / 50 ms | 25 |
+| **2 (now)** | **20 / 31 ms** | **23 / 36 ms** | **50** |
 | 1 | 11 / 20 ms | 19 / 29 ms | 100 |
 
-The target is a median within 30 ms plus one frame (46.7 ms at 60 fps). 4 is the largest value that meets it, so it
-is the one kept. Its p95 (about 51 ms) is still above 46.7 ms; 2 would bring the p95 inside as well, at twice the
-messages. With one play per cell and a frame allowance of ±18.6 ms, the gap between neighboring rows is near the
+The target is a median within 30 ms plus one frame (46.7 ms at 60 fps). 4 is the largest value that meets it, but its
+p95 (about 51 ms) is still above 46.7 ms. 2 brings the p95 inside as well, at twice the messages, and is the value
+kept. With one play per cell and a frame allowance of ±18.6 ms, the gap between neighboring rows is near the
 noise. No page errors and 60 fps at every value. The direct analyser read (`cubes.in`) is 11 / 20 ms for
 comparison. One machine, one play per cell.
 

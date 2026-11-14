@@ -10,9 +10,10 @@ export const FFT_SIZE = 1024;
 export const HOP_SECONDS = 0.01;
 // Frames per message posted by the worklet. Every onset waits for its batch to fill, so this is reaction delay: measured
 // through the dev harness on click and drum tracks, the median delay from a hit to the tracker's onset value was 40 to
-// 56 ms at 8 frames, 31 to 35 ms at 4, 20 to 23 ms at 2 and 11 to 19 ms at 1. 4 is the largest value inside the target
-// (30 ms plus one animation frame) and posts ~25 messages/s. Any value from 1 up works.
-export const BATCH_FRAMES = 4;
+// 56 ms at 8 frames, 31 to 35 ms at 4, 20 to 23 ms at 2 and 11 to 19 ms at 1. The target is 30 ms plus one animation frame
+// (46.7 ms at 60 fps). 4 meets it for the median only (p95 about 51 ms); 2 also brings the p95 inside (31 to 36 ms), at
+// ~50 messages/s, and held 60 fps in the harness. Any value from 1 up works.
+export const BATCH_FRAMES = 2;
 // Name the worklet processor registers under, shared so the main thread creates the right node.
 export const RHYTHM_PROCESSOR_NAME = 'rhythm-onset-processor';
 // Number of frequency bands whose spectral flux is tracked (kick, mid, high).
