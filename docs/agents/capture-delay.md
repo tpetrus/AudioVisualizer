@@ -39,7 +39,8 @@ Options: `--device <label substring>`, `--clicks N` (default 20), `--interval S`
   half found means the measurement failed (exit 1); the usual causes are tab audio not shared, the wrong device, or a
   muted output.
 - **Arrival minus scheduled** (median, p5, p95, ms): the time from the context scheduling the click to its samples
-  arriving back. It includes the output path (`outputLatency`) and the capture path.
+  arriving back. For a device such as Stereo Mix it includes the output path (`outputLatency`) and the capture path;
+  a tab capture probably taps the audio before the output device, so it holds the capture path only.
 - **baseLatency / outputLatency**: the browser's own figures for the context.
 - **Estimated delay relative to hearing** (tab and device): median minus `outputLatency`. The listener hears a click
   about `outputLatency` after it is scheduled, so this is roughly how much later the capture delivers it than the

@@ -154,7 +154,8 @@ Measured on 2026-11-14 on branch `feat/timing-model`, through the dev harness (`
 
 ### Batch size (cause 5)
 Every tracker onset waits for the worklet's batch to fill. Median and p95 delay from the hit to the tracker's onset
-value (`onsetMid`; `onsetKick` and `onsetHigh` agree within 2 ms), frame allowance ±18.6 ms:
+value (`onsetMid`; `onsetHigh` agrees within 1 ms, and so does `onsetKick` on the click track; on the drum track it
+reacts to only half the hits and its figures are not used), frame allowance ±18.6 ms:
 
 | `BATCH_FRAMES` | click-120 median / p95 | drums-128 median / p95 | Messages per second |
 |---|---|---|---|
@@ -165,7 +166,8 @@ value (`onsetMid`; `onsetKick` and `onsetHigh` agree within 2 ms), frame allowan
 
 The target is a median within 30 ms plus one frame (46.7 ms at 60 fps). 4 is the largest value that meets it, so it
 is the one kept. Its p95 (about 51 ms) is still above 46.7 ms; 2 would bring the p95 inside as well, at twice the
-messages. No page errors and 60 fps at every value. The direct analyser read (`cubes.in`) is 11 / 20 ms for
+messages. With one play per cell and a frame allowance of ±18.6 ms, the gap between neighboring rows is near the
+noise. No page errors and 60 fps at every value. The direct analyser read (`cubes.in`) is 11 / 20 ms for
 comparison. One machine, one play per cell.
 
 ### Timing model and sync offset
@@ -174,7 +176,9 @@ comparison. One machine, one play per cell.
 sync offset is one audio-wide setting (the "Sync" slider in the audio source panel, -200 to +200 ms, 0 by default,
 positive is later). It moves what `updatePhase` extrapolates (beat and bar phase, `nextBeatTime`, the beat counters).
 It does not move the peak-held onset values or direct analyser reads: those cannot be made earlier, and delaying the
-stamped onset events belongs to the hub (S7).
+stamped onset events belongs to the hub (S7). Captured audio arrives late, so in production the visuals are late
+and the correction is a negative offset ("earlier"). For a positive offset the analyzer runs the beat grid backwards
+by up to one beat, because a read 100 to 200 ms back can fall before the beat that was just declared.
 
 ### Look-ahead display delay (D11): dropped
 The rule was to adopt a display delay only if it bought synthetic onset F +0.05 or a quarter less beat error for at

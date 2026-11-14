@@ -165,7 +165,9 @@ Rules:
 2. `RhythmTracker.updatePhase()` without an argument, and the tracker's own call after each worklet message, read at
    `renderTime(context.currentTime, { displayDelayMs: DISPLAY_DELAY_MS, userSyncOffsetMs: engine.getSyncOffsetMs() })`.
    `updatePhase(now)` with an explicit time uses that time unchanged (the offline evaluation and specs pass one).
-   `RhythmAnalyzer` and `RhythmState` are unchanged.
+   `RhythmState` is unchanged. `RhythmAnalyzer.updatePhase` extrapolates backwards by up to one beat when the time is
+   before the newest declared beat (amended after the S5 review: a positive offset above the analysis lag otherwise
+   held the phase at 0); for a time at or after that beat it is unchanged.
 3. In S5 the offset moves only what `updatePhase` extrapolates: beat and bar phase, `nextBeatTime` and the beat
    counters. Peak-held onset values (`state.bandOnsets`) and direct analyser reads cannot be moved earlier and are not
    delayed. Delaying the stamped onset events is the hub's job (C5, S7).

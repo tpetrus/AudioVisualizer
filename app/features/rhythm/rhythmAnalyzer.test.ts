@@ -335,6 +335,42 @@ describe('RhythmAnalyzer API', () => {
         expect(sawBeatPhase).toBe(true);
     });
 
+    it('reads a time before the newest beat as the end of the previous beat', () => {
+        // A positive sync offset asks for a time up to 200 ms back, which can be before the beat that was just declared.
+        const frames = packedFrames(2000);
+        for (const delay of [0.1, 0.15, 0.2]) {
+            const analyzer = new RhythmAnalyzer(100);
+            let lastPhase: number | undefined;
+            let lastBeats = 0;
+            let wraps = 0;
+            for (let i = 0; i < 2000; i++) {
+                analyzer.pushFrame(i / 100, frames, i * FRAME_STRIDE);
+                analyzer.updatePhase(i / 100 - delay);
+                const { beatPhase, barPhase, beatCount } = analyzer.state;
+                expect(beatCount).toBeGreaterThanOrEqual(lastBeats);
+                if (barPhase !== undefined) {
+                    expect(barPhase).toBeGreaterThanOrEqual(0);
+                    expect(barPhase).toBeLessThan(1);
+                }
+                if (beatPhase !== undefined && lastPhase !== undefined && beatPhase < lastPhase) {
+                    // The phase only ever falls by wrapping from the end of a beat to the start of the next. Held at 0
+                    // after each declared beat, it would fall from mid-beat instead. A tempo correction may move the
+                    // grid by a little, hence the slack.
+                    if (lastPhase - beatPhase > 0.2) {
+                        expect(lastPhase).toBeGreaterThan(0.8);
+                        expect(beatPhase).toBeLessThan(0.2);
+                        wraps++;
+                        // The counter moves with the wrap, not when the beat was declared.
+                        expect(beatCount).toBeGreaterThan(lastBeats);
+                    }
+                }
+                lastPhase = beatPhase;
+                lastBeats = beatCount;
+            }
+            expect(wraps).toBeGreaterThan(10);
+        }
+    });
+
     it('freezes the extrapolated phase when the analysis stalls', () => {
         const frames = packedFrames(1500);
         const analyzer = new RhythmAnalyzer(100);

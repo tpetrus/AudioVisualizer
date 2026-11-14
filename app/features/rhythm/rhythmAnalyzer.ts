@@ -192,7 +192,10 @@ export class RhythmAnalyzer {
         }
         // A stalled analysis must freeze the phase rather than run on forever.
         const time = Math.min(now, this.latestTime + PHASE_EXTRAPOLATE_MAX_SECONDS);
-        const beats = Math.max(0, time - this.anchorTime) / this.anchorPeriod;
+        // A beat is declared about 100 ms after it sounded, so a reader that asks for an earlier time (a positive sync
+        // offset) can ask for a moment before the newest beat. That moment belongs to the end of the previous beat, so
+        // the grid is run backwards, by at most one beat, instead of holding the phase at 0 until the time catches up.
+        const beats = Math.max(-1, (time - this.anchorTime) / this.anchorPeriod);
         const wholeBeats = Math.floor(beats);
         const fraction = beats - wholeBeats;
         state.beatPhase = fraction;
@@ -210,7 +213,8 @@ export class RhythmAnalyzer {
             return;
         }
         const position = anchorPosition + wholeBeats;
-        state.barPhase = ((position % meter) + fraction) / meter;
+        // `position` is -1 when the time is before the first beat of the bar, and the bar position must still be 0..1.
+        state.barPhase = ((((position % meter) + meter) % meter) + fraction) / meter;
         // Counters never go backwards, even if the downbeat position was just corrected.
         const downbeatTarget = this.downbeatBase + this.declaredDownbeats + Math.floor(position / meter);
         if (downbeatTarget > state.downbeatCount) {

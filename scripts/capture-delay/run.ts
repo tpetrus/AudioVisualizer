@@ -281,8 +281,9 @@ async function main(): Promise<void> {
             args: [
                 // Lets the direct source start the context with no click, and the others resume it after Start.
                 '--autoplay-policy=no-user-gesture-required',
-                // A device capture would otherwise stop at the microphone permission prompt.
-                '--use-fake-ui-for-media-stream',
+                // A device capture would otherwise stop at the microphone permission prompt. The tab source must not get
+                // this flag: it also answers the share picker by itself, and the person has to pick the tab and its audio.
+                ...(args.source === 'device' ? ['--use-fake-ui-for-media-stream'] : []),
             ],
         });
         const context = await browser.newContext({ viewport: { width: 1000, height: 500 } });

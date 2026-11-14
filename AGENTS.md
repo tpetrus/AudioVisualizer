@@ -30,7 +30,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Write the synthetic ground-truth tracks (WAV, `.beats.json`, `.bpm`) used to measure alignment | `npm run ground-truth -- <out-dir>` (no args prints usage) |
 | Print beat, tempo and onset alignment against `.beats.json` ground truth for a folder of WAVs | `npm run eval:rhythm -- <wav-dir> --alignment` |
 | Tap along to a local track to make its `.beats.json` (dev only, see `docs/agents/tap-along.md`) | `npm run tap:beats -- --dir <folder> --track <file> [--calibrate] [--force]` |
-| Estimate the capture delay of tab audio or an input device on this machine by loopback (dev only, see `docs/agents/capture-delay.md`) | `npm run measure:capture-delay -- --source tab|device|direct [--device <label>] [--clicks N] [--interval S] [--out <file.json>]` (no args prints usage) |
+| Estimate the capture delay of tab audio or an input device on this machine by loopback (dev only, see `docs/agents/capture-delay.md`) | `npm run measure:capture-delay -- --source <tab, device or direct> [--device <label>] [--clicks N] [--interval S] [--out <file.json>]` (no args prints usage) |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
