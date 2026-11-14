@@ -105,3 +105,74 @@ S2 answered Q2: the tap and the worklet stay after the gain control. The types a
 - `bandEnergy` is in the packed frame's energy units and not normalized; normalizing is the hub's job (C5, S7).
 - `BATCH_FRAMES` stays 8 in S4. S5 measures and cuts it.
 - C5 and C6 are written at the start of the slices that implement them (S7 and S5).
+
+## C6 TimingModel (frozen at the start of the S5 session)
+
+The module is `app/features/audio/timingModel.ts`: pure functions and constants, no browser API, no import from
+`app/features/rhythm/`. Times are seconds unless the name ends in `Ms`.
+
+```ts
+// Where the audio comes from, as far as delay is concerned. 'file' is the dev file source, the only one that plays
+// through the context's destination.
+export type CaptureKind = 'screen' | 'device' | 'file';
+
+// Deliberate display delay (look-ahead experiment, D11). 0 unless the experiment is adopted; never a user setting.
+export const DISPLAY_DELAY_MS = 0;
+
+// Range and step of the user sync offset. Positive makes beat-driven visuals later, negative earlier.
+export const SYNC_OFFSET_MIN_MS = -200;
+export const SYNC_OFFSET_MAX_MS = 200;
+export const SYNC_OFFSET_STEP_MS = 5;
+export const DEFAULT_SYNC_OFFSET_MS = 0;
+
+// Estimated delay from the listener hearing a sound to its samples reaching the AudioContext, per source kind. 0 means
+// not measured; the findings document says where each figure comes from. Nothing is subtracted for it automatically:
+// the user sync offset is the correction.
+export const CAPTURE_DELAY_MS: Readonly<Record<CaptureKind, number>>;
+
+export interface TimingSettings {
+    displayDelayMs: number;
+    userSyncOffsetMs: number;
+}
+
+// The audio-clock time a render loop should read time-stamped values at.
+// renderTime = audioNow - (displayDelayMs + userSyncOffsetMs) / 1000
+export function renderTime(audioNow: number, settings: TimingSettings): number;
+
+// A stored or typed value as a valid offset: non-numbers and non-finite values give DEFAULT_SYNC_OFFSET_MS, others are
+// clamped to the range and rounded to the step.
+export function clampSyncOffsetMs(value: unknown): number;
+
+export interface FeatureDelayInput {
+    sampleRate: number;
+    fftSize: number;
+    hopSeconds: number;
+    batchFrames: number;
+    captureKind: CaptureKind;
+}
+
+// Upper bound on how long after a sound a feature frame describing it reaches the main thread:
+// half the analysis window + one hop + one batch (batchFrames * hopSeconds) + CAPTURE_DELAY_MS[captureKind] / 1000.
+export function featureDelaySeconds(input: FeatureDelayInput): number;
+```
+
+Rules:
+
+1. The user sync offset is one audio-wide setting owned by `AudioEngine` (`getSyncOffsetMs()` as an arrow property for
+   `useSyncExternalStore`, `setSyncOffsetMs(value)` which clamps, saves through `storage.ts` and notifies only when the
+   value changed). It is loaded once in the constructor and survives source changes. Storage key
+   `audioVisualizer.syncOffsetMs`; a corrupt stored value loads as 0.
+2. `RhythmTracker.updatePhase()` without an argument, and the tracker's own call after each worklet message, read at
+   `renderTime(context.currentTime, { displayDelayMs: DISPLAY_DELAY_MS, userSyncOffsetMs: engine.getSyncOffsetMs() })`.
+   `updatePhase(now)` with an explicit time uses that time unchanged (the offline evaluation and specs pass one).
+   `RhythmAnalyzer` and `RhythmState` are unchanged.
+3. In S5 the offset moves only what `updatePhase` extrapolates: beat and bar phase, `nextBeatTime` and the beat
+   counters. Peak-held onset values (`state.bandOnsets`) and direct analyser reads cannot be moved earlier and are not
+   delayed. Delaying the stamped onset events is the hub's job (C5, S7).
+4. The control is a range input in the active source panel, labelled so that the direction is clear (earlier or
+   later), showing the value in ms, with a reset to 0. It is keyboard reachable and passes the axe checks.
+5. `BATCH_FRAMES` is the value S5 measured (see the findings document); the worklet and its consumers accept any value
+   from 1 up.
+6. Production capture delay is measured with the dev-only loopback tool (`scripts/capture-delay/`), which plays clicks
+   at known AudioContext times and times their arrival through a capture of the same machine. The figures are one
+   machine's estimate and are not claimed as guaranteed.
