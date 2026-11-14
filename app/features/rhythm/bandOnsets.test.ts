@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BandOnsets } from './bandOnsets';
+import { BandOnsets, ringSizeFor } from './bandOnsets';
 import { OnsetExtractor } from './onsetExtractor';
 import {
     FEATURE_ONSET_BANDS,
@@ -7,6 +7,8 @@ import {
     HUB_BAND_COUNT,
     HUB_BAND_EDGES_HZ,
     BAND_ONSET_REFRACTORY_FRAMES,
+    BAND_ONSET_PAST_FRAMES,
+    LOW_ONSET_LAG_FRAMES,
     ONSET_LOOKAHEAD_FRAMES,
 } from './rhythmConfig';
 import { TEST_SAMPLE_RATE, silence } from './testSignals';
@@ -248,6 +250,57 @@ describe('BandOnsets events', () => {
         );
     });
 
+    it('does not let state from before a reset suppress or shape what follows', () => {
+        // A loud hit, a reset, then a hit at a much earlier frame and far quieter: stale refractory state (lastFrame,
+        // lastValue), a stale running mean or peak, or stale ring values would each hide or change it.
+        const loud = silence(1.5);
+        addKick(loud, 1.0);
+        const quiet = silence(1.5);
+        addKick(quiet, 0.1, 0.3);
+        const fresh = run(quiet);
+        expect(fresh.events).toHaveLength(1);
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
+        expect(run(loud, TEST_SAMPLE_RATE, onsets).events).toHaveLength(1);
+        onsets.reset();
+        const after = run(quiet, TEST_SAMPLE_RATE, onsets);
+        // Identical band, time and strength: a stale peak would also lower the strength below 1.
+        expect(after.events.map(({ band, time, strength }) => [band, time, strength])).toEqual(
+            fresh.events.map(({ band, time, strength }) => [band, time, strength]),
+        );
+    });
+
+    it('starts a new run from a clean slate after a reset, whatever the run before it did', () => {
+        // The run before the reset is busy (a flickering floor that raises the running mean, loud hits that raise the
+        // peak and set the refractory state at a late frame). The run after it is quiet, with a hit at an earlier
+        // frame than the last event of the first run. Any stale state would hide or change that hit.
+        const frameOf = (level: number): Float32Array => new Float32Array(FFT_SIZE / 2).fill(level);
+        const feed = (onsets: BandOnsets, levels: number[]): Array<[number, number, number]> => {
+            const events: Array<[number, number, number]> = [];
+            levels.forEach((level, i) =>
+                onsets.push(frameOf(level), i * 0.01, (band, time, strength) => events.push([band, time, strength])),
+            );
+            return events;
+        };
+        // Flicker only: its running mean alone (3 times 0.15) would hide a rise of 0.3, its peak would not.
+        const flicker = Array.from({ length: 120 }, (_, i) => (i % 2 === 0 ? 0.3 : 0));
+        // Loud hits: the peak and the refractory state at frame 100, the hit after the reset is at frame 3.
+        const loud = Array.from({ length: 120 }, (_, i) => (i === 100 ? 4 : 0));
+        const quietHit = (level: number): number[] => Array.from({ length: 60 }, (_, i) => (i === 3 ? level : 0));
+        for (const [busy, level] of [
+            [flicker, 0.3],
+            [loud, 1],
+        ] as const) {
+            const quiet = quietHit(level);
+            const fresh = feed(new BandOnsets(TEST_SAMPLE_RATE, 100), quiet);
+            expect(fresh.length).toBeGreaterThan(0);
+            const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+            expect(feed(onsets, busy).length).toBeGreaterThan(0);
+            onsets.reset();
+            expect(feed(onsets, quiet)).toEqual(fresh);
+        }
+    });
+
     it('hears nothing in silence', () => {
         expect(run(silence(2)).events).toEqual([]);
     });
@@ -274,6 +327,35 @@ describe('BandOnsets events', () => {
         }
     });
 
+    it('survives non-finite low-end levels around an onset with valid events', () => {
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: Event[] = [];
+        const sink = (band: number, time: number, strength: number): void => {
+            events.push({ band, time, strength, decidedAt: 0 });
+        };
+        const frame = (level: number, lowLevel = level): Float32Array => {
+            const bins = new Float32Array(FFT_SIZE / 2).fill(level);
+            bins.fill(lowLevel, 1, 12);
+            return bins;
+        };
+        let t = 0;
+        expect(() => {
+            for (let i = 0; i < 5; i++) onsets.push(frame(0), (t += 0.01), sink);
+            onsets.push(frame(0, -Infinity), (t += 0.01), sink);
+            onsets.push(frame(3, NaN), (t += 0.01), sink);
+            onsets.push(frame(3, Infinity), (t += 0.01), sink);
+            for (let i = 0; i < 20; i++) onsets.push(frame(0), (t += 0.01), sink);
+            onsets.push(frame(3), (t += 0.01), sink);
+            for (let i = 0; i < 20; i++) onsets.push(frame(0), (t += 0.01), sink);
+        }).not.toThrow();
+        expect(events.length).toBeGreaterThan(0);
+        for (const event of events) {
+            expect(Number.isFinite(event.time)).toBe(true);
+            expect(Number.isFinite(event.strength)).toBe(true);
+            expect([KICK, BASS, SNARE, HIGHS]).toContain(event.band);
+        }
+    });
+
     it.each([8000, 44100, 48000, 96000])('builds sensible bands at %i Hz', (sampleRate) => {
         const extractor = new OnsetExtractor(sampleRate);
         const onsets = new BandOnsets(sampleRate, extractor.frameRate);
@@ -293,5 +375,21 @@ describe('BandOnsets events', () => {
             }
         }).not.toThrow();
         expect(frames).toBeGreaterThan(10);
+    });
+});
+
+describe('ringSizeFor', () => {
+    it('keeps 8 slots for the default tuning', () => {
+        expect(ringSizeFor(LOW_ONSET_LAG_FRAMES, BAND_ONSET_PAST_FRAMES, ONSET_LOOKAHEAD_FRAMES)).toBe(8);
+    });
+
+    it('grows to the next power of two that holds the deepest reach back, the look-ahead and the newest frame', () => {
+        expect(ringSizeFor(1, 1, 1)).toBe(8);
+        expect(ringSizeFor(3, 4, 3)).toBe(8);
+        expect(ringSizeFor(6, 2, 2)).toBe(16);
+        expect(ringSizeFor(2, 9, 2)).toBe(16);
+        expect(ringSizeFor(2, 2, 12)).toBe(16);
+        expect(ringSizeFor(10, 10, 10)).toBe(32);
+        expect(ringSizeFor(0, 0, 0)).toBe(8);
     });
 });
