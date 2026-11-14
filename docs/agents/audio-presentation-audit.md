@@ -44,7 +44,7 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
 
 | Delay above target | Fix or reason |
 |---|---|
-| Tracker onsets, 49 to 60 ms median, 80 to 95 ms p95 | Fix in S5: cut the 80 ms batch and stamp frames with audio time |
+| Tracker onsets, 49 to 60 ms median, 80 to 95 ms p95 | Fixed in S5: the batch is 4 frames (40 ms), median 31 to 36 ms, p95 about 51 ms |
 | `bass-ink.kicks`, 49 to 57 ms on good tracks | Same cause as above (the gate runs on the tracker's clock); re-measure after S5 |
 | `bass-ink.kicks`, about 240 ms on `lonley` | Fix in S6: beat position stability and the gate's choice of where the kick sits |
 | `bass-ink.out`, `dancing-character.out`: no per-hit reaction | Reason: by design. Baseline uses `bass-ink.kicks` and `dancing-character.in` |

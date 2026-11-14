@@ -148,6 +148,59 @@ Known weaknesses (bold above, and `it.fails` in `scripts/ground-truth/alignment.
 No visualizer reads these onset events yet (the `RhythmState.bandOnsets` values they use come from the tracker's
 older three-band flux), so none of this changes what is on screen.
 
+## S5: timing model and reaction offset
+Measured on 2026-11-14 on branch `feat/timing-model`, through the dev harness (`npm run debug:viz ... --viz cubes
+--seconds 25 --headless`, 60 fps, display delay 0 ms) and `npm run debug:summary -- <csv> --reaction <column>`.
+
+### Batch size (cause 5)
+Every tracker onset waits for the worklet's batch to fill. Median and p95 delay from the hit to the tracker's onset
+value (`onsetMid`; `onsetKick` and `onsetHigh` agree within 2 ms), frame allowance ±18.6 ms:
+
+| `BATCH_FRAMES` | click-120 median / p95 | drums-128 median / p95 | Messages per second |
+|---|---|---|---|
+| 8 (before) | 40 / 80 ms | 56 / 91 ms | 12 |
+| **4 (now)** | **31 / 51 ms** | **35 / 50 ms** | 25 |
+| 2 | 20 / 31 ms | 23 / 36 ms | 50 |
+| 1 | 11 / 20 ms | 19 / 29 ms | 100 |
+
+The target is a median within 30 ms plus one frame (46.7 ms at 60 fps). 4 is the largest value that meets it, so it
+is the one kept. Its p95 (about 51 ms) is still above 46.7 ms; 2 would bring the p95 inside as well, at twice the
+messages. No page errors and 60 fps at every value. The direct analyser read (`cubes.in`) is 11 / 20 ms for
+comparison. One machine, one play per cell.
+
+### Timing model and sync offset
+`app/features/audio/timingModel.ts` (contract C6 in `docs/plans/audio-engine-alignment/contracts.md`):
+`renderTime = audioNow - display delay - user sync offset`. `RhythmTracker.updatePhase()` reads at that time. The
+sync offset is one audio-wide setting (the "Sync" slider in the audio source panel, -200 to +200 ms, 0 by default,
+positive is later). It moves what `updatePhase` extrapolates (beat and bar phase, `nextBeatTime`, the beat counters).
+It does not move the peak-held onset values or direct analyser reads: those cannot be made earlier, and delaying the
+stamped onset events belongs to the hub (S7).
+
+### Look-ahead display delay (D11): dropped
+The rule was to adopt a display delay only if it bought synthetic onset F +0.05 or a quarter less beat error for at
+most 80 ms. `npm run sweep:onsets -- --grid ONSET_LOOKAHEAD_FRAMES=2,4,6,8 --dir .debug-in --no-kick
+syncopation-no-kick`:
+
+- Synthetic: the worst band stays at F 0.67 (`no-kick-124` bass) at every value. One band gains: `bassline-kick-120`
+  bass passes 0.9 at 4 and 6 frames and fails again at 8. `bassline-kick-120` kick fails at every value.
+- Real tracks get worse with more look-ahead: bass events per beat fall from 0.31 to 0.00 on `imyourgirl` and from
+  0.85 to 0.42 (4 frames) and 0.20 (8 frames) on `syncopationbass`, and kicks on the track without a kick rise from
+  0.67 to 0.75 (4), 0.95 (6) and 0.80 (8) per beat. Lift is unchanged within 0.03, except `imyourgirl` at 8 frames
+  (0.58 from 0.51).
+- Beat error does not depend on the look-ahead: the beat grid comes from the tracker's own flux, which is unchanged.
+
+One synthetic band is not worth 20 to 60 ms of delay on every reaction, and the real tracks move the wrong way, so
+`DISPLAY_DELAY_MS` stays 0 and `ONSET_LOOKAHEAD_FRAMES` stays 2.
+
+### Production capture delay (AC9): not measured yet
+The page cannot observe when the listener hears a sound, so this is an estimate by loopback, per machine:
+`npm run measure:capture-delay` (see `docs/agents/capture-delay.md`) plays clicks at known AudioContext times and
+times their arrival through a capture of the same machine. Its self-check (`--source direct`, the in-page stream
+round trip with no hardware) found 20 of 20 clicks with no spread, at a constant 18.0 ms in one run and 20.7 ms in
+another; that is the floor of the measuring path. The `tab` and `device` sources need a person and real hardware and
+have not been run. Until they are, `CAPTURE_DELAY_MS` is 0 for every source, nothing is compensated automatically,
+and the sync offset is the correction. No production latency figure is claimed.
+
 ## Limits of this evidence
 - One tapper. The noise floor is 26 ms, and `summer2000` was hard to tap.
 - The live beat error on `lonley` (17 to 20 ms) and the offline one (197 ms) disagree. That is cause 2 showing up, not

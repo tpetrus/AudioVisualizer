@@ -34,7 +34,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
     private readonly extractor = new OnsetExtractor(sampleRate);
     private readonly bandOnsets = new BandOnsets(sampleRate, this.extractor.frameRate);
     private mix = new Float32Array(RENDER_QUANTUM);
-    // A batch is posted by transferring its buffers, so fresh ones are needed after each post (~12 per second).
+    // A batch is posted by transferring its buffers, so fresh ones are needed after each post (~25 per second).
     private batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
     private frameTimes = new Float64Array(BATCH_FRAMES);
     private bandEnergy = new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT);

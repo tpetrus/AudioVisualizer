@@ -15,11 +15,8 @@ detection, statistics, report) run in node and have specs.
 
 ## Run it
 
-Bundle and run (no npm script yet):
-
 ```
-npx esbuild scripts/capture-delay/run.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/capture-delay.mjs
-node node_modules/.cache/capture-delay.mjs --source <tab|device|direct> [options]
+npm run measure:capture-delay -- --source <tab|device|direct> [options]
 ```
 
 Options: `--device <label substring>`, `--clicks N` (default 20), `--interval S` (default 0.5), `--out <file.json>`,
@@ -55,8 +52,9 @@ Options: `--device <label substring>`, `--clicks N` (default 20), `--interval S`
 - `outputLatency` is the browser's estimate, not a guaranteed figure, and some setups report 0 or nothing; the report
   prints `n/a` then and the hearing-relative figure is just the median.
 - The direct source includes whatever the in-page stream round trip itself adds (the destination-to-source stream
-  buffers in Chromium); on the machine it was written on that was a constant 20.7 ms, so treat the direct median as
-  the pipeline's own floor, not as zero.
+  buffers in Chromium); on the machine it was written on that was 18.0 ms in one run and 20.7 ms in another, with no spread
+  inside a run, so treat the direct median as the pipeline's own floor, not as zero. Whether a tab or device capture
+  carries the same buffer is not known, so the floor is not subtracted from their figures.
 - Clicks are matched only within the interval after their scheduled time; a delay longer than `--interval` reads as a
   miss, so raise `--interval` if everything is missed.
 - The tab and device flows need a person and real hardware and are not covered by automated tests; the pure parts
