@@ -46,8 +46,22 @@ const SNARE_DETECTOR = 1;
 const HIGHS_DETECTOR = 2;
 
 // Frames kept: the candidate frame, what follows it (the look-ahead), what precedes it (the local-maximum test and the
-// level just before the hit), rounded up to a power of two for cheap wrapping.
-const RING = 8;
+// level just before the hit), rounded up to a power of two for cheap wrapping. The size is derived from the tuning
+// constants because the ablation and sweep tools override them: a ring that is too small would not fail, it would
+// silently read slots that newer frames had already overwritten. The deepest reach back is the larger of the low-end
+// lag, the local-maximum window and the one frame the activity check looks at; forward it is the look-ahead (and at
+// least the one frame the activity check looks at). The newest frame and the candidate itself add one slot. The floor
+// of 8 keeps the default layout.
+export function ringSizeFor(lowLagFrames: number, pastFrames: number, lookaheadFrames: number): number {
+    const needed = Math.max(lowLagFrames, pastFrames, 1) + Math.max(lookaheadFrames, 1) + 1;
+    let size = 8;
+    while (size < needed) {
+        size *= 2;
+    }
+    return size;
+}
+
+const RING = ringSizeFor(LOW_ONSET_LAG_FRAMES, BAND_ONSET_PAST_FRAMES, ONSET_LOOKAHEAD_FRAMES);
 const RING_MASK = RING - 1;
 
 // Decides, frame by frame and without a tempo lock, where the kick, bass, snare and hi-hat onsets are. Pure (no Web
@@ -290,8 +304,15 @@ export class BandOnsets {
         let gainAtOnset = 0;
         let gainSettled = 0;
         for (let i = this.upperFirstIndex; i < this.lowBinCount; i++) {
-            gainAtOnset += Math.max(0, this.lowLevels[first + i] - this.lowLevels[before + i]);
-            gainSettled += Math.max(0, this.lowLevels[last + i] - this.lowLevels[before + i]);
+            // As for the rise: a non-finite level must not turn the gains into NaN or Infinity.
+            const atOnset = this.lowLevels[first + i] - this.lowLevels[before + i];
+            const settled = this.lowLevels[last + i] - this.lowLevels[before + i];
+            if (atOnset > 0 && Number.isFinite(atOnset)) {
+                gainAtOnset += atOnset;
+            }
+            if (settled > 0 && Number.isFinite(settled)) {
+                gainSettled += settled;
+            }
         }
         return gainAtOnset >= LOW_ONSET_KICK_MIN_SKIRT && gainSettled < LOW_ONSET_KICK_MAX_SETTLED * gainAtOnset
             ? KICK
