@@ -25,7 +25,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Compare two or more recordings of one track on track time | `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` |
 | Replay a recording's bass-gate inputs through a named gate rule (dev only, see `docs/agents/debug-harness.md`) | `npm run replay:gate -- <telemetry.csv> --rule NAME` |
 | Run the rhythm pipeline over a WAV with `rhythmConfig` constants overridden (no app change) | `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` |
-| Check the band onset detector against its bounds on the synthetic tracks and a folder of tapped WAVs, once per grid point of `rhythmConfig` overrides | `npm run sweep:onsets -- [--dir <folder>] [--grid NAME=v1\|v2] [--set NAME=VALUE] [--no-kick <name>]` (`--help` prints usage) |
+| Check the band onset detector against its bounds on the synthetic tracks and a folder of tapped WAVs, once per grid point of `rhythmConfig` overrides | `npm run sweep:onsets -- [--dir <folder>] [--grid NAME=v1,v2] [--set NAME=VALUE] [--no-kick <name>]` (`--help` prints usage) |
 | Print tempo-versus-dotted-rival evidence for a folder of WAVs with `.bpm` sidecars, or regenerate the derived fixtures | `npm run probe:rhythm -- <dir> [--write-fixtures <dir>]` |
 | Write the synthetic ground-truth tracks (WAV, `.beats.json`, `.bpm`) used to measure alignment | `npm run ground-truth -- <out-dir>` (no args prints usage) |
 | Print beat, tempo and onset alignment against `.beats.json` ground truth for a folder of WAVs | `npm run eval:rhythm -- <wav-dir> --alignment` |
