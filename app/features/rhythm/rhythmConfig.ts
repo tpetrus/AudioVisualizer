@@ -289,8 +289,8 @@ export const BAND_ONSET_REFRACTORY_FRAMES = [8, 6, 5] as const;
 // A ripple is a fraction of the hit it follows; a hit struck on purpose is of the same order.
 export const BAND_ONSET_REFRACTORY_FRACTION = [0.6, 0.6, 0.6] as const;
 // What the classifier of a low-end onset looks at: how much the log level of the low end's bins from the bass band
-// (HUB_BAND_EDGES_HZ[2], 130 Hz) up to the top of the low end (300 Hz) rose from the frame before the onset to the onset
-// frame itself, and how much of that rise is left two frames later. A drum's attack spreads over those bins and the
+// (HUB_BAND_EDGES_HZ[2], 130 Hz) up to the top of the low end (300 Hz) rose from LOW_ONSET_LAG_FRAMES frames before the onset
+// to the onset frame itself, and how much of that rise is left two frames later. A drum's attack spreads over those bins and the
 // spread is gone two frames on (synthetic kicks keep 2 to 25 percent), a bass note's harmonics keep sounding (90 to 180
 // percent). It is a kick when the rise at the onset reaches the minimum below and no more than the settled fraction of it
 // is left; a note with too little up there to judge (a bare sine bass) is a bass note, which a drum never is: the skirt

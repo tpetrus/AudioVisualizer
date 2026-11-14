@@ -14,6 +14,7 @@ import { alignmentLift, onsetRates } from './rhythm-tools/onsetRates';
 import {
     expandGrid,
     formatPoint,
+    isBaselinePoint,
     parseSweepArguments,
     rankPoints,
     scorePoint,
@@ -34,8 +35,10 @@ Prints the baseline (--set only) first, then the points ranked: no violations fi
 margin. A "!" marks a violated figure. Not a tuner: it only reports.
 
 Options:
-  --grid NAME=v1|v2  An rhythmConfig.ts constant and the values to try, '|' between them; values are numbers,
-                     arithmetic and [ ] lists, e.g. --grid "BAND_ONSET_NOISE_FACTOR=[3,3,3]|[2,2,2]". Repeatable.
+  --grid NAME=v1|v2  A rhythmConfig.ts constant and the values to try, '|' or ',' between them (or repeat --grid); values are numbers,
+                     arithmetic and [ ] lists, e.g. --grid "BAND_ONSET_NOISE_FACTOR=[3,3,3]|[2,2,2]". Repeatable; commas inside
+                     [ ] stay in the value. On Windows npm mangles '|', so use ',' or repeat the option:
+                     --grid NAME=[3,3,3],[2,2,2] or --grid NAME=[3,3,3] --grid NAME=[2,2,2]
   --set NAME=VALUE   A fixed override applied to every point, including the baseline. Repeatable.
   --dir <folder>     WAVs with a .beats.json sidecar of source "tapped" next to them are checked as local tracks.
   --seconds <s>      Analyze at most the first s seconds of each local track (default 60).
@@ -122,9 +125,15 @@ async function main(): Promise<void> {
             }
         }
 
+        console.error(`Evaluating ${points.length} point(s) plus the baseline (a point equal to it reuses its run)`);
         const baseline = await evaluate(options.fixed, tracks, options.noKick, options.seconds);
         const scored: { overrides: Override[]; score: PointScore; local: LocalResult[] }[] = [];
         for (const point of points) {
+            // With no --grid the only point is the baseline itself, so its result is reused instead of rebuilt.
+            if (isBaselinePoint(point, options.fixed)) {
+                scored.push({ overrides: point, ...baseline });
+                continue;
+            }
             scored.push({ overrides: point, ...(await evaluate(point, tracks, options.noKick, options.seconds)) });
         }
         const ranked = rankPoints(scored);
