@@ -455,3 +455,159 @@ describe('TempoTracker first-lock tie', () => {
         expect(tracker.bpm).toBe(0);
     });
 });
+
+// A trace that also keeps the unfiltered estimate, so a spec can show which rule kept the held value where it was.
+interface RawTrace extends Trace {
+    raw: number[];
+}
+
+function driveRaw(tracker: TempoTracker, envelope: Float32Array): RawTrace {
+    const trace: RawTrace = { bpm: [], updated: [], raw: [] };
+    for (let i = 0; i < envelope.length; i++) {
+        tracker.push(envelope[i]);
+        if ((i + 1) % UPDATE_FRAMES === 0) {
+            trace.updated.push(tracker.update());
+            trace.bpm.push(tracker.bpm);
+            trace.raw.push(tracker.rawBpm);
+        }
+    }
+    return trace;
+}
+
+describe('TempoTracker octave and bar rules', () => {
+    function joined(...parts: Float32Array[]): Float32Array {
+        const out = new Float32Array(parts.reduce((total, part) => total + part.length, 0));
+        let offset = 0;
+        for (const part of parts) {
+            out.set(part, offset);
+            offset += part.length;
+        }
+        return out;
+    }
+
+    function weighted(envelope: Float32Array, weight: number): Float32Array {
+        return envelope.map((value) => value * weight);
+    }
+
+    function added(a: Float32Array, b: Float32Array): Float32Array {
+        return a.map((value, i) => value + b[i]);
+    }
+
+    // A 4/4 bar of four beats that repeats exactly, plus a dotted-eighth figure (a hit every 0.75 beat, restarting each
+    // bar) from bar `fromBar` on. The figure makes a 4:3 pulse, 180 BPM at a 135 BPM beat.
+    function dottedBars(bpm: number, seconds: number, fromBar: number, figure: number, beatWeight = 1): Float32Array {
+        const beatFrames = (60 / bpm) * FRAME_RATE;
+        const envelope = new Float32Array(Math.round(seconds * FRAME_RATE));
+        const hit = (at: number, weight: number) => {
+            const frame = Math.round(at);
+            if (frame < envelope.length) {
+                envelope[frame] += weight;
+                envelope[frame + 1] += weight * 0.5;
+                envelope[frame + 2] += weight * 0.2;
+            }
+        };
+        for (let bar = 0; bar * 4 * beatFrames < envelope.length; bar++) {
+            for (let beat = 0; beat < 4; beat++) {
+                hit((bar * 4 + beat) * beatFrames, beatWeight);
+            }
+            if (bar >= fromBar) {
+                for (let k = 0; k * 0.75 < 4; k++) {
+                    hit((bar * 4 + k * 0.75) * beatFrames, figure);
+                }
+            }
+        }
+        return envelope;
+    }
+
+    // Every held value once a tempo is held, so a spec covers the whole run and not just its last update.
+    function heldValues(trace: Trace): number[] {
+        return trace.bpm.filter((bpm) => bpm > 0);
+    }
+
+    function longestRun(values: boolean[]): number {
+        let longest = 0;
+        let run = 0;
+        for (const value of values) {
+            run = value ? run + 1 : 0;
+            longest = Math.max(longest, run);
+        }
+        return longest;
+    }
+
+    describe('octave prior toward the faster pulse', () => {
+        // The divisor-2 branch in update(): without the octave prior on interpolated heights, the 87 BPM half-lag peak
+        // (which sits on whole frames) beats the 174 BPM peak (34.48 frames, split over two lags).
+        it('holds a bare 174 BPM pulse at 174, not 87', () => {
+            const held = heldValues(drive(new TempoTracker(FRAME_RATE), pulseTrain(174, 30)));
+            expect(held.length).toBeGreaterThan(0);
+            for (const bpm of held) {
+                expect(Math.abs(bpm / 174 - 1)).toBeLessThan(0.02);
+            }
+        });
+
+        // The 0.3 weight is a case the divisor-2 branch alone decides: without it the 70 BPM pulse wins.
+        it.each([0.5, 0.3])('holds full pulses at 70 BPM with %f-strength pulses at 140 at 140', (strength) => {
+            const envelope = added(pulseTrain(70, 30), weighted(pulseTrain(140, 30), strength));
+            const held = heldValues(drive(new TempoTracker(FRAME_RATE), envelope));
+            expect(held.length).toBeGreaterThan(0);
+            for (const bpm of held) {
+                expect(Math.abs(bpm / 140 - 1)).toBeLessThan(0.02);
+            }
+        });
+    });
+
+    describe('octave prior toward the slower pulse', () => {
+        // Pins the outcome of the loop after the faster-pulse takeover: a pulse faster than the break-even (185 BPM) is a
+        // subdivision of the pulse at half its tempo. Known gap: disabling that loop does not fail this spec, because the
+        // main prior's double-lag bonus already puts the winner on the slower pulse for bare pulse trains; no pattern
+        // tried (jitter, alternating strength, 190 to 220 BPM) separates the loop from that scoring.
+        it.each([
+            [196, 98],
+            [200, 100],
+        ])('folds a bare %f BPM pulse to %f', (bpm, expected) => {
+            const held = heldValues(drive(new TempoTracker(FRAME_RATE), pulseTrain(bpm, 30)));
+            expect(held.length).toBeGreaterThan(0);
+            for (const value of held) {
+                expect(Math.abs(value / expected - 1)).toBeLessThan(0.02);
+            }
+        });
+    });
+
+    describe('octave-away hold', () => {
+        // syncopationbass loses its 98 pulse for about 2.5 s and reads 196. A bare 196 pulse folds to 98 in the raw estimate
+        // (the slower-pulse loop), so the middle section is made loud enough that the 196 pulse outweighs the 98 pulses
+        // still in the 8 s window, and the raw estimate does read 196 for four updates in a row. That is as many as
+        // TEMPO_SWITCH_ESTIMATES asks for, so only the octave-away rule (which asks for TEMPO_SYNCOPATION_SWITCH_ESTIMATES
+        // and the confidence it demands) keeps the held tempo at 98.
+        it('keeps the held 98 through 2.5 s whose raw estimate reads 196', () => {
+            const tracker = new TempoTracker(FRAME_RATE);
+            const envelope = joined(pulseTrain(98, 15), weighted(pulseTrain(196, 2.5), 100), pulseTrain(98, 10));
+            const trace = driveRaw(tracker, envelope);
+            const readsDouble = trace.raw.map((bpm) => Math.abs(bpm / 196 - 1) < 0.03);
+            expect(longestRun(readsDouble)).toBeGreaterThanOrEqual(4);
+            for (const bpm of trace.bpm.slice(Math.round(10 / TEMPO_UPDATE_SECONDS))) {
+                expect(Math.abs(bpm / 98 - 1)).toBeLessThan(0.02);
+            }
+        });
+    });
+
+    describe('bar evidence', () => {
+        // The allow side of barFavors is covered by "still follows a 4/3 tempo that lasts" above: a 98 BPM pulse that
+        // becomes a real 4/3 tempo is followed although the 8x lag at 98 BPM is out of reach, so only the 4x lag is
+        // compared there and the new pulse wins it. This is the veto side.
+        it('does not follow a dotted figure that restarts every bar', () => {
+            // A 135 BPM bar of four beats with a louder dotted-eighth figure from bar 7 on (about 12.4 s). The figure makes
+            // 180 BPM the strongest pulse of the raw estimate, but the beat repeats every bar and the figure's 4:3 pulse
+            // does not, so the bar evidence keeps the held tempo.
+            const tracker = new TempoTracker(FRAME_RATE);
+            const trace = driveRaw(tracker, dottedBars(135, 42.5, 7, 2));
+            const held = heldValues(trace);
+            expect(held.length).toBeGreaterThan(0);
+            for (const bpm of held) {
+                expect(Math.abs(bpm / 135 - 1)).toBeLessThan(0.02);
+            }
+            const readsDotted = trace.raw.map((bpm) => Math.abs(bpm / 180 - 1) < 0.02);
+            expect(longestRun(readsDotted)).toBeGreaterThanOrEqual(32);
+        });
+    });
+});
