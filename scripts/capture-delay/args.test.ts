@@ -90,3 +90,15 @@ describe('pickDevice', () => {
         expect(pickDevice(devices, undefined)).toBeUndefined();
     });
 });
+
+describe('parseCaptureArgs duration cap', () => {
+    it('rejects a run longer than 60 seconds', () => {
+        const parsed = parseCaptureArgs(['--source', 'direct', '--clicks', '200', '--interval', '0.5']);
+        expect(parsed.kind).toBe('error');
+        if (parsed.kind === 'error') expect(parsed.message).toContain('60 seconds');
+    });
+
+    it('accepts exactly 60 seconds', () => {
+        expect(parseCaptureArgs(['--source', 'direct', '--clicks', '120', '--interval', '0.5']).kind).toBe('run');
+    });
+});

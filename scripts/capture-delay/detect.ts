@@ -32,6 +32,9 @@ export interface Detection {
     noiseFloor: number;
     peak: number;
     threshold: number;
+    // True when the first click was missed but most later ones were found: the signature of a true delay longer than
+    // the matching window, where each click's sound lands in the next click's window and reads as (delay - interval).
+    lateSuspected: boolean;
 }
 
 export function estimateNoiseFloor(samples: ArrayLike<number>): number {
@@ -65,5 +68,10 @@ export function detectClicks(input: DetectInput): Detection {
         }
         return { scheduled: time, arrival: null, delayMs: null };
     });
-    return { clicks, noiseFloor, peak, threshold };
+    // With one click there is nothing to compare, so it stays an ordinary miss.
+    const rest = clicks.slice(1);
+    const restFound = rest.filter((click) => click.arrival !== null).length;
+    const lateSuspected =
+        clicks.length > 1 && clicks[0].arrival === null && restFound * 2 >= rest.length && restFound > 0;
+    return { clicks, noiseFloor, peak, threshold, lateSuspected };
 }

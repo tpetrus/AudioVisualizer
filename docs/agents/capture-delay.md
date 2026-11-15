@@ -56,7 +56,9 @@ Options: `--device <label substring>`, `--clicks N` (default 20), `--interval S`
   buffers in Chromium); on the machine it was written on that was 18.0 ms in one run and 20.7 ms in another, with no spread
   inside a run, so treat the direct median as the pipeline's own floor, not as zero. Whether a tab or device capture
   carries the same buffer is not known, so the floor is not subtracted from their figures.
-- Clicks are matched only within the interval after their scheduled time; a delay longer than `--interval` reads as a
-  miss, so raise `--interval` if everything is missed.
+- Clicks are matched only within the interval after their scheduled time; a delay longer than `--interval` would make
+  each click land in the next click's window. The tool spots that (first click missed, the rest found) and fails with
+  a message to raise `--interval`, instead of printing a median that is off by one interval. `--clicks` times
+  `--interval` is capped at 60 s.
 - The tab and device flows need a person and real hardware and are not covered by automated tests; the pure parts
   (arguments, click detection, statistics, report) are.
