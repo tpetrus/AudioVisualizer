@@ -531,6 +531,37 @@ describe('RhythmTracker', () => {
             expect(phase).toHaveBeenLastCalledWith(3.15);
         });
 
+        it('writes the engine offset into state.syncOffsetMs for a render-time read, and leaves it for an explicit time', async () => {
+            const analyser = createAnalyser();
+            analyser.context.currentTime = 3;
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            await attachedNode(harness.web);
+            expect(harness.tracker.state.syncOffsetMs).toBe(0);
+
+            harness.engine.setSyncOffsetMs(120);
+            harness.tracker.updatePhase(7);
+            expect(harness.tracker.state.syncOffsetMs).toBe(0);
+            harness.tracker.updatePhase();
+            expect(harness.tracker.state.syncOffsetMs).toBe(120);
+
+            harness.engine.setSyncOffsetMs(-30);
+            harness.tracker.updatePhase(7);
+            expect(harness.tracker.state.syncOffsetMs).toBe(120);
+        });
+
+        it('also writes the offset from the update after each worklet message', async () => {
+            const analyser = createAnalyser();
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            const phase = vi.spyOn(harness.tracker.analysis!, 'updatePhase');
+            harness.engine.setSyncOffsetMs(60);
+
+            await deliver(node, flatBatch(), () => phase.mock.calls.length);
+            expect(harness.tracker.state.syncOffsetMs).toBe(60);
+        });
+
         it('accepts an explicit time before start() as a harmless no-op', () => {
             expect(() => harness.tracker.updatePhase(1)).not.toThrow();
         });

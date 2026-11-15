@@ -80,6 +80,28 @@ describe('gate rules', () => {
         expect(replayGate(bare, findGateRule('current')).firstOpen).toBeCloseTo(7.73, 1);
     });
 
+    it('replays old recordings with offset 0, and forgets when a recorded offset column changes', () => {
+        expect(findGateColumns(table.columns).syncOffsetMs).toBe(-1);
+        const base = replayGate(table, findGateRule('current'));
+        const withColumn = (offsetAt: (row: number) => number) => ({
+            columns: [...table.columns, 'x.syncOffsetMs'],
+            rows: table.rows.map((row, i) => [...row, offsetAt(i)]),
+        });
+        // The column name carries the probe prefix, like the other gate columns.
+        const prefix = table.columns.find((name) => name.endsWith('.in'))!.slice(0, -'in'.length);
+        const named = (rows: ReturnType<typeof withColumn>) => ({
+            ...rows,
+            columns: [...table.columns, `${prefix}syncOffsetMs`],
+        });
+        expect(replayGate(named(withColumn(() => 0)), findGateRule('current'))).toEqual(base);
+        expect(replayGate(named(withColumn(() => 80)), findGateRule('current'))).toEqual(base);
+        const changed = replayGate(
+            named(withColumn((i) => (i > table.rows.length * 0.7 ? 100 : 0))),
+            findGateRule('current'),
+        );
+        expect(changed.openShare).toBeLessThan(1);
+    });
+
     it('refuses a table that is not a gate recording', () => {
         expect(() => findGateColumns(['t', 'fps'])).toThrow('not a gate recording');
         expect(() => findGateColumns(['t', 'x.in'])).toThrow('Missing column "x.beatPhase"');

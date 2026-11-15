@@ -66,6 +66,8 @@ export interface BassGateState {
     attackLeft: number;
     beatCount: number;
     songChangeCount: number;
+    // The sync offset the learned kick place was measured against.
+    syncOffsetMs: number;
     initialized: boolean;
     // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), and the latest measured
     // kick's signed distance from the learned place in beats (NaN until one was measured).
@@ -97,6 +99,7 @@ export function createBassGateState(): BassGateState {
         attackLeft: 0,
         beatCount: 0,
         songChangeCount: 0,
+        syncOffsetMs: 0,
         initialized: false,
         bumpCount: 0,
         kickOffset: NaN,
@@ -131,10 +134,14 @@ export function stepBassGate(
     // tracker's confidence dips briefly in busy passages while the music carries on unchanged.
     const songChanged = state.initialized && rhythm.songChangeCount !== state.songChangeCount;
     state.unlockedSeconds = tempoLocked ? 0 : state.unlockedSeconds + step;
-    if (songChanged || state.unlockedSeconds > BASS_GATE_LOCK_GRACE_SECONDS) forgetBassline(state);
+    // A changed sync offset shifts the beat phase the kicks are placed against, so the learned kick place is stale at
+    // once, as for a new song. A constant offset changes nothing, and the first call only records it.
+    const offsetChanged = state.initialized && rhythm.syncOffsetMs !== state.syncOffsetMs;
+    if (songChanged || offsetChanged || state.unlockedSeconds > BASS_GATE_LOCK_GRACE_SECONDS) forgetBassline(state);
     // The first call only records the counters, so a track already playing does not count as a new beat.
     const newBeat = state.initialized && rhythm.beatCount !== state.beatCount;
     state.songChangeCount = rhythm.songChangeCount;
+    state.syncOffsetMs = rhythm.syncOffsetMs;
     state.beatCount = rhythm.beatCount;
     state.initialized = true;
     state.sinceBump = Math.min(state.sinceBump + step, BASS_GATE_MIN_INTERVAL);

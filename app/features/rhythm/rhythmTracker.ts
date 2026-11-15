@@ -90,7 +90,11 @@ export class RhythmTracker {
         if (!context) {
             return undefined;
         }
-        this.timing.userSyncOffsetMs = this.engine?.getSyncOffsetMs() ?? 0;
+        const offset = this.engine?.getSyncOffsetMs() ?? 0;
+        this.timing.userSyncOffsetMs = offset;
+        // Publishes the offset this phase was shifted by, so a consumer that learns against the phase can tell
+        // when the shift changed. An explicit `now` skips this, since it applies no offset.
+        this.state.syncOffsetMs = offset;
         return renderTime(context.currentTime, this.timing);
     }
 

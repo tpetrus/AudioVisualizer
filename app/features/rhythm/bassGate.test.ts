@@ -22,7 +22,7 @@ type State = ReturnType<typeof createBassGateState>;
 function drive(
     frames: number,
     bassAt: (frame: number, phase: number) => number,
-    options: { locked?: boolean; start?: number; state?: State } = {},
+    options: { locked?: boolean; start?: number; state?: State; syncOffsetMs?: number; phaseShift?: number } = {},
 ) {
     const state = options.state ?? createBassGateState();
     const rhythm = createRhythmState();
@@ -30,7 +30,9 @@ function drive(
     const start = options.start ?? 0;
     for (let i = start; i < start + frames; i++) {
         const beat = i / FRAMES_PER_BEAT;
-        rhythm.beatPhase = beat % 1;
+        // A sync offset shifts the phase the gate is fed; `phaseShift` is that shift in beats.
+        rhythm.beatPhase = (beat + (options.phaseShift ?? 0)) % 1;
+        rhythm.syncOffsetMs = options.syncOffsetMs ?? 0;
         rhythm.beatCount = Math.floor(beat);
         outputs.push(stepBassGate(bassAt(i, rhythm.beatPhase), rhythm, options.locked ?? true, state, DT));
     }
@@ -203,6 +205,60 @@ describe('stepBassGate', () => {
         expect(state.open).toBe(false);
         expect(state.score).toBe(0);
         expect(state.weight).toBeGreaterThan(0.9);
+    });
+
+    describe('when the sync offset changes', () => {
+        // 100 ms at 120 BPM is 0.2 of a beat.
+        const SHIFT = 0.2;
+        // Frames of on-beat kicks, fed with the given offset, until the gate opens (counted from `start`), or -1.
+        function framesToOpen(state: State, start: number, syncOffsetMs: number, phaseShift: number): number {
+            for (let i = 0; i < FRAMES_PER_BEAT * 40; i++) {
+                drive(1, onBeatKick, { state, start: start + i, syncOffsetMs, phaseShift });
+                if (state.open) return i + 1;
+            }
+            return -1;
+        }
+
+        it('does not forget on the first call or at a constant nonzero offset', () => {
+            const first = createBassGateState();
+            const rhythm = createRhythmState();
+            rhythm.syncOffsetMs = 80;
+            rhythm.beatPhase = 0;
+            stepBassGate(0, rhythm, true, first, DT);
+            expect(first.syncOffsetMs).toBe(80);
+
+            const { state } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick, { syncOffsetMs: 80, phaseShift: SHIFT });
+            expect(state.open).toBe(true);
+            drive(FRAMES_PER_BEAT * 8, onBeatKick, {
+                state,
+                start: FRAMES_PER_BEAT * WARM_BEATS,
+                syncOffsetMs: 80,
+                phaseShift: SHIFT,
+            });
+            expect(state.open).toBe(true);
+        });
+
+        it('closes the gate and clears the kick place when the offset changes', () => {
+            const state = locked();
+            expect(state.phaseKnown).toBe(true);
+            // A frame between kicks, so nothing relearns the place within the same step.
+            const start = FRAMES_PER_BEAT * WARM_BEATS + 10;
+            drive(1, onBeatKick, { state, start, syncOffsetMs: 100, phaseShift: SHIFT });
+            expect(state.open).toBe(false);
+            expect(state.phaseKnown).toBe(false);
+        });
+
+        it('reopens on the kick as fast as it opened from cold', () => {
+            const cold = createBassGateState();
+            const coldFrames = framesToOpen(cold, 0, 0, 0);
+            expect(coldFrames).toBeGreaterThan(0);
+
+            const state = locked();
+            const start = FRAMES_PER_BEAT * WARM_BEATS;
+            const reopenFrames = framesToOpen(state, start, 100, SHIFT);
+            expect(reopenFrames).toBeGreaterThan(0);
+            expect(reopenFrames).toBeLessThanOrEqual(coldFrames + FRAMES_PER_BEAT);
+        });
     });
 
     it('learns a new place only after the bassline has moved for a long time', () => {

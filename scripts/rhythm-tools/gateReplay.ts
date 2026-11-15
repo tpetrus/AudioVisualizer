@@ -55,6 +55,8 @@ export interface GateColumns {
     tempoLocked: number;
     beatCount: number;
     songChanges: number;
+    // -1 for recordings made before the offset was recorded; they replay with a constant 0.
+    syncOffsetMs: number;
     gateOpen: number;
 }
 
@@ -76,6 +78,7 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         tempoLocked: at(`${prefix}tempoLocked`, true),
         beatCount: at(`${prefix}beatCount`, true),
         songChanges: at(`${prefix}songChanges`, true),
+        syncOffsetMs: at(`${prefix}syncOffsetMs`, false),
         gateOpen: at(`${prefix}gateOpen`, false),
     };
 }
@@ -83,8 +86,8 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
 export function replayGate(table: TelemetryTable, rule: GateRule): GateReplay {
     const c = findGateColumns(table.columns);
     const state = createBassGateState();
-    // Only these three fields are read by the gate.
-    const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0 };
+    // Only these four fields are read by the gate.
+    const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0, syncOffsetMs: 0 };
     let firstOpen: number | undefined;
     let firstLock: number | undefined;
     let rowsOpen = 0;
@@ -97,6 +100,8 @@ export function replayGate(table: TelemetryTable, rule: GateRule): GateReplay {
         rhythm.beatPhase = Number.isNaN(phase) ? undefined : phase;
         rhythm.beatCount = row[c.beatCount];
         rhythm.songChangeCount = row[c.songChanges];
+        // Old recordings have no offset column and replay as a constant 0, so the gate never forgets for it.
+        rhythm.syncOffsetMs = c.syncOffsetMs >= 0 ? row[c.syncOffsetMs] : 0;
         // The recorded dt is rounded to four digits; the time step is the fallback when the column is absent.
         const dt = c.dt >= 0 ? row[c.dt] : row[c.t] - previousT;
         previousT = row[c.t];
