@@ -5,9 +5,11 @@ import {
     clearSource,
     loadNormalize,
     loadNormalizeSettings,
+    loadSyncOffsetMs,
     loadSource,
     saveNormalize,
     saveNormalizeSettings,
+    saveSyncOffsetMs,
     saveSource,
 } from './storage';
 import { DEFAULT_NORMALIZE_SETTINGS } from './types';
@@ -57,6 +59,29 @@ describe('normalize flag', () => {
     });
 });
 
+describe('sync offset', () => {
+    it('defaults to 0', () => {
+        expect(loadSyncOffsetMs()).toBe(0);
+    });
+
+    it('round-trips a value under its own key', () => {
+        saveSyncOffsetMs(-40);
+        expect(localStorage.getItem('audioVisualizer.syncOffsetMs')).toBe('-40');
+        expect(loadSyncOffsetMs()).toBe(-40);
+    });
+
+    it('loads 0 for corrupt values and clamps out-of-range ones', () => {
+        localStorage.setItem('audioVisualizer.syncOffsetMs', 'oops');
+        expect(loadSyncOffsetMs()).toBe(0);
+        localStorage.setItem('audioVisualizer.syncOffsetMs', '"12"');
+        expect(loadSyncOffsetMs()).toBe(0);
+        localStorage.setItem('audioVisualizer.syncOffsetMs', '9999');
+        expect(loadSyncOffsetMs()).toBe(200);
+        localStorage.setItem('audioVisualizer.syncOffsetMs', '-9999');
+        expect(loadSyncOffsetMs()).toBe(-200);
+    });
+});
+
 describe('normalize settings', () => {
     it('defaults when nothing is stored', () => {
         expect(loadNormalizeSettings()).toEqual(DEFAULT_NORMALIZE_SETTINGS);
@@ -92,6 +117,7 @@ describe('unavailable storage', () => {
         });
         expect(loadSource()).toBeUndefined();
         expect(loadNormalize()).toBe(true);
+        expect(loadSyncOffsetMs()).toBe(0);
         expect(loadNormalizeSettings()).toEqual(DEFAULT_NORMALIZE_SETTINGS);
     });
 
@@ -104,6 +130,7 @@ describe('unavailable storage', () => {
         });
         expect(() => saveSource({ mode: 'screen' })).not.toThrow();
         expect(() => saveNormalize(false)).not.toThrow();
+        expect(() => saveSyncOffsetMs(10)).not.toThrow();
         expect(() => saveNormalizeSettings(DEFAULT_NORMALIZE_SETTINGS)).not.toThrow();
         expect(() => clearSource()).not.toThrow();
         expect(() => clearNormalizeSettings()).not.toThrow();
