@@ -29,6 +29,11 @@ export interface RhythmState {
     beatCount: number;
     downbeatCount: number;
     songChangeCount: number;
+    // The user sync offset in ms that the latest `updatePhase()` without an explicit time shifted the phase by (C6).
+    // A consumer that learns where things land in the beat compares it with its last value: a change moves the phase,
+    // so what was learned against the old one is stale. Not cleared by a reset, since it is a setting, not something
+    // learned from the music.
+    syncOffsetMs: number;
 }
 
 export function createRhythmState(): RhythmState {
@@ -46,6 +51,7 @@ export function createRhythmState(): RhythmState {
         beatCount: 0,
         downbeatCount: 0,
         songChangeCount: 0,
+        syncOffsetMs: 0,
     };
 }
 

@@ -165,7 +165,10 @@ Rules:
 2. `RhythmTracker.updatePhase()` without an argument, and the tracker's own call after each worklet message, read at
    `renderTime(context.currentTime, { displayDelayMs: DISPLAY_DELAY_MS, userSyncOffsetMs: engine.getSyncOffsetMs() })`.
    `updatePhase(now)` with an explicit time uses that time unchanged (the offline evaluation and specs pass one).
-   `RhythmState` is unchanged. `RhythmAnalyzer.updatePhase` extrapolates backwards by up to one beat when the time is
+   `RhythmState` gains one field, `syncOffsetMs` (amended after S5, for the bass gate): `updatePhase()` without an
+   argument writes the offset it read into it, `updatePhase(now)` leaves it unchanged, and `clearRhythmState` keeps it.
+   A consumer that learns a place in the beat (the bass gate's kick place) forgets it when the value changes, as for a
+   song change; a constant offset changes nothing. `RhythmAnalyzer.updatePhase` extrapolates backwards by up to one beat when the time is
    before the newest declared beat (amended after the S5 review: a positive offset above the analysis lag otherwise
    held the phase at 0); for a time at or after that beat it is unchanged.
 3. In S5 the offset moves only what `updatePhase` extrapolates: beat and bar phase, `nextBeatTime` and the beat
