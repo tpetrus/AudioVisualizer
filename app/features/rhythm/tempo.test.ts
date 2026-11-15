@@ -204,15 +204,15 @@ describe('TempoTracker on a syncopated pattern', () => {
         }
     });
 
-    // The same pulse seen from the double: measured holding 196 with a rival at 130.7.
+    // The same pulse seen from a faster held tempo. 160 is a tempo the octave prior keeps; a bare 196 now reads 98 by design.
     it('keeps a held double-time tempo through a 2/3 pulse', () => {
         const tracker = new TempoTracker(FRAME_RATE);
         const trace = drive(
             tracker,
-            concatenated(pulseTrain(196, 15), pulseTrain(196 * (2 / 3), 6), pulseTrain(196, 6)),
+            concatenated(pulseTrain(160, 15), pulseTrain(160 * (2 / 3), 6), pulseTrain(160, 6)),
         );
         for (const bpm of trace.bpm.slice(Math.round(10 / TEMPO_UPDATE_SECONDS))) {
-            expect(Math.abs(bpm / 196 - 1)).toBeLessThan(0.02);
+            expect(Math.abs(bpm / 160 - 1)).toBeLessThan(0.02);
         }
     });
 
@@ -248,10 +248,11 @@ describe('TempoTracker on a syncopated pattern', () => {
 });
 
 describe('TempoTracker rival view', () => {
-    // Two pulse trains at once: the louder one wins, the weaker one is a rival that is not a multiple of it.
+    // Two pulse trains at once: the louder one wins, the weaker one is a rival that is not a multiple of it. The rival is
+    // not 4:3 of the winner (160 was): an exact 4:3 mix is a polyrhythm whose bar evidence truly favors the faster pulse.
     function twoPulses(seconds: number): Float32Array {
         const strong = pulseTrain(120, seconds);
-        const weak = pulseTrain(160, seconds);
+        const weak = pulseTrain(150, seconds);
         return strong.map((value, i) => value + 0.6 * weak[i]);
     }
 
