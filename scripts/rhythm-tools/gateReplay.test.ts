@@ -83,20 +83,25 @@ describe('gate rules', () => {
     it('replays old recordings with offset 0, and forgets when a recorded offset column changes', () => {
         expect(findGateColumns(table.columns).syncOffsetMs).toBe(-1);
         const base = replayGate(table, findGateRule('current'));
+        // The offset is a base telemetry column, without the probe prefix the gate columns carry.
         const withColumn = (offsetAt: (row: number) => number) => ({
-            columns: [...table.columns, 'x.syncOffsetMs'],
+            columns: [...table.columns, 'syncOffsetMs'],
             rows: table.rows.map((row, i) => [...row, offsetAt(i)]),
         });
-        // The column name carries the probe prefix, like the other gate columns.
-        const prefix = table.columns.find((name) => name.endsWith('.in'))!.slice(0, -'in'.length);
-        const named = (rows: ReturnType<typeof withColumn>) => ({
-            ...rows,
-            columns: [...table.columns, `${prefix}syncOffsetMs`],
-        });
-        expect(replayGate(named(withColumn(() => 0)), findGateRule('current'))).toEqual(base);
-        expect(replayGate(named(withColumn(() => 80)), findGateRule('current'))).toEqual(base);
+        expect(
+            replayGate(
+                withColumn(() => 0),
+                findGateRule('current'),
+            ),
+        ).toEqual(base);
+        expect(
+            replayGate(
+                withColumn(() => 80),
+                findGateRule('current'),
+            ),
+        ).toEqual(base);
         const changed = replayGate(
-            named(withColumn((i) => (i > table.rows.length * 0.7 ? 100 : 0))),
+            withColumn((i) => (i > table.rows.length * 0.7 ? 100 : 0)),
             findGateRule('current'),
         );
         expect(changed.openShare).toBeLessThan(1);

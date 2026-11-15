@@ -78,7 +78,8 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         tempoLocked: at(`${prefix}tempoLocked`, true),
         beatCount: at(`${prefix}beatCount`, true),
         songChanges: at(`${prefix}songChanges`, true),
-        syncOffsetMs: at(`${prefix}syncOffsetMs`, false),
+        // A base telemetry column (no probe prefix): the offset is audio-wide, not the probe's.
+        syncOffsetMs: at('syncOffsetMs', false),
         gateOpen: at(`${prefix}gateOpen`, false),
     };
 }
