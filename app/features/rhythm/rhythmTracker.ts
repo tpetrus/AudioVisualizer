@@ -1,4 +1,5 @@
 import type { AudioEngine } from '~/features/audio/audioEngine';
+import { DISPLAY_DELAY_MS, renderTime, type TimingSettings } from '~/features/audio/timingModel';
 import { hopSizeFor } from './onsetExtractor';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import { RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
@@ -23,6 +24,8 @@ export class RhythmTracker {
     private unsubscribe: (() => void) | undefined;
 
     private boundAnalyser: AnalyserNode | undefined;
+    // Reused by every render-time read so the per-frame path allocates nothing.
+    private readonly timing: TimingSettings = { displayDelayMs: DISPLAY_DELAY_MS, userSyncOffsetMs: 0 };
     private analyzer: RhythmAnalyzer | undefined;
     private node: AudioWorkletNode | undefined;
     // Raised on every bind and unbind. An async step that finds a different value than it started with has been
@@ -67,15 +70,28 @@ export class RhythmTracker {
         this.boundAnalyser = undefined;
     }
 
-    // Brings the phase fields, `nextBeatTime` and the beat counters in `state` up to `now` (AudioContext seconds;
-    // defaults to the bound context's clock). Call it once per animation frame before reading them: it is cheap,
-    // allocates nothing, and extrapolates from the newest beat so the phase is right even though analysis runs
-    // ~100 ms behind the audio.
+    // Brings the phase fields, `nextBeatTime` and the beat counters in `state` up to `now` (AudioContext seconds).
+    // Without an argument it reads at render time: the bound context's clock minus the display delay and the user's
+    // sync offset, so the offset moves the phase and counters. An explicit `now` is used unchanged (the offline
+    // evaluation and specs pass one). Call it once per animation frame before reading them: it is cheap, allocates
+    // nothing, and extrapolates from the newest beat so the phase is right even though analysis runs ~100 ms behind
+    // the audio.
     public updatePhase(now?: number): void {
-        const time = now ?? this.boundAnalyser?.context.currentTime;
+        const time = now ?? this.renderTimeNow();
         if (time !== undefined) {
             this.analyzer?.updatePhase(time);
         }
+    }
+
+    // The audio clock shifted by the timing settings, or undefined with no bound context. It fills the same settings
+    // object every call, because this runs every animation frame and must not allocate.
+    private renderTimeNow(): number | undefined {
+        const context = this.boundAnalyser?.context;
+        if (!context) {
+            return undefined;
+        }
+        this.timing.userSyncOffsetMs = this.engine?.getSyncOffsetMs() ?? 0;
+        return renderTime(context.currentTime, this.timing);
     }
 
     // Follows the engine's analyser. A different analyser is a new source, so the old analysis is thrown away; no
@@ -179,8 +195,9 @@ export class RhythmTracker {
         }
         const batch = event.data;
         analyzer.pushBatch(batch.time0, batch.frames, batch.count);
-        // Keeps the counters moving even when no visualizer is calling updatePhase().
-        analyzer.updatePhase(context.currentTime);
+        // Keeps the counters moving even when no visualizer is calling updatePhase(). It reads at the same render
+        // time, so the counters never run ahead of what the visualizers show.
+        this.updatePhase();
         this.publish();
     };
 

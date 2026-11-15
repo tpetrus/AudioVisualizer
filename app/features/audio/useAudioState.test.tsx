@@ -14,7 +14,7 @@ import { AudioProvider } from './AudioProvider';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { renderHookWithProviders } from '~/test/renderWithProviders';
 import { DEFAULT_NORMALIZE_SETTINGS } from './types';
-import { useAnalyser, useCapturing, useNormalize, useNormalizeOptions } from './useAudioState';
+import { useAnalyser, useCapturing, useNormalize, useNormalizeOptions, useSyncOffset } from './useAudioState';
 
 function fakeAnalyser(): AnalyserNode {
     return asWebAudio<AnalyserNode>(new FakeAnalyserNode());
@@ -56,6 +56,17 @@ describe('useNormalize', () => {
         act(() => engine.setNormalize(false));
 
         expect(result.current).toBe(false);
+    });
+});
+
+describe('useSyncOffset', () => {
+    it('reads the offset and follows changes', () => {
+        const { result, engine } = renderHookWithProviders(() => useSyncOffset());
+        expect(result.current).toBe(0);
+
+        act(() => engine.setSyncOffsetMs(60));
+
+        expect(result.current).toBe(60);
     });
 });
 
