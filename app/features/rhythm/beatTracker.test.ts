@@ -233,6 +233,145 @@ describe('BeatTracker when it gives up its grid', () => {
     });
 });
 
+// The phase check. The tracker runs at 120 BPM here, so a beat is 50 frames and a hit on frame 50 * k sits on beat k.
+describe('BeatTracker phase check', () => {
+    const PERIOD_FRAMES = 50;
+    const PERIOD = PERIOD_FRAMES / FRAME_RATE;
+
+    interface PhaseRun {
+        beatTimes: number[];
+        beatCounts: number[];
+        epochs: number[];
+    }
+
+    // Feeds `seconds` of an envelope that is a quiet floor plus one-frame hits chosen by `onsetAt(frame)`.
+    function driveEnvelope(
+        tracker: BeatTracker,
+        seconds: number,
+        onsetAt: (frame: number) => number,
+        stopWhen?: () => boolean,
+    ): PhaseRun {
+        const run: PhaseRun = { beatTimes: [], beatCounts: [], epochs: [] };
+        tracker.setTempo(120);
+        for (let frame = 0; frame < seconds * FRAME_RATE; frame++) {
+            const beat = tracker.push(frame / FRAME_RATE, Math.max(0.05, onsetAt(frame)));
+            if (beat) {
+                run.beatTimes.push(tracker.lastBeatTime);
+                run.beatCounts.push(tracker.beatCount);
+                run.epochs.push(tracker.gridEpoch);
+            }
+            if (stopWhen?.()) {
+                break;
+            }
+        }
+        return run;
+    }
+
+    // Distance in seconds from `time` to the nearest hit place `offsetFrames` after a beat.
+    function distanceToPlace(time: number, offsetFrames: number): number {
+        const shifted = time * FRAME_RATE - offsetFrames;
+        const nearest = Math.round(shifted / PERIOD_FRAMES) * PERIOD_FRAMES;
+        return Math.abs(shifted - nearest) / FRAME_RATE;
+    }
+
+    // Hits only on the off-beat for the first 4 s, then the on-beat at `on` and the off-beat at `off`.
+    function offBeatStart(on: number, off: number): (frame: number) => number {
+        return (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            if (frame < 4 * FRAME_RATE) {
+                return place === 25 ? 1 : 0;
+            }
+            return place === 0 ? on : place === 25 ? off : 0;
+        };
+    }
+
+    function onBeatAlways(on: number, off: number): (frame: number) => number {
+        return (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            return place === 0 && frame > 0 ? on : place === 25 ? off : 0;
+        };
+    }
+
+    function phaseWins(tracker: BeatTracker): number {
+        return (tracker as unknown as { phaseWins: number }).phaseWins;
+    }
+
+    it('moves a grid that aligned on the off-beat to the stronger on-beat without breaking numbering', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const run = driveEnvelope(tracker, 24, offBeatStart(1, 0.6));
+        // The grid really did start on the off-beat.
+        expect(distanceToPlace(run.beatTimes[0], 0)).toBeGreaterThan(0.2);
+        for (const time of run.beatTimes.slice(-8)) {
+            expect(distanceToPlace(time, 0)).toBeLessThan(0.03);
+        }
+        expect(new Set(run.epochs).size).toBe(1);
+        for (let i = 1; i < run.beatCounts.length; i++) {
+            expect(run.beatCounts[i]).toBe(run.beatCounts[i - 1] + 1);
+        }
+    });
+
+    it('never moves a grid that already sits on the stronger place', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const run = driveEnvelope(tracker, 30, onBeatAlways(1, 0.6));
+        expect(run.beatTimes.length).toBeGreaterThan(40);
+        for (const time of run.beatTimes.slice(8)) {
+            expect(distanceToPlace(time, 0)).toBeLessThan(0.03);
+        }
+    });
+
+    it('does not move for a rival place with only equal energy', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const run = driveEnvelope(tracker, 40, onBeatAlways(1, 1));
+        expect(run.beatTimes.length).toBeGreaterThan(50);
+        for (let i = 1; i < run.beatTimes.length; i++) {
+            expect(Math.abs(run.beatTimes[i] - run.beatTimes[i - 1] - PERIOD)).toBeLessThan(0.2 * PERIOD);
+        }
+    });
+
+    it('leaves a place less than a quarter beat away to the normal correction', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // 7 frames is 0.14 of a beat: inside the correction window, so it may pull the grid but never jump it.
+        const run = driveEnvelope(tracker, 30, (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            return frame < 4 * FRAME_RATE ? (place === 0 ? 1 : 0) : place === 7 ? 1 : 0;
+        });
+        expect(run.beatTimes.length).toBeGreaterThan(40);
+        for (let i = 1; i < run.beatTimes.length; i++) {
+            expect(Math.abs(run.beatTimes[i] - run.beatTimes[i - 1] - PERIOD)).toBeLessThan(0.2 * PERIOD);
+        }
+    });
+
+    it('forgets the phase evidence on reset()', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        driveEnvelope(tracker, 24, offBeatStart(1, 0.6), () => phaseWins(tracker) === 3);
+        expect(phaseWins(tracker)).toBe(3);
+        tracker.reset();
+        expect(phaseWins(tracker)).toBe(0);
+        const run = driveEnvelope(tracker, 30, onBeatAlways(1, 0.6));
+        for (const time of run.beatTimes.slice(8)) {
+            expect(distanceToPlace(time, 0)).toBeLessThan(0.03);
+        }
+    });
+
+    it('keeps the next beat at least half a period after the last when it moves back almost half a beat', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // The new place, 28 frames after the grid's, is bin 9: an offset of -7/16 of a beat.
+        const run = driveEnvelope(tracker, 24, (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            if (frame < 4 * FRAME_RATE) {
+                return place === 0 ? 1 : 0;
+            }
+            return place === 28 ? 1 : place === 0 ? 0.6 : 0;
+        });
+        for (let i = 1; i < run.beatTimes.length; i++) {
+            expect(run.beatTimes[i] - run.beatTimes[i - 1]).toBeGreaterThan(0.5 * PERIOD);
+        }
+        for (const time of run.beatTimes.slice(-8)) {
+            expect(distanceToPlace(time, 28)).toBeLessThan(0.03);
+        }
+    });
+});
+
 describe('BeatTracker with unusual tempo estimates', () => {
     // Pushes `seconds` of a steady pulse train (one pulse per half second) at the tempo set beforehand.
     function pushFlat(tracker: BeatTracker, seconds: number): void {
