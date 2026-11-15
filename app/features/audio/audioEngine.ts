@@ -4,10 +4,13 @@ import {
     loadNormalize,
     loadNormalizeSettings,
     loadSource,
+    loadSyncOffsetMs,
     saveNormalize,
     saveNormalizeSettings,
     saveSource,
+    saveSyncOffsetMs,
 } from './storage';
+import { clampSyncOffsetMs } from './timingModel';
 import {
     assignAnalyserSettings,
     DEFAULT_NORMALIZE_SETTINGS,
@@ -70,6 +73,8 @@ export class AudioEngine {
     private envelope = 0;
     private normalizeSettings: NormalizeSettings = loadNormalizeSettings();
     private normalize: boolean = loadNormalize();
+    // One audio-wide setting: it is not tied to a source, so it survives source changes and stopCapture.
+    private syncOffsetMs: number = loadSyncOffsetMs();
     private readonly meterData = new Uint8Array(METER_FFT_SIZE);
     private resumePromise: Promise<boolean> | undefined;
 
@@ -126,6 +131,7 @@ export class AudioEngine {
     public getIsCapturing = () => this.graph !== undefined;
     public getNormalizeOptions = () => this.normalizeSettings;
     public getNormalize = () => this.normalize;
+    public getSyncOffsetMs = () => this.syncOffsetMs;
     // The source node before the gain stage, and the current AGC gain.
     public getInputNode = () => this.graph?.source;
     public getGain = () => this.graph?.gainNode.gain.value ?? 1;
@@ -136,6 +142,18 @@ export class AudioEngine {
         if (!enabled && this.graph) {
             this.graph.gainNode.gain.setTargetAtTime(1, this.graph.audioContext.currentTime, 0.05);
         }
+        this.notify();
+    }
+
+    // Shifts beat-driven visuals earlier (negative) or later (positive). Subscribers hear about it only when the
+    // clamped value differs, so dragging a slider at its limit does not re-render anything.
+    public setSyncOffsetMs(value: number): void {
+        const next = clampSyncOffsetMs(value);
+        if (next === this.syncOffsetMs) {
+            return;
+        }
+        this.syncOffsetMs = next;
+        saveSyncOffsetMs(next);
         this.notify();
     }
 

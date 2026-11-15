@@ -498,6 +498,61 @@ describe('subscribe', () => {
     });
 });
 
+describe('sync offset', () => {
+    it('starts at 0 and loads a saved value on construction', () => {
+        expect(setup().engine.getSyncOffsetMs()).toBe(0);
+        localStorage.setItem('audioVisualizer.syncOffsetMs', '45');
+        expect(setup().engine.getSyncOffsetMs()).toBe(45);
+    });
+
+    it('loads 0 for a corrupt stored value and clamps an out-of-range one', () => {
+        localStorage.setItem('audioVisualizer.syncOffsetMs', 'oops');
+        expect(setup().engine.getSyncOffsetMs()).toBe(0);
+        localStorage.setItem('audioVisualizer.syncOffsetMs', '5000');
+        expect(setup().engine.getSyncOffsetMs()).toBe(200);
+    });
+
+    it('clamps, persists and notifies when the value changes', () => {
+        const { engine } = setup();
+        const listener = vi.fn();
+        engine.subscribe(listener);
+
+        engine.setSyncOffsetMs(-40);
+        expect(engine.getSyncOffsetMs()).toBe(-40);
+        expect(localStorage.getItem('audioVisualizer.syncOffsetMs')).toBe('-40');
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        engine.setSyncOffsetMs(900);
+        expect(engine.getSyncOffsetMs()).toBe(200);
+        expect(localStorage.getItem('audioVisualizer.syncOffsetMs')).toBe('200');
+        expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it('stays quiet when the clamped value did not change', () => {
+        const { engine } = setup();
+        engine.setSyncOffsetMs(200);
+        const listener = vi.fn();
+        engine.subscribe(listener);
+
+        engine.setSyncOffsetMs(200);
+        engine.setSyncOffsetMs(5000);
+
+        expect(listener).not.toHaveBeenCalled();
+    });
+
+    it('survives a source change and stopCapture', async () => {
+        const { engine } = setup();
+        engine.setSyncOffsetMs(70);
+
+        await engine.startScreenCapture();
+        await engine.startScreenCapture();
+        expect(engine.getSyncOffsetMs()).toBe(70);
+
+        engine.stopCapture();
+        expect(engine.getSyncOffsetMs()).toBe(70);
+    });
+});
+
 describe('normalize settings', () => {
     it('loads saved settings and the normalize flag on construction', () => {
         saveNormalizeSettings({ ...DEFAULT_NORMALIZE_SETTINGS, maxGain: 3 });

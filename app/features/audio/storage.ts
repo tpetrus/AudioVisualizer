@@ -1,9 +1,11 @@
+import { clampSyncOffsetMs } from './timingModel';
 import { DEFAULT_NORMALIZE_SETTINGS, type NormalizeSettings, type SavedSource } from './types';
 
 // Keys are unchanged from the Angular app, so settings saved there still load.
 const SOURCE_KEY = 'audioVisualizer.source';
 const NORMALIZE_KEY = 'audioVisualizer.normalize';
 const NORMALIZE_SETTINGS_KEY = 'audioVisualizer.normalizeSettings';
+const SYNC_OFFSET_KEY = 'audioVisualizer.syncOffsetMs';
 
 export function loadSource(): SavedSource | undefined {
     return read<SavedSource | undefined>(SOURCE_KEY, undefined);
@@ -36,6 +38,15 @@ export function saveNormalizeSettings(settings: NormalizeSettings): void {
 
 export function clearNormalizeSettings(): void {
     write(NORMALIZE_SETTINGS_KEY, undefined);
+}
+
+// A corrupt or out-of-range stored value is repaired by the clamp instead of reaching the render loop.
+export function loadSyncOffsetMs(): number {
+    return clampSyncOffsetMs(read<unknown>(SYNC_OFFSET_KEY, undefined));
+}
+
+export function saveSyncOffsetMs(value: number): void {
+    write(SYNC_OFFSET_KEY, value);
 }
 
 // localStorage can throw (private mode, quota, blocked storage) and can hold corrupt JSON from older versions,

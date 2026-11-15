@@ -151,7 +151,7 @@ beat, accent beat 1 and re-randomize on a new song. Pure DSP (no ML), about 5 ms
 
 ```
 AudioEngine analyser ─▶ AudioWorkletNode (rhythmProcessor.worklet.ts: OnsetExtractor, ~100 frames/s)
-                              │ port.postMessage(batch of 8 packed frames)
+                              │ port.postMessage(batch of BATCH_FRAMES packed frames)
                               ▼
  RhythmTracker.onMessage ─▶ RhythmAnalyzer ─▶ TempoTracker → BeatTracker → MeterEstimator
                               │                       BoundaryDetector (silence / novelty / tempo jump)
@@ -188,7 +188,9 @@ counters. Never copy these into `useState`.
 
 ### Reading phase every frame
 Analysis runs about 100 ms behind the audio, so a stored phase would always be late. Call
-`tracker.updatePhase()` once per animation frame (it defaults to the bound context's `currentTime`). It extrapolates from
+`tracker.updatePhase()` once per animation frame. Without an argument it reads at render time: the bound context's
+`currentTime` minus the user's sync offset (`timingModel.ts`, a slider in the audio source panel, 0 by default), so the
+offset moves everything `updatePhase` writes and nothing else. It extrapolates from
 the newest declared beat and period, then writes `beatPhase`, `barPhase`, `nextBeatTime`, `beatCount` and
 `downbeatCount`. It is O(1) and allocates nothing. While the meter is unsure `barPhase` is `undefined` (check it
 before use) and `downbeatCount` does not advance. The tracker also calls it after each message, so the counters advance even if no

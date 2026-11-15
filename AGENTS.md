@@ -30,6 +30,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Write the synthetic ground-truth tracks (WAV, `.beats.json`, `.bpm`) used to measure alignment | `npm run ground-truth -- <out-dir>` (no args prints usage) |
 | Print beat, tempo and onset alignment against `.beats.json` ground truth for a folder of WAVs | `npm run eval:rhythm -- <wav-dir> --alignment` |
 | Tap along to a local track to make its `.beats.json` (dev only, see `docs/agents/tap-along.md`) | `npm run tap:beats -- --dir <folder> --track <file> [--calibrate] [--force]` |
+| Estimate the capture delay of tab audio or an input device on this machine by loopback (dev only, see `docs/agents/capture-delay.md`) | `npm run measure:capture-delay -- --source <tab, device or direct> [--device <label>] [--clicks N] [--interval S] [--out <file.json>]` (no args prints usage) |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
@@ -117,6 +118,7 @@ Full detail and the reasons are in the docs below; these are the ones most often
 - `docs/agents/audio-alignment-findings.md`: measured root causes of the visuals not following the music, and what each
   later fix must beat. `docs/agents/audio-presentation-audit.md` has each visualizer's inputs, smoothing and reaction delay.
 - `docs/agents/tap-along.md`: making beat ground truth for a local track by tapping along.
+- `docs/agents/capture-delay.md`: estimating how late captured audio arrives, and what the sync offset is for.
 - `.agents/skills/add-visualizer/SKILL.md`: step-by-step for adding a new visualizer (the most common task).
 - `.agents/skills/react-router/SKILL.md`: React Router framework-mode reference.
 
