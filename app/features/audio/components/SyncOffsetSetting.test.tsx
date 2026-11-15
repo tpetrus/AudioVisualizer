@@ -43,6 +43,25 @@ describe('SyncOffsetSetting', () => {
         expect(screen.getByLabelText('Visual timing')).toHaveValue('0');
     });
 
+    it('moves by keyboard focus and a step change, updating the engine value and aria-valuetext', async () => {
+        const { engine, user } = renderWithProviders(<SyncOffsetSetting />);
+
+        // Summary first, then the slider: the slider is reachable by Tab, found by its label.
+        await user.tab();
+        await user.tab();
+        const slider = screen.getByLabelText('Visual timing');
+        expect(slider).toHaveFocus();
+
+        // jsdom does not turn arrow keys into range changes, so the browser's one-step result is sent as a change.
+        fireEvent.change(slider, { target: { value: '5' } });
+        expect(engine.getSyncOffsetMs()).toBe(5);
+        expect(slider).toHaveAttribute('aria-valuetext', '5 ms later');
+
+        fireEvent.change(slider, { target: { value: '-200' } });
+        expect(engine.getSyncOffsetMs()).toBe(-200);
+        expect(slider).toHaveAttribute('aria-valuetext', '200 ms earlier');
+    });
+
     it('can be reached with the keyboard', async () => {
         const { user } = renderWithProviders(<SyncOffsetSetting />);
 
