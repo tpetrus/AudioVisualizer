@@ -495,6 +495,46 @@ describe('RhythmTracker', () => {
         });
     });
 
+    describe('changing the sync offset at runtime', () => {
+        it('never lowers beatCount and keeps the phase within 0..1 from +200 to -200 and back', async () => {
+            const analyser = createAnalyser();
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            const { state } = harness.tracker;
+
+            let latest = 0;
+            for (const batch of trackBatches(20, 120)) {
+                latest = batch.time0 + (batch.count - 1) / 100;
+                analyser.context.currentTime = latest;
+                node.processorPort.postMessage(batch);
+            }
+            await vi.waitFor(() => expect(state.bpm).toBeGreaterThan(0));
+            await new Promise((resolve) => setTimeout(resolve, 50));
+
+            let previousCount = state.beatCount;
+            let reads = 0;
+            const sweep = [200, 100, 0, -100, -200, -100, 0, 100, 200];
+            for (const offsetMs of sweep) {
+                harness.engine.setSyncOffsetMs(offsetMs);
+                // Step the clock forward in small increments, as frames would, at each offset.
+                for (let step = 0; step < 20; step++) {
+                    analyser.context.currentTime = latest + 0.01;
+                    latest += 0.01;
+                    harness.tracker.updatePhase();
+                    expect(state.beatCount).toBeGreaterThanOrEqual(previousCount);
+                    previousCount = state.beatCount;
+                    if (state.beatPhase !== undefined) {
+                        reads++;
+                        expect(state.beatPhase).toBeGreaterThanOrEqual(0);
+                        expect(state.beatPhase).toBeLessThan(1);
+                    }
+                }
+            }
+            expect(reads).toBeGreaterThan(0);
+        });
+    });
+
     describe('updatePhase', () => {
         it('does nothing without a bound analyser and without an explicit time', () => {
             expect(() => harness.tracker.updatePhase()).not.toThrow();
