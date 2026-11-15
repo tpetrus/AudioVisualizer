@@ -10,6 +10,8 @@ import {
     TEMPO_MAX_BPM,
     TEMPO_MIN_BPM,
     TEMPO_MIN_HISTORY_SECONDS,
+    TEMPO_OCTAVE_PRIOR_BPM,
+    TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES,
     TEMPO_PRIOR_BPM,
     TEMPO_PRIOR_SIGMA_OCTAVES,
     TEMPO_REFINE_RANGE,
@@ -101,11 +103,19 @@ export function correlateWindow(
     return { correlation, lagLimit, n, silent: false };
 }
 
-// Log-Gaussian weight around the prior tempo, 1.0 at the prior.
-function prior(lag: number, frameRate: number): number {
-    const bpm = (60 * frameRate) / lag;
-    const octaves = Math.log2(bpm / TEMPO_PRIOR_BPM) / TEMPO_PRIOR_SIGMA_OCTAVES;
+// Log-Gaussian weight of a pulse's tempo around `center` BPM, 1.0 at the center, `sigma` in octaves.
+function logGaussian(lag: number, frameRate: number, center: number, sigma: number): number {
+    const octaves = Math.log2((60 * frameRate) / lag / center) / sigma;
     return Math.exp(-0.5 * octaves * octaves);
+}
+
+// The main prior, and the narrower one that chooses between two pulses one octave apart (see rhythmConfig.ts).
+function prior(lag: number, frameRate: number): number {
+    return logGaussian(lag, frameRate, TEMPO_PRIOR_BPM, TEMPO_PRIOR_SIGMA_OCTAVES);
+}
+
+function octavePrior(lag: number, frameRate: number): number {
+    return logGaussian(lag, frameRate, TEMPO_OCTAVE_PRIOR_BPM, TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES);
 }
 
 // True when one lag is (nearly) a whole multiple of the other: the same pulse at a different metrical level.
@@ -132,7 +142,7 @@ export interface TempoEstimate {
 const NO_ESTIMATE: TempoEstimate = { bestLag: 0, refinedLag: 0, bpm: 0, confidence: 0, rivalLag: 0, rivalBpm: 0 };
 
 // The tracker's estimate from a correlation: peak scoring with the double-lag bonus and prior, the faster-pulse
-// takeover, the rival search, the confidence and the comb refinement.
+// takeover, the octave prior in both directions, the rival search, the confidence and the comb refinement.
 export function estimateTempo(window: Correlation, geometry: TempoGeometry): TempoEstimate {
     if (window.silent) {
         return NO_ESTIMATE;
@@ -175,22 +185,39 @@ export function estimateTempo(window: Correlation, geometry: TempoGeometry): Tem
         }
         return best;
     };
+    // Interpolated peak height times the octave prior; NaN (which fails every comparison) when the peak is out of reach.
+    const octaveWeightedHeight = (lag: number): number =>
+        (interpolatedPeak(window, lag)?.height ?? NaN) * octavePrior(lag, frameRate);
     let switched = true;
     while (switched) {
         switched = false;
         for (const divisor of TEMPO_FASTER_DIVISORS) {
             const faster = peakNear(bestLag / divisor);
-            if (
-                faster > 0 &&
-                correlation[faster] * prior(faster, frameRate) >=
-                    TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * prior(bestLag, frameRate)
-            ) {
+            if (faster <= 0) {
+                continue;
+            }
+            // A half-lag pulse is judged by the octave prior on interpolated heights, a third by the main prior.
+            const wins =
+                divisor === 2
+                    ? octaveWeightedHeight(faster) >= octaveWeightedHeight(bestLag)
+                    : correlation[faster] * prior(faster, frameRate) >=
+                      TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * prior(bestLag, frameRate);
+            if (wins) {
                 bestLag = faster;
                 bestScore = scores[faster];
                 switched = true;
                 break;
             }
         }
+    }
+    // The same octave test the other way: a double-lag pulse that outweighs the winner takes over.
+    for (;;) {
+        const slower = peakNear(bestLag * 2);
+        if (slower <= 0 || !(octaveWeightedHeight(slower) > octaveWeightedHeight(bestLag))) {
+            break;
+        }
+        bestLag = slower;
+        bestScore = scores[slower];
     }
 
     let runnerUp = 0;
