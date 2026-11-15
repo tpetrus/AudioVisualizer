@@ -17,9 +17,13 @@ import {
 // is: a real move 195.7 to 98.0 is 1.997, far inside it, while a change of key tempo (a 10 to 12% jump) is outside.
 const BEAT_OCTAVE_TOLERANCE = 0.04;
 
-// Phase check (prototype): onset energy is folded over the beat into PHASE_BINS bins with a memory of about
-// 1 / (1 - PHASE_DECAY) beats. When a place at least PHASE_MIN_SHIFT of a beat from the grid collects PHASE_SHIFT_RATIO
-// times the energy the grid's own place does for PHASE_SHIFT_BEATS beats in a row, the grid moves there.
+// Phase check. The first alignment sums only a few pulses, so on music with strong off-beat notes it can settle half a
+// beat off, and the correction window (a fraction of a beat either side) can never see the real beat from there. So
+// onset energy is also folded over the beat into PHASE_BINS bins, with a memory of about 1 / (1 - PHASE_DECAY) beats
+// (20 at 0.95). When a place at least PHASE_MIN_SHIFT of a beat from the grid collects PHASE_SHIFT_RATIO times the
+// energy the grid's own place does for PHASE_SHIFT_BEATS beats in a row, the grid moves there. A ratio of 1.3 was too
+// strict to fix the reference track, and 1.1 with a shorter memory worked but sits closer to flapping. Places nearer
+// than PHASE_MIN_SHIFT are left to the normal correction, which already pulls the grid gradually.
 const PHASE_BINS = 16;
 const PHASE_DECAY = 0.95;
 const PHASE_MIN_SHIFT = 0.25;
@@ -152,6 +156,8 @@ export class BeatTracker {
             }
             return false;
         }
+        // Fold this frame's onset into the bin for its place in the beat. Bin 0 is centered on the grid's beat, hence the
+        // half-bin rounding, so the evidence for "the grid is right" and "a rival place is right" use the same bins.
         const phase = (time - this.pendingBeat) / this.period;
         const bin = Math.floor((phase - Math.floor(phase)) * PHASE_BINS + 0.5) % PHASE_BINS;
         this.phaseBins[bin] += onset;
@@ -175,6 +181,9 @@ export class BeatTracker {
         this.declared = 0;
         this.epoch = 0;
         this.missedBeats = 0;
+        // A reset tracker must not carry energy or a streak of wins from the music it was following before.
+        this.phaseBins.fill(0);
+        this.phaseWins = 0;
     }
 
     // Finds the beat phase for the current tempo by sliding a comb of pulses, one tempo period apart, over the
@@ -265,6 +274,10 @@ export class BeatTracker {
         this.checkPhase();
     }
 
+    // Runs after every declared beat. Finds the 3-bin window with the most onset energy; if it is a real distance from
+    // the grid and holds clearly more energy than the grid's own window for several beats in a row, the next beat moves
+    // there. The epoch is not bumped: it is the same music and tempo, so beat numbering and the meter's evidence carry
+    // on. The streak requirement keeps one loud off-beat fill from moving the grid.
     private checkPhase(): void {
         const bins = this.phaseBins;
         let best = 0;
@@ -289,6 +302,7 @@ export class BeatTracker {
             return;
         }
         this.pendingBeat += offset * this.period;
+        // A backwards move must not put the next beat so close to the one just declared that the two merge.
         if (this.pendingBeat < this.lastBeat + 0.5 * this.period) {
             this.pendingBeat += this.period;
         }
