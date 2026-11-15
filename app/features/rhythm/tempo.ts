@@ -15,6 +15,8 @@ import {
     TEMPO_MAX_BPM,
     TEMPO_MIN_BPM,
     TEMPO_MIN_HISTORY_SECONDS,
+    TEMPO_OCTAVE_PRIOR_BPM,
+    TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES,
     TEMPO_PRIOR_BPM,
     TEMPO_PRIOR_SIGMA_OCTAVES,
     TEMPO_REFINE_RANGE,
@@ -214,17 +216,42 @@ export class TempoTracker {
             switched = false;
             for (const divisor of TEMPO_FASTER_DIVISORS) {
                 const faster = this.peakNear(bestLag / divisor, lastLag);
-                if (
-                    faster > 0 &&
-                    correlation[faster] * this.prior(faster) >=
-                        TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag)
-                ) {
+                if (faster <= 0) {
+                    continue;
+                }
+                let wins: boolean;
+                if (divisor === 2) {
+                    const fastHeight = this.peakHeight(faster, lagLimit);
+                    const slowHeight = this.peakHeight(bestLag, lagLimit);
+                    wins = fastHeight * this.octavePrior(faster) >= slowHeight * this.octavePrior(bestLag);
+                } else {
+                    wins =
+                        correlation[faster] * this.prior(faster) >=
+                        TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag);
+                }
+                if (wins) {
                     bestLag = faster;
                     bestScore = this.scores[faster];
                     switched = true;
                     break;
                 }
             }
+        }
+
+        // The same octave test the other way: a winner whose half-tempo pulse outweighs it under the octave prior is a
+        // subdivision, so the slower pulse takes over.
+        for (;;) {
+            const slower = this.peakNear(bestLag * 2, lastLag);
+            if (slower <= 0) {
+                break;
+            }
+            const slowHeight = this.peakHeight(slower, lagLimit);
+            const fastHeight = this.peakHeight(bestLag, lagLimit);
+            if (!(slowHeight * this.octavePrior(slower) > fastHeight * this.octavePrior(bestLag))) {
+                break;
+            }
+            bestLag = slower;
+            bestScore = this.scores[slower];
         }
 
         // The strongest rival that is not the same pulse (the winner itself, or a multiple or fraction of it).
@@ -371,6 +398,29 @@ export class TempoTracker {
         return reached > 0 && rivalSum > TEMPO_TIE_SWITCH_FACTOR * winnerSum ? rival : -1;
     }
 
+    private octavePrior(lag: number): number {
+        const bpm = (60 * this.frameRate) / lag;
+        const octaves = Math.log2(bpm / TEMPO_OCTAVE_PRIOR_BPM) / TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES;
+        return Math.exp(-0.5 * octaves * octaves);
+    }
+
+    // True unless the bar-level evidence (each pulse's own 4x and 8x lags, where both are in reach) says `lag` is the
+    // weaker pulse: a dotted pulse does not repeat every bar of the music, and the beat does.
+    private barFavors(lag: number, heldLag: number): boolean {
+        const lagLimit = Math.min(Math.floor(this.count / 2), this.correlation.length - 2);
+        let sum = 0;
+        let heldSum = 0;
+        for (const multiple of TEMPO_TIE_MULTIPLES) {
+            const mine = this.peakHeight(lag * multiple, lagLimit);
+            const theirs = this.peakHeight(heldLag * multiple, lagLimit);
+            if (!Number.isNaN(mine + theirs)) {
+                sum += mine;
+                heldSum += theirs;
+            }
+        }
+        return sum >= TEMPO_TIE_SWITCH_FACTOR * heldSum;
+    }
+
     // Log-Gaussian weight around the prior tempo, 1.0 at the prior.
     private prior(lag: number): number {
         const bpm = (60 * this.frameRate) / lag;
@@ -438,8 +488,18 @@ export class TempoTracker {
             this.challengerWins = 0;
             return;
         }
+        // An octave move away from the tempo the octave prior prefers is the same music counted at another level (a
+        // passage where only the subdivision sounds), so it is held to the same standard as a dotted rival.
+        const octaveRatio = bpm > this.held ? bpm / this.held / 2 : this.held / bpm / 2;
+        const octaveAway =
+            Math.abs(octaveRatio - 1) <= TEMPO_HYSTERESIS &&
+            this.octavePrior((60 * this.frameRate) / bpm) < this.octavePrior((60 * this.frameRate) / this.held);
         const dotted = isSyncopationRatio(bpm, this.held);
-        if (dotted && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+        if ((dotted || octaveAway) && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+            this.challengerWins = 0;
+            return;
+        }
+        if (dotted && !this.barFavors((60 * this.frameRate) / bpm, (60 * this.frameRate) / this.held)) {
             this.challengerWins = 0;
             return;
         }
@@ -450,7 +510,7 @@ export class TempoTracker {
             this.challenger = bpm;
             this.challengerWins = 1;
         }
-        const needed = dotted ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
+        const needed = dotted || octaveAway ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
         if (this.challengerWins >= needed) {
             this.held = this.challenger;
             this.challengerWins = 0;

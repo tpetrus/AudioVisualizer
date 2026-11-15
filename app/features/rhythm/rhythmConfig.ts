@@ -94,6 +94,8 @@ export const TEMPO_RELATED_MAX_MULTIPLE = 4;
 // winner: the beat is the fastest well-supported pulse, not the bar. Searched within +-this fraction of the lag.
 export const TEMPO_FASTER_DIVISORS = [2, 3] as const;
 export const TEMPO_FASTER_PULSE_RATIO = 0.7;
+export const TEMPO_OCTAVE_PRIOR_BPM = 131;
+export const TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES = 0.5;
 export const TEMPO_FASTER_TOLERANCE = 0.04;
 // Confidence (0..1) needed to lock a first tempo.
 export const TEMPO_LOCK_CONFIDENCE = 0.2;
