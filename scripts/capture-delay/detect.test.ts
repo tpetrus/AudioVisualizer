@@ -118,4 +118,23 @@ describe('detectClicks', () => {
         expect(early.clicks[0].arrival).toBeNull();
         expect(estimateNoiseFloor([])).toBe(0);
     });
+
+    it('flags a delay longer than the interval instead of reading (delay - interval)', () => {
+        // Clicks every 1 s with a true delay of 1.12 s: each sound lands inside the next click's window.
+        const scheduled = [3, 4, 5];
+        const { samples, startTime } = recording([4.12, 5.12]);
+        const detection = detectClicks({ samples, sampleRate: SAMPLE_RATE, startTime, scheduled, maxDelaySeconds: 1 });
+        expect(detection.clicks[0].arrival).toBeNull();
+        expect(detection.clicks[1].delayMs).toBeCloseTo(120, 3);
+        expect(detection.lateSuspected).toBe(true);
+    });
+
+    it('does not flag a clean run or a silent recording', () => {
+        const scheduled = [3, 4, 5];
+        const clean = recording([3.02, 4.02, 5.02]);
+        const silent = recording([]);
+        const options = { sampleRate: SAMPLE_RATE, scheduled, maxDelaySeconds: 1 };
+        expect(detectClicks({ ...clean, ...options }).lateSuspected).toBe(false);
+        expect(detectClicks({ ...silent, ...options }).lateSuspected).toBe(false);
+    });
 });

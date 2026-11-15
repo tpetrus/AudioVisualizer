@@ -47,8 +47,20 @@ const DEFAULT_CAPACITY_SECONDS = 600;
 const BASS_CUTOFF_HZ = 120;
 const BASS_FFT_SIZE = 4096;
 // t, dt, fps, bassRaw, bassPost, gain, then the tracker's per-band onset strengths (kick, mid, high) exactly as the
-// visualizers read them in `RhythmState.bandOnsets`, 0 while no tracker is attached.
-const BASE_COLUMNS = ['t', 'dt', 'fps', 'bassRaw', 'bassPost', 'gain', 'onsetKick', 'onsetMid', 'onsetHigh'] as const;
+// visualizers read them in `RhythmState.bandOnsets`, 0 while no tracker is attached. syncOffsetMs comes last so the
+// older columns keep their positions; it persists in localStorage and silently shifts the beat-phase columns of a run.
+const BASE_COLUMNS = [
+    't',
+    'dt',
+    'fps',
+    'bassRaw',
+    'bassPost',
+    'gain',
+    'onsetKick',
+    'onsetMid',
+    'onsetHigh',
+    'syncOffsetMs',
+] as const;
 const ONSET_COLUMNS = 3;
 
 interface Probe {
@@ -118,6 +130,7 @@ export function tickTelemetry(dtSeconds: number): void {
     rows[offset + 5] = engine.getGain();
     const onsets = recorder.onsets?.bandOnsets;
     for (let band = 0; band < ONSET_COLUMNS; band++) rows[offset + 6 + band] = onsets ? (onsets[band] ?? 0) : 0;
+    rows[offset + 6 + ONSET_COLUMNS] = engine.getSyncOffsetMs();
 
     let at = offset + BASE_COLUMNS.length;
     for (const probe of probes) {

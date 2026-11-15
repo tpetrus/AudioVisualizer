@@ -12,6 +12,8 @@ export interface ReportInput {
     // Seconds; undefined when the browser does not report them.
     baseLatency: number | undefined;
     outputLatency: number | undefined;
+    // The delay looks longer than the matching window; the medians would be off by one interval.
+    lateSuspected?: boolean;
 }
 
 export interface CaptureReport extends DelayStats {
@@ -24,6 +26,7 @@ export interface CaptureReport extends DelayStats {
     // Median arrival minus outputLatency, for tab and device only; null otherwise.
     estimatedDelayRelativeToHearingMs: number | null;
     failed: boolean;
+    lateSuspected: boolean;
 }
 
 const CAVEAT = "outputLatency is the browser's own estimate, and this is one machine's figure, not a guaranteed one.";
@@ -40,6 +43,7 @@ export function buildReport(input: ReportInput): CaptureReport {
     const stats = summarizeDelays(input.delaysMs);
     const outputLatencyMs = toMs(input.outputLatency);
     const median = stats.medianMs;
+    const lateSuspected = input.lateSuspected ?? false;
     return {
         ...stats,
         source: input.source,
@@ -51,7 +55,8 @@ export function buildReport(input: ReportInput): CaptureReport {
         estimatedDelayRelativeToHearingMs:
             input.source !== 'direct' && median !== null ? median - (outputLatencyMs ?? 0) : null,
         // Fewer than half found: too little to trust, and the usual cause is the setup, not the machine.
-        failed: stats.found * 2 < input.delaysMs.length,
+        failed: stats.found * 2 < input.delaysMs.length || lateSuspected,
+        lateSuspected,
     };
 }
 
@@ -59,6 +64,14 @@ export function formatReport(report: CaptureReport): string {
     const lines: string[] = [];
     lines.push(`Source: ${report.source}${report.deviceLabel ? ` (${report.deviceLabel})` : ''}`);
     lines.push(`Clicks found: ${report.found} of ${report.clicks} (${report.missed} missed)`);
+    if (report.lateSuspected) {
+        lines.push(
+            'The measurement failed: the first click was missed but the others were found, so the delay is probably ' +
+                'longer than --interval and every figure would be off by one interval. Raise --interval above the ' +
+                'expected delay (for example 2) and run again.',
+        );
+        return lines.join('\n');
+    }
     if (report.failed) {
         lines.push(
             'The measurement failed: fewer than half the clicks were found. This usually means the tab audio was not ' +

@@ -72,4 +72,12 @@ describe('formatReport', () => {
         expect(text).toContain('tab audio was not shared');
         expect(text).not.toContain('Estimated delay');
     });
+
+    it('fails a suspected over-long delay with no median', () => {
+        const report = buildReport({ ...base, delaysMs: [null, 120, 120], lateSuspected: true });
+        const text = formatReport(report);
+        expect(report.failed).toBe(true);
+        expect(text).toContain('--interval');
+        expect(text).not.toContain('median');
+    });
 });

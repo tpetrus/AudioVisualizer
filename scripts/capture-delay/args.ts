@@ -7,6 +7,8 @@ export const USAGE =
 export const DEFAULT_CLICKS = 20;
 export const DEFAULT_INTERVAL_SECONDS = 0.5;
 export const MAX_CLICKS = 1000;
+// Samples are recorded in memory and sent back whole, so the run length is bounded.
+export const MAX_DURATION_SECONDS = 60;
 export const MIN_INTERVAL_SECONDS = 0.1;
 export const MAX_INTERVAL_SECONDS = 10;
 
@@ -69,6 +71,11 @@ export function parseCaptureArgs(argv: readonly string[]): ParsedCaptureArgs {
     const interval = intervalText === undefined ? DEFAULT_INTERVAL_SECONDS : Number(intervalText);
     if (!Number.isFinite(interval) || interval < MIN_INTERVAL_SECONDS || interval > MAX_INTERVAL_SECONDS) {
         return error(`--interval must be from ${MIN_INTERVAL_SECONDS} to ${MAX_INTERVAL_SECONDS} seconds.`);
+    }
+    if (clicks * interval > MAX_DURATION_SECONDS) {
+        return error(
+            `--clicks times --interval must not exceed ${MAX_DURATION_SECONDS} seconds (got ${+(clicks * interval).toFixed(3)}).`,
+        );
     }
     return {
         kind: 'run',

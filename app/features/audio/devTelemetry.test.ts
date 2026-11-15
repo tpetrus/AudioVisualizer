@@ -21,6 +21,7 @@ class StubEngine {
     input: FakeGainNode | undefined;
     post: FakeAnalyserNode | undefined;
     gain = 1;
+    syncOffsetMs = 0;
     normalizeOn = true;
     readonly getNormalize = () => this.normalizeOn;
     readonly setNormalize = (enabled: boolean) => {
@@ -33,6 +34,7 @@ class StubEngine {
     readonly getInputNode = () => this.input;
     readonly getAnalyser = () => this.post;
     readonly getGain = () => this.gain;
+    readonly getSyncOffsetMs = () => this.syncOffsetMs;
     get listenerCount() {
         return this.listeners.size;
     }
@@ -85,6 +87,7 @@ describe('probes and the column layout', () => {
             'onsetKick',
             'onsetMid',
             'onsetHigh',
+            'syncOffsetMs',
             'a.in',
             'a.out',
             'b.x',
@@ -102,7 +105,7 @@ describe('probes and the column layout', () => {
         tickTelemetry(0.01);
         unregister();
         expect(hook().rowCount).toBe(0);
-        expect(hook().columns).toHaveLength(9);
+        expect(hook().columns).toHaveLength(10);
         unregister(); // a second call does nothing
         detach();
     });
@@ -129,6 +132,16 @@ describe('tickTelemetry', () => {
         expect(window.__vizTelemetry).toBeUndefined();
     });
 
+    it('records the sync offset in its own column, so a run shows the shift on its beat phase', () => {
+        const { engine, detach } = attach();
+        engine.syncOffsetMs = -35;
+        tickTelemetry(0.01);
+        const column = hook().columns.indexOf('syncOffsetMs');
+        expect(column).toBe(9);
+        expect(hook().snapshot()[column]).toBe(-35);
+        detach();
+    });
+
     it('writes one row per tick with dt, fps, gain and the probe columns', () => {
         const { engine, detach } = attach();
         engine.useContext().currentTime = 2.5;
@@ -144,11 +157,13 @@ describe('tickTelemetry', () => {
 
         const rows = hook().snapshot();
         expect(hook().rowCount).toBe(3);
-        expect(rows).toHaveLength(3 * 11);
-        expect(Array.from(rows.slice(0, 11))).toEqual([2.5, 0.0125, 80, 0, 0, 3, 0, 0, 0, 0.25, 0.5].map(Math.fround));
-        expect(rows[11 + 1]).toBeCloseTo(0.02);
-        expect(rows[11 + 2]).toBeCloseTo(50);
-        expect(rows[22 + 2]).toBe(0);
+        expect(rows).toHaveLength(3 * 12);
+        expect(Array.from(rows.slice(0, 12))).toEqual(
+            [2.5, 0.0125, 80, 0, 0, 3, 0, 0, 0, 0, 0.25, 0.5].map(Math.fround),
+        );
+        expect(rows[12 + 1]).toBeCloseTo(0.02);
+        expect(rows[12 + 2]).toBeCloseTo(50);
+        expect(rows[24 + 2]).toBe(0);
         detach();
     });
 
@@ -201,7 +216,7 @@ describe('tickTelemetry', () => {
 
         expect(hook().rowCount).toBe(1);
         expect(hook().overflowed).toBe(true);
-        expect(hook().snapshot()[9]).toBe(1);
+        expect(hook().snapshot()[10]).toBe(1);
         detach();
     });
 
@@ -231,7 +246,7 @@ describe('tickTelemetry', () => {
 
     it('defaults to ten minutes of rows', () => {
         const { detach } = attach();
-        expect(getTelemetryView()!.rows).toHaveLength(600 * 120 * 9);
+        expect(getTelemetryView()!.rows).toHaveLength(600 * 120 * 10);
         detach();
     });
 });

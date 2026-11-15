@@ -28,7 +28,8 @@ interface PageResult {
     outputLatency: number | undefined;
     // AudioContext time of samples[0], from the currentFrame of the first recorded block.
     startTime: number;
-    samples: number[];
+    // Base64 of the Float32Array bytes, far smaller than a JSON array of numbers.
+    samples: string;
     scheduled: number[];
 }
 
@@ -109,6 +110,13 @@ async function openStream(config, context, bus) {
     return stream;
 }
 
+function toBase64(bytes) {
+    let text = '';
+    // Chunked so String.fromCharCode never gets an argument list big enough to overflow the stack.
+    for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(text);
+}
+
 window.measure = async (config) => {
     // Default options, like the app's own context, so baseLatency and outputLatency describe what production gets.
     const context = new AudioContext();
@@ -161,7 +169,7 @@ window.measure = async (config) => {
             baseLatency: context.baseLatency,
             outputLatency: context.outputLatency,
             startTime: startFrame / context.sampleRate,
-            samples: Array.from(samples),
+            samples: toBase64(new Uint8Array(samples.buffer)),
             scheduled,
         };
     } finally {
@@ -183,9 +191,24 @@ const PAGE_HTML = `<!doctype html>
 
 let signalExitCode: number | undefined;
 
+// Throws instead of exiting so the finally blocks that close the browser and server always run; the entry point at the
+// bottom prints the message and sets the exit code.
 function fail(reason: string): never {
-    process.stderr.write(`${reason}\n`);
-    process.exit(1);
+    throw new Error(reason);
+}
+
+// A suspended AudioContext (autoplay blocked, no device) never settles the page's promise, so bound the wait. The tab
+// source waits for a person at the picker, so it gets minutes instead of seconds.
+function measureTimeoutMs(args: CaptureArgs): number {
+    return args.clicks * args.interval * 1000 + (args.source === 'tab' ? 300_000 : 30_000);
+}
+
+function decodeSamples(base64: string): Float32Array {
+    const bytes = Buffer.from(base64, 'base64');
+    // Copied so the view starts on an aligned offset; a pooled Buffer may not.
+    const copy = new Uint8Array(bytes.length - (bytes.length % 4));
+    copy.set(bytes.subarray(0, copy.length));
+    return new Float32Array(copy.buffer);
 }
 
 function sleep(ms: number): Promise<void> {
@@ -304,11 +327,28 @@ async function main(): Promise<void> {
         );
         const config = { ...args, deviceId, workletSource: WORKLET_SOURCE };
         try {
-            result = await page.evaluate(
-                (value) => (window as unknown as { measure: (c: typeof value) => Promise<PageResult> }).measure(value),
-                config,
-            );
+            let timer: NodeJS.Timeout | undefined;
+            const timeout = new Promise<never>((_, reject) => {
+                timer = setTimeout(
+                    () => reject(new Error('Timed out; the audio context may be suspended or the capture silent')),
+                    measureTimeoutMs(args),
+                );
+            });
+            try {
+                result = await Promise.race([
+                    page.evaluate(
+                        (value) =>
+                            (window as unknown as { measure: (c: typeof value) => Promise<PageResult> }).measure(value),
+                        config,
+                    ),
+                    timeout,
+                ]);
+            } finally {
+                clearTimeout(timer);
+            }
         } catch (error) {
+            // Ctrl+C closes the browser under the page, which surfaces here; the signal handler owns that exit.
+            if (signalExitCode !== undefined) throw error;
             const hint =
                 args.source === 'tab'
                     ? ' (the picker was canceled, or tab audio was not shared)'
@@ -322,7 +362,7 @@ async function main(): Promise<void> {
     }
 
     const detection = detectClicks({
-        samples: result.samples,
+        samples: decodeSamples(result.samples),
         sampleRate: result.sampleRate,
         startTime: result.startTime,
         scheduled: result.scheduled,
@@ -335,6 +375,7 @@ async function main(): Promise<void> {
         sampleRate: result.sampleRate,
         baseLatency: result.baseLatency,
         outputLatency: result.outputLatency,
+        lateSuspected: detection.lateSuspected,
     });
     console.log(formatReport(report));
     if (args.out) {
@@ -352,6 +393,8 @@ main().then(
     () => process.exit(process.exitCode ?? 0),
     (error: unknown) => {
         if (signalExitCode !== undefined) return;
-        fail(firstLine(error));
+        process.stderr.write(`${error instanceof Error ? error.message : String(error)}
+`);
+        process.exit(1);
     },
 );
