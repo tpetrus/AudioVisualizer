@@ -17,6 +17,15 @@ import {
 // is: a real move 195.7 to 98.0 is 1.997, far inside it, while a change of key tempo (a 10 to 12% jump) is outside.
 const BEAT_OCTAVE_TOLERANCE = 0.04;
 
+// Phase check (prototype): onset energy is folded over the beat into PHASE_BINS bins with a memory of about
+// 1 / (1 - PHASE_DECAY) beats. When a place at least PHASE_MIN_SHIFT of a beat from the grid collects PHASE_SHIFT_RATIO
+// times the energy the grid's own place does for PHASE_SHIFT_BEATS beats in a row, the grid moves there.
+const PHASE_BINS = 16;
+const PHASE_DECAY = 0.95;
+const PHASE_MIN_SHIFT = 0.25;
+const PHASE_SHIFT_RATIO = 1.15;
+const PHASE_SHIFT_BEATS = 4;
+
 // How often (in frames) the tracker retries aligning its first beat grid while it has none.
 const INIT_RETRY_FRAMES = 10;
 
@@ -48,6 +57,8 @@ export class BeatTracker {
     private epoch = 0;
     // Consecutive beats whose window held no onset strong enough to correct the phase.
     private missedBeats = 0;
+    private readonly phaseBins = new Float32Array(PHASE_BINS);
+    private phaseWins = 0;
 
     constructor(frameRate: number) {
         this.frameRate = frameRate;
@@ -141,6 +152,9 @@ export class BeatTracker {
             }
             return false;
         }
+        const phase = (time - this.pendingBeat) / this.period;
+        const bin = Math.floor((phase - Math.floor(phase)) * PHASE_BINS + 0.5) % PHASE_BINS;
+        this.phaseBins[bin] += onset;
         if (time < this.pendingBeat + BEAT_WINDOW_FRACTION * this.period) {
             return false;
         }
@@ -192,6 +206,8 @@ export class BeatTracker {
         }
         this.period = this.tempoPeriod;
         this.pendingBeat = this.times[this.ringIndex(bestOffset)];
+        this.phaseBins.fill(0);
+        this.phaseWins = 0;
         // When the grid is rebuilt, the aligned beat can be one that was already declared on the old grid. Declaring
         // it again would shift every later beat index by one, and the meter would put the downbeat on the wrong beat.
         if (this.declared > 0) {
@@ -246,6 +262,38 @@ export class BeatTracker {
             this.aligned = false;
             this.epoch++;
         }
+        this.checkPhase();
+    }
+
+    private checkPhase(): void {
+        const bins = this.phaseBins;
+        let best = 0;
+        let bestSum = -1;
+        for (let i = 0; i < PHASE_BINS; i++) {
+            const sum = bins[(i + PHASE_BINS - 1) % PHASE_BINS] + bins[i] + bins[(i + 1) % PHASE_BINS];
+            if (sum > bestSum) {
+                bestSum = sum;
+                best = i;
+            }
+        }
+        const onGrid = bins[PHASE_BINS - 1] + bins[0] + bins[1];
+        const offset = (best > PHASE_BINS / 2 ? best - PHASE_BINS : best) / PHASE_BINS;
+        for (let i = 0; i < PHASE_BINS; i++) {
+            bins[i] *= PHASE_DECAY;
+        }
+        if (!this.aligned || Math.abs(offset) < PHASE_MIN_SHIFT || bestSum < PHASE_SHIFT_RATIO * onGrid) {
+            this.phaseWins = 0;
+            return;
+        }
+        if (++this.phaseWins < PHASE_SHIFT_BEATS) {
+            return;
+        }
+        this.pendingBeat += offset * this.period;
+        if (this.pendingBeat < this.lastBeat + 0.5 * this.period) {
+            this.pendingBeat += this.period;
+        }
+        bins.fill(0);
+        this.phaseWins = 0;
     }
 
     // Ring index of the frame `back` frames before the newest one.
