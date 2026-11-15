@@ -101,6 +101,16 @@ describe('ActiveSourcePanel', () => {
         expect(screen.getByLabelText('Target level')).toHaveValue('0.9');
     });
 
+    it('includes the sync offset setting after the normalization settings', () => {
+        const { engine } = renderPanel();
+
+        const normalization = screen.getByText('Normalization settings');
+        const sync = screen.getByText('Sync');
+        expect(normalization.compareDocumentPosition(sync) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        fireEvent.change(screen.getByLabelText('Visual timing'), { target: { value: '30' } });
+        expect(engine.setSyncOffsetMs).toHaveBeenCalledWith(30);
+    });
+
     it('lets the user pick another source or finish', async () => {
         const { user, onChooseSource, onDone } = renderPanel();
 

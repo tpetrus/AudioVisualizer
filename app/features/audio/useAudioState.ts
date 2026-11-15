@@ -70,6 +70,11 @@ export function useNormalize(): boolean {
     return useSyncExternalStore(engine.subscribe, engine.getNormalize, engine.getNormalize);
 }
 
+export function useSyncOffset(): number {
+    const engine = useAudio();
+    return useSyncExternalStore(engine.subscribe, engine.getSyncOffsetMs, engine.getSyncOffsetMs);
+}
+
 export function useNormalizeOptions(): NormalizeSettings {
     const engine = useAudio();
     return useSyncExternalStore(engine.subscribe, engine.getNormalizeOptions, engine.getNormalizeOptions);
