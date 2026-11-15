@@ -556,11 +556,10 @@ describe('TempoTracker octave and bar rules', () => {
         });
     });
 
-    describe('octave prior toward the slower pulse', () => {
-        // Pins the outcome of the loop after the faster-pulse takeover: a pulse faster than the break-even (185 BPM) is a
-        // subdivision of the pulse at half its tempo. Known gap: disabling that loop does not fail this spec, because the
-        // main prior's double-lag bonus already puts the winner on the slower pulse for bare pulse trains; no pattern
-        // tried (jitter, alternating strength, 190 to 220 BPM) separates the loop from that scoring.
+    describe('pulses above the octave break-even', () => {
+        // A pulse faster than the octave prior's break-even (185 BPM) is a subdivision of the pulse at half its tempo. For a
+        // bare pulse train the main prior and its double-lag bonus already put the winner on the slower pulse, and the
+        // faster-pulse takeover must not undo that under the octave prior.
         it.each([
             [196, 98],
             [200, 100],
@@ -575,7 +574,7 @@ describe('TempoTracker octave and bar rules', () => {
 
     describe('octave-away hold', () => {
         // syncopationbass loses its 98 pulse for about 2.5 s and reads 196. A bare 196 pulse folds to 98 in the raw estimate
-        // (the slower-pulse loop), so the middle section is made loud enough that the 196 pulse outweighs the 98 pulses
+        // (the spec above), so the middle section is made loud enough that the 196 pulse outweighs the 98 pulses
         // still in the 8 s window, and the raw estimate does read 196 for four updates in a row. That is as many as
         // TEMPO_SWITCH_ESTIMATES asks for, so only the octave-away rule (which asks for TEMPO_SYNCOPATION_SWITCH_ESTIMATES
         // and the confidence it demands) keeps the held tempo at 98.

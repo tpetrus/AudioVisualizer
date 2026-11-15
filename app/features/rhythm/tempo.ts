@@ -237,21 +237,6 @@ export class TempoTracker {
             }
         }
 
-        // The same octave test the other way: a winner whose double-lag pulse outweighs it under the octave prior is a
-        // subdivision of that slower pulse (a 200 BPM eighth-note pulse over a 100 BPM beat), so the slower pulse takes
-        // over. A strict comparison keeps the winner on a draw, so a pulse never flips between two octaves.
-        for (;;) {
-            const slower = this.peakNear(bestLag * 2, lastLag);
-            if (
-                slower <= 0 ||
-                !(this.octaveWeightedHeight(slower, lagLimit) > this.octaveWeightedHeight(bestLag, lagLimit))
-            ) {
-                break;
-            }
-            bestLag = slower;
-            bestScore = this.scores[slower];
-        }
-
         // The strongest rival that is not the same pulse (the winner itself, or a multiple or fraction of it).
         let runnerUp = 0;
         let rivalLag = 0;

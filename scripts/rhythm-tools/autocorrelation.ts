@@ -145,7 +145,7 @@ export interface TempoEstimate {
 const NO_ESTIMATE: TempoEstimate = { bestLag: 0, refinedLag: 0, bpm: 0, confidence: 0, rivalLag: 0, rivalBpm: 0 };
 
 // The tracker's estimate from a correlation: peak scoring with the double-lag bonus and prior, the faster-pulse
-// takeover, the octave prior in both directions, the rival search, the confidence and the comb refinement.
+// takeover, the octave prior, the rival search, the confidence and the comb refinement.
 export function estimateTempo(window: Correlation, geometry: TempoGeometry): TempoEstimate {
     if (window.silent) {
         return NO_ESTIMATE;
@@ -213,16 +213,6 @@ export function estimateTempo(window: Correlation, geometry: TempoGeometry): Tem
             }
         }
     }
-    // The same octave test the other way: a double-lag pulse that outweighs the winner takes over.
-    for (;;) {
-        const slower = peakNear(bestLag * 2);
-        if (slower <= 0 || !(octaveWeightedHeight(slower) > octaveWeightedHeight(bestLag))) {
-            break;
-        }
-        bestLag = slower;
-        bestScore = scores[slower];
-    }
-
     let runnerUp = 0;
     let rivalLag = 0;
     for (let lag = minLag; lag <= lastLag; lag++) {
