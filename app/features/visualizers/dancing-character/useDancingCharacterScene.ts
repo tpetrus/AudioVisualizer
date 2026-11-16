@@ -200,6 +200,9 @@ export function useDancingCharacterScene(
                     'bumpCount',
                     'kickPhaseOffset',
                     'rivalBpm',
+                    'gridMoves',
+                    'octaveHolds',
+                    'barVetoes',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -230,6 +233,9 @@ export function useDancingCharacterScene(
                     out[22] = gate.bumpCount;
                     out[23] = gate.kickOffset;
                     out[24] = analysis?.rivalBpm ?? 0;
+                    out[25] = analysis?.beat.phaseShiftCount ?? 0;
+                    out[26] = analysis?.tempo.octaveHoldCount ?? 0;
+                    out[27] = analysis?.tempo.barVetoCount ?? 0;
                 },
             );
         }
