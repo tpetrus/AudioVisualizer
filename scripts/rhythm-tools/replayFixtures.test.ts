@@ -50,11 +50,13 @@ const AFTER: Record<
     lonley: { lockSeconds: 8, lockBpm: 139.53, endBpm: 139.53, deferred: true },
     // A draw keeps the winner, which is the right tempo here.
     summer2000: { lockSeconds: 8, lockBpm: 127.66, endBpm: 127.66, deferred: true },
-    // WEAKNESS (routed to the dotted-hold switch counting in finishEstimate, not fixed here): the tie-break first publishes
-    // the reference (135), but the dotted pulse takes over again at about 16 s and the track ends at 180.02.
-    'syncopation-no-kick': { lockSeconds: 8, lockBpm: 134.86, endBpm: 180.02, switchedAt: 16, deferred: true },
-    // 196 is the octave of the reference 98, and its tie ratio at the first lock (0.35) is under the threshold.
-    syncopationbass: { lockSeconds: 3, lockBpm: 195.7, endBpm: 97.98, switchedAt: 27.5, deferred: false },
+    // The tie-break publishes the reference (135) and it stays: the 4:3 pulse (180) leads the estimates after 8 s, but its
+    // bar-level evidence (4x and 8x lags) is weaker than the beat's, so the bar-evidence veto never lets it build wins.
+    'syncopation-no-kick': { lockSeconds: 8, lockBpm: 134.86, endBpm: 134.86, deferred: true },
+    // 196 is the octave of the reference 98, and its tie ratio at the first lock (0.35) is under the threshold. The
+    // octave prior prefers 98 over 196, so the move to the reference is not held back like a move away from it: it
+    // takes the ordinary switch count and lands at 4.5 s instead of 27.5 s.
+    syncopationbass: { lockSeconds: 3, lockBpm: 195.7, endBpm: 97.98, switchedAt: 4.75, deferred: false },
     syncopationbass2: { lockSeconds: 3, lockBpm: 127.66, endBpm: 127.66, deferred: false },
 };
 
@@ -114,7 +116,7 @@ describe('committed rhythm fixtures', () => {
         }
     });
 
-    it.each(Object.keys(AFTER).filter((name) => name !== 'syncopation-no-kick'))(
+    it.each(Object.keys(AFTER))(
         '%s publishes only its reference tempo or an octave of it, from the first publish on',
         (name) => {
             const fixture = fixtures.get(name)!;

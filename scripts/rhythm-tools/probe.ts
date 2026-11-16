@@ -3,6 +3,7 @@ import { TempoTracker } from '../../app/features/rhythm/tempo';
 import {
     correlateWindow,
     estimateTempo,
+    firstLockRivalBpm,
     interpolatedPeak,
     tempoGeometry,
     type Correlation,
@@ -201,9 +202,20 @@ export function buildProbeReport(input: ProbeInput, options: ProbeOptions = {}):
     );
 
     const windowAt = (step: TrackerStep): Correlation | undefined => correlateWindow(combined, step.frames, geometry);
+    // The tracker decides a first-lock tie on the update where it first holds a tempo, and then publishes the rival's
+    // refined tempo as its raw estimate, so that one update is mirrored with the tie-break applied.
+    const firstLockFrames = findFirstLock(steps)?.frames;
     const mirrored = steps.filter((step) => {
         const window = windowAt(step);
-        return window !== undefined && Math.abs(estimateTempo(window, geometry).bpm - step.raw) < 1e-6;
+        if (window === undefined) {
+            return false;
+        }
+        const estimate = estimateTempo(window, geometry);
+        const bpm =
+            step.frames === firstLockFrames
+                ? (firstLockRivalBpm(window, estimate, geometry) ?? estimate.bpm)
+                : estimate.bpm;
+        return Math.abs(bpm - step.raw) < 1e-6;
     }).length;
     lines.push(
         `Mirror check: the probe's estimate equals the tracker's raw tempo on ${mirrored} of ${steps.length} updates.`,

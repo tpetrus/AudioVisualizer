@@ -103,6 +103,11 @@ The plan is `docs/plans/rhythm-bass-stability/` on Trevor's machine; it is not c
 
 ## Where to refine next
 
+**Update, 2026-11-15 (S6):** items 1 and 3 below are largely done: `syncopation-no-kick`, `syncopationbass` and the 2:1
+synthetic patterns now hold the right tempo, and the beat position on `lonley` is corrected by a phase check. The
+numbers, the costs and what is left are in `audio-alignment-findings.md` under S6. Item 4 (the gate) is untouched and
+is now the main visible miss.
+
 In the order I would take them.
 
 ### 1. Wrong first lock at 4/3 (highest value)
