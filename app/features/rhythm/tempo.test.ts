@@ -617,6 +617,32 @@ describe('TempoTracker octave and bar rules', () => {
         });
     });
 
+    describe('delay of a real change the rules class as dotted or octave-away (measured today)', () => {
+        // Seconds from the change at 15 s to the first update that holds the new tempo within 4%, or undefined if none.
+        function secondsToFollow(from: number, to: number): number | undefined {
+            const trace = drive(new TempoTracker(FRAME_RATE), joined(pulseTrain(from, 15), pulseTrain(to, 30)));
+            const index = trace.bpm.findIndex(
+                (bpm, k) => k * TEMPO_UPDATE_SECONDS >= 15 && Math.abs(bpm / to - 1) < 0.04,
+            );
+            return index < 0 ? undefined : index * TEMPO_UPDATE_SECONDS - 15;
+        }
+
+        // Measured 11.25 s: 170 against 128 is 4/3 of it, so it needs TEMPO_SYNCOPATION_SWITCH_ESTIMATES (8 s) of estimates.
+        it('follows 128 to 170 (dotted) within 12.5 s', () => {
+            expect(secondsToFollow(128, 170)).toBeLessThanOrEqual(12.5);
+        });
+
+        // Measured 6.75 s: an octave move down is not held back, only the window has to turn over.
+        it('follows 140 to 70 (octave down) within 7.5 s', () => {
+            expect(secondsToFollow(140, 70)).toBeLessThanOrEqual(7.5);
+        });
+
+        // Measured: never within 30 s. 150 against 100 is 3/2, a syncopation ratio, and the held 100 stays.
+        it('does not follow 100 to 150 (3/2) within 30 s', () => {
+            expect(secondsToFollow(100, 150)).toBeUndefined();
+        });
+    });
+
     describe('octave-away hold', () => {
         // syncopationbass loses its 98 pulse for about 2.5 s and reads 196. A bare 196 pulse folds to 98 in the raw estimate
         // (the spec above), so the middle section is made loud enough that the 196 pulse outweighs the 98 pulses
