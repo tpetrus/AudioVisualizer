@@ -385,3 +385,132 @@ These are replays of recorded gate inputs, not new live plays.
 - Live onsets were scored only against 60 fps samples of a peak-held value that is already 55 ms late, so the live
   onset F figures (0.04 to 0.48) mostly measure the delay and are not used above.
 - Capture delay in production (tab audio, input device) was not measured; that belongs to S5.
+
+## Next steps (2026-11-15)
+This records where the audio alignment plan (`docs/plans/audio-engine-alignment/`) stands, and every follow-up that is
+still open. The full task packets (owned paths, acceptance, verification) are kept in the verified-diamond follow-up
+state outside the repository, so each one is listed here by its ID with enough detail to rebuild it. Before starting
+an older item, check that it still applies: some were recorded against code that has changed since.
+
+### The plan
+| Slice | Status |
+|---|---|
+| S1 metrics and synthetic ground truth | done |
+| S2 baseline and root causes | done (#80) |
+| S3 analysers owned by each consumer | done |
+| S4 per-band onsets, S4b onsets on real music | done (#82 to #84) |
+| S5 timing model and reaction offset | done (#85, #86), apart from the tab and device capture delay |
+| S6 tempo ratio scoring and library comparison | done (#88); bass gate evidence #89, its follow-ups #90 |
+| S9 tap-along and harness instrumentation | done |
+| S10 presentation audit | done (`audio-presentation-audit.md`) |
+| S7 shared audio hub, cubes as the reference migration, docs | not started |
+| S8 every other visualizer reads the hub, the audit is closed | not started; waits for S7 |
+
+Acceptance criteria still open:
+- **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
+  offline start variations.
+- **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
+  `npm run measure:capture-delay` need a person and real hardware.
+- **AC6, AC7 and AC10** come with S7 and S8.
+
+Suggested order:
+1. Measure AC9 on real hardware.
+2. `FU-S6-telemetry`, so the tracker work below can be measured live.
+3. `FU-S6-slow-octave`.
+4. S7. It freezes contract C5, the hub snapshot, before any worker starts.
+5. S8, one pull request per visualizer, bass ink last.
+
+The other tracker items can wait until after S7, because none of them blocks it.
+
+### Tempo tracker work (each needs a full run: it changes behavior every visualizer sees)
+- **`FU-S6-telemetry`**: record the tracker's new decisions in DEV telemetry. That means BeatTracker grid moves, plus
+  counters for octave-away holds and bar-evidence vetoes in TempoTracker, exposed through RhythmAnalyzer and added as
+  columns to the dancing-character probe and the `debug:viz` tempo report. Update the column list in
+  `debug-harness.md`. The JS budget has about 0.1 kB left, so the counters likely have to stay out of the production
+  build.
+- **`FU-S6-slow-octave`**: slow tracks with eighth-note pulses read double. 65 BPM reads 130 at weights 0.3, 0.5 and
+  0.7, and 75 BPM reads 150 at 0.5 and 0.7 (the `it.fails` octave pins in `tempo.test.ts`). Fix it without breaking
+  the 80 BPM, 186 and 190 BPM and 3/4 180 BPM specs, and check `eval:rhythm` for regressions.
+- **`FU-S6-three-halves-change`**: the held tempo never follows a real 100 to 150 BPM change within 30 s. A 128 to 170
+  change follows after 11.25 s and a 140 to 70 change after 6.75 s. Let a sustained, confident 3/2 change through in
+  about 12 s without letting dotted syncopation switch the tempo.
+- **`FU-boundary-dotted`**: BoundaryDetector can swallow a sustained dotted-ratio tempo change forever. Give it a
+  longer, confidence-gated jump time that refreshes its reference.
+- **`FU-dotted-leaky`**: replace the hard challenger reset for dotted rivals below 0.5 confidence with a leaky counter.
+  Then a real change at a dotted ratio with middling confidence is not held off forever. It shares `tempo.ts` with the
+  two S6 items above, so do it in the same run or after them.
+- **`FU-S10-basspulse-time-based`**: BassPulse smooths per frame, so its speed depends on the frame rate. Make its
+  envelopes time-based, with the same behavior at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It
+  changes three visualizers through one shared class, so check with Trevor before routing it.
+- Known weaknesses without a packet yet, from "Known costs and what is left" under S6 and the bass gate above:
+  - the 3/4 click at 180 BPM reads 90
+  - `syncopation-no-kick`'s first lock
+  - `high-bpm-dnb` first locks at 115
+  - the abrupt grid move
+  - the gate opens more than 4 s after lock on `lonley`, `summer2000` and `syncopationbass`
+  - `low-bpm-rnb` never opens
+  - `beatless` opens on a weak pulse
+  - the two onset misses (`no-kick-124`, `bassline-kick-120`) in `scripts/ground-truth/alignment.test.ts`
+
+### Rhythm specs and dev tools (small, fast lane)
+- **`FU-pin-state-bpm`**: add analyzer specs pinning `state.bpm` to the held tempo when the grid is locked, and the
+  `60 / lastBeatPeriod` fallback when the held tempo is 0.
+- **`FU-state-bpm-standin-spec`**: removing the `handleBeat` stand-in (`state.bpm = 60 / period` while `tempo.bpm` is
+  0) leaves every spec passing, because the 0.5 BPM tolerance accepts the stale value. Make one fail. It owns the same
+  file as `FU-pin-state-bpm`, so do the two together.
+- **`FU-app-csv-infinity`** (supersedes **`FU-csv-infinity`**): `scripts/debug-visualizer/csv.ts` round-trips Infinity,
+  but `formatTelemetryCsv` and `parseTelemetryCsv` in `devTelemetrySummary.ts` still write it as NaN. Fold them into
+  one implementation.
+- **`FU-report-rounding`**: print enough digits in tempo verdict failures that a value below the target never reads as
+  "0.99 < 0.99" (`scripts/debug-visualizer/tempoReport.ts`).
+- **`FU-reselect-harden`**: fix `waitForPlaybackStart` after a very short previous play, and cap `--reselect`
+  (`scripts/debug-visualizer/run.ts`, `args.ts`).
+
+### Dancing character
+- **`FU1`** (needs a product decision): relocking the camera snaps it back to the orbit pose and leaves the Reset view
+  button showing. Cubes and trio keep the user's view on relock. Decide which one dancing character should do.
+- **`DCR-FU6`** (supersedes the glb half of **`FU4`**): abort the GLB fetch and parse when the load signal aborts, not
+  only check the signal after `loadAsync`. `FU4` also covers the skybox download (about 95 KB), and both keep the
+  existing load semantics: AbortError, late arrivals disposed, a sky failure gives null.
+- **`DCR-FU3`**: send the bass-driven rim light and bass ring through the club flash limiter and the reduced-motion
+  flash strength, so no bass-driven brightness jump starts more than 3 times a second. Add a 6 Hz bass spec.
+- **`DCR-FU4`**: make the flash cap hold for any closed 1 s window: a minimum interval slightly above 1/3 s, and a
+  tighter test.
+- **`FU-octave-fold-after-dotted-lock`**: keep the dance octave stable when the tracker corrects a first lock at a 4/3
+  pulse, so one track does not dance at 70 on one play and 140 on another (`dancingCharacterSync.ts`).
+- **`ND-F1`**: validate the committed `MakeHumanDances.glb` against the build's hard rules in a unit test.
+- **`ND-F2`**: keep one source for `FOOT_SKATE_MAX_METERS`, and remove the dead `collectBones` and the test-only
+  `DANCE_CLIP_DURATION` and `NATIVE_BEATS_PER_LOOP`.
+- **`ND-F3`**: when `startFade` is called during a running fade, finish the running fade first (or fix the comment),
+  with a test.
+- **`ND-F4`**: DEV `console.warn` when the dances file fails to load or a clip is rejected.
+- **`ND-F5`**: include the salsa helper bones in the cross-fade bound test.
+- **`DCR-FU2`**: move the duplicated GLTFLoader image stand-in in three specs into one test-only helper.
+- **`DCR-FU5`**: cleanups:
+  - guard `setCharacter` after dispose
+  - rename the shadowing `target` in `computeDanceTiming`
+  - rename `dancingCharacterClip.test.ts` and the `robotBox` variable
+  - fix the CREDITS.md intro and note the sharp version
+- **`DCR-FU1`, `ND-F6`** (docs and hygiene):
+  - AGENTS.md rows for regenerating the model and for the dance fetch and build
+  - use `DANCES` instead of a hard-coded list in the dances spec
+  - no `waitForTimeout` in the e2e select spec
+  - `fileURLToPath` in `pipeline.test.ts`
+
+### Bass ink
+- **`BI-F2`**: normalize the relative luminance of the core and edge colors across the 12 pitch classes in
+  `writePalette`, so that max over min is below 1.2.
+- **`BI-F4`**: debounce the density rebuild (about 250 ms of stable value), and build the new cloud before disposing
+  the old one. That keeps the program, the seed and an in-flight fade.
+- **`BI-F5`**: reseed EnergyTracker and restart the SetDirector warm-up after 3 s under the silence floor, so music
+  after a long gap does not read as a drop.
+- **`BI-F6`**: cap core steps plus kick flashes at 2 grants a second combined so the drop always has a slot. Add a
+  denied counter for the telemetry probe.
+- **`BI-F8`**: coalesce the fill upload into one update range per fill, or record why one small object per chunk is
+  acceptable.
+- **`BI-F9F10`**: fix the stale comment above `bassBinCount`, and reject non-finite input in `KickRing.update` and
+  `BrightnessGovernor.request`.
+
+### Landing page
+- **`FU5`** (needs a product decision, and new visual baselines): the "More coming soon" tile sits alone on a row of
+  the 3-column grid. Drop it when the row is full, change the column count, or keep it.
