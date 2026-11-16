@@ -25,6 +25,11 @@ export interface TempoMetrics {
     gateOpenDelay: number | undefined; // seconds from lockTime to gateOpenTime
     bumpIntervalShare: number | undefined; // post-lock intervals within 0.1 beat of a whole number of beats (at least 1)
     meanFps: number;
+    // Informational only, never part of the verdict. Each is the sum of the positive row-to-row rises of a cumulative
+    // counter from the lock row on; undefined when the column is missing or the recording never locked.
+    gridMoves: number | undefined; // times the phase check moved the beat grid
+    octaveHolds: number | undefined; // estimates where an octave-away challenger was held back for low confidence
+    barVetoes: number | undefined; // estimates where a dotted challenger was refused for lack of bar evidence
 }
 
 const DEFAULTS = { windowSeconds: 5, tolerance: 0.01, lockHoldSeconds: 2, minFps: 50, maxLines: 40 };
@@ -57,6 +62,9 @@ export interface TempoColumns {
     tempoLocked: number;
     gateOpen: number;
     bumpCount: number;
+    gridMoves: number;
+    octaveHolds: number;
+    barVetoes: number;
 }
 
 // Finds the tempo columns from the first column named "<probe>.bpm"; the probe name locates the others.
@@ -80,6 +88,9 @@ export function findTempoColumns(columns: readonly string[]): TempoColumns | und
         tempoLocked: at(`${prefix}tempoLocked`),
         gateOpen: at(`${prefix}gateOpen`),
         bumpCount: at(`${prefix}bumpCount`),
+        gridMoves: at(`${prefix}gridMoves`),
+        octaveHolds: at(`${prefix}octaveHolds`),
+        barVetoes: at(`${prefix}barVetoes`),
     };
 }
 
@@ -151,6 +162,18 @@ function risesOf(rows: readonly (readonly number[])[], index: number): number[] 
         if (rows[i][index] > rows[i - 1][index]) at.push(i);
     }
     return at;
+}
+
+// How far a cumulative counter climbed from the lock row on. A counter can rise by more than 1 between two rows, and it
+// falls back to 0 on a reset, which must not count as negative progress.
+function gainSince(rows: readonly (readonly number[])[], index: number, lockIndex: number): number | undefined {
+    if (index < 0 || lockIndex >= rows.length) return undefined;
+    let total = 0;
+    for (let i = Math.max(1, lockIndex); i < rows.length; i++) {
+        const step = rows[i][index] - rows[i - 1][index];
+        if (step > 0) total += step;
+    }
+    return total;
 }
 
 interface Analysis {
@@ -241,6 +264,9 @@ function analyze(table: TelemetryTable, options: TempoSummaryOptions): Analysis 
             gateOpenDelay: gateRow && lockTime !== undefined ? gateRow[columns.t] - lockTime : undefined,
             bumpIntervalShare,
             meanFps: meanFpsOf(rows, columns),
+            gridMoves: gainSince(rows, columns.gridMoves, lockIndex),
+            octaveHolds: gainSince(rows, columns.octaveHolds, lockIndex),
+            barVetoes: gainSince(rows, columns.barVetoes, lockIndex),
         },
     };
 }
@@ -334,14 +360,20 @@ function windowLine(
     return parts.join('  ');
 }
 
-function metricLines(metrics: TempoMetrics): string[] {
+function metricLines(metrics: TempoMetrics, columns: TempoColumns): string[] {
     const optional = (value: number | undefined, format: (v: number) => string) =>
         value === undefined ? 'n/a' : format(value);
+    // Old recordings have none of the counter columns, so their report stays exactly as it was.
+    const hasCounters = columns.gridMoves >= 0 || columns.octaveHolds >= 0 || columns.barVetoes >= 0;
+    const counters = hasCounters
+        ? `, grid moves ${optional(metrics.gridMoves, String)}, octave holds ${optional(metrics.octaveHolds, String)}, ` +
+          `bar vetoes ${optional(metrics.barVetoes, String)}`
+        : '';
     return [
         `lock at ${optional(metrics.lockTime, (v) => `${significant(v)} s`)}, median bpm ${significant(metrics.medianBpm)}, ` +
             `within tolerance ${optional(metrics.withinTolerance, percent)}, mean fps ${significant(metrics.meanFps, 3)}`,
         `song changes ${metrics.songChanges}, grid rebuilds ${metrics.gridRebuilds}, ` +
-            `locked ${percent(metrics.lockedShare)}, gate ${percent(metrics.gateShare)}`,
+            `locked ${percent(metrics.lockedShare)}, gate ${percent(metrics.gateShare)}${counters}`,
         `gate first open at ${optional(metrics.gateOpenTime, (v) => `${significant(v)} s`)} (${optional(metrics.gateOpenDelay, (v) => `${significant(v)} s`)} after lock), ` +
             `bump intervals on the grid ${optional(metrics.bumpIntervalShare, percent)}`,
     ];
@@ -405,7 +437,7 @@ export function summarizeTempo(table: TelemetryTable, options: TempoSummaryOptio
             first = last;
         }
     }
-    lines.push(...eventLines, ...metricLines(metrics), verdict);
+    lines.push(...eventLines, ...metricLines(metrics, columns), verdict);
 
     // A tiny maxLines or a table with a broken t column must still not overflow; the verdict always survives.
     if (lines.length > maxLines) return maxLines < 1 ? [] : [...lines.slice(0, maxLines - 1), verdict];

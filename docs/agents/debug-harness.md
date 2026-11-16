@@ -331,8 +331,11 @@ accessors named below.
 | `bumpCount` | new monotonic `BassGateState.bumpCount`, raised each time a bump starts |
 | `kickPhaseOffset` | new `BassGateState.kickOffset`: the latest kick's signed distance from the learned place, in beats, (-0.5, 0.5], NaN until one was measured |
 | `rivalBpm` | `TempoTracker.rivalBpm`: the latest estimate's strongest rival pulse, 0 when it has none. Recordings made before this column still load |
+| `gridMoves` | `BeatTracker.phaseShiftCount`: times the phase check moved the beat grid; back to 0 on a reset. Recordings made before this column still load |
+| `octaveHolds` | `TempoTracker.octaveHoldCount`: estimates where an octave-away challenger was held back for low confidence; back to 0 on a reset. Recordings made before this column still load |
+| `barVetoes` | `TempoTracker.barVetoCount`: estimates where a dotted challenger was refused because bar evidence did not favor it; back to 0 on a reset. Recordings made before this column still load |
 
-`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`.
+`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm`, `gridEpoch`, `gridMoveCount`, `octaveHoldCount` and `barVetoCount` are read-only getters of those names on `RhythmAnalyzer`.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
 The new gate fields are written only, never read by the gate's own logic, so its output does not change. `read` must not
 allocate. These are the only production changes, and the bundle delta is measured with `npm run size` in the same pull
@@ -370,6 +373,9 @@ export interface TempoMetrics {
     gateOpenDelay: number | undefined; // seconds from lockTime to gateOpenTime
     bumpIntervalShare: number | undefined; // post-lock intervals within 0.1 beat of a whole number of beats (at least 1)
     meanFps: number;
+    gridMoves: number | undefined; // informational: summed positive rises of gridMoves from the lock row on; undefined when the column is missing or it never locked
+    octaveHolds: number | undefined; // the same for octaveHolds
+    barVetoes: number | undefined; // the same for barVetoes
 }
 export function computeTempoMetrics(table: TelemetryTable, options?: TempoSummaryOptions): TempoMetrics | undefined;
 export function summarizeTempo(table: TelemetryTable, options?: TempoSummaryOptions): string[];
@@ -380,7 +386,9 @@ export function summarizeTempo(table: TelemetryTable, options?: TempoSummaryOpti
 - `summarizeTempo` prints one line per window by `t` (mean, min and max bpm; largest octave-normalized deviation in
   percent and the share of rows in tolerance when there is a reference; mean `rawTempoBpm`, min `tempoConfidence`, rises
   of `songChanges` and `gridEpoch`, locked and gate shares, bumps, and `unreliable` under `minFps`), one line per song
-  change and per grid rebuild with its `t`, the `TempoMetrics` values, and a last line that is one of
+  change and per grid rebuild with its `t`, the `TempoMetrics` values (`grid moves N, octave holds N, bar vetoes N` ends the
+  second metric line, `n/a` when the recording never locked, and is left out when the recording has none of the three
+  columns, so older recordings print as before; the three counts never affect the verdict), and a last line that is one of
   `TEMPO VERDICT: PASS`, `TEMPO VERDICT: FAIL (<which target>)` or `TEMPO VERDICT: report only (no sidecar)`. Pass means
   `withinTolerance` at least 0.98, no song changes, no grid rebuilds, `lockedShare` at least 0.99, a `gateOpenDelay` of at most 4 s, `gateShare` at least 0.99 and `bumpIntervalShare` at least 0.95. A recording that never locks fails. Windows are widened to fit `maxLines`, and the
   output never exceeds it.
