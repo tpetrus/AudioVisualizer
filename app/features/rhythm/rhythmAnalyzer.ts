@@ -94,7 +94,8 @@ export class RhythmAnalyzer {
     }
 
     // Read-only views for DEV telemetry: the beat grid's tempo (0 without a grid), the tempo estimate before and after
-    // hysteresis, and how often the grid was rebuilt since the last hard reset.
+    // hysteresis, how often the grid was rebuilt since the last hard reset, and how often the grid moved, an octave move
+    // was held back or a bar veto stopped a dotted rival.
     get rawBeatBpm(): number {
         const period = this.beat.periodSeconds;
         return period > 0 ? 60 / period : 0;
@@ -115,6 +116,18 @@ export class RhythmAnalyzer {
 
     get gridEpoch(): number {
         return this.seenGridEpoch;
+    }
+
+    get gridMoveCount(): number {
+        return this.beat.phaseShiftCount;
+    }
+
+    get octaveHoldCount(): number {
+        return this.tempo.octaveHoldCount;
+    }
+
+    get barVetoCount(): number {
+        return this.tempo.barVetoCount;
     }
 
     // Number of frames analysed over this analyzer's whole life (resets do not clear it); 0 means nothing was heard yet.

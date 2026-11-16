@@ -84,6 +84,8 @@ export class TempoTracker {
     private challenger = 0;
     private challengerWins = 0;
     private lowConfidenceRun = 0;
+    private octaveHolds = 0;
+    private barVetoes = 0;
 
     constructor(frameRate: number) {
         this.frameRate = frameRate;
@@ -112,6 +114,16 @@ export class TempoTracker {
     // the runner-up came, and nothing in the tempo decision reads it.
     get rivalBpm(): number {
         return this.rivalLag > 0 ? this.lagToBpm(this.rivalLag) : 0;
+    }
+
+    // Estimates since the last reset where a move to the faster octave was held back for low confidence, and where a
+    // dotted rival was vetoed by the bar evidence. Read-only: DEV telemetry shows the decisions, nothing reads them.
+    get octaveHoldCount(): number {
+        return this.octaveHolds;
+    }
+
+    get barVetoCount(): number {
+        return this.barVetoes;
     }
 
     // True while a first lock is held back because a dotted rival ties with the winner (`bpm` stays 0 meanwhile).
@@ -292,6 +304,8 @@ export class TempoTracker {
         this.challenger = 0;
         this.challengerWins = 0;
         this.lowConfidenceRun = 0;
+        this.octaveHolds = 0;
+        this.barVetoes = 0;
     }
 
     // The strongest autocorrelation peak within TEMPO_FASTER_TOLERANCE of `target` lags, or -1 if there is none.
@@ -510,11 +524,13 @@ export class TempoTracker {
             this.octavePrior(this.bpmToLag(bpm)) < this.octavePrior(this.bpmToLag(this.held));
         const dotted = isSyncopationRatio(bpm, this.held);
         if ((dotted || octaveAway) && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+            if (octaveAway) this.octaveHolds++;
             this.challengerWins = 0;
             return;
         }
         // A dotted challenger may only build wins while the bar evidence supports it.
         if (dotted && !this.barFavors(this.bpmToLag(bpm), this.bpmToLag(this.held))) {
+            this.barVetoes++;
             this.challengerWins = 0;
             return;
         }
