@@ -347,15 +347,16 @@ describe('BeatTracker phase check', () => {
         expect(phaseWins(tracker)).toBe(3);
         tracker.reset();
         expect(phaseWins(tracker)).toBe(0);
+        expect(tracker.phaseShiftCount).toBe(0);
         const run = driveEnvelope(tracker, 30, onBeatAlways(1, 0.6));
         for (const time of run.beatTimes.slice(8)) {
             expect(distanceToPlace(time, 0)).toBeLessThan(0.03);
         }
     });
 
-    it('keeps the next beat at least half a period after the last when it moves back almost half a beat', () => {
+    it('moves back almost half a beat when the stronger place is just short of the off-beat', () => {
         const tracker = new BeatTracker(FRAME_RATE);
-        // The new place, 28 frames after the grid's, is bin 9: an offset of -7/16 of a beat.
+        // The new place, 28 frames after the grid's, is bin 9: an offset of -7/16 of a beat, the largest move back.
         const run = driveEnvelope(tracker, 24, (frame) => {
             const place = frame % PERIOD_FRAMES;
             if (frame < 4 * FRAME_RATE) {
@@ -369,6 +370,51 @@ describe('BeatTracker phase check', () => {
         for (const time of run.beatTimes.slice(-8)) {
             expect(distanceToPlace(time, 28)).toBeLessThan(0.03);
         }
+    });
+
+    // Indexes of the beats that came more than 0.3 of a period early or late: the moves.
+    function moves(run: PhaseRun): number[] {
+        const found: number[] = [];
+        for (let i = 1; i < run.beatTimes.length; i++) {
+            if (Math.abs(run.beatTimes[i] - run.beatTimes[i - 1] - PERIOD) > 0.3 * PERIOD) {
+                found.push(i);
+            }
+        }
+        return found;
+    }
+
+    it('waits for eight beats of evidence before the first move', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // The stronger on-beat is there from the first frame, so only the evidence minimum delays the move.
+        const run = driveEnvelope(tracker, 24, (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            return frame < 4 * FRAME_RATE ? (place === 25 ? 1 : 0) : place === 0 ? 3 : place === 25 ? 0.3 : 0;
+        });
+        const found = moves(run);
+        expect(tracker.phaseShiftCount).toBe(1);
+        expect(found).toHaveLength(1);
+        expect(found[0]).toBeGreaterThanOrEqual(8);
+    });
+
+    it('does not follow a stronger place that changes sides every 12 beats', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        // Every 12 beats the loud hit and the quiet hit swap places. A move keeps the evidence, so the place just left
+        // has to outweigh everything heard so far, which 12 beats cannot do; clearing it would follow every swap.
+        driveEnvelope(tracker, 120, (frame) => {
+            const place = frame % PERIOD_FRAMES;
+            const swapped = Math.floor(frame / (12 * PERIOD_FRAMES)) % 2 === 1;
+            const loud = swapped ? 25 : 0;
+            return place === loud ? 1 : place === 25 - loud ? 0.2 : 0;
+        });
+        expect(tracker.phaseShiftCount).toBeLessThanOrEqual(2);
+    });
+
+    it('forgets the phase evidence when the tempo moves an octave', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        driveEnvelope(tracker, 24, offBeatStart(1, 0.6), () => phaseWins(tracker) === 3);
+        expect(phaseWins(tracker)).toBe(3);
+        tracker.setTempo(60);
+        expect(phaseWins(tracker)).toBe(0);
     });
 });
 

@@ -20,15 +20,21 @@ const BEAT_OCTAVE_TOLERANCE = 0.04;
 // Phase check. The first alignment sums only a few pulses, so on music with strong off-beat notes it can settle half a
 // beat off, and the correction window (a fraction of a beat either side) can never see the real beat from there. So
 // onset energy is also folded over the beat into PHASE_BINS bins, with a memory of about 1 / (1 - PHASE_DECAY) beats
-// (20 at 0.95). When a place at least PHASE_MIN_SHIFT of a beat from the grid collects PHASE_SHIFT_RATIO times the
-// energy the grid's own place does for PHASE_SHIFT_BEATS beats in a row, the grid moves there. A ratio of 1.3 was too
-// strict to fix the reference track, and 1.1 with a shorter memory worked but sits closer to flapping. Places nearer
-// than PHASE_MIN_SHIFT are left to the normal correction, which already pulls the grid gradually.
+// (20 at 0.95). When one place at least PHASE_MIN_SHIFT of a beat from the grid collects PHASE_SHIFT_RATIO times the
+// energy the grid's own place does for PHASE_SHIFT_BEATS beats in a row, the grid moves there. A ratio of 1.2 fixed the
+// reference track on fewer of its start-time variations and 1.25 on only some, so 1.15 it is. Places nearer than
+// PHASE_MIN_SHIFT are left to the normal correction, which already pulls the grid gradually.
+//
+// The ratio alone is fooled by chance when there is little evidence or no real beat (sparse noise, eighth notes of
+// equal strength), so at least PHASE_MIN_BEATS beats of evidence must exist, and a move turns the evidence with the
+// grid instead of clearing it. Measured over 16 seeds of 120 s at 120 BPM, the two cut the moves on sparse noise from
+// 208 to 63 and on equal eighth notes from 38 to 15, so such input can still move the grid about once in two minutes.
 const PHASE_BINS = 16;
 const PHASE_DECAY = 0.95;
 const PHASE_MIN_SHIFT = 0.25;
 const PHASE_SHIFT_RATIO = 1.15;
 const PHASE_SHIFT_BEATS = 4;
+const PHASE_MIN_BEATS = 8;
 
 // How often (in frames) the tracker retries aligning its first beat grid while it has none.
 const INIT_RETRY_FRAMES = 10;
@@ -63,6 +69,9 @@ export class BeatTracker {
     private missedBeats = 0;
     private readonly phaseBins = new Float32Array(PHASE_BINS);
     private phaseWins = 0;
+    private phaseShifts = 0;
+    private phaseBeats = 0;
+    private readonly phaseScratch = new Float32Array(PHASE_BINS);
 
     constructor(frameRate: number) {
         this.frameRate = frameRate;
@@ -103,6 +112,11 @@ export class BeatTracker {
         return this.epoch;
     }
 
+    // How often the phase check moved the grid since the last reset. Read-only: for specs and DEV telemetry.
+    get phaseShiftCount(): number {
+        return this.phaseShifts;
+    }
+
     // Tells the tracker the current tempo estimate in BPM (0 = unknown). A large change rebuilds the grid.
     setTempo(bpm: number): void {
         this.tempoPeriod = bpm > 0 ? 60 / bpm : 0;
@@ -132,6 +146,10 @@ export class BeatTracker {
         const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
         this.period *= factor;
         this.pendingBeat = base + this.period;
+        // The bins are fractions of the old period, so they say nothing about places in the new one.
+        this.phaseBins.fill(0);
+        this.phaseWins = 0;
+        this.phaseBeats = 0;
     }
 
     // Advances to the frame at `time` (seconds, strictly increasing) with onset-envelope value `onset`. Returns true
@@ -181,9 +199,11 @@ export class BeatTracker {
         this.declared = 0;
         this.epoch = 0;
         this.missedBeats = 0;
+        this.phaseShifts = 0;
         // A reset tracker must not carry energy or a streak of wins from the music it was following before.
         this.phaseBins.fill(0);
         this.phaseWins = 0;
+        this.phaseBeats = 0;
     }
 
     // Finds the beat phase for the current tempo by sliding a comb of pulses, one tempo period apart, over the
@@ -217,6 +237,7 @@ export class BeatTracker {
         this.pendingBeat = this.times[this.ringIndex(bestOffset)];
         this.phaseBins.fill(0);
         this.phaseWins = 0;
+        this.phaseBeats = 0;
         // When the grid is rebuilt, the aligned beat can be one that was already declared on the old grid. Declaring
         // it again would shift every later beat index by one, and the meter would put the downbeat on the wrong beat.
         if (this.declared > 0) {
@@ -275,9 +296,9 @@ export class BeatTracker {
     }
 
     // Runs after every declared beat. Finds the 3-bin window with the most onset energy; if it is a real distance from
-    // the grid and holds clearly more energy than the grid's own window for several beats in a row, the next beat moves
-    // there. The epoch is not bumped: it is the same music and tempo, so beat numbering and the meter's evidence carry
-    // on. The streak requirement keeps one loud off-beat fill from moving the grid.
+    // the grid and holds clearly more energy than the grid's own window for several beats in a row, the next beat moves there. The epoch is not bumped: it is the same music and tempo, so beat numbering
+    // carries on. The evidence is turned with the grid rather than cleared, so the place just left has to earn a move
+    // back against everything heard so far, not against a few beats.
     private checkPhase(): void {
         const bins = this.phaseBins;
         let best = 0;
@@ -294,20 +315,24 @@ export class BeatTracker {
         for (let i = 0; i < PHASE_BINS; i++) {
             bins[i] *= PHASE_DECAY;
         }
+        this.phaseBeats++;
         if (!this.aligned || Math.abs(offset) < PHASE_MIN_SHIFT || bestSum < PHASE_SHIFT_RATIO * onGrid) {
             this.phaseWins = 0;
+            this.phaseBeats = 0;
             return;
         }
-        if (++this.phaseWins < PHASE_SHIFT_BEATS) {
+        if (++this.phaseWins < PHASE_SHIFT_BEATS || this.phaseBeats < PHASE_MIN_BEATS) {
             return;
         }
         this.pendingBeat += offset * this.period;
-        // A backwards move must not put the next beat so close to the one just declared that the two merge.
-        if (this.pendingBeat < this.lastBeat + 0.5 * this.period) {
-            this.pendingBeat += this.period;
+        const scratch = this.phaseScratch;
+        scratch.set(bins);
+        for (let i = 0; i < PHASE_BINS; i++) {
+            bins[i] = scratch[(i + best) % PHASE_BINS];
         }
-        bins.fill(0);
         this.phaseWins = 0;
+        this.phaseShifts++;
+        this.phaseBeats = 0;
     }
 
     // Ring index of the frame `back` frames before the newest one.
