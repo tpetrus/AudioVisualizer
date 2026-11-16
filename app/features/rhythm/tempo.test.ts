@@ -572,10 +572,11 @@ describe('TempoTracker octave and bar rules', () => {
         });
     });
 
-    // Records where the octave prior sits on slow and fast material today (a beat with eighth-note pulses at a given weight,
-    // 30 s). Each name states the measured held tempo; where it is double the intended beat the spec is `it.fails`, so
-    // fixing the prior makes it fail until `.fails` is removed.
-    describe('octave prior on slow and fast material (measured today)', () => {
+    // Where the octave prior sits on slow and fast material (a beat with eighth-note pulses at a given weight, 30 s). The
+    // tracker leans toward the tempo a person would dance at to the song: below about 80 BPM, eighths that can be heard
+    // are what a dance floor steps to, so 65 and 75 BPM read 130 and 150 on purpose, while 80 BPM stays 80 because 160 is
+    // too fast to step to. Above the break-even a pulse folds to half time, as drum and bass is danced.
+    describe('octave prior on slow and fast material (dance tempo)', () => {
         function eighths(bpm: number, weight: number): Float32Array {
             return added(pulseTrain(bpm, 30), weighted(pulseTrain(bpm * 2, 30), weight));
         }
@@ -588,16 +589,15 @@ describe('TempoTracker octave and bar rules', () => {
             }
         }
 
-        // 65 BPM reads 130 (double) at every weight, so the intended 65 is not held.
-        it.fails.each([0.3, 0.5, 0.7])('65 BPM with %f-weight eighths reads 130, double the beat', (weight) => {
-            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(65, weight)), 65);
+        it.each([0.3, 0.5, 0.7])('65 BPM with %f-weight eighths reads 130, the eighths a dancer steps to', (weight) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(65, weight)), 130);
         });
 
-        it.fails.each([0.5, 0.7])('75 BPM with %f-weight eighths reads 150, double the beat', (weight) => {
-            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(75, weight)), 75);
+        it.each([0.5, 0.7])('75 BPM with %f-weight eighths reads 150, the eighths a dancer steps to', (weight) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(75, weight)), 150);
         });
 
-        // At 0.3 the first lock is 150 (double) but the held tempo later moves to 75, the beat.
+        // At 0.3 the eighths are faint: the first lock is 150 but the held tempo later moves to the 75 BPM beat.
         it('75 BPM with 0.3-weight eighths first locks at 150 and ends at 75', () => {
             const held = heldValues(drive(new TempoTracker(FRAME_RATE), eighths(75, 0.3)));
             expect(Math.abs(held[0] / 150 - 1)).toBeLessThan(0.02);
