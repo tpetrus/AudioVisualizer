@@ -2,8 +2,12 @@ import {
     BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_BAR_BEATS,
     BASS_GATE_BAR_WINDOW,
+    BASS_GATE_CHANCE_MARGIN,
+    BASS_GATE_CHANCE_MAX,
+    BASS_GATE_CHANCE_MIN,
+    BASS_GATE_DENSITY_BEATS,
+    BASS_GATE_EMPTY_RADIUS,
     BASS_GATE_KICK_HISTORY,
-    BASS_GATE_RECENT_KICKS,
     BASS_GATE_CLOSE_SCORE,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_FULL_RISE,
@@ -17,6 +21,7 @@ import {
     BASS_GATE_PHASE_ADAPT,
     BASS_GATE_PHASE_WINDOW,
     BASS_GATE_REARM_FALL,
+    BASS_GATE_REPEAT_RATE,
     BASS_GATE_RELEASE_SECONDS,
     BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
@@ -27,9 +32,9 @@ import type { RhythmState } from './types';
 
 // Numbers, booleans and two fixed-size arrays made once, so it can be kept across frames without allocation.
 export interface BassGateState {
-    // Evidence that the bassline repeats, 0..BASS_GATE_SCORE_MAX: while closed, how many of the last
-    // BASS_GATE_RECENT_KICKS kicks repeated one in the bar before; while open, matches add to it and long runs without one
-    // wear it down.
+    // Evidence that the bassline repeats, 0..BASS_GATE_SCORE_MAX: while closed, each kick that repeats an earlier bar
+    // adds to it and each one that does not takes from it, weighed against how often a repeat would happen by chance;
+    // while open, matches add to it and long runs without one wear it down.
     score: number;
     open: boolean;
     // 0..1, eases toward 1 while open and toward 0 while closed.
@@ -42,11 +47,9 @@ export interface BassGateState {
     peak: number;
     // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
     measuring: boolean;
-    // Beat positions of the latest kicks (a ring of BASS_GATE_KICK_HISTORY) and, for each of the latest
-    // BASS_GATE_RECENT_KICKS kicks, whether it repeated a kick one bar earlier (one bit each, the latest lowest).
+    // Beat positions of the latest kicks (a ring of BASS_GATE_KICK_HISTORY).
     kickTimes: Float64Array;
     kickHead: number;
-    recentMatches: number;
     // Where in the beat (0..1) the kicks land, learned from them; meaningless until phaseKnown.
     kickPhase: number;
     phaseKnown: boolean;
@@ -84,7 +87,6 @@ export function createBassGateState(): BassGateState {
         measuring: false,
         kickTimes: new Float64Array(BASS_GATE_KICK_HISTORY).fill(NaN),
         kickHead: 0,
-        recentMatches: 0,
         kickPhase: 0,
         phaseKnown: false,
         kickStrength: 1,
@@ -111,7 +113,6 @@ export function forgetBassline(state: BassGateState): void {
     state.measuring = false;
     state.beatsSinceOnBeat = 0;
     state.kickTimes.fill(NaN);
-    state.recentMatches = 0;
 }
 
 // Shows the bass as a steady pulse on the beat once its kicks have locked onto one place in the beat, and keeps that
@@ -174,9 +175,8 @@ export function stepBassGate(
     }
 
     // A bassline repeats every bar and scattered bass does not, so a kick is in rhythm when a kick landed at the same
-    // beat position one bar (four beats) earlier. Chance alone puts a random kick
-    // in the place-in-the-beat window one time in five, so that is not enough to open the gate (scattered bass opened
-    // it that way); needing a repeat of the previous bar in most of the recent kicks is.
+    // beat position one bar (four beats) earlier. A random kick does that by chance too, and the busier the bass the
+    // more often, so each kick is weighed against that chance rather than counted.
     const phase = rhythm.beatPhase;
     if (onset && tempoLocked && phase !== undefined) {
         const offset = state.phaseKnown ? wrapSigned(phase - state.kickPhase) : 0;
@@ -185,10 +185,11 @@ export function stepBassGate(
         const position = rhythm.beatCount + phase;
         // Once open, only kicks at the learned place keep the evidence, so a bassline that has moved to another place wears
         // it down and is learned afresh, as before; the bar repeat is what finds a bassline in the first place.
-        const matched = state.open ? atPlace : repeatsLastBar(state, position);
+        const repeat = state.open ? NO_EARLIER_BAR : repeatsEarlierBar(state, position);
+        const matched = state.open ? atPlace : repeat === REPEATED;
+        const chance = state.open ? 0 : chanceOfRepeat(state, position);
         state.kickTimes[state.kickHead] = position;
         state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
-        state.recentMatches = ((state.recentMatches << 1) | (matched ? 1 : 0)) & ((1 << BASS_GATE_RECENT_KICKS) - 1);
         if (atPlace) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
         } else if (!state.open) {
@@ -202,11 +203,12 @@ export function stepBassGate(
         }
         if (state.open) {
             if (matched) state.score = Math.min(BASS_GATE_SCORE_MAX, state.score + 1);
-        } else {
-            // The latest kicks must all have repeated, so a lucky streak earlier in the window cannot open the gate.
-            let count = 0;
-            for (let bits = state.recentMatches; bits > 0; bits >>= 1) count += bits & 1;
-            state.score = (state.recentMatches & 7) === 7 ? count : 0;
+        } else if (repeat !== NO_EARLIER_BAR) {
+            // The evidence moves by the log of how much likelier this outcome is for a real bassline than for chance,
+            // and never falls below 0, so a long stretch of scattered bass does not have to be paid back later. A kick
+            // with no earlier bar to compare with says nothing either way.
+            const likelihood = matched ? BASS_GATE_REPEAT_RATE / chance : (1 - BASS_GATE_REPEAT_RATE) / (1 - chance);
+            state.score = Math.min(BASS_GATE_SCORE_MAX, Math.max(0, state.score + Math.log(likelihood)));
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
@@ -250,13 +252,38 @@ export function stepBassGate(
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
 }
 
-// True when any of the remembered kicks landed one bar before this beat position, within the bar window. The unused
-// slots hold NaN, which never matches.
-function repeatsLastBar(state: BassGateState, position: number): boolean {
-    for (const before of state.kickTimes) {
-        if (Math.abs(position - before - BASS_GATE_BAR_BEATS) <= BASS_GATE_BAR_WINDOW) return true;
+const REPEATED = 1;
+const NOT_REPEATED = 0;
+const NO_EARLIER_BAR = -1;
+
+// Whether a remembered kick landed one bar before this beat position, within the bar window. When nothing at all
+// landed near that place (the kick there was masked or missed, or the bassline rested), the bar before that one is
+// asked instead, so one missed kick does not also fail the kick that repeats it a bar later. When that place is empty
+// too there is nothing to compare with. The unused slots hold NaN, which is never near.
+function repeatsEarlierBar(state: BassGateState, position: number): number {
+    for (let bars = 1; bars <= 2; bars++) {
+        let near = false;
+        let repeated = false;
+        for (const before of state.kickTimes) {
+            const distance = Math.abs(position - before - bars * BASS_GATE_BAR_BEATS);
+            if (distance <= BASS_GATE_BAR_WINDOW) repeated = true;
+            if (distance <= BASS_GATE_EMPTY_RADIUS) near = true;
+        }
+        if (repeated) return REPEATED;
+        if (near) return NOT_REPEATED;
     }
-    return false;
+    return NO_EARLIER_BAR;
+}
+
+// How likely a kick here is to repeat an earlier bar by chance alone: the share of a beat that the bar windows of the
+// recent kicks cover, from how many kicks landed in the last BASS_GATE_DENSITY_BEATS beats.
+function chanceOfRepeat(state: BassGateState, position: number): number {
+    let recent = 0;
+    for (const before of state.kickTimes) {
+        if (before < position && before >= position - BASS_GATE_DENSITY_BEATS) recent++;
+    }
+    const covered = (recent / BASS_GATE_DENSITY_BEATS) * 2 * BASS_GATE_BAR_WINDOW * BASS_GATE_CHANCE_MARGIN;
+    return Math.min(BASS_GATE_CHANCE_MAX, Math.max(BASS_GATE_CHANCE_MIN, 1 - Math.exp(-covered)));
 }
 
 // Difference of two phases as the shortest way around the beat, in (-0.5, 0.5].

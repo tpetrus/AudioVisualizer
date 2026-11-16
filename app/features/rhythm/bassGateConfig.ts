@@ -26,15 +26,28 @@ export const BASS_GATE_PHASE_ADAPT = 0.1;
 // beat position this many beats (one bar) earlier, within this window (in beats, either side). Kicks that land at the
 // learned place in the beat were the evidence before; one random kick in five lands there by chance, so enough scattered
 // bass opened the gate (measured in bassGate.test.ts). A random kick repeats the previous bar's with the same chance, but
-// real bass does it nearly every time, which a count over the last kicks tells apart.
+// real bass does it far more often, which the evidence below tells apart.
 export const BASS_GATE_BAR_BEATS = 4;
 export const BASS_GATE_BAR_WINDOW = 0.1;
-// Evidence while closed is how many of the last RECENT_KICKS kicks repeated the bar before, and the gate opens at the
-// open score, six of eight, provided the latest three kicks all repeated. Replaying five real tracks and 205 random
-// patterns (40 beats each): five of eight opened 13 random patterns, six of eight 3, and six of eight with the run of
-// three 1, while real music still opened in about 4.5 to 15 s after the tempo locked. Once open, each repeat adds 1 up
-// to the maximum, and the gate closes at the close score.
-export const BASS_GATE_RECENT_KICKS = 8;
+// When nothing at all landed within this many beats of the place one bar back, that kick was masked, missed or
+// rested, and the bar before it is compared instead. Replayed on `lonley`, whose bassline repeats every bar: one missed
+// kick used to fail the kick that repeats it a bar later as well, and the gate opened 10 s after the tempo locked; with
+// this it opens after 5.5 s. A whole beat, because random bass with a note on every beat always has one nearer than that
+// (half a beat let random bass through: 4 of 205 patterns against 0).
+export const BASS_GATE_EMPTY_RADIUS = 1;
+// Evidence while closed is a running sum. Each kick adds the log of how much likelier its outcome (repeated an earlier
+// bar or not) is for a real bassline, which repeats at least at the repeat rate, than for chance. The chance is the
+// share of a beat covered by the bar windows of the kicks in the last DENSITY_BEATS beats, widened by the margin
+// because a kick is only seen once per rendered frame, and kept between the two limits so no single kick decides.
+// The sum never goes below 0 and the gate opens at the open score. Counting repeats without the chance (six of the
+// last eight, the latest three in a row) opened on 52 of 100 random patterns with two notes per beat over 120 beats,
+// because busy bass repeats by chance; this opens on 2, and on 0 of 205 with one note per beat over 40 beats. Once
+// open, each kick at the learned place adds 1 up to the maximum, and the gate closes at the close score.
+export const BASS_GATE_REPEAT_RATE = 0.6;
+export const BASS_GATE_DENSITY_BEATS = 8;
+export const BASS_GATE_CHANCE_MARGIN = 1.3;
+export const BASS_GATE_CHANCE_MIN = 0.05;
+export const BASS_GATE_CHANCE_MAX = 0.9;
 export const BASS_GATE_KICK_HISTORY = 32;
 export const BASS_GATE_SCORE_MAX = 8;
 export const BASS_GATE_OPEN_SCORE = 6;
