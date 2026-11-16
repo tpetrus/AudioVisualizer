@@ -4,12 +4,10 @@ import {
     BASS_GATE_ATTACK_SECONDS,
     BASS_GATE_BAR_WINDOW,
     BASS_GATE_CHANCE_MARGIN,
-    BASS_GATE_CHANCE_MAX,
     BASS_GATE_CHANCE_MIN,
     BASS_GATE_DENSITY_BEATS,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_GRACE_BEATS,
-    BASS_GATE_KICK_HISTORY,
     BASS_GATE_LOCK_GRACE_SECONDS,
     BASS_GATE_MIN_INTERVAL,
     BASS_GATE_OPEN_SCORE,
@@ -454,13 +452,6 @@ describe('stepBassGate evidence while closed', () => {
         // One kick in the eight beats before the repeat: the chance would be 0.03, but it is held at the minimum.
         expect(chanceFor(1)).toBeLessThan(BASS_GATE_CHANCE_MIN);
         expect(scoreAfterKickAt(kicksAt([0, 4]), 4)).toBeCloseTo(repeatGain(BASS_GATE_CHANCE_MIN), 9);
-    });
-
-    // The ring that remembers kicks holds BASS_GATE_KICK_HISTORY of them, so the busiest bass the chance can see gives
-    // far less than the maximum: the limit cannot be reached while the history is this short. This guards that
-    // statement, so a longer history or a larger margin is noticed and gets a spec of its own.
-    it('keeps the busiest chance the history allows below the maximum chance', () => {
-        expect(chanceFor(BASS_GATE_KICK_HISTORY)).toBeLessThan(BASS_GATE_CHANCE_MAX);
     });
 
     it('never lets the score fall below 0, however many kicks fail to repeat', () => {

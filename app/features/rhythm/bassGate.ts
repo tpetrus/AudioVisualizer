@@ -3,7 +3,6 @@ import {
     BASS_GATE_BAR_BEATS,
     BASS_GATE_BAR_WINDOW,
     BASS_GATE_CHANCE_MARGIN,
-    BASS_GATE_CHANCE_MAX,
     BASS_GATE_CHANCE_MIN,
     BASS_GATE_DENSITY_BEATS,
     BASS_GATE_EMPTY_RADIUS,
@@ -206,9 +205,10 @@ export function stepBassGate(
         } else if (repeat !== NO_EARLIER_BAR) {
             // The evidence moves by the log of how much likelier this outcome is for a real bassline than for chance,
             // and never falls below 0, so a long stretch of scattered bass does not have to be paid back later. A kick
-            // with no earlier bar to compare with says nothing either way.
+            // with no earlier bar to compare with says nothing either way. No upper limit is needed here: a sum that
+            // reaches the open score opens the gate below, which sets it to the maximum.
             const likelihood = matched ? BASS_GATE_REPEAT_RATE / chance : (1 - BASS_GATE_REPEAT_RATE) / (1 - chance);
-            state.score = Math.min(BASS_GATE_SCORE_MAX, Math.max(0, state.score + Math.log(likelihood)));
+            state.score = Math.max(0, state.score + Math.log(likelihood));
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.
@@ -283,7 +283,7 @@ function chanceOfRepeat(state: BassGateState, position: number): number {
         if (before < position && before >= position - BASS_GATE_DENSITY_BEATS) recent++;
     }
     const covered = (recent / BASS_GATE_DENSITY_BEATS) * 2 * BASS_GATE_BAR_WINDOW * BASS_GATE_CHANCE_MARGIN;
-    return Math.min(BASS_GATE_CHANCE_MAX, Math.max(BASS_GATE_CHANCE_MIN, 1 - Math.exp(-covered)));
+    return Math.max(BASS_GATE_CHANCE_MIN, 1 - Math.exp(-covered));
 }
 
 // Difference of two phases as the shortest way around the beat, in (-0.5, 0.5].
