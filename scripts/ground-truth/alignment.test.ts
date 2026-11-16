@@ -15,7 +15,8 @@ import { GROUND_TRUTH_SAMPLE_RATE, GROUND_TRUTH_TRACKS, renderGroundTruthTrack }
 //   click-174 0.999 / 3.0 s / 1.3 ms     drums-128 0.997 / 3.0 s / 2.3 ms     drums-150 1.000 / 3.0 s / 1.6 ms
 //   no-kick-124 1.001 / 3.0 s / 1.3 ms   trap-2to1-half-140 0.997 / 3.0 s / 2.7 ms
 //   trap-4to3-120 1.000 / 8.0 s / 1.6 ms (the tracker first takes the dotted rival, then corrects)
-//   drums-100 2.000 / never / n/a        trap-2to1-double-90 2.000 / never / n/a (both lock to double time)
+//   drums-100 1.000 / 3.0 s / 1.6 ms (the octave prior folds its 200 BPM pulse down to 100)
+//   trap-2to1-double-90 1.000 / 3.0 s / 2.2 ms (its 180 BPM kick pulse is just under the octave prior's break-even)
 // Onset F at 50 ms, from the per-band detector the worklet runs (BandOnsets): every labelled band scores 1.00 except
 // the low end of two tracks, and F at 20 ms is the same to two decimals:
 //   no-kick-124 bass: precision 1.00, recall 0.51. The running-mean floor that keeps real music down to one or two events
@@ -24,8 +25,8 @@ import { GROUND_TRUTH_SAMPLE_RATE, GROUND_TRUTH_TRACKS, renderGroundTruthTrack }
 //     bassline between, the kick/bass classifier mixes the two up; its cue does not transfer to real music either, so
 //     it is a known weakness to solve with labelled real-music data, not by tuning against these tracks.
 
-// Tracks whose tempo the pipeline holds at the wrong octave or ratio at the end of the run.
-const TEMPO_MISSES = new Set(['drums-100', 'trap-2to1-double-90']);
+// Tracks whose tempo the pipeline holds at the wrong octave or ratio at the end of the run. None today.
+const TEMPO_MISSES = new Set<string>();
 // Tracks where some band with labelled onsets scores below 0.9 at 50 ms.
 const ONSET_MISSES = new Set(['no-kick-124', 'bassline-kick-120']);
 // The recall each band of those tracks holds today, a little under the measured value, so a regression still shows.
@@ -105,15 +106,6 @@ describe('today, on the tracks whose tempo is found', () => {
             if (sidecarOnsets?.[band].length === 0) continue;
             expect(fifty?.bands[band]?.recall, band).toBeGreaterThanOrEqual(RECALL_TODAY[name]?.[band] ?? 0.95);
         }
-    });
-});
-
-describe('today, on the tracks whose tempo is missed', () => {
-    it.each([...TEMPO_MISSES])('%s is held at double time and never counts as locked', (name) => {
-        const report = reportFor(name);
-        expect(report.tempoRatio).toBeCloseTo(2, 1);
-        expect(report.lockSeconds).toBeUndefined();
-        expect(report.beatErrorMs).toBeUndefined();
     });
 });
 
