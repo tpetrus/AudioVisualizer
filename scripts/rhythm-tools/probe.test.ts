@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { renderTrack, runPipeline, TEST_SAMPLE_RATE } from '../../app/features/rhythm/testSignals';
-import { correlateWindow, estimateTempo, interpolatedPeak, tempoGeometry, type Correlation } from './autocorrelation';
+import { createRandom, renderTrack, runPipeline, TEST_SAMPLE_RATE } from '../../app/features/rhythm/testSignals';
+import {
+    correlateWindow,
+    estimateTempo,
+    firstLockRivalBpm,
+    interpolatedPeak,
+    tempoGeometry,
+    type Correlation,
+} from './autocorrelation';
 import { extractOnsetSeries } from './onset';
 import { buildProbeReport, findFirstLock, foldToOctave, replayTracker } from './probe';
 
@@ -37,6 +44,41 @@ describe('probe agreement with the real tempo tracker', () => {
         expect(last.raw).toBe(run.analyzer.rawTempoBpm);
         expect(last.held).toBe(run.analyzer.heldTempoBpm);
         expect(last.rival).toBe(run.analyzer.rivalBpm);
+    });
+});
+
+describe('probe agreement at a first lock whose rival is not close', () => {
+    // A pulse every 40 frames (150 BPM) with a 4/3 rival every 53 frames (113 BPM) that repeats exactly every bar of four,
+    // under noise. The first lock comes at 7.75 s, when the 4x and 8x lags are in reach. The rival's peak at its own lag is
+    // far under the winner's (not close), so the tracker locks the winner without comparing bar sums, although the rival's
+    // bar sum is the larger. A probe that skipped the closeness gate would publish the rival instead.
+    function notCloseRival(): Float32Array {
+        const random = createRandom(2);
+        const envelope = new Float32Array(16 * 100);
+        for (let at = 0; at < envelope.length; at += 40) {
+            envelope[at] += 1;
+        }
+        for (let bar = 0; bar * 212 < envelope.length; bar++) {
+            for (let beat = 0; beat < 4; beat++) {
+                const at = bar * 212 + beat * 53;
+                if (at < envelope.length) {
+                    envelope[at] += 0.7;
+                }
+            }
+        }
+        return envelope.map((value) => value + 1.5 * random());
+    }
+
+    it('publishes the winner the tracker locks, not a rival with the larger bar sum', () => {
+        const envelope = notCloseRival();
+        const lock = findFirstLock(replayTracker(envelope, 100))!;
+        const geo = tempoGeometry(100);
+        const window = correlateWindow(envelope, lock.frames, geo)!;
+        const estimate = estimateTempo(window, geo);
+
+        expect(lock.time).toBeCloseTo(7.75, 2);
+        expect(lock.raw).toBeCloseTo(estimate.bpm, 6);
+        expect(firstLockRivalBpm(window, estimate, geo)).toBeUndefined();
     });
 });
 
