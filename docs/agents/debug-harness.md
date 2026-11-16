@@ -335,7 +335,7 @@ accessors named below.
 | `octaveHolds` | `TempoTracker.octaveHoldCount`: estimates where an octave-away challenger was held back for low confidence; back to 0 on a reset. Recordings made before this column still load |
 | `barVetoes` | `TempoTracker.barVetoCount`: estimates where a dotted challenger was refused because bar evidence did not favor it; back to 0 on a reset. Recordings made before this column still load |
 
-`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm`, `gridEpoch`, `gridMoveCount`, `octaveHoldCount` and `barVetoCount` are read-only getters of those names on `RhythmAnalyzer`.
+`rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`. The three counters are read through its read-only `beat` and `tempo` fields (`beat.phaseShiftCount`, `tempo.octaveHoldCount`, `tempo.barVetoCount`), because a forwarding getter each does not fit the production JS budget.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
 The new gate fields are written only, never read by the gate's own logic, so its output does not change. `read` must not
 allocate. These are the only production changes, and the bundle delta is measured with `npm run size` in the same pull

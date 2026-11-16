@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import { FRAME_FLUX_OFFSET, FRAME_STRIDE } from './rhythmConfig';
 
@@ -48,19 +48,8 @@ describe('RhythmAnalyzer rival view', () => {
 describe('RhythmAnalyzer decision counters', () => {
     it('are 0 before any audio', () => {
         const analyzer = new RhythmAnalyzer(FRAME_RATE);
-        expect([analyzer.gridMoveCount, analyzer.octaveHoldCount, analyzer.barVetoCount]).toEqual([0, 0, 0]);
-    });
-
-    it('forward the beat tracker and tempo tracker counts', () => {
-        const analyzer = new RhythmAnalyzer(FRAME_RATE);
-        const parts = analyzer as unknown as {
-            beat: { phaseShiftCount: number };
-            tempo: { octaveHoldCount: number; barVetoCount: number };
-        };
-        vi.spyOn(parts.beat, 'phaseShiftCount', 'get').mockReturnValue(3);
-        vi.spyOn(parts.tempo, 'octaveHoldCount', 'get').mockReturnValue(5);
-        vi.spyOn(parts.tempo, 'barVetoCount', 'get').mockReturnValue(7);
-
-        expect([analyzer.gridMoveCount, analyzer.octaveHoldCount, analyzer.barVetoCount]).toEqual([3, 5, 7]);
+        expect([analyzer.beat.phaseShiftCount, analyzer.tempo.octaveHoldCount, analyzer.tempo.barVetoCount]).toEqual([
+            0, 0, 0,
+        ]);
     });
 });

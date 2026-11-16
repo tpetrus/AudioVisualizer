@@ -700,9 +700,8 @@ describe('useDancingCharacterScene', () => {
                     heldTempoBpm: 120,
                     gridEpoch: 3,
                     rivalBpm: 93.5,
-                    gridMoveCount: 4,
-                    octaveHoldCount: 5,
-                    barVetoCount: 6,
+                    beat: { phaseShiftCount: 4 },
+                    tempo: { octaveHoldCount: 5, barVetoCount: 6 },
                 },
             });
             const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
