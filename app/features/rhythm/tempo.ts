@@ -15,6 +15,8 @@ import {
     TEMPO_MAX_BPM,
     TEMPO_MIN_BPM,
     TEMPO_MIN_HISTORY_SECONDS,
+    TEMPO_OCTAVE_PRIOR_BPM,
+    TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES,
     TEMPO_PRIOR_BPM,
     TEMPO_PRIOR_SIGMA_OCTAVES,
     TEMPO_REFINE_RANGE,
@@ -109,7 +111,7 @@ export class TempoTracker {
     // The latest estimate's strongest rival pulse in BPM (0 when it has none). Read-only: DEV telemetry shows how close
     // the runner-up came, and nothing in the tempo decision reads it.
     get rivalBpm(): number {
-        return this.rivalLag > 0 ? (60 * this.frameRate) / this.rivalLag : 0;
+        return this.rivalLag > 0 ? this.lagToBpm(this.rivalLag) : 0;
     }
 
     // True while a first lock is held back because a dotted rival ties with the winner (`bpm` stays 0 meanwhile).
@@ -207,18 +209,26 @@ export class TempoTracker {
 
         // A kick that only lands once per bar makes the bar (or half bar) the strongest periodicity, which reads as
         // half or a third of the real tempo. The beat is the fastest pulse that is still well supported, so a peak at
-        // a half or a third of the winning lag takes over when its correlation is nearly as strong. The comparison
-        // leaves out the double-lag bonus, which is exactly what favours the slower pulse (its double lag is the bar).
+        // a half or a third of the winning lag takes over when it is nearly as strong. The comparison leaves out the
+        // double-lag bonus, which is exactly what favours the slower pulse (its double lag is the bar).
         let switched = true;
         while (switched) {
             switched = false;
             for (const divisor of TEMPO_FASTER_DIVISORS) {
                 const faster = this.peakNear(bestLag / divisor, lastLag);
-                if (
-                    faster > 0 &&
-                    correlation[faster] * this.prior(faster) >=
-                        TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag)
-                ) {
+                if (faster <= 0) {
+                    continue;
+                }
+                // A half-lag pulse is the same music at the next octave, so it is judged by the octave prior on
+                // interpolated peak heights: whole-lag correlation under-reads a pulse whose period falls between two
+                // frames (34.48 frames at 174 BPM), which would send a true 174 down to 87. A third of the lag is a
+                // different meter rather than an octave, so it keeps the main prior and the plain ratio.
+                const wins =
+                    divisor === 2
+                        ? this.octaveWeightedHeight(faster, lagLimit) >= this.octaveWeightedHeight(bestLag, lagLimit)
+                        : correlation[faster] * this.prior(faster) >=
+                          TEMPO_FASTER_PULSE_RATIO * correlation[bestLag] * this.prior(bestLag);
+                if (wins) {
                     bestLag = faster;
                     bestScore = this.scores[faster];
                     switched = true;
@@ -250,7 +260,7 @@ export class TempoTracker {
             const settled = this.settleFirstLock(bestLag, lagLimit);
             if (settled === 0) {
                 // The tie is still open: keep publishing the estimate, but not a tempo.
-                this.raw = (60 * this.frameRate) / refinedLag;
+                this.raw = this.lagToBpm(refinedLag);
                 this.confidenceValue = confidence;
                 this.lowConfidenceRun = 0;
                 return true;
@@ -259,7 +269,7 @@ export class TempoTracker {
                 refinedLag = this.refine(settled, lagLimit);
             }
         }
-        this.finishEstimate((60 * this.frameRate) / refinedLag, confidence);
+        this.finishEstimate(this.lagToBpm(refinedLag), confidence);
         return true;
     }
 
@@ -371,11 +381,60 @@ export class TempoTracker {
         return reached > 0 && rivalSum > TEMPO_TIE_SWITCH_FACTOR * winnerSum ? rival : -1;
     }
 
+    // The tempo (BPM) of a pulse that repeats every `lag` frames, and the other way round.
+    private lagToBpm(lag: number): number {
+        return (60 * this.frameRate) / lag;
+    }
+
+    private bpmToLag(bpm: number): number {
+        return (60 * this.frameRate) / bpm;
+    }
+
+    // Log-Gaussian weight of a pulse's tempo around `center` BPM, 1.0 at the center, `sigma` in octaves.
+    private logGaussian(lag: number, center: number, sigma: number): number {
+        const octaves = Math.log2(this.lagToBpm(lag) / center) / sigma;
+        return Math.exp(-0.5 * octaves * octaves);
+    }
+
+    // Weight that chooses between two pulses one octave apart (the same music counted at two levels). It is narrower
+    // and centered higher than the main prior: measured autocorrelation ratios C(T)/C(T/2) are 0.93 to 0.96 on a true
+    // 174 BPM click (which must stay 174) and 0.91 to 0.95 on a drum track heard at 200 (which must fold to 100), so
+    // the break-even sits at 131 * sqrt(2) = 185 BPM, between them. The cost is a track of 60 to 90 BPM with a solid
+    // eighth-note pulse, which still reads at double time because the prior likes 120 to 180 more than 60 to 90.
+    private octavePrior(lag: number): number {
+        return this.logGaussian(lag, TEMPO_OCTAVE_PRIOR_BPM, TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES);
+    }
+
+    // The interpolated peak height near `lag` times the octave prior, or NaN when the peak is out of reach (a NaN
+    // fails every comparison, so an octave that cannot be measured never takes over).
+    private octaveWeightedHeight(lag: number, lagLimit: number): number {
+        return this.peakHeight(lag, lagLimit) * this.octavePrior(lag);
+    }
+
+    // True unless the bar-level evidence says `lag` is the weaker pulse: a dotted pulse does not repeat every bar of the
+    // music, and the beat does, so each pulse is scored at its own 4x and 8x lags (the same evidence the first-lock
+    // tie-break uses). A multiple counts only when both sides are in reach: at 98 BPM the 8x lag (8 x 61.2 frames) is
+    // past half the history, so only the 4x lag is compared there. It needs TEMPO_TIE_SWITCH_FACTOR times the held
+    // pulse's sum, so a draw keeps the held tempo. Without it a 135 BPM track whose dotted figure makes the 4:3 pulse
+    // (180) the stronger one left for 180 after 8 s of dotted estimates, although the bar evidence always favored 135.
+    private barFavors(lag: number, heldLag: number): boolean {
+        const lagLimit = Math.min(Math.floor(this.count / 2), this.correlation.length - 2);
+        let sum = 0;
+        let heldSum = 0;
+        for (const multiple of TEMPO_TIE_MULTIPLES) {
+            const mine = this.peakHeight(lag * multiple, lagLimit);
+            const theirs = this.peakHeight(heldLag * multiple, lagLimit);
+            if (!Number.isNaN(mine + theirs)) {
+                sum += mine;
+                heldSum += theirs;
+            }
+        }
+        return sum >= TEMPO_TIE_SWITCH_FACTOR * heldSum;
+    }
+
     // Log-Gaussian weight around the prior tempo, 1.0 at the prior.
     private prior(lag: number): number {
-        const bpm = (60 * this.frameRate) / lag;
-        const octaves = Math.log2(bpm / TEMPO_PRIOR_BPM) / TEMPO_PRIOR_SIGMA_OCTAVES;
-        return Math.exp(-0.5 * octaves * octaves);
+        return this.logGaussian(lag, TEMPO_PRIOR_BPM, TEMPO_PRIOR_SIGMA_OCTAVES);
     }
 
     // Searches a few percent around the coarse peak for the lag whose multiples line up best with the
@@ -438,8 +497,24 @@ export class TempoTracker {
             this.challengerWins = 0;
             return;
         }
+        // An octave move up to a tempo the octave prior likes less than the held one is the same music counted at another
+        // level (a passage where only the subdivision sounds: syncopationbass loses its 98 pulse for about 2.5 s and
+        // reads 196), so it is held to the same standard as a dotted rival. A move toward the preferred octave stays
+        // fast, because that is where the prior says the beat really is. So does any move down: the slower pulse only
+        // wins the estimate when the faster one has nearly gone, and a first lock on the subdivision (an 81 BPM track
+        // read as 162 for its first seconds) has to be able to correct itself.
+        const octaveRatio = bpm > this.held ? bpm / this.held / 2 : this.held / bpm / 2;
+        const octaveAway =
+            bpm > this.held &&
+            Math.abs(octaveRatio - 1) <= TEMPO_HYSTERESIS &&
+            this.octavePrior(this.bpmToLag(bpm)) < this.octavePrior(this.bpmToLag(this.held));
         const dotted = isSyncopationRatio(bpm, this.held);
-        if (dotted && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+        if ((dotted || octaveAway) && confidence < TEMPO_SYNCOPATION_MIN_CONFIDENCE) {
+            this.challengerWins = 0;
+            return;
+        }
+        // A dotted challenger may only build wins while the bar evidence supports it.
+        if (dotted && !this.barFavors(this.bpmToLag(bpm), this.bpmToLag(this.held))) {
             this.challengerWins = 0;
             return;
         }
@@ -450,7 +525,7 @@ export class TempoTracker {
             this.challenger = bpm;
             this.challengerWins = 1;
         }
-        const needed = dotted ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
+        const needed = dotted || octaveAway ? TEMPO_SYNCOPATION_SWITCH_ESTIMATES : TEMPO_SWITCH_ESTIMATES;
         if (this.challengerWins >= needed) {
             this.held = this.challenger;
             this.challengerWins = 0;

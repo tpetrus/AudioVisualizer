@@ -205,6 +205,115 @@ another; that is the floor of the measuring path. The `tab` and `device` sources
 have not been run. Until they are, `CAPTURE_DELAY_MS` is 0 for every source, nothing is compensated automatically,
 and the sync offset is the correction. No production latency figure is claimed.
 
+## S6: tempo ratio scoring, beat position and the library comparison
+Measured on 2026-11-15 on branch `feat/tempo-scoring`. Offline figures come from `npm run eval:rhythm -- .debug-in
+--alignment` and `npm run ablate:rhythm`; live figures from `npm run debug:viz ... --viz dancing-character --seconds 30
+--headless` at 60 fps (lock times there include about 2.2 s before the track starts).
+
+### What changed
+- **Octave choice** (`tempo.ts`, `TEMPO_OCTAVE_PRIOR_*`). A pulse at twice the winning tempo takes over when its
+  interpolated autocorrelation peak, weighted by a log-Gaussian around 128.5 BPM (0.63 octaves wide), is at least the
+  winner's. Whole-lag correlation under-read pulses whose period falls between two frames (34.48 frames at 174 BPM).
+- **Octave hold.** A move up one octave to a tempo that prior likes less needs 8 s of estimates at confidence 0.5,
+  like a dotted rival. `syncopationbass` loses its 98 pulse for about 2.5 s near 17 s and reads 196 there.
+- **Bar evidence for dotted rivals.** A 4:3 or 3:2 challenger only counts while its own 4x and 8x lag peaks sum to at
+  least 1.1 times the held tempo's. On `syncopation-no-kick` those are 0.6 to 0.9 for 135 BPM against 0.2 to 0.35 for
+  180, although the 180 pulse itself is twice as strong.
+- **Beat position check** (`beatTracker.ts`). Onset energy is folded over the beat into 16 bins. When a place at least a
+  quarter beat from the grid holds 1.15 times the grid's energy for 4 beats in a row, with at least 8 beats of
+  evidence, the grid moves there and the evidence turns with it.
+
+### Offline, before and after
+| Track (label) | Tempo ratio, lock: before | After | Beat error median: before | After |
+|---|---|---|---|---|
+| syncopation-no-kick (135) | 1.333, never | 0.999, 8.0 s | n/a | 78 ms |
+| syncopationbass (98) | right from 27.5 s | 1.001, 4.5 s | 249 ms | 31 ms |
+| lonley (140) | 0.997, 8.0 s | same | 197 ms | 22 ms |
+| drums-100 | 2.000, never | 1.000, 3.0 s | n/a | 1.6 ms |
+| trap-2to1-double-90 | 2.000, never | 1.000, 3.0 s | n/a | 2.2 ms |
+| the other 12 | unchanged | unchanged | unchanged (0.8 to 18 ms; summer2000 121 ms) | unchanged |
+
+The variation test from S2 (lead silence 37, 100, 215, 500 ms; level times 0.25, 0.5, 2; start skipped by 100, 500,
+1000 ms; 10 variants per track), median beat error and tempo:
+
+| Track | Beat error median over the variants | Wrong tempo |
+|---|---|---|
+| imyourgirl | 16 to 19 ms | 0 of 10 |
+| syncopationbass2 | 12 to 14 ms | 0 of 10 |
+| lonley | 16 to 22 ms (was 1 to 197 ms) | 0 of 10 |
+| syncopationbass | 31 to 77 ms | 0 of 10 (one variant reads 196 until about 5 s) |
+| syncopation-no-kick | 21 to 93 ms | **2 of 10** (500 ms lead, 100 ms skipped: locks 180 at 3 s and stays) |
+
+`summer2000` still reads 121 ms off its taps, but its onset energy does not line up with the taps at any place in the
+beat (flat within 0.83 to 1.00 over 12 bins), so the taps cannot judge it.
+
+### Live (AC5)
+Three plays per track at commit `2538d76` and one more at `097d843`; all at 60 fps, no song changes, no grid rebuilds.
+
+| Track (label) | Held tempo, 4 plays | Within 1% while locked | Lock (track time about 2.2 s less) | Gate opens after lock |
+|---|---|---|---|---|
+| imyourgirl (135) | 134.9 | 100% | 5.2 to 5.3 s | 2.8 to 3.0 s |
+| syncopationbass2 (128) | 127.7 | 100% | 5.2 s (three plays), 10.3 s (one) | 2.5 s |
+| lonley (140) | 139.5 | 100% | 10.2 to 10.4 s | **8.0 to 8.1 s** |
+| summer2000 (127.5) | 127.7 | 100% | 10.2 to 10.4 s | **4.0 to 7.9 s** |
+| syncopationbass (98) | 98.0 | 100% | 10.2 to 10.4 s | **16.8 to 17.9 s, never in one play** |
+| syncopation-no-kick (135) | 134.9 | 100% | 10.2 s | 2.5 to 4.3 s; 91 to 97% of bumps on the grid |
+
+AC5 is met for tempo on these plays: every play is within 2% of the label and none holds a 4:3 or 2:1 tempo. It is not
+met as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10 offline start variations. The 10.3 s lock on one
+`syncopationbass2` play is the first-lock tie-break opening on a weak first estimate (confidence 0.43 against 0.80);
+the old tracker does the same on other start times.
+
+### Six more tracks (added after the tuning, so they test it)
+| Track (label) | Old tracker, offline | New, offline | New, live (one play) |
+|---|---|---|---|
+| low-bpm-rnb (81) | 162, then 81 from 10 s | same | 81.1 |
+| high-bpm-dnb (173) | 86.5, then 115 with a rebuild | 86.5, held | 173.2 |
+| half-time-shuffle (81) | 162 to 169 | same | 166.8 |
+| 6-8-time (62) | 184, then about 133 | same | 134.8, 3 rebuilds, 1 song change |
+| beatless (71) | 140 to 153 | same | 143.9 |
+| drifting-tempo (109 to about 113) | 111 rising to 116 | same | not played |
+
+The first version of the octave prior (center 131, 0.5 wide) held `low-bpm-rnb` at 162 for good; these tracks caught
+it. Nothing here fixes drum and bass offline, half-time shuffles or 6/8.
+
+### Library comparison (AC8): not adopted
+essentia.js, offline over each whole file (`RhythmExtractor2013` multifeature and degara, `PercivalBpmEstimator`),
+tempo ratio against the label:
+
+| Track | multifeature | degara | Percival | This tracker now |
+|---|---|---|---|---|
+| syncopation-no-kick | 1.320 | 1.276 | 0.500 | 0.999 |
+| click-174 | 0.500 | 0.990 | 0.499 | 0.999 |
+| trap-4to3-120 | 1.001 | 1.291 | 0.668 | 1.000 |
+| trap-2to1-double-90 | 1.000 | 1.980 | 0.999 | 1.000 |
+| the other 13 original tracks | 0.997 to 1.002 | 0.994 to 1.002 | right, or half on 3 | 0.997 to 1.001 |
+
+No estimator wins on these tracks, each gets a hard one wrong, and they see the whole file where the tracker is
+causal. Cost: a 1.9 MB WASM file against a JS budget with 0.15 kB to spare, and the AGPL-3.0 license. The six later
+tracks were not run through it.
+
+### Known costs and what is left
+- **A 3/4 click at 180 BPM reads 90** (`it.fails` in `rhythmAnalyzer.test.ts`). The octave break-even is 182 BPM so
+  that an 81 BPM track is not doubled; the margins are thin on both sides.
+- **The grid move is abrupt.** One beat gap becomes 0.56 to 1.5 periods, `updatePhase` ticks one beat at the old place
+  after a forward move, and the bass gate and meter keep what they learned at the old place. This may be why
+  `lonley`'s gate opens 8 s after lock (not measured). Next: let `RhythmAnalyzer` watch `BeatTracker.phaseShiftCount`,
+  shrink the meter evidence and make the gate forget its place, or spread the move over a few beats (R2: it touches
+  shared state).
+- **Thin evidence can still move the grid**: about once in two minutes on sparse noise or on eighth notes of equal
+  strength (16 seeds of 120 s: 63 and 15 moves, from 208 and 38 before the review repair).
+- **`syncopation-no-kick` first lock.** In the two failing variations the 135 pulse has almost no peak at its own lag
+  (0.06 to 0.18 against 0.37 to 0.45), so it is neither a tie nor ever the estimate, although its bar evidence is
+  decisive from 4 s. Correcting on bar evidence alone was tried and dropped: it cannot tell a 4/4 bar from a 3/4 bar and
+  it flipped `summer2000` to 4:3 (R2).
+- **Drum and bass offline.** The first estimate on `high-bpm-dnb` is the 2:3 pulse at 115 and the tie-break compares
+  only 4:3 neighbors, so 173 is never weighed. Adding 3:2 neighbors fixed it but delayed the lock to 8 s on
+  `imyourgirl`, the drum patterns and `syncopationbass`, and broke one `lonley` variation.
+- **Gate on the right tempo.** `syncopationbass` now holds 98, and its gate opens 17 s after lock or not at all.
+- Follow-ups recorded in the verified-diamond state: `FU-S6-octave-pins`, `FU-S6-change-delay`,
+  `FU-S6-mirror-close-gate`, `FU-S6-telemetry`.
+
 ## Limits of this evidence
 - One tapper. The noise floor is 26 ms, and `summer2000` was hard to tap.
 - The live beat error on `lonley` (17 to 20 ms) and the offline one (197 ms) disagree. That is cause 2 showing up, not
