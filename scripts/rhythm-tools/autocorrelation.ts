@@ -17,6 +17,7 @@ import {
     TEMPO_REFINE_RANGE,
     TEMPO_REFINE_STEP,
     TEMPO_RELATED_MAX_MULTIPLE,
+    TEMPO_TIE_MIN_RATIO,
     TEMPO_TIE_MULTIPLES,
     TEMPO_TIE_RIVAL_LAG_FACTORS,
     TEMPO_TIE_SWITCH_FACTOR,
@@ -271,7 +272,9 @@ export function refineLag(window: Correlation, coarseLag: number): number {
 // The tracker decides this only on the update where it first locks (`settleFirstLock`), so it is not part of
 // `estimateTempo`: a caller that knows an update is the first lock asks here. It judges the dotted rival on the window
 // alone, which is exactly the evidence the tracker uses at that moment; when the tracker took a rival this returns the
-// rival's refined BPM.
+// rival's refined BPM. Like `estimateTempo`, the mirror stops at the raw estimate: the rules `finishEstimate` applies
+// afterwards (octave, bar and confidence rules) are not run here. The tracker also keeps a tie that is already open open
+// while the peak ratio wobbles; one window cannot know that, so only the closeness test of the update itself is mirrored.
 export function firstLockRivalBpm(
     window: Correlation,
     estimate: TempoEstimate,
@@ -295,6 +298,12 @@ export function firstLockRivalBpm(
         }
     }
     if (rival === 0) {
+        return undefined;
+    }
+    // The tracker only compares bar sums when the two peaks are close: a rival far weaker than the winner at its own lag
+    // never wins the lock, however well it repeats every bar. A missing (NaN) rival peak fails this and means no tie.
+    const winnerHeight = interpolatedPeak(window, estimate.bestLag)?.height ?? NaN;
+    if (!(Math.min(winnerHeight, rivalHeight) >= TEMPO_TIE_MIN_RATIO * Math.max(winnerHeight, rivalHeight))) {
         return undefined;
     }
     let winnerSum = 0;

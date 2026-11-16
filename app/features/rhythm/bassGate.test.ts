@@ -10,8 +10,8 @@ import {
     BASS_GATE_GRACE_BEATS,
     BASS_GATE_LOCK_GRACE_SECONDS,
     BASS_GATE_MIN_INTERVAL,
-    BASS_GATE_OPEN_SCORE,
     BASS_GATE_REPEAT_RATE,
+    BASS_GATE_SCORE_DECAY,
     BASS_GATE_SCORE_MAX,
 } from './bassGateConfig';
 import { createRhythmState } from './types';
@@ -325,6 +325,15 @@ describe('stepBassGate', () => {
         expect(state.kickOffset).toBeCloseTo(-0.2, 12);
     });
 
+    it('shows nothing and learns nothing before the tracker has found a beat', () => {
+        const state = createBassGateState();
+        const rhythm = createRhythmState();
+        expect(rhythm.beatPhase).toBeUndefined();
+        expect(stepBassGate(0.9, rhythm, true, state, DT)).toBe(0);
+        expect(state.phaseKnown).toBe(false);
+        expect(state.bumpCount).toBe(0);
+    });
+
     it('clamps a huge or negative dt and ignores out of range bass', () => {
         const state = createBassGateState();
         const rhythm = createRhythmState();
@@ -343,6 +352,8 @@ describe('stepBassGate evidence while closed', () => {
         const starts = beats.map((beat) => Math.round(beat * FRAMES_PER_BEAT));
         return (frame: number) => (starts.some((start) => frame >= start && frame < start + 4) ? 0.8 : 0);
     }
+
+    const GRACE_FRAMES = BASS_GATE_GRACE_BEATS * FRAMES_PER_BEAT;
 
     // The score just after the kick that starts at `beat`, with every kick before it already counted.
     function scoreAfterKickAt(bass: (frame: number) => number, beat: number): number {
@@ -379,7 +390,7 @@ describe('stepBassGate evidence while closed', () => {
         // would open a bar later still, at 20.
         expect(openingBeat(missed, 24)).toBe(16);
         expect(scoreAfterKickAt(missed, 12)).toBeCloseTo(2 * repeatGain(BASS_GATE_CHANCE_MIN), 9);
-        expect(scoreAfterKickAt(whole, 12)).toBeGreaterThan(BASS_GATE_OPEN_SCORE);
+        expect(drive(12 * FRAMES_PER_BEAT + 1, whole).state.open).toBe(true);
     });
 
     it('leaves the score at 0 for the kicks of the first bar, which have no earlier bar, and opens on time', () => {
@@ -428,24 +439,70 @@ describe('stepBassGate evidence while closed', () => {
         expect(scoreAfterKickAt(bass, 8.5)).toBeCloseTo(before + missLoss(BASS_GATE_CHANCE_MIN), 9);
     });
 
-    // With the chance fixed at 0.2 instead of following the density, all six of these seeds open the gate (checked by
-    // editing bassGate.ts and reverting it; it opens it on 41 of the first 60 seeds, the real rule on 1), so this spec
-    // guards the density rule: busy random bass repeats a bar by chance far more often than 0.2 and must be weighed
-    // against that.
-    it.each([1, 7, 8, 9, 10, 15])('stays closed on two random notes per beat over 120 beats (seed %i)', (start) => {
+    // Two random notes per beat. The generator is a linear congruential one done with Math.imul, so every product wraps
+    // exactly in 32 bits and the sequence is the same on every machine (a plain product would pass 2^53 and round).
+    function opensOnRandomNotes(start: number, beats: number): boolean {
         let seed = start;
-        const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-        const notes = Array.from({ length: 120 }, () => [
+        const random = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 4294967296;
+        };
+        const notes = Array.from({ length: beats }, () => [
             Math.floor(random() * FRAMES_PER_BEAT),
             Math.floor(random() * FRAMES_PER_BEAT),
         ]);
-        const { outputs, state } = drive(FRAMES_PER_BEAT * 120, (frame) => {
+        const state = createBassGateState();
+        for (let frame = 0; frame < FRAMES_PER_BEAT * beats; frame++) {
             const at = frame % FRAMES_PER_BEAT;
-            return notes[Math.floor(frame / FRAMES_PER_BEAT)].some((note) => at >= note && at < note + 4) ? 0.9 : 0;
+            const hit = notes[Math.floor(frame / FRAMES_PER_BEAT)].some((note) => at >= note && at < note + 4);
+            drive(1, () => (hit ? 0.9 : 0), { state, start: frame });
+            if (state.open) return true;
+        }
+        return false;
+    }
+
+    function openingPatterns(beats: number): number {
+        let opened = 0;
+        for (let seed = 1; seed <= 300; seed++) if (opensOnRandomNotes(seed, beats)) opened++;
+        return opened;
+    }
+
+    // Random bass can open the gate by chance, and the more of it there is the likelier, so the specs bound how many of
+    // 300 patterns open rather than naming seeds that happen not to. Measured with this rule: 3 of 300 at 120
+    // beats (bound 6) and 10 of 300 at 400 beats (bound 16); false opens grow with length. With the chance fixed at 0.2 instead of following the density, far
+    // more open (checked by editing bassGate.ts and reverting it), so these guard the density rule: busy random bass
+    // repeats a bar by chance far more often than 0.2 and must be weighed against that.
+    it('opens on at most 6 of 300 patterns of two random notes per beat over 120 beats', () => {
+        expect(openingPatterns(120)).toBeLessThanOrEqual(6);
+    });
+
+    it('opens on at most 16 of 300 patterns of two random notes per beat over 400 beats', () => {
+        expect(openingPatterns(400)).toBeLessThanOrEqual(16);
+    });
+
+    // 29 or 30 kicks in the last 8 beats put the chance above the repeat rate (0.61 and 0.62 against 0.6), where the
+    // log of the likelihood would turn negative for a repeat and positive for a miss.
+    describe('on bass so dense that chance repeats as often as a real bassline', () => {
+        // The ring holds `kicks` kicks spaced 0.26 beat apart from beat 100.1, the one at 104 included unless
+        // `withoutBarBack`, with 3 points of evidence, and one more kick lands at beat 108.
+        function scoreChange(kicks: number, withoutBarBack: boolean): number {
+            const state = createBassGateState();
+            for (let i = 0; i < kicks; i++) state.kickTimes[i] = 100.1 + i * 0.26;
+            if (withoutBarBack) state.kickTimes[15] = NaN;
+            state.score = 3;
+            drive(1, () => 0.8, { state, start: 108 * FRAMES_PER_BEAT });
+            return state.score - 3;
+        }
+
+        it('does not take evidence away for a repeat', () => {
+            expect(chanceFor(30)).toBeGreaterThan(BASS_GATE_REPEAT_RATE);
+            expect(scoreChange(30, false)).toBeGreaterThanOrEqual(0);
         });
-        expect(Math.max(...outputs)).toBe(0);
-        expect(state.open).toBe(false);
-        expect(state.score).toBeLessThan(BASS_GATE_OPEN_SCORE);
+
+        it('does not add evidence for a miss', () => {
+            expect(chanceFor(29)).toBeGreaterThan(BASS_GATE_REPEAT_RATE);
+            expect(scoreChange(30, true)).toBeLessThanOrEqual(0);
+        });
     });
 
     it('holds the chance at its minimum for sparse bass', () => {
@@ -463,6 +520,18 @@ describe('stepBassGate evidence while closed', () => {
         // The next miss would take it below 0.
         expect(afterRepeat + 3 * loss).toBeLessThan(0);
         expect(scoreAfterKickAt(bass, 17.5)).toBe(0);
+    });
+
+    it('holds a closed score for the grace beats without a match, then wears it down by the decay per beat', () => {
+        const state = createBassGateState();
+        state.score = 4;
+        // The first call only records the beat counter, so frame 0 is not a beat; frame k * 30 starts beat k.
+        drive(GRACE_FRAMES + 1, silent, { state });
+        expect(state.score).toBe(4);
+        drive(FRAMES_PER_BEAT, silent, { state, start: GRACE_FRAMES + 1 });
+        expect(state.score).toBe(4 - BASS_GATE_SCORE_DECAY);
+        drive(FRAMES_PER_BEAT, silent, { state, start: GRACE_FRAMES + 1 + FRAMES_PER_BEAT });
+        expect(state.score).toBe(4 - 2 * BASS_GATE_SCORE_DECAY);
     });
 
     it('never lets the wearing down of unmatched beats take the score below 0', () => {
