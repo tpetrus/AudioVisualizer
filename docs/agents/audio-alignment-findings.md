@@ -415,7 +415,7 @@ Acceptance criteria still open:
 
 Suggested order:
 1. Measure AC9 on real hardware.
-2. `FU-S6-telemetry`, so the tracker work below can be measured live.
+2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave`.
 4. S7. It freezes contract C5, the hub snapshot, before any worker starts.
 5. S8, one pull request per visualizer, bass ink last.
@@ -423,11 +423,9 @@ Suggested order:
 The other tracker items can wait until after S7, because none of them blocks it.
 
 ### Tempo tracker work (each needs a full run: it changes behavior every visualizer sees)
-- **`FU-S6-telemetry`**: record the tracker's new decisions in DEV telemetry. That means BeatTracker grid moves, plus
-  counters for octave-away holds and bar-evidence vetoes in TempoTracker, exposed through RhythmAnalyzer and added as
-  columns to the dancing-character probe and the `debug:viz` tempo report. Update the column list in
-  `debug-harness.md`. The JS budget has about 0.1 kB left, so the counters likely have to stay out of the production
-  build.
+- **`FU-S6-telemetry`**: done. The dancing-character probe records `gridMoves`, `octaveHolds` and `barVetoes`, and the
+  `debug:viz` tempo report prints how far each rose after the lock (see `debug-harness.md`). They are read through the
+  analyzer's read-only `beat` and `tempo` fields, since a forwarding getter each did not fit the JS budget.
 - **`FU-S6-slow-octave`**: slow tracks with eighth-note pulses read double. 65 BPM reads 130 at weights 0.3, 0.5 and
   0.7, and 75 BPM reads 150 at 0.5 and 0.7 (the `it.fails` octave pins in `tempo.test.ts`). Fix it without breaking
   the 80 BPM, 186 and 190 BPM and 3/4 180 BPM specs, and check `eval:rhythm` for regressions.
