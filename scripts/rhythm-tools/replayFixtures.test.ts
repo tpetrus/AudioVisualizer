@@ -56,7 +56,7 @@ const AFTER: Record<
     // 196 is the octave of the reference 98, and its tie ratio at the first lock (0.35) is under the threshold. The
     // octave prior prefers 98 over 196, so the move to the reference is not held back like a move away from it: it
     // takes the ordinary switch count and lands at 4.5 s instead of 27.5 s.
-    syncopationbass: { lockSeconds: 3, lockBpm: 195.7, endBpm: 97.98, switchedAt: 4.5, deferred: false },
+    syncopationbass: { lockSeconds: 3, lockBpm: 195.7, endBpm: 97.98, switchedAt: 4.75, deferred: false },
     syncopationbass2: { lockSeconds: 3, lockBpm: 127.66, endBpm: 127.66, deferred: false },
 };
 

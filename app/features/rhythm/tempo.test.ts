@@ -578,6 +578,22 @@ describe('TempoTracker octave and bar rules', () => {
         // still in the 8 s window, and the raw estimate does read 196 for four updates in a row. That is as many as
         // TEMPO_SWITCH_ESTIMATES asks for, so only the octave-away rule (which asks for TEMPO_SYNCOPATION_SWITCH_ESTIMATES
         // and the confidence it demands) keeps the held tempo at 98.
+        // The hold is for moves up only. A first lock on the subdivision (a real 81 BPM track read as 162 for its first
+        // seconds) must correct itself as fast as any other change once the slower pulse wins the estimate.
+        it('follows an octave move down within three seconds', () => {
+            const trace = driveRaw(new TempoTracker(FRAME_RATE), joined(pulseTrain(162, 12), pulseTrain(81, 20)));
+            const held = trace.bpm;
+            const before = held[Math.round(11 / TEMPO_UPDATE_SECONDS)];
+            expect(Math.abs(before / 162 - 1)).toBeLessThan(0.02);
+            const firstRaw = trace.raw.findIndex(
+                (bpm, k) => k * TEMPO_UPDATE_SECONDS > 12 && Math.abs(bpm / 81 - 1) < 0.02,
+            );
+            expect(firstRaw).toBeGreaterThan(0);
+            const followed = held.findIndex((bpm, k) => k >= firstRaw && Math.abs(bpm / 81 - 1) < 0.02);
+            expect(followed).toBeGreaterThan(0);
+            expect((followed - firstRaw) * TEMPO_UPDATE_SECONDS).toBeLessThan(3);
+        });
+
         it('keeps the held 98 through 2.5 s whose raw estimate reads 196', () => {
             const tracker = new TempoTracker(FRAME_RATE);
             const envelope = joined(pulseTrain(98, 15), weighted(pulseTrain(196, 2.5), 100), pulseTrain(98, 10));

@@ -497,12 +497,15 @@ export class TempoTracker {
             this.challengerWins = 0;
             return;
         }
-        // An octave move to a tempo the octave prior likes less than the held one is the same music counted at another
+        // An octave move up to a tempo the octave prior likes less than the held one is the same music counted at another
         // level (a passage where only the subdivision sounds: syncopationbass loses its 98 pulse for about 2.5 s and
         // reads 196), so it is held to the same standard as a dotted rival. A move toward the preferred octave stays
-        // fast, because that is where the prior says the beat really is.
+        // fast, because that is where the prior says the beat really is. So does any move down: the slower pulse only
+        // wins the estimate when the faster one has nearly gone, and a first lock on the subdivision (an 81 BPM track
+        // read as 162 for its first seconds) has to be able to correct itself.
         const octaveRatio = bpm > this.held ? bpm / this.held / 2 : this.held / bpm / 2;
         const octaveAway =
+            bpm > this.held &&
             Math.abs(octaveRatio - 1) <= TEMPO_HYSTERESIS &&
             this.octavePrior(this.bpmToLag(bpm)) < this.octavePrior(this.bpmToLag(this.held));
         const dotted = isSyncopationRatio(bpm, this.held);
