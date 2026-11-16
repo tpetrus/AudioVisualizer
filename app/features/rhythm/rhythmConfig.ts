@@ -138,6 +138,9 @@ export const TEMPO_SWITCH_ESTIMATES = 4;
 // either octave of the beat, so a rival is compared after folding the ratio into one octave, where 4/3 and 3/4 of the beat
 // or of its double become 4/3 and 3/2. Such a rival must win about 8 s of estimates. A longer hold for every rival would be
 // simpler, but it makes real song changes late.
+// Measured on clean pulse trains (15 s at the old tempo, then 30 s at the new one), seconds from the change until the held
+// tempo is within 4% of the new one: 128 to 170 (4/3) follows after 11.25 s, 140 to 70 (octave down) after 6.75 s, and
+// 100 to 150 (3/2) never follows within 30 s. Recorded in tempo.test.ts, which pins an upper bound for the first two.
 export const TEMPO_SYNCOPATION_RATIOS = [4 / 3, 3 / 2] as const;
 export const TEMPO_SYNCOPATION_TOLERANCE = 0.02;
 export const TEMPO_SYNCOPATION_SWITCH_ESTIMATES = 32;
