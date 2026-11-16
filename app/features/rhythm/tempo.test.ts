@@ -572,6 +572,77 @@ describe('TempoTracker octave and bar rules', () => {
         });
     });
 
+    // Records where the octave prior sits on slow and fast material today (a beat with eighth-note pulses at a given weight,
+    // 30 s). Each name states the measured held tempo; where it is double the intended beat the spec is `it.fails`, so
+    // fixing the prior makes it fail until `.fails` is removed.
+    describe('octave prior on slow and fast material (measured today)', () => {
+        function eighths(bpm: number, weight: number): Float32Array {
+            return added(pulseTrain(bpm, 30), weighted(pulseTrain(bpm * 2, 30), weight));
+        }
+
+        function expectAllHeld(trace: Trace, expected: number) {
+            const held = heldValues(trace);
+            expect(held.length).toBeGreaterThan(0);
+            for (const bpm of held) {
+                expect(Math.abs(bpm / expected - 1)).toBeLessThan(0.02);
+            }
+        }
+
+        // 65 BPM reads 130 (double) at every weight, so the intended 65 is not held.
+        it.fails.each([0.3, 0.5, 0.7])('65 BPM with %f-weight eighths reads 130, double the beat', (weight) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(65, weight)), 65);
+        });
+
+        it.fails.each([0.5, 0.7])('75 BPM with %f-weight eighths reads 150, double the beat', (weight) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(75, weight)), 75);
+        });
+
+        // At 0.3 the first lock is 150 (double) but the held tempo later moves to 75, the beat.
+        it('75 BPM with 0.3-weight eighths first locks at 150 and ends at 75', () => {
+            const held = heldValues(drive(new TempoTracker(FRAME_RATE), eighths(75, 0.3)));
+            expect(Math.abs(held[0] / 150 - 1)).toBeLessThan(0.02);
+            expect(Math.abs(held[held.length - 1] / 75 - 1)).toBeLessThan(0.02);
+        });
+
+        it.each([0.3, 0.5, 0.7])('80 BPM with %f-weight eighths holds 80, the beat', (weight) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), eighths(80, weight)), 80);
+        });
+
+        // Above the 185 BPM break-even both fold to half (the beat is the slower pulse).
+        it.each([
+            [186, 93],
+            [190, 95.2],
+        ])('folds a bare %f BPM pulse to %f', (bpm, expected) => {
+            expectAllHeld(drive(new TempoTracker(FRAME_RATE), pulseTrain(bpm, 30)), expected);
+        });
+    });
+
+    describe('delay of a real change the rules class as dotted or octave-away (measured today)', () => {
+        // Seconds from the change at 15 s to the first update that holds the new tempo within 4%, or undefined if none.
+        function secondsToFollow(from: number, to: number): number | undefined {
+            const trace = drive(new TempoTracker(FRAME_RATE), joined(pulseTrain(from, 15), pulseTrain(to, 30)));
+            const index = trace.bpm.findIndex(
+                (bpm, k) => k * TEMPO_UPDATE_SECONDS >= 15 && Math.abs(bpm / to - 1) < 0.04,
+            );
+            return index < 0 ? undefined : index * TEMPO_UPDATE_SECONDS - 15;
+        }
+
+        // Measured 11.25 s: 170 against 128 is 4/3 of it, so it needs TEMPO_SYNCOPATION_SWITCH_ESTIMATES (8 s) of estimates.
+        it('follows 128 to 170 (dotted) within 12.5 s', () => {
+            expect(secondsToFollow(128, 170)).toBeLessThanOrEqual(12.5);
+        });
+
+        // Measured 6.75 s: an octave move down is not held back, only the window has to turn over.
+        it('follows 140 to 70 (octave down) within 7.5 s', () => {
+            expect(secondsToFollow(140, 70)).toBeLessThanOrEqual(7.5);
+        });
+
+        // Measured: never within 30 s. 150 against 100 is 3/2, a syncopation ratio, and the held 100 stays.
+        it('does not follow 100 to 150 (3/2) within 30 s', () => {
+            expect(secondsToFollow(100, 150)).toBeUndefined();
+        });
+    });
+
     describe('octave-away hold', () => {
         // syncopationbass loses its 98 pulse for about 2.5 s and reads 196. A bare 196 pulse folds to 98 in the raw estimate
         // (the spec above), so the middle section is made loud enough that the 196 pulse outweighs the 98 pulses
