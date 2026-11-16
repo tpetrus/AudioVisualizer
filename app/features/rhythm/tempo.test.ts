@@ -675,6 +675,30 @@ describe('TempoTracker octave and bar rules', () => {
                 expect(Math.abs(bpm / 98 - 1)).toBeLessThan(0.02);
             }
         });
+
+        it('counts the estimates it held back, and reset() zeroes the count', () => {
+            // The same 98 to 196 move, but quiet and buried in noise: the raw estimate reads 196 with a confidence under
+            // TEMPO_SYNCOPATION_MIN_CONFIDENCE, which is the case the hold counts.
+            const random = createRandom(5);
+            const noisy = joined(pulseTrain(98, 15), weighted(pulseTrain(196, 4), 3), pulseTrain(98, 10)).map(
+                (value) => value + random() * 3,
+            );
+            const tracker = new TempoTracker(FRAME_RATE);
+            driveRaw(tracker, noisy);
+            expect(tracker.octaveHoldCount).toBeGreaterThan(0);
+            expect(Math.abs(tracker.bpm / 98 - 1)).toBeLessThan(0.02);
+
+            tracker.reset();
+
+            expect(tracker.octaveHoldCount).toBe(0);
+        });
+
+        it('counts no hold and no veto on a steady track', () => {
+            const tracker = new TempoTracker(FRAME_RATE);
+            driveRaw(tracker, pulseTrain(120, 30));
+            expect(tracker.octaveHoldCount).toBe(0);
+            expect(tracker.barVetoCount).toBe(0);
+        });
     });
 
     describe('bar evidence', () => {
@@ -694,6 +718,16 @@ describe('TempoTracker octave and bar rules', () => {
             }
             const readsDotted = trace.raw.map((bpm) => Math.abs(bpm / 180 - 1) < 0.02);
             expect(longestRun(readsDotted)).toBeGreaterThanOrEqual(32);
+        });
+
+        it('counts the dotted estimates the bar evidence vetoed, and reset() zeroes the count', () => {
+            const tracker = new TempoTracker(FRAME_RATE);
+            driveRaw(tracker, dottedBars(135, 42.5, 7, 2));
+            expect(tracker.barVetoCount).toBeGreaterThan(0);
+
+            tracker.reset();
+
+            expect(tracker.barVetoCount).toBe(0);
         });
     });
 });

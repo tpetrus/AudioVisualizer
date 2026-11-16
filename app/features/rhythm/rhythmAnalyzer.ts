@@ -42,8 +42,10 @@ export class RhythmAnalyzer {
     readonly state: RhythmState;
     readonly frameRate: number;
 
-    private readonly tempo: TempoTracker;
-    private readonly beat: BeatTracker;
+    // Public only so DEV telemetry can read the trackers' decision counters (grid moves, octave holds, bar vetoes)
+    // without a forwarding getter each, which the production JS budget has no room for. Nothing outside writes them.
+    readonly tempo: TempoTracker;
+    readonly beat: BeatTracker;
     private readonly meter = new MeterEstimator();
     private readonly boundary: BoundaryDetector;
     private readonly tempoUpdateFrames: number;
