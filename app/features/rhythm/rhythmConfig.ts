@@ -91,10 +91,21 @@ export const TEMPO_FULL_CONFIDENCE_PEAK = 0.4;
 export const TEMPO_COMPETITOR_EXCLUSION_OCTAVES = 0.1;
 export const TEMPO_RELATED_MAX_MULTIPLE = 4;
 // A peak at the winning lag divided by one of these takes over if it scores at least this fraction (0..1) of the
-// winner: the beat is the fastest well-supported pulse, not the bar. Searched within +-this fraction of the lag.
+// winner: the beat is the fastest well-supported pulse, not the bar. Searched within +-this fraction of the lag. The
+// ratio applies to a third of the lag only; a half is one octave and is decided by the octave prior below.
 export const TEMPO_FASTER_DIVISORS = [2, 3] as const;
 export const TEMPO_FASTER_PULSE_RATIO = 0.7;
 export const TEMPO_FASTER_TOLERANCE = 0.04;
+// Prior that chooses between two pulses one octave apart: a log-Gaussian around this tempo, with this width in octaves.
+// Measured interpolated autocorrelation ratios C(T)/C(T/2): a true 174 BPM click is 0.93 to 0.96 (must stay 174),
+// while drums-100 (heard as 200) is 0.91 to 0.95 and the real track syncopationbass (98 BPM, heard as 196) is up to
+// 1.23 after 8 s (both must fold down), and a real 81 BPM R&B track is 0.61 to 0.63 from 8 s on (must stay 81, where a
+// narrower prior doubled it). Center 128.5 and sigma 0.63 put the break-even at 128.5 * sqrt(2) = 182 BPM and ask the
+// faster pulse for 0.66 of the slower one's height at 81 BPM. The margins are thin on every side. Known costs: a 3/4
+// click at 180 BPM reads 90 (a fast waltz), a 60 to 80 BPM track with a strong eighth-note pulse still reads at double
+// time, and the first 8 s of the R&B track read double before it corrects.
+export const TEMPO_OCTAVE_PRIOR_BPM = 128.5;
+export const TEMPO_OCTAVE_PRIOR_SIGMA_OCTAVES = 0.63;
 // Confidence (0..1) needed to lock a first tempo.
 export const TEMPO_LOCK_CONFIDENCE = 0.2;
 // A first lock is a tie when the winner has a dotted rival (4/3 or 3/4 of its lag) whose autocorrelation peak is at least
