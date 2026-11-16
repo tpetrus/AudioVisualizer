@@ -207,8 +207,15 @@ export function stepBassGate(
             // and never falls below 0, so a long stretch of scattered bass does not have to be paid back later. A kick
             // with no earlier bar to compare with says nothing either way. No upper limit is needed here: a sum that
             // reaches the open score opens the gate below, which sets it to the maximum.
-            const likelihood = matched ? BASS_GATE_REPEAT_RATE / chance : (1 - BASS_GATE_REPEAT_RATE) / (1 - chance);
-            state.score = Math.max(0, state.score + Math.log(likelihood));
+            // Bass so busy that chance alone repeats at least as often as a real bassline would (chance reaches 0.65
+            // with 32 kicks in 8 beats) tells nothing: the log would turn negative for a repeat and positive for a miss,
+            // so the kick is neutral there instead.
+            if (chance < BASS_GATE_REPEAT_RATE) {
+                const likelihood = matched
+                    ? BASS_GATE_REPEAT_RATE / chance
+                    : (1 - BASS_GATE_REPEAT_RATE) / (1 - chance);
+                state.score = Math.max(0, state.score + Math.log(likelihood));
+            }
         }
     }
     // Two thresholds, so a score hovering near one value does not flicker the gate.

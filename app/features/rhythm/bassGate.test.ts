@@ -325,6 +325,15 @@ describe('stepBassGate', () => {
         expect(state.kickOffset).toBeCloseTo(-0.2, 12);
     });
 
+    it('shows nothing and learns nothing before the tracker has found a beat', () => {
+        const state = createBassGateState();
+        const rhythm = createRhythmState();
+        expect(rhythm.beatPhase).toBeUndefined();
+        expect(stepBassGate(0.9, rhythm, true, state, DT)).toBe(0);
+        expect(state.phaseKnown).toBe(false);
+        expect(state.bumpCount).toBe(0);
+    });
+
     it('clamps a huge or negative dt and ignores out of range bass', () => {
         const state = createBassGateState();
         const rhythm = createRhythmState();
@@ -446,6 +455,31 @@ describe('stepBassGate evidence while closed', () => {
         expect(Math.max(...outputs)).toBe(0);
         expect(state.open).toBe(false);
         expect(state.score).toBeLessThan(BASS_GATE_OPEN_SCORE);
+    });
+
+    // 29 or 30 kicks in the last 8 beats put the chance above the repeat rate (0.61 and 0.62 against 0.6), where the
+    // log of the likelihood would turn negative for a repeat and positive for a miss.
+    describe('on bass so dense that chance repeats as often as a real bassline', () => {
+        // The ring holds `kicks` kicks spaced 0.26 beat apart from beat 100.1, the one at 104 included unless
+        // `withoutBarBack`, with 3 points of evidence, and one more kick lands at beat 108.
+        function scoreChange(kicks: number, withoutBarBack: boolean): number {
+            const state = createBassGateState();
+            for (let i = 0; i < kicks; i++) state.kickTimes[i] = 100.1 + i * 0.26;
+            if (withoutBarBack) state.kickTimes[15] = NaN;
+            state.score = 3;
+            drive(1, () => 0.8, { state, start: 108 * FRAMES_PER_BEAT });
+            return state.score - 3;
+        }
+
+        it('does not take evidence away for a repeat', () => {
+            expect(chanceFor(30)).toBeGreaterThan(BASS_GATE_REPEAT_RATE);
+            expect(scoreChange(30, false)).toBeGreaterThanOrEqual(0);
+        });
+
+        it('does not add evidence for a miss', () => {
+            expect(chanceFor(29)).toBeGreaterThan(BASS_GATE_REPEAT_RATE);
+            expect(scoreChange(30, true)).toBeLessThanOrEqual(0);
+        });
     });
 
     it('holds the chance at its minimum for sparse bass', () => {
