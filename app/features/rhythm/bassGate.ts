@@ -114,6 +114,12 @@ export function forgetBassline(state: BassGateState): void {
     state.kickTimes.fill(NaN);
 }
 
+// The three outcomes of comparing a kick with the bar before: it repeated it, it did not, or there was nothing there
+// to compare with.
+const REPEATED = 1;
+const NOT_REPEATED = 0;
+const NO_EARLIER_BAR = -1;
+
 // Shows the bass as a steady pulse on the beat once its kicks have locked onto one place in the beat, and keeps that
 // pulse going ("business as usual") through masked kicks, extra notes and brief tempo dropouts, since a song's
 // bassline almost never changes quickly. Stray bass never shows. Returns the bass to show, 0..1. Allocates nothing.
@@ -258,10 +264,6 @@ export function stepBassGate(
     const shown = state.level * state.weight;
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
 }
-
-const REPEATED = 1;
-const NOT_REPEATED = 0;
-const NO_EARLIER_BAR = -1;
 
 // Whether a remembered kick landed one bar before this beat position, within the bar window. When nothing at all
 // landed near that place (the kick there was masked or missed, or the bassline rested), the bar before that one is
