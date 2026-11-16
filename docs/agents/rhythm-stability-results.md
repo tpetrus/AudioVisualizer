@@ -94,7 +94,7 @@ The plan is `docs/plans/rhythm-bass-stability/` on Trevor's machine; it is not c
   songs looks wrong: give dotted ratios a longer, confidence-gated jump time, as `tempo.ts` does. Follow-up `FU-boundary-dotted`.
 - **The `state.bpm` change has no direct spec.** Reverting it leaves all rhythm specs passing, because the decoration specs pass
   on `BEAT_PERIOD_GAIN` alone. Add this before changing that code. Follow-up `FU-pin-state-bpm`.
-- **Scattered bass can open the gate.** Without the penalty, 4 of 5 random bass patterns open it in the spec, recorded with
+- **Scattered bass can open the gate.** (Since fixed twice: see item 4 below.) Without the penalty, 4 of 5 random bass patterns open it in the spec, recorded with
   `it.fails` in `bassGate.test.ts`. The pulse still lands on the beat clock. If stray pulses show up on real music, this is the
   first thing to revisit: revert the removal, or use the leads below.
 - **Double time ignores the speed limit.** At 135 BPM it runs at 270. Capping it would leave the option doing nothing while
@@ -136,6 +136,11 @@ On `lonley`, after 187.5 corrects to 140, `normalizeOctave` picks the octave nea
 move could keep the grid. Some plays also rebuild near 9 s, which is **not yet explained**.
 
 ### 4. Gate on loosely placed bass
+
+**Update, 2026-11-15:** the bar-repeat lead below was built in two steps. The gate now weighs each repeat against the
+chance of one at the current kick density and looks two bars back past a missed kick. `lonley` opens 5.5 s after the
+lock in replay (10.0 before). The numbers and the costs (`summer2000` later, `low-bpm-rnb` no longer opens) are in
+`audio-alignment-findings.md` under "Bass gate evidence". The text below is the earlier state.
 
 `lonley` still opens 9.1 s after lock, because only 32% to 41% of its kicks land in one place. Lower rates are too near chance (20%
 in a 0.1 beat window either side) for a constant to separate them. Tried and rejected, in replay and against the specs: miss

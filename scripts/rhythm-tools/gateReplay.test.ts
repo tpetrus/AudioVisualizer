@@ -6,19 +6,23 @@ import { parseCsv } from '../debug-visualizer/csv';
 import { findGateColumns, findGateRule, formatGateReplay, recordedOpening, replayGate } from './gateReplay';
 
 // The committed gate recordings: the five inputs of the gate and its own gateOpen column, trimmed from one recording per
-// kick-bearing track made with the previous rule (kicks at one place in the beat). Replaying them through today's rule
-// (a kick that repeats the bar before, six of the last eight, the latest three included) must give the opening below; a
-// change to the gate that moves an opening makes the matching row fail on purpose. `recorded` is the previous rule's
-// opening, kept so the cost of the new rule on real music stays visible: it opens later, and never loses the gate.
+// kick-bearing track made with the first rule (kicks at one place in the beat). Replaying them through today's rule must
+// give the opening below; a change to the gate that moves an opening makes the matching row fail on purpose. Today's
+// rule weighs each kick that has an earlier bar (one bar back, or two when nothing landed near the first) against the
+// chance that random bass would repeat it, and opens at an evidence of 6. Against the rule it replaced (six of the last
+// eight kicks repeating the bar before, the latest three in a row), four tracks open earlier (imyourgirl by 0.43 s,
+// lonley by 4.51 s, syncopationbass by 1.24 s, syncopationbass2 by 0.47 s) and summer2000 opens later (15.171 s before,
+// 18.36 s now), so that track pays about 3 s for the stricter rule. `recorded` is the opening of the first rule, kept so
+// the cost on real music stays visible: syncopationbass opens exactly when it did, and lonley now opens before it.
 const DIRECTORY = fileURLToPath(new URL('../fixtures/rhythm/gate', import.meta.url));
 const MAX_BYTES = 200 * 1024;
 
 const TODAY: Record<string, { firstOpen: number; delayAfterLock: number; recorded: number }> = {
-    imyourgirl: { firstOpen: 8.1787, delayAfterLock: 4.9494, recorded: 5.5093 },
-    lonley: { firstOpen: 18.331, delayAfterLock: 14.952, recorded: 14.459 },
-    summer2000: { firstOpen: 15.171, delayAfterLock: 11.7203, recorded: 8.9493 },
-    syncopationbass: { firstOpen: 7.9387, delayAfterLock: 4.7094, recorded: 6.6987 },
-    syncopationbass2: { firstOpen: 7.7307, delayAfterLock: 4.5014, recorded: 5.4 },
+    imyourgirl: { firstOpen: 7.7493, delayAfterLock: 4.52, recorded: 5.5093 },
+    lonley: { firstOpen: 13.819, delayAfterLock: 10.4403, recorded: 14.459 },
+    summer2000: { firstOpen: 18.36, delayAfterLock: 14.9093, recorded: 8.9493 },
+    syncopationbass: { firstOpen: 6.6987, delayAfterLock: 3.4694, recorded: 6.6987 },
+    syncopationbass2: { firstOpen: 7.2587, delayAfterLock: 4.0294, recorded: 5.4 },
 };
 
 describe('gate fixtures', () => {
@@ -68,7 +72,7 @@ describe('gate rules', () => {
         expect(replay).toMatchObject({ firstOpen: undefined, delayAfterLock: undefined, openShare: 0 });
         expect(formatGateReplay('current', replay, undefined).join('\n')).toContain('first open: never');
         expect(formatGateReplay('current', replayGate(table, findGateRule('current')), 5.4)[1]).toBe(
-            'first open: 7.731 s',
+            'first open: 7.259 s',
         );
     });
 
@@ -77,7 +81,7 @@ describe('gate rules', () => {
         const bare = { columns: keep.map((i) => table.columns[i]), rows: table.rows.map((r) => keep.map((i) => r[i])) };
         expect(findGateColumns(bare.columns)).toMatchObject({ dt: -1, gateOpen: -1 });
         expect(recordedOpening(bare)).toBeUndefined();
-        expect(replayGate(bare, findGateRule('current')).firstOpen).toBeCloseTo(7.73, 1);
+        expect(replayGate(bare, findGateRule('current')).firstOpen).toBeCloseTo(7.26, 1);
     });
 
     it('refuses a table that is not a gate recording', () => {
