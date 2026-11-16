@@ -298,7 +298,7 @@ tracks were not run through it.
   that an 81 BPM track is not doubled; the margins are thin on both sides.
 - **The grid move is abrupt.** One beat gap becomes 0.56 to 1.5 periods, `updatePhase` ticks one beat at the old place
   after a forward move, and the bass gate and meter keep what they learned at the old place. This may be why
-  `lonley`'s gate opens 8 s after lock (not measured). Next: let `RhythmAnalyzer` watch `BeatTracker.phaseShiftCount`,
+  `lonley`'s gate opens 8 s after lock (measured later: it is not, see "Bass gate evidence"). Next: let `RhythmAnalyzer` watch `BeatTracker.phaseShiftCount`,
   shrink the meter evidence and make the gate forget its place, or spread the move over a few beats (R2: it touches
   shared state).
 - **Thin evidence can still move the grid**: about once in two minutes on sparse noise or on eighth notes of equal
@@ -313,6 +313,62 @@ tracks were not run through it.
 - **Gate on the right tempo.** `syncopationbass` now holds 98, and its gate opens 17 s after lock or not at all.
 - Follow-ups recorded in the verified-diamond state: `FU-S6-octave-pins`, `FU-S6-change-delay`,
   `FU-S6-mirror-close-gate`, `FU-S6-telemetry`.
+
+## Bass gate evidence (after S6)
+The gate was the main visible miss after S6: with the tempo right, it still opened 10 s after the lock on `lonley` and
+17 to 20 s after it, or never, on `syncopationbass`. Measured by replaying 44 live recordings (the S6 plays of eleven
+tracks) through the gate, first with a copy that matched the shipped gate on every output of every recording.
+
+### What was wrong
+- **Grid moves are not the cause.** None of the 24 plays of `lonley`, `summer2000` and `syncopationbass` has a grid
+  move after the lock. Moves appear on `low-bpm-rnb`, `6-8-time`, `beatless` and one `syncopationbass` play. Shifting
+  the gate's learned place and kick history with the grid was tried in the replay and changed no opening time on any
+  recording, so it was not built. This answers the "not measured" note under S6.
+- **A missed kick cost two.** The gate compared each kick with the bar before. `lonley`'s bassline repeats every bar,
+  but when the kick detector misses one, the kick that repeats it a bar later fails as well, and the old rule (six of
+  the last eight, the latest three in a row) started over.
+- **Busy bass opened it by chance.** The old rule counted repeats without asking how likely a repeat is. Two random
+  notes per beat over 120 beats opened it in 52 of 100 patterns. The spec only used one note per beat over 40 beats.
+
+### What changed (`bassGate.ts`, `bassGateConfig.ts`)
+- When nothing at all landed within a beat of the place one bar back, the place two bars back is compared instead.
+  When that is empty too, the kick counts neither way.
+- Evidence while closed is a running sum that never goes below 0. Each kick adds the log of how much likelier its
+  outcome is for a real bassline (repeats at least 60% of the time) than for chance, where the chance comes from how
+  many kicks landed in the last 8 beats. The gate opens at 6, as before. Behavior once open is unchanged.
+
+### Replay, seconds from tempo lock to the gate opening
+| Track (plays) | Before | After |
+|---|---|---|
+| `lonley` (5) | 10.0 to 10.1 | 5.5 to 5.6 |
+| `syncopationbass` (8) | 5.3 to 19.9, never in 1 | 4.7 to 18.7 |
+| `summer2000` (7) | 5.9 to 9.9 | 6.8 to 12.5 |
+| `imyourgirl` (5) | 4.8 to 5.0 | 4.5 to 4.8 |
+| `syncopationbass2` (6) | 4.5 to 4.6 | 4.1 |
+| `syncopation-no-kick` (7) | 4.4 to 6.3 | 4.5 to 5.5 |
+| `high-bpm-dnb` (1) | never | 6.7 |
+| `half-time-shuffle` (1) | 10.4 | 10.7 |
+| `low-bpm-rnb` (1) | 11.9 | never |
+| `beatless` (1) | 4.2 | 4.2 |
+| `6-8-time` (1) | never | never |
+
+Random bass that opened the gate: one note per beat over 40 beats, 0 of 205 before and after; one note per beat over
+120 beats, 2 of 100 before and 1 after; two notes per beat over 120 beats, 52 of 100 before and 2 after.
+
+These are replays of recorded gate inputs, not new live plays.
+
+### Known costs and what is left
+- **`summer2000` opens 0.5 to 4 s later.** Accepted by Trevor for the gain on `lonley` and on busy random bass.
+- **`low-bpm-rnb` no longer opens.** At 81 BPM its bass gives 3 to 4 kicks per beat, and about 45% of them repeat a
+  bar, which is what chance gives at that density. The old rule opened on it for that reason, and its pulses then sat
+  at a place only a few kicks landed on. A slow track with a busy bassline gets no pulse until the kick detector
+  can tell its kicks from the notes between them (the kick against bass weakness under S4b).
+- **`syncopationbass` is still slow.** About half its kicks repeat a bar, close to chance for its density. A looser
+  empty-place radius (0.75 of a beat) opens it at 12 to 16 s in the replay, for one more random pattern in 205.
+- **The 4 s target is not met** on `lonley`, `summer2000` and `syncopationbass`. The tempo lock itself comes at 8.2 s on
+  those tracks, and the beat grid appears no earlier than the lock, so the gate cannot start gathering sooner.
+- **`beatless` still opens at 4.2 s**, on the pulse the tracker locks to. Declining to lock on a weak pulse is tracker
+  work.
 
 ## Limits of this evidence
 - One tapper. The noise floor is 26 ms, and `summer2000` was hard to tap.
