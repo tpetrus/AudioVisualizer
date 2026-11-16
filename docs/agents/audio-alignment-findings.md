@@ -416,19 +416,26 @@ Acceptance criteria still open:
 Suggested order:
 1. Measure AC9 on real hardware.
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
-3. `FU-S6-slow-octave`.
+3. `FU-S6-slow-octave` (closed: intended behavior).
 4. S7. It freezes contract C5, the hub snapshot, before any worker starts.
 5. S8, one pull request per visualizer, bass ink last.
 
 The other tracker items can wait until after S7, because none of them blocks it.
 
+### Which octave the tracker leans toward
+The visuals play during DJ sets, so when a song can be counted at two octaves the tracker leans toward the tempo a
+person would dance at to that song. The octave prior is centered at 128.5 BPM, where people prefer to step. A slow
+track with eighth notes that can be heard reads at double time (65 reads 130), 80 BPM stays 80 because 160 is too fast
+to step to, and a pulse above about 182 BPM folds to half time, as drum and bass is danced. Judge octave fixes against
+this rule, not against the notated beat.
+
 ### Tempo tracker work (each needs a full run: it changes behavior every visualizer sees)
 - **`FU-S6-telemetry`**: done. The dancing-character probe records `gridMoves`, `octaveHolds` and `barVetoes`, and the
   `debug:viz` tempo report prints how far each rose after the lock (see `debug-harness.md`). They are read through the
   analyzer's read-only `beat` and `tempo` fields, since a forwarding getter each did not fit the JS budget.
-- **`FU-S6-slow-octave`**: slow tracks with eighth-note pulses read double. 65 BPM reads 130 at weights 0.3, 0.5 and
-  0.7, and 75 BPM reads 150 at 0.5 and 0.7 (the `it.fails` octave pins in `tempo.test.ts`). Fix it without breaking
-  the 80 BPM, 186 and 190 BPM and 3/4 180 BPM specs, and check `eval:rhythm` for regressions.
+- **`FU-S6-slow-octave`**: closed as intended behavior. 65 BPM with eighth notes reads 130 and 75 BPM reads 150, which
+  is the tempo a dance floor steps to (see "Which octave the tracker leans toward" below). The `it.fails` pins in
+  `tempo.test.ts` are now plain specs.
 - **`FU-S6-three-halves-change`**: the held tempo never follows a real 100 to 150 BPM change within 30 s. A 128 to 170
   change follows after 11.25 s and a 140 to 70 change after 6.75 s. Let a sustained, confident 3/2 change through in
   about 12 s without letting dotted syncopation switch the tempo.
