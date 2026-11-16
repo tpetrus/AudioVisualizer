@@ -53,7 +53,7 @@ export const BASS_GATE_OPEN_SCORE = 6;
 export const BASS_GATE_CLOSE_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about
-// six bars, and its new place is then learned.
+// six bars, and its new place is then learned. The same wearing down applies to the evidence gathered while closed.
 export const BASS_GATE_GRACE_BEATS = 16;
 export const BASS_GATE_SCORE_DECAY = 1;
 // The tracker's tempo lock can dip in busy passages while the music carries on; the gate keeps the learned bassline
