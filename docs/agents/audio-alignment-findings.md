@@ -355,6 +355,14 @@ tracks) through the gate, first with a copy that matched the shipped gate on eve
 Random bass that opened the gate: one note per beat over 40 beats, 0 of 205 before and after; one note per beat over
 120 beats, 2 of 100 before and 1 after; two notes per beat over 120 beats, 52 of 100 before and 2 after.
 
+- The 44 replayed recordings are in the git-ignored `.debug-out` folder and are not committed. Only the five
+  trimmed fixtures in `scripts/fixtures/rhythm/gate` are.
+- False opens on random bass grow with length. With two notes per beat, 3 of 300 patterns open over 120 beats and 10 of
+  300 over 400 beats (`bassGate.test.ts` bounds them at 6 and 16).
+- The committed `lonley` fixture (an older recording) opens 10.44 s after the lock with this rule, against 14.95 s
+  before it, as pinned in `scripts/rhythm-tools/gateReplay.test.ts`. That file pins 10.4403 s for today's rule and the
+  4.51 s gain in its comment; the before figure is their sum.
+
 These are replays of recorded gate inputs, not new live plays.
 
 ### Known costs and what is left

@@ -31,9 +31,10 @@ export const BASS_GATE_BAR_BEATS = 4;
 export const BASS_GATE_BAR_WINDOW = 0.1;
 // When nothing at all landed within this many beats of the place one bar back, that kick was masked, missed or
 // rested, and the bar before it is compared instead. Replayed on `lonley`, whose bassline repeats every bar: one missed
-// kick used to fail the kick that repeats it a bar later as well, and the gate opened 10 s after the tempo locked on five
-// live recordings; with this it opens after 5.5 s on the same five. A whole beat, because random bass with a note on every beat always has one nearer than that
-// (half a beat let random bass through: 4 of 205 patterns against 0).
+// kick used to fail the kick that repeats it a bar later as well, and the gate opened 10 s after the tempo locked on
+// five live recordings; with this it opens after 5.5 s on the same five.
+// The radius is a whole beat because random bass with a note on every beat always has one nearer than that (half a
+// beat let random bass through: 4 of 205 patterns against 0).
 export const BASS_GATE_EMPTY_RADIUS = 1;
 // Evidence while closed is a running sum. Each kick adds the log of how much likelier its outcome (repeated an earlier
 // bar or not) is for a real bassline, which repeats at least at the repeat rate, than for chance. The chance is the
@@ -53,7 +54,7 @@ export const BASS_GATE_OPEN_SCORE = 6;
 export const BASS_GATE_CLOSE_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about
-// six bars, and its new place is then learned.
+// six bars, and its new place is then learned. The same wearing down applies to the evidence gathered while closed.
 export const BASS_GATE_GRACE_BEATS = 16;
 export const BASS_GATE_SCORE_DECAY = 1;
 // The tracker's tempo lock can dip in busy passages while the music carries on; the gate keeps the learned bassline
