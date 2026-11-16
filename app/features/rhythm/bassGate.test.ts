@@ -2,30 +2,39 @@ import { describe, expect, it } from 'vitest';
 import { createBassGateState, forgetBassline, stepBassGate } from './bassGate';
 import {
     BASS_GATE_ATTACK_SECONDS,
+    BASS_GATE_BAR_WINDOW,
+    BASS_GATE_CHANCE_MARGIN,
+    BASS_GATE_CHANCE_MIN,
+    BASS_GATE_DENSITY_BEATS,
     BASS_GATE_EASE_SECONDS,
     BASS_GATE_GRACE_BEATS,
     BASS_GATE_LOCK_GRACE_SECONDS,
     BASS_GATE_MIN_INTERVAL,
+    BASS_GATE_OPEN_SCORE,
+    BASS_GATE_REPEAT_RATE,
+    BASS_GATE_SCORE_MAX,
 } from './bassGateConfig';
 import { createRhythmState } from './types';
 
 const DT = 1 / 60;
 // 120 BPM: a beat every 30 frames.
 const FRAMES_PER_BEAT = 30;
-// Beats of on-beat kicks that leave the gate open with its fade-in finished: a kick only counts once it repeats the bar
-// before, so six repeats take ten beats, and the fade takes three more.
+// Beats of on-beat kicks that leave the gate open with its fade-in finished: the kicks of the first bar have no earlier
+// bar to repeat and say nothing, the repeats after them open the gate on the kick of beat 8, and the fade takes three
+// more.
 const WARM_BEATS = 16;
 
 type State = ReturnType<typeof createBassGateState>;
 
-// Steps the gate with a 120 BPM clock. `bassAt(frame, phase)` gives the raw bass for each frame.
+// Steps the gate with a 120 BPM clock. `bassAt(frame, phase)` gives the raw bass for each frame. A given `rhythm` is
+// kept across calls, for specs that change it (a song change) between them.
 function drive(
     frames: number,
     bassAt: (frame: number, phase: number) => number,
-    options: { locked?: boolean; start?: number; state?: State } = {},
+    options: { locked?: boolean; start?: number; state?: State; rhythm?: ReturnType<typeof createRhythmState> } = {},
 ) {
     const state = options.state ?? createBassGateState();
-    const rhythm = createRhythmState();
+    const rhythm = options.rhythm ?? createRhythmState();
     const outputs: number[] = [];
     const start = options.start ?? 0;
     for (let i = start; i < start + frames; i++) {
@@ -62,7 +71,8 @@ describe('stepBassGate', () => {
     it('opens after a short run of kicks at one place, then pulses on every beat', () => {
         const { state, outputs } = drive(FRAMES_PER_BEAT * WARM_BEATS, onBeatKick);
         expect(state.open).toBe(true);
-        // The first kick only sets the place and the next four open the gate, so the first beats show nothing.
+        // The first bar's kicks have no earlier bar and the repeats open the gate on beat 8, so the first beats show
+        // nothing.
         expect(outputs.slice(0, FRAMES_PER_BEAT * 4).every((value) => value === 0)).toBe(true);
         for (const peak of peaksPerBeat(outputs).slice(-4)) expect(peak).toBeGreaterThan(0.9);
     });
@@ -139,8 +149,9 @@ describe('stepBassGate', () => {
     });
 
     // Bass bumps at a different place in every beat have no rhythm, so they never open the gate: a bassline repeats every
-    // bar, and a random kick repeats the previous bar's only one time in five. (A bassline that lands at the same off-beat
-    // place every beat does keep the tempo, and is shown.)
+    // bar, and a random kick repeats the previous bar's only now and then, about as often as the chance it is weighed
+    // against, which earns it no evidence. (A bassline that lands at the same off-beat place every beat does keep the
+    // tempo, and is shown.)
     function showsNothing(start: number): void {
         let seed = start;
         const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -321,5 +332,171 @@ describe('stepBassGate', () => {
         expect(stepBassGate(5, rhythm, true, state, 100)).toBe(0);
         expect(stepBassGate(-3, rhythm, true, state, -1)).toBe(0);
         expect(state.weight).toBe(0);
+    });
+});
+
+// While closed, the gate adds up evidence from kicks that repeat a bar earlier, each weighed against the chance that
+// random bass would repeat it. These specs pin that rule through `state.score` and the beat at which the gate opens.
+describe('stepBassGate evidence while closed', () => {
+    // A kick (4 frames at 0.8) at each given beat position, which must fall on a whole frame.
+    function kicksAt(beats: readonly number[]) {
+        const starts = beats.map((beat) => Math.round(beat * FRAMES_PER_BEAT));
+        return (frame: number) => (starts.some((start) => frame >= start && frame < start + 4) ? 0.8 : 0);
+    }
+
+    // The score just after the kick that starts at `beat`, with every kick before it already counted.
+    function scoreAfterKickAt(bass: (frame: number) => number, beat: number): number {
+        return drive(Math.round(beat * FRAMES_PER_BEAT) + 1, bass).state.score;
+    }
+
+    // The beat of the kick that opens the gate, or undefined when it never opens within `beats`.
+    function openingBeat(bass: (frame: number) => number, beats: number): number | undefined {
+        const state = createBassGateState();
+        for (let frame = 0; frame < beats * FRAMES_PER_BEAT; frame++) {
+            drive(1, bass, { state, start: frame });
+            if (state.open) return frame / FRAMES_PER_BEAT;
+        }
+        return undefined;
+    }
+
+    // The chance the gate weighs a repeat against when `recent` kicks landed in the last DENSITY_BEATS beats, before
+    // its two limits.
+    function chanceFor(recent: number): number {
+        return 1 - Math.exp(-(recent / BASS_GATE_DENSITY_BEATS) * 2 * BASS_GATE_BAR_WINDOW * BASS_GATE_CHANCE_MARGIN);
+    }
+
+    const repeatGain = (chance: number) => Math.log(BASS_GATE_REPEAT_RATE / chance);
+    const missLoss = (chance: number) => Math.log((1 - BASS_GATE_REPEAT_RATE) / (1 - chance));
+
+    // The bassline is one kick at the start of every bar, so a missed kick leaves nothing within a beat of its place.
+    it('looks two bars back past a missed kick, so one miss costs one bar and not two', () => {
+        const bars = [0, 4, 8, 12, 16, 20, 24];
+        const whole = kicksAt(bars);
+        const missed = kicksAt(bars.filter((beat) => beat !== 8));
+        expect(openingBeat(whole, 24)).toBe(12);
+        // The kick at 12 finds nothing at 8 and is compared with the kick at 4 instead, so it counts as a repeat: the
+        // miss delays the opening by one bar. Without that look-back the kick at 12 would count for nothing and the gate
+        // would open a bar later still, at 20.
+        expect(openingBeat(missed, 24)).toBe(16);
+        expect(scoreAfterKickAt(missed, 12)).toBeCloseTo(2 * repeatGain(BASS_GATE_CHANCE_MIN), 9);
+        expect(scoreAfterKickAt(whole, 12)).toBeGreaterThan(BASS_GATE_OPEN_SCORE);
+    });
+
+    it('leaves the score at 0 for the kicks of the first bar, which have no earlier bar, and opens on time', () => {
+        const state = drive(4 * FRAMES_PER_BEAT, onBeatKick).state;
+        expect(state.score).toBe(0);
+        expect(state.open).toBe(false);
+        expect(openingBeat(onBeatKick, 16)).toBe(8);
+    });
+
+    it('leaves the score as it was for a kick after a silence of more than two bars', () => {
+        const bass = kicksAt([0, 4, 8, 18]);
+        const before = scoreAfterKickAt(bass, 8);
+        expect(before).toBeGreaterThan(0);
+        // Nothing landed within a beat of 14 or of 10, so the kick at 18 has no earlier bar and says nothing, not even
+        // that it did not repeat.
+        expect(scoreAfterKickAt(bass, 18)).toBe(before);
+    });
+
+    it('adds less for the same repeat when more kicks landed in the last eight beats', () => {
+        // The kick at beat 4 repeats the kick at 0; the other kicks only make the bass busier, and have no earlier bar.
+        const sparse = scoreAfterKickAt(kicksAt([0, 2, 4]), 4);
+        const busy = scoreAfterKickAt(kicksAt([0, 1, 2, 3, 4]), 4);
+        const busier = scoreAfterKickAt(kicksAt([0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4]), 4);
+        expect(sparse).toBeCloseTo(repeatGain(chanceFor(2)), 9);
+        expect(busy).toBeCloseTo(repeatGain(chanceFor(4)), 9);
+        expect(busier).toBeCloseTo(repeatGain(chanceFor(8)), 9);
+        expect(sparse).toBeGreaterThan(busy);
+        expect(busy).toBeGreaterThan(busier);
+
+        // Busy bass of 23 kicks, one every 4 frames from beat 14, then a kick at 18 that repeats the one at 14. The
+        // burst's own kicks have nothing a bar back or two back that lands within a beat of their place (the kick at 4
+        // is too far), so the score stays where the kick at 4 left it until the repeat.
+        const burst = (frame: number) => {
+            const sinceBurst = frame - 14 * FRAMES_PER_BEAT;
+            if (sinceBurst >= 0 && sinceBurst <= 22 * 4) return sinceBurst % 4 < 2 ? 0.8 : 0;
+            return kicksAt([0, 4, 18])(frame);
+        };
+        const base = scoreAfterKickAt(burst, 4);
+        expect(drive(18 * FRAMES_PER_BEAT + 1, burst).state.score - base).toBeCloseTo(repeatGain(chanceFor(23)), 9);
+    });
+
+    it('takes from the score by the chance of a miss when a kick does not repeat the bar before', () => {
+        // The kick at 8.5 has a kick half a beat from its place a bar back (at 4), so it did not repeat it.
+        const bass = kicksAt([0, 4, 8.5]);
+        const before = scoreAfterKickAt(bass, 4);
+        expect(scoreAfterKickAt(bass, 8.5)).toBeCloseTo(before + missLoss(BASS_GATE_CHANCE_MIN), 9);
+    });
+
+    // With the chance fixed at 0.2 instead of following the density, all six of these seeds open the gate (checked by
+    // editing bassGate.ts and reverting it; it opens it on 41 of the first 60 seeds, the real rule on 1), so this spec
+    // guards the density rule: busy random bass repeats a bar by chance far more often than 0.2 and must be weighed
+    // against that.
+    it.each([1, 7, 8, 9, 10, 15])('stays closed on two random notes per beat over 120 beats (seed %i)', (start) => {
+        let seed = start;
+        const random = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+        const notes = Array.from({ length: 120 }, () => [
+            Math.floor(random() * FRAMES_PER_BEAT),
+            Math.floor(random() * FRAMES_PER_BEAT),
+        ]);
+        const { outputs, state } = drive(FRAMES_PER_BEAT * 120, (frame) => {
+            const at = frame % FRAMES_PER_BEAT;
+            return notes[Math.floor(frame / FRAMES_PER_BEAT)].some((note) => at >= note && at < note + 4) ? 0.9 : 0;
+        });
+        expect(Math.max(...outputs)).toBe(0);
+        expect(state.open).toBe(false);
+        expect(state.score).toBeLessThan(BASS_GATE_OPEN_SCORE);
+    });
+
+    it('holds the chance at its minimum for sparse bass', () => {
+        // One kick in the eight beats before the repeat: the chance would be 0.03, but it is held at the minimum.
+        expect(chanceFor(1)).toBeLessThan(BASS_GATE_CHANCE_MIN);
+        expect(scoreAfterKickAt(kicksAt([0, 4]), 4)).toBeCloseTo(repeatGain(BASS_GATE_CHANCE_MIN), 9);
+    });
+
+    it('never lets the score fall below 0, however many kicks fail to repeat', () => {
+        // Each kick after the repeat at 4 lands 4.5 beats after the one before, so it misses its place a bar back.
+        const bass = kicksAt([0, 4, 8.5, 13, 17.5]);
+        const afterRepeat = scoreAfterKickAt(bass, 4);
+        const loss = missLoss(BASS_GATE_CHANCE_MIN);
+        expect(scoreAfterKickAt(bass, 13)).toBeCloseTo(afterRepeat + 2 * loss, 9);
+        // The next miss would take it below 0.
+        expect(afterRepeat + 3 * loss).toBeLessThan(0);
+        expect(scoreAfterKickAt(bass, 17.5)).toBe(0);
+    });
+
+    it('never lets the wearing down of unmatched beats take the score below 0', () => {
+        const { state } = drive(FRAMES_PER_BEAT * 30, kicksAt([0, 4]));
+        expect(state.score).toBe(0);
+    });
+
+    it('keeps the score at the maximum once open, however many kicks match', () => {
+        const state = locked();
+        expect(state.score).toBe(BASS_GATE_SCORE_MAX);
+        drive(FRAMES_PER_BEAT * 8, onBeatKick, { state, start: FRAMES_PER_BEAT * WARM_BEATS });
+        expect(state.score).toBe(BASS_GATE_SCORE_MAX);
+    });
+
+    it('starts the kicks of the next bars from nothing after the bassline is forgotten', () => {
+        const state = drive(6 * FRAMES_PER_BEAT, onBeatKick).state;
+        expect(state.score).toBeGreaterThan(0);
+        forgetBassline(state);
+        expect(state.kickTimes.every(Number.isNaN)).toBe(true);
+        // The kicks at 6 and 7 would repeat those at 2 and 3 if the history had survived. Kicks 8 and 9 have nothing a
+        // bar back either, and the kick at 10 is the first to repeat one.
+        drive(4 * FRAMES_PER_BEAT, onBeatKick, { state, start: 6 * FRAMES_PER_BEAT });
+        expect(state.score).toBe(0);
+        drive(FRAMES_PER_BEAT, onBeatKick, { state, start: 10 * FRAMES_PER_BEAT });
+        expect(state.score).toBeGreaterThan(0);
+    });
+
+    it('starts the kicks of the next bars from nothing after a song change', () => {
+        const { state, rhythm } = drive(6 * FRAMES_PER_BEAT, onBeatKick);
+        expect(state.score).toBeGreaterThan(0);
+        rhythm.songChangeCount++;
+        drive(4 * FRAMES_PER_BEAT, onBeatKick, { state, rhythm, start: 6 * FRAMES_PER_BEAT });
+        expect(state.score).toBe(0);
+        drive(FRAMES_PER_BEAT, onBeatKick, { state, rhythm, start: 10 * FRAMES_PER_BEAT });
+        expect(state.score).toBeGreaterThan(0);
     });
 });

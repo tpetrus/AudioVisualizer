@@ -221,7 +221,7 @@ and meter come from `useRhythm()` and `tracker.state` as described above; the ba
   envelope from `update()`, once per frame. It owns Web Audio nodes, so it is not one of the pure modules: create it when
   the analyser binds, and `dispose()` it on rebind and on teardown. `useCubesScene.ts` shows the pattern.
 - **`stepBassGate`** (`bassGate.ts`) turns that envelope plus `tracker.state` into a steady pulse on the beat, once the
-  kicks have locked onto one place in the beat. It is pure and allocation-free: keep one `createBassGateState()` per scene
+  kicks repeat from bar to bar more often than chance would explain. It is pure and allocation-free: keep one `createBassGateState()` per scene
   and call `forgetBassline` when the scene's character or song context is replaced. `dancingCharacterScene.ts` shows the
   pattern. Its tuning lives in `bassGateConfig.ts` rather than `rhythmConfig.ts`, because `rhythmConfig` is in the bundle
   every page loads on first paint and only the visualizers that use the gate should pay for these constants.
