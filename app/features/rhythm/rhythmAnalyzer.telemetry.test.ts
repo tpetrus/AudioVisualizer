@@ -44,3 +44,12 @@ describe('RhythmAnalyzer rival view', () => {
         expect(analyzer.rawTempoBpm).toBe(0);
     });
 });
+
+describe('RhythmAnalyzer decision counters', () => {
+    it('are 0 before any audio', () => {
+        const analyzer = new RhythmAnalyzer(FRAME_RATE);
+        expect([analyzer.beat.phaseShiftCount, analyzer.tempo.octaveHoldCount, analyzer.tempo.barVetoCount]).toEqual([
+            0, 0, 0,
+        ]);
+    });
+});

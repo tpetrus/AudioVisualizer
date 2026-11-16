@@ -261,6 +261,68 @@ describe('computeTempoMetrics', () => {
     });
 });
 
+// The steady table with the three counter columns appended; `make` gives each counter's value at a row time.
+function withCounters(
+    table: TelemetryTable,
+    make: (t: number) => { gridMoves?: number; octaveHolds?: number; barVetoes?: number },
+): TelemetryTable {
+    const names = ['gridMoves', 'octaveHolds', 'barVetoes'] as const;
+    return {
+        columns: [...table.columns, ...names.map((name) => `dancing-character.${name}`)],
+        rows: table.rows.map((row) => {
+            const values = make(row[0]);
+            return [...row, ...names.map((name) => values[name] ?? 0)];
+        }),
+    };
+}
+
+describe('grid moves, octave holds and bar vetoes', () => {
+    it('sums rises from the lock on, including multi-step rises and ignoring drops to 0', () => {
+        const table = withCounters(makeTable(12), (t) => ({
+            // Rises before the lock at 2 s (0 -> 4) are ignored; 4 -> 7 is one rise of 3, a reset to 0 does not count
+            // negative, and 0 -> 1 after it is a rise of 1.
+            gridMoves: t < 1 ? 0 : t < 5 ? 4 : t < 8 ? 7 : t < 9 ? 0 : 1,
+            octaveHolds: t < 6 ? 0 : 2,
+            barVetoes: Math.floor(t),
+        }));
+        const metrics = computeTempoMetrics(table)!;
+        expect(metrics.gridMoves).toBe(4);
+        expect(metrics.octaveHolds).toBe(2);
+        // The counter steps once a second from 2 s (the lock row) to 11 s, which is ten rises.
+        expect(metrics.barVetoes).toBe(10);
+    });
+
+    it('is undefined for a column that is missing, and leaves an old table printing as before', () => {
+        const old = makeTable(12);
+        const metrics = computeTempoMetrics(old)!;
+        expect(metrics.gridMoves).toBeUndefined();
+        expect(metrics.octaveHolds).toBeUndefined();
+        expect(metrics.barVetoes).toBeUndefined();
+        expect(summarizeTempo(old).join(' | ')).not.toContain('grid moves');
+    });
+
+    it('is undefined when the recording never locked', () => {
+        const table = withCounters(
+            makeTable(6, () => ({ locked: 0 })),
+            (t) => ({ gridMoves: Math.floor(t) }),
+        );
+        expect(computeTempoMetrics(table)!.gridMoves).toBeUndefined();
+        expect(summarizeTempo(table).join(' | ')).toContain('grid moves n/a, octave holds n/a, bar vetoes n/a');
+    });
+
+    it('prints the counts on a metric line without touching the verdict or the line count', () => {
+        const base = makeTable(20);
+        const plain = summarizeTempo(base, { referenceBpm: 120 });
+        const lines = summarizeTempo(
+            withCounters(base, (t) => ({ gridMoves: t >= 5 ? 2 : 0, barVetoes: Math.floor(t) })),
+            { referenceBpm: 120 },
+        );
+        expect(lines.join(' | ')).toContain('grid moves 2, octave holds 0, bar vetoes');
+        expect(lines).toHaveLength(plain.length);
+        expect(lines.at(-1)).toBe(plain.at(-1));
+    });
+});
+
 describe('summarizeTempo', () => {
     const verdictOf = (lines: string[]) => lines[lines.length - 1];
 
