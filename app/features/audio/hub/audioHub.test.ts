@@ -461,6 +461,24 @@ describe('AudioHub', () => {
             expect(hub.snapshot.onsets.kick.count).toBe(2);
         });
 
+        it('forgets onset and change times from the old clock, so nothing reads as just happened', () => {
+            tracker.state.songChangeCount = 1;
+            feed([{ time: 50, energy: 1 }], [{ band: 0, time: 50, strength: 0.8 }]);
+            hub.update(60);
+            expect(hub.snapshot.section.lastChangeTime).toBe(60);
+
+            // The new source's AudioContext starts its clock near 0, far before the old times.
+            hub.onReset();
+            feed([{ time: 0.5, energy: 1 }]);
+            hub.update(1);
+            const kick = hub.snapshot.onsets.kick;
+            expect(kick.lastTime).toBe(-Infinity);
+            expect(kick.strength).toBe(0);
+            expect(kick.sinceSeconds).toBe(Infinity);
+            expect(kick.count).toBe(1);
+            expect(hub.snapshot.section.lastChangeTime).toBe(-Infinity);
+        });
+
         it('reads again at the same time after a reset', () => {
             feed([{ time: 1, energy: 1 }]);
             hub.update(2);

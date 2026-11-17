@@ -131,6 +131,14 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.peakTime = -Infinity;
         this.pendingCount = 0;
         this.snapshot.bands.fill(0);
+        // Times from the old source are on the old AudioContext's clock, which the new one does not share: kept, they
+        // would read as an onset or a change that just happened. The counts stay.
+        for (const onset of this.onsetByIndex) {
+            onset.lastTime = -Infinity;
+            onset.strength = 0;
+            onset.sinceSeconds = Infinity;
+        }
+        this.snapshot.section.lastChangeTime = -Infinity;
         // The next update must read again even at the same time, as the held frames are gone.
         this.lastUpdateTime = Number.NaN;
     }
@@ -225,7 +233,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.pendingCount = kept;
         for (let i = 0; i < FEATURE_ONSET_BAND_COUNT; i++) {
             const onset = this.onsetByIndex[i];
-            onset.sinceSeconds = onset.count === 0 ? Infinity : Math.max(0, time - onset.lastTime);
+            onset.sinceSeconds = onset.lastTime === -Infinity ? Infinity : Math.max(0, time - onset.lastTime);
         }
     }
 

@@ -138,7 +138,7 @@ export class RhythmTracker {
         }
         this.publish();
         // Before the first batch of this source can arrive, so listeners never mix frames of two sources.
-        this.notifyFeatureListeners((listener) => listener.onReset());
+        this.notifyFeatureListeners(undefined);
 
         const generation = ++this.generation;
         this.loadModule(context)
@@ -219,18 +219,21 @@ export class RhythmTracker {
         // time, so the counters never run ahead of what the visualizers show.
         this.updatePhase();
         this.publish();
-        // Last, so a listener sees the tracker's state already updated by this batch. The set is only walked when
-        // someone listens, so the common path allocates nothing.
-        if (this.featureListeners.size > 0) {
-            this.notifyFeatureListeners((listener) => listener.onBatch(batch));
-        }
+        // Last, so a listener sees the tracker's state already updated by this batch.
+        this.notifyFeatureListeners(batch);
     };
 
-    private notifyFeatureListeners(call: (listener: FeatureListener) => void): void {
-        // Copy first: a listener may remove itself while we iterate.
-        for (const listener of [...this.featureListeners]) {
+    // Sends `batch` to every feature listener, or a reset when it is undefined. This runs for every worklet message
+    // (about 50 a second), so it allocates nothing: it walks the set itself rather than a copy, which is safe because a
+    // Set skips entries deleted during iteration and a listener removing itself is all that can happen here.
+    private notifyFeatureListeners(batch: FeatureBatch | undefined): void {
+        for (const listener of this.featureListeners) {
             try {
-                call(listener);
+                if (batch) {
+                    listener.onBatch(batch);
+                } else {
+                    listener.onReset();
+                }
             } catch (error) {
                 // One failing listener must not stop the others or the tracker.
                 console.error('RhythmTracker feature listener failed', error);
