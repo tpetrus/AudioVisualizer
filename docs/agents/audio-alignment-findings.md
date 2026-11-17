@@ -442,21 +442,22 @@ an older item, check that it still applies: some were recorded against code that
 | S6 tempo ratio scoring and library comparison | done (#88); bass gate evidence #89, its follow-ups #90 |
 | S9 tap-along and harness instrumentation | done |
 | S10 presentation audit | done (`audio-presentation-audit.md`) |
-| S7 shared audio hub, cubes as the reference migration, docs | not started |
-| S8 every other visualizer reads the hub, the audit is closed | not started; waits for S7 |
+| S7 shared audio hub, cubes as the reference migration, docs | done (`feat/audio-hub`); migration check in `audio-presentation-audit.md` |
+| S8 every other visualizer reads the hub, the audit is closed | not started |
 
 Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
   offline start variations.
 - **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
   `npm run measure:capture-delay` need a person and real hardware.
-- **AC6, AC7 and AC10** come with S7 and S8.
+- **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** is met
+  for cubes; the other visualizers and **AC7** come with S8.
 
 Suggested order:
 1. Measure AC9 on real hardware.
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave` (closed: intended behavior).
-4. S7. It freezes contract C5, the hub snapshot, before any worker starts.
+4. S7 (done). It froze contract C5, the hub snapshot, before any worker started.
 5. S8, one pull request per visualizer, bass ink last.
 
 The other tracker items can wait until after S7, because none of them blocks it.
@@ -467,6 +468,16 @@ person would dance at to that song. The octave prior is centered at 128.5 BPM, w
 track with eighth notes that can be heard reads at double time (65 reads 130), 80 BPM stays 80 because 160 is too fast
 to step to, and a pulse above about 182 BPM folds to half time, as drum and bass is danced. Judge octave fixes against
 this rule, not against the notated beat.
+
+### Audio hub follow-ups (from the S7 review)
+- **`FU-S7-hub-no-source`** (needs a full run and Trevor: it changes contract C5): with no bound source `hub.update()`
+  keeps the snapshot at its last values, so a reader would see music still playing after the capture stops. Decide
+  whether the snapshot should fall to rest (bands 0, beat unlocked) and pin it with a spec.
+- Smaller items, each with a full packet in the verified-diamond follow-up state: `FU-S7-cubes-start-state` (a stale
+  snapshot can fire one downbeat accent on entering cubes; the bass flash saturates for about 3 s on a sustained level
+  at start), `FU-S7-provider-start-order` (a throwing `hub.start` is never retried), `FU-S7-hub-input-hardening`
+  (non-finite energy poisons a band peak until the next reset; batch version unchecked; weak ring specs) and
+  `FU-S7-tracker-dispatch-edges` (listeners added during dispatch; a throwing listener logs 50 times a second).
 
 ### Tempo tracker work (each needs a full run: it changes behavior every visualizer sees)
 - **`FU-S6-telemetry`**: done. The dancing-character probe records `gridMoves`, `octaveHolds` and `barVetoes`, and the
