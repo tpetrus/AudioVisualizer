@@ -52,6 +52,11 @@ export class RhythmTracker {
     private readonly listeners = new Set<() => void>();
     // Raw worklet feature listeners (the audio hub), separate from the store because they hear every batch.
     private readonly featureListeners = new Set<FeatureListener>();
+    // The listeners as an array, rebuilt only when the set changes (never per message). A dispatch walks the array it
+    // started with, so a listener added mid-dispatch waits for the next batch.
+    private featureSnapshot: readonly FeatureListener[] = [];
+    // Listeners whose failure was already logged, so one that throws on every batch does not log about 50 times a second.
+    private readonly loggedFeatureFailures = new WeakSet<FeatureListener>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
@@ -95,8 +100,10 @@ export class RhythmTracker {
     // removes it. A listener that throws is logged and does not stop the tracker or the other listeners.
     public addFeatureListener(listener: FeatureListener): () => void {
         this.featureListeners.add(listener);
+        this.featureSnapshot = [...this.featureListeners];
         return () => {
             this.featureListeners.delete(listener);
+            this.featureSnapshot = [...this.featureListeners];
         };
     }
 
@@ -224,10 +231,17 @@ export class RhythmTracker {
     };
 
     // Sends `batch` to every feature listener, or a reset when it is undefined. This runs for every worklet message
-    // (about 50 a second), so it allocates nothing: it walks the set itself rather than a copy, which is safe because a
-    // Set skips entries deleted during iteration and a listener removing itself is all that can happen here.
+    // (about 50 a second), so it allocates nothing: it walks the preallocated snapshot by index. The snapshot and its
+    // length are captured first, so a listener added during dispatch does not get this batch and one that removes and
+    // re-adds itself is not visited twice. A listener removed during dispatch is skipped if not yet reached.
     private notifyFeatureListeners(batch: FeatureBatch | undefined): void {
-        for (const listener of this.featureListeners) {
+        const listeners = this.featureSnapshot;
+        const count = listeners.length;
+        for (let i = 0; i < count; i++) {
+            const listener = listeners[i];
+            if (!this.featureListeners.has(listener)) {
+                continue;
+            }
             try {
                 if (batch) {
                     listener.onBatch(batch);
@@ -235,8 +249,11 @@ export class RhythmTracker {
                     listener.onReset();
                 }
             } catch (error) {
-                // One failing listener must not stop the others or the tracker.
-                console.error('RhythmTracker feature listener failed', error);
+                // One failing listener must not stop the others or the tracker. Each is logged once only.
+                if (!this.loggedFeatureFailures.has(listener)) {
+                    this.loggedFeatureFailures.add(listener);
+                    console.error('RhythmTracker feature listener failed', error);
+                }
             }
         }
     }

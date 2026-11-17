@@ -654,7 +654,8 @@ describe('RhythmTracker', () => {
             expect(good.calls).toEqual(['reset', 'batch']);
             expect(harness.tracker.state.bandOnsets[0]).toBeGreaterThan(0);
             expect(error).toHaveBeenCalledWith('RhythmTracker feature listener failed', expect.any(Error));
-            expect(error).toHaveBeenCalledTimes(2);
+            // Logged once per listener, although it threw on the reset and on the batch.
+            expect(error).toHaveBeenCalledTimes(1);
         });
 
         it('lets a listener remove itself while being called', async () => {
@@ -667,6 +668,80 @@ describe('RhythmTracker', () => {
             harness.tracker.addFeatureListener(other);
             await deliver(node, flatBatch(), () => harness.tracker.state.bandOnsets[0]);
             expect(other.onBatch).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('feature listener dispatch edges', () => {
+        async function started() {
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            return attachedNode(harness.web);
+        }
+        // Registered last in each spec: it counts the batches the tracker finished dispatching, since identical flat
+        // batches leave the onset state unchanged and cannot signal "handled".
+        let batches = 0;
+        const seen = () => batches;
+        function addCounter() {
+            harness.tracker.addFeatureListener({ onBatch: () => void batches++, onReset: () => {} });
+        }
+        beforeEach(() => {
+            batches = 0;
+        });
+
+        it('gives a listener added during dispatch the next batch, not the in-flight one', async () => {
+            const node = await started();
+            const late = { onBatch: vi.fn(), onReset: vi.fn() };
+            let added = false;
+            harness.tracker.addFeatureListener({
+                onBatch: () => {
+                    if (!added) {
+                        added = true;
+                        harness.tracker.addFeatureListener(late);
+                    }
+                },
+                onReset: () => {},
+            });
+            addCounter();
+            await deliver(node, flatBatch(), seen);
+            expect(late.onBatch).not.toHaveBeenCalled();
+            await deliver(node, flatBatch(1), seen);
+            expect(late.onBatch).toHaveBeenCalledTimes(1);
+        });
+
+        it('calls a listener once when it removes and re-adds itself during dispatch', async () => {
+            const node = await started();
+            const self: FeatureListener = {
+                onBatch: vi.fn(() => {
+                    remove();
+                    remove = harness.tracker.addFeatureListener(self);
+                }),
+                onReset: () => {},
+            };
+            let remove = harness.tracker.addFeatureListener(self);
+            addCounter();
+            await deliver(node, flatBatch(), seen);
+            expect(self.onBatch).toHaveBeenCalledTimes(1);
+        });
+
+        it('logs a listener that throws on every batch once, and the others hear every batch', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const node = await started();
+            const bad: FeatureListener = {
+                onBatch: vi.fn(() => {
+                    throw new Error('boom');
+                }),
+                onReset: () => {},
+            };
+            const good = { onBatch: vi.fn(), onReset: vi.fn() };
+            harness.tracker.addFeatureListener(bad);
+            harness.tracker.addFeatureListener(good);
+            addCounter();
+            await deliver(node, flatBatch(), seen);
+            await deliver(node, flatBatch(1), seen);
+            await deliver(node, flatBatch(2), seen);
+            expect(good.onBatch).toHaveBeenCalledTimes(3);
+            expect(bad.onBatch).toHaveBeenCalledTimes(3);
+            expect(error).toHaveBeenCalledTimes(1);
         });
     });
 

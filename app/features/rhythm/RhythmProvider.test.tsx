@@ -113,6 +113,24 @@ describe('RhythmProvider audio hub', () => {
         await waitFor(() => expect(hub.start).toHaveBeenCalledTimes(1));
     });
 
+    it('retries after start throws, and disposes the started hub exactly once', async () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const engine = new FakeAudioEngine();
+        engine.setAnalyser(source());
+        const { hub, loadHub } = createHub();
+        hub.start.mockImplementationOnce(() => {
+            throw new Error('start failed');
+        });
+        const view = mount(engine, new FakeRhythmTracker(), loadHub);
+        await waitFor(() => expect(error).toHaveBeenCalledWith('The audio hub could not start', expect.any(Error)));
+
+        engine.notify();
+        await waitFor(() => expect(hub.start).toHaveBeenCalledTimes(2));
+        await Promise.resolve();
+        view.unmount();
+        expect(hub.dispose).toHaveBeenCalledTimes(1);
+    });
+
     it('still renders its children and starts the tracker', () => {
         const engine = new FakeAudioEngine();
         const tracker = new FakeRhythmTracker();

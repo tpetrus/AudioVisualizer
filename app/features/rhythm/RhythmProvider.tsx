@@ -46,8 +46,9 @@ export function RhythmProvider({ children, tracker = rhythmTracker, loadHub = lo
                     if (cancelled) {
                         return;
                     }
+                    // Assigned only after start succeeds, so a failed start is retried and never disposed.
+                    module.audioHub.start(tracker);
                     hub = module.audioHub;
-                    hub.start(tracker);
                     unsubscribe?.();
                     unsubscribe = undefined;
                 })
