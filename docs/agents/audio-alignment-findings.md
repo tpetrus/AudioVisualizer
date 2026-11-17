@@ -469,6 +469,16 @@ track with eighth notes that can be heard reads at double time (65 reads 130), 8
 to step to, and a pulse above about 182 BPM folds to half time, as drum and bass is danced. Judge octave fixes against
 this rule, not against the notated beat.
 
+### Audio hub follow-ups (from the S7 review)
+- **`FU-S7-hub-no-source`** (needs a full run and Trevor: it changes contract C5): with no bound source `hub.update()`
+  keeps the snapshot at its last values, so a reader would see music still playing after the capture stops. Decide
+  whether the snapshot should fall to rest (bands 0, beat unlocked) and pin it with a spec.
+- Smaller items, each with a full packet in the verified-diamond follow-up state: `FU-S7-cubes-start-state` (a stale
+  snapshot can fire one downbeat accent on entering cubes; the bass flash saturates for about 3 s on a sustained level
+  at start), `FU-S7-provider-start-order` (a throwing `hub.start` is never retried), `FU-S7-hub-input-hardening`
+  (non-finite energy poisons a band peak until the next reset; batch version unchecked; weak ring specs) and
+  `FU-S7-tracker-dispatch-edges` (listeners added during dispatch; a throwing listener logs 50 times a second).
+
 ### Tempo tracker work (each needs a full run: it changes behavior every visualizer sees)
 - **`FU-S6-telemetry`**: done. The dancing-character probe records `gridMoves`, `octaveHolds` and `barVetoes`, and the
   `debug:viz` tempo report prints how far each rose after the lock (see `debug-harness.md`). They are read through the
