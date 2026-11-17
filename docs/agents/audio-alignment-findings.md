@@ -378,6 +378,45 @@ These are replays of recorded gate inputs, not new live plays.
 - **`beatless` still opens at 4.2 s**, on the pulse the tracker locks to. Declining to lock on a weak pulse is tracker
   work.
 
+## 3/2 tempo changes: shelved (2026-11-16)
+`FU-S6-three-halves-change` was attempted and not merged. This records why, so the next attempt starts from the
+measurements rather than the same idea.
+
+### Why the tracker never follows a 3/2 change
+Not confidence and not the switch count. After a 100 to 150 change the raw estimate reads 150 at confidence 1.00 from
+about 4 s on, and the bar evidence (`barFavors`) refuses every estimate: `barVetoes` rises by 4 a second for the rest of
+the track. The same holds for 120 to 180 and 90 to 135, while 128 to 170 (4/3 up) gets no veto. `barFavors` compares
+each pulse at 4x and 8x its own lag, and only 4x is in reach of the 8 s history at these tempos. At 3/2 the held beat's
+4x lag is the new pulse's 6x lag, so a pure 150 pulse train scores as high at the old bar as at its own, and the tie
+(`TEMPO_TIE_SWITCH_FACTOR` 1.1) keeps the held tempo for good. The same coincidence (4x and 8x of the held lag are 3x
+and 6x of the rival's) blocks every 4/3 change down.
+
+### What was tried
+Each was run on synthetic pulse trains: a beat of 100, 90, 110 or 120 BPM with a continuous 3:2 layer from 15 s, at
+layer weights 1 to 4, 8 layer phases against the beat, jitter 0 or 2 frames and light noise (256 cases), plus clean
+and jittered changes. Probes stayed in the git-ignored `.debug-out/review/`.
+
+| Rule when the bar lags are shared | Beat held under the layer | Real changes followed |
+|---|---|---|
+| Today (`main`) | 223 of 256 | 3/2 up and 4/3 down: never |
+| Skip shared lags, then refuse while the held beat's own-lag peak is at least 0.05 | 25 of 32 clean phase and weight cases switched where `main` held | 3/2 up and 4/3 down in 13.75 to 15 s on clean trains |
+| The same with the own-lag peak minus its neighbors at 0.85 and 1.15 of the lag, thresholds 0.02 to 0.05 | 152 to 176 of 256 | slower, several never |
+| Favor the rival when its own-lag peak is at least 0.9 of the peak at the shared period | 152 of 256: as `main` up to a layer twice the beat, switches at 3 to 4 times | 11.5 to 14 s clean; 27 to 34 s with 2 frames of jitter on some, 170 to 128 never |
+
+The autocorrelation cannot tell a beat that has stopped from a beat buried under a louder 3:2 layer. At the held lag
+the layer is half a cycle out of phase, so it pulls the beat's own peak down, and how far depends on the phase between
+them. Every threshold that follows real changes reliably also gives way to loud 3:2 layers. The first rule passed its
+own spec only because that spec put the layer at the one phase that holds. Each version also cost 60 to 80 bytes of
+production JS against a budget with about 20 to spare.
+
+### Why it was shelved
+In a DJ set a jump of exactly 3/2 almost always comes at a change of song. Catching that change is
+`BoundaryDetector`'s job (`FU-boundary-dotted`), and after a song change the tracker starts fresh. Following a 3/2
+change within one song is rare, and the dance-tempo rule ("Which octave the tracker leans toward") argues for following
+a 3:2 layer only once it clearly dominates. A future attempt needs a statistic that measures whether the old beat still
+sounds at its own grid positions, rather than an autocorrelation peak. It has to hold on the phase, weight and jitter
+grid above, and should come with a spec over that grid, not one phase.
+
 ## Limits of this evidence
 - One tapper. The noise floor is 26 ms, and `summer2000` was hard to tap.
 - The live beat error on `lonley` (17 to 20 ms) and the offline one (197 ms) disagree. That is cause 2 showing up, not
@@ -434,16 +473,18 @@ this rule, not against the notated beat.
   `debug:viz` tempo report prints how far each rose after the lock (see `debug-harness.md`). They are read through the
   analyzer's read-only `beat` and `tempo` fields, since a forwarding getter each did not fit the JS budget.
 - **`FU-S6-slow-octave`**: closed as intended behavior. 65 BPM with eighth notes reads 130 and 75 BPM reads 150, which
-  is the tempo a dance floor steps to (see "Which octave the tracker leans toward" below). The `it.fails` pins in
+  is the tempo a dance floor steps to (see "Which octave the tracker leans toward" above). The `it.fails` pins in
   `tempo.test.ts` are now plain specs.
-- **`FU-S6-three-halves-change`**: the held tempo never follows a real 100 to 150 BPM change within 30 s. A 128 to 170
-  change follows after 11.25 s and a 140 to 70 change after 6.75 s. Let a sustained, confident 3/2 change through in
-  about 12 s without letting dotted syncopation switch the tempo.
+- **`FU-S6-three-halves-change`**: shelved (2026-11-16), see "3/2 tempo changes: shelved" below. A real 100 to 150
+  BPM change is still never followed within 30 s, and neither is a 4/3 change down (128 to 96). A 128 to 170 change
+  follows after 11.25 s and a 140 to 70 change after 6.75 s.
 - **`FU-boundary-dotted`**: BoundaryDetector can swallow a sustained dotted-ratio tempo change forever. Give it a
   longer, confidence-gated jump time that refreshes its reference.
 - **`FU-dotted-leaky`**: replace the hard challenger reset for dotted rivals below 0.5 confidence with a leaky counter.
-  Then a real change at a dotted ratio with middling confidence is not held off forever. It shares `tempo.ts` with the
-  two S6 items above, so do it in the same run or after them.
+  Then a real change at a dotted ratio with middling confidence is not held off forever. Tried with the 3/2 work: half
+  a win per weak dotted estimate followed a noisy 4/3 change after 35.75 s and kept an 8 s weak burst out, but it gave 2
+  extra switches in 1296 noisy on-and-off dotted figures (0.15%), and alone it changes nothing a listener hears while
+  the bar veto still blocks 3/2. Not shipped; worth redoing only together with a working 3/2 rule.
 - **`FU-S10-basspulse-time-based`**: BassPulse smooths per frame, so its speed depends on the frame rate. Make its
   envelopes time-based, with the same behavior at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It
   changes three visualizers through one shared class, so check with Trevor before routing it.
