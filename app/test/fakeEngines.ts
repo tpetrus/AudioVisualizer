@@ -10,7 +10,7 @@ import {
 } from '~/features/audio/types';
 import { asWebAudio, FakeAnalyserNode } from './fakeWebAudio';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
-import { createRhythmState, type BeatsPerBar } from '~/features/rhythm/types';
+import { createRhythmState, type BeatsPerBar, type FeatureListener } from '~/features/rhythm/types';
 
 // Lightweight stand-ins for the two app-wide singletons, for specs of components and hooks that read them through
 // `useAudio()` / `useRhythm()` (see renderWithProviders.tsx). They do no audio work: the spec sets the values the UI
@@ -140,6 +140,16 @@ export class FakeRhythmTracker {
     readonly start = vi.fn((_engine: unknown) => {});
     readonly dispose = vi.fn(() => {});
     readonly updatePhase = vi.fn((_now?: number) => {});
+    // The audio hub's hooks into the tracker (contract C5). A spec drives a hub through `featureListeners`.
+    readonly featureListeners = new Set<FeatureListener>();
+    readonly addFeatureListener = vi.fn((listener: FeatureListener) => {
+        this.featureListeners.add(listener);
+        return () => {
+            this.featureListeners.delete(listener);
+        };
+    });
+    renderTime: number | undefined = undefined;
+    readonly renderTimeNow = vi.fn(() => this.renderTime);
 
     // The store values change rarely and notify; set them here to re-render subscribed components.
     setBeatsPerBar(value: BeatsPerBar | undefined): void {

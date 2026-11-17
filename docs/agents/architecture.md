@@ -61,6 +61,49 @@ Rules:
 **Reading vs acting:** read state through the hooks above (re-renders on change); call actions on `useAudio()` directly
 (`engine.startScreenCapture()`, `engine.setNormalize(…)`). Actions `notify()`, which updates the readers.
 
+### Audio hub: `hub/` (contract C5)
+The one place a visualizer gets audio features from: band energy, onsets per band, the beat and song changes, all read
+at one render time. The analysis behind it runs once for every reader, in the rhythm worklet; nothing here is
+recomputed per visualizer.
+
+```
+rhythm worklet ─ FeatureBatch (band energy per frame, onset events stamped with audio time) ─▶ RhythmTracker
+                                                         addFeatureListener: onBatch / onReset ─▶ AudioHub
+visualizer render loop: hub.update() ─▶ hub.snapshot (one preallocated object, updated in place)
+```
+
+- **`AudioHub`** (`audioHub.ts`, `export const audioHub`) is framework-free and owns no React state. It keeps the last
+  2.5 s of frames and the onset events not yet due in preallocated rings, and normalizes each band against its own
+  running peak (half-life 3 s, constants in `hubConfig.ts`) when a batch arrives, so `update()` only reads.
+- **Lifetime:** `RhythmProvider` loads the hub with a dynamic import the first time the engine has a source and starts
+  it on the app's tracker, then keeps it attached across source changes and navigation until the provider unmounts.
+  The first paint never loads it. On each new source the tracker calls `onReset`: held frames, pending onsets, peaks
+  and old-clock times are cleared, and the counters keep counting.
+- **`useAudioHub()`** (`useAudioHub.ts`) returns the hub (`AudioHubContext`, which defaults to the singleton; specs
+  provide `FakeAudioHub` from `app/test/fakeAudioHub.ts`). A page passes it to its scene hook; it is a stable instance,
+  so no `useLatestRef`.
+- **`update(now?)`**, once per frame before reading: without an argument it reads at the tracker's render time (audio
+  clock minus the user's sync offset, `timingModel.ts`). The beat is extrapolated to that time, so any offset moves
+  it. Bands and onsets can only be read from frames that have arrived, which are a few tens of milliseconds old (half
+  the analysis window plus one batch): at offset 0 or an earlier (negative) offset they are the newest frame and every
+  onset received, and only a later (positive) offset delays them. A second
+  call at the same time does nothing, so several readers in one frame cost nothing. It allocates nothing.
+
+`hub.snapshot` (types in `hub/types.ts`; never copy it into React state):
+
+| Field | Meaning |
+|---|---|
+| `time` | the render time (AudioContext seconds) the snapshot describes |
+| `bands` | `Float32Array`, one value per band in `HUB_BANDS` order: `sub` 20-60 Hz, `kick` 60-130, `bass` 130-300, `lowMid` 300-800, `mid` 800-4000, `highs` 4000-16000. 0..1, where 1 is the band's loudest of the last few seconds and silence is 0 |
+| `onsets.kick` / `.bass` / `.snare` / `.highs` | `{ lastTime, strength, sinceSeconds, count }` for the newest onset at or before `time`. Available without a tempo lock. `strength` is not decayed: fade it with `sinceSeconds`. `count` only increases (the counters pattern). The names are frequency ranges, not instruments, and real music fires several per beat: gate on `strength` |
+| `beat` | `phase`, `barPhase` (`undefined` until known), `tempo` (BPM, 0 unknown), `confidence`, `locked` (tempo and phase known), `beatsPerBar`, `barLocked` (a confident meter: gate downbeat effects on it), `beatCount`, `downbeatCount` |
+| `section` | `changeCount` (song changes) and `lastChangeTime` (when the hub first saw the current one) |
+
+**When a private analyser is still right:** when a visualizer needs a raw or fine spectrum, for example a column per
+log band whose count follows the window width (cubes) or a waveform. Ask for it with `useAnalyser(settings)` and use it
+for that only; band levels, onsets, the bass and the beat come from the hub. Measured reaction delays and the migration
+check (a move onto the hub may not get more than 10 ms later) are in `docs/agents/audio-presentation-audit.md`.
+
 ### Guard: `RequireAudio.tsx`
 Wraps visualizer routes via the layout route `app/routes/requireAudioLayout.tsx`. It starts as `'ok'` if already
 capturing; otherwise it renders nothing and calls `engine.resumeSavedSource()` once on mount (a saved input device
@@ -118,7 +161,7 @@ Helpers in `app/lib/three/`:
 ## 4. Visualizer anatomy (`app/features/visualizers/<name>/`)
 | File | Role |
 |---|---|
-| `<Name>Page.tsx` | page: `useAnalyser`, `useControlValues(defs)`, `cameraLocked`/`viewChanged` state, container div, `<ControlPanel>` |
+| `<Name>Page.tsx` | page: `useAudioHub` (and `useAnalyser(settings)` only for a raw spectrum), `useControlValues(defs)`, `cameraLocked`/`viewChanged` state, container div, `<ControlPanel>` |
 | `use<Name>Scene.ts` | builds the scene with `useThreeScene`; takes plain values, mirrors them with `useLatestRef`; returns `{ resetView }` |
 | `<name>Controls.ts` | control definitions `as const satisfies readonly ControlDefinition[]` + `ControlValues` type |
 | `<name>Config.ts` | tuning constants and static tables (optional) |
@@ -130,9 +173,11 @@ analyser it last bound (`boundAnalyser`) and rebinds when it changes (re-tap ana
 scene alive across source switches with no cross-effect plumbing. If the analyser is momentarily absent, `update` skips
 the audio part and keeps rendering.
 
-**Shared analyser:** the engine's analyser is shared. A visualizer may set its `fftSize`/`smoothingTimeConstant` when it
-binds (cubes does), but anything needing different settings or filtering taps its **own** nodes from it
-(`source.connect(myAnalyser)`) and disconnects them on rebind and on dispose (`TrioColorWaveSheet`, `BassPulse`).
+**Audio features come from the hub.** Band levels, onsets, the bass and the beat are read from `useAudioHub()`'s
+snapshot after `hub.update()` (see "Audio hub" in section 1), never derived again in the visualizer. Only a raw or fine
+spectrum justifies an analyser of the visualizer's own: `useAnalyser(settings)` gives a node only it owns (cubes' columns),
+and the engine's tap (`useAnalyser()`) has fixed settings that may not be changed. Nodes a visualizer taps from an
+analyser itself (`source.connect(myAnalyser)`) are disconnected on rebind and on dispose (`TrioColorWaveSheet`).
 
 ## 5. Controls: `app/components/ControlPanel/`
 - `controls.ts`: a discriminated union `RangeControl | CheckboxControl | ColorControl` (`key`, `label`, `section`, `default`,
@@ -214,12 +259,14 @@ METER_VISUAL_CONFIDENCE` before treating a downbeat as real.
   grid (tempo jump, octave change) also shrinks the meter's evidence, without counting as a song change.
 
 ### Shared bass surface
-Bass and beat code a visualizer needs comes from this folder, never from another visualizer's folder. Beat phase, tempo
-and meter come from `useRhythm()` and `tracker.state` as described above; the bass comes from these two modules:
+New visualizers read the bass and the beat from the audio hub (section 1, "Audio hub"); cubes does. Bass-ink and
+dancing-character still use the two modules below until they move onto the hub (S8 of the audio alignment plan). Bass
+and beat code a visualizer needs comes from the hub or this folder, never from another visualizer's folder:
 
 - **`BassPulse`** (`bassPulse.ts`) taps the source analyser through its own low-pass chain and returns a 0..1 bass
   envelope from `update()`, once per frame. It owns Web Audio nodes, so it is not one of the pure modules: create it when
-  the analyser binds, and `dispose()` it on rebind and on teardown. `useCubesScene.ts` shows the pattern.
+  the analyser binds, and `dispose()` it on rebind and on teardown. Its rates are per frame, so it reacts faster at a
+  higher frame rate; cubes' replacement on the hub (`cubes/bassBump.ts`) is time-based.
 - **`stepBassGate`** (`bassGate.ts`) turns that envelope plus `tracker.state` into a steady pulse on the beat, once the
   kicks repeat from bar to bar more often than chance would explain. It is pure and allocation-free: keep one `createBassGateState()` per scene
   and call `forgetBassline` when the scene's character or song context is replaced. `dancingCharacterScene.ts` shows the
@@ -227,9 +274,9 @@ and meter come from `useRhythm()` and `tracker.state` as described above; the ba
   every page loads on first paint and only the visualizers that use the gate should pay for these constants.
 
 ### How a visualizer consumes it
-Call `useRhythm()` in the page and pass the tracker into `use<Name>Scene` (a stable instance, so no `useLatestRef`). In
-`update()`: `rhythm.updatePhase()`, then read `rhythm.state` and compare counters. See `useCubesScene.ts` (downbeat
-accent). Use `useBeatsPerBar()` / `useSongChangeCount()` only for UI that should re-render on those changes. The debug
+Through the audio hub: `useAudioHub()` in the page, `hub.update()` in `update()`, then `hub.snapshot.beat` and its
+counters (`useCubesScene.ts`, downbeat accent). Reading the tracker directly (`useRhythm()`, `rhythm.updatePhase()`,
+`rhythm.state`) is what the older visualizers do and is still needed for what the hub does not carry (chroma, novelty). Use `useBeatsPerBar()` / `useSongChangeCount()` only for UI that should re-render on those changes. The debug
 overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" in the control panel) polls `state` every
 100 ms like `PerformanceStats`.
 
