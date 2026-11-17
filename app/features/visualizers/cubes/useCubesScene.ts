@@ -89,6 +89,9 @@ export function useCubesScene(
         const raisedColor = new THREE.Color();
 
         const { snapshot } = hub;
+        // The snapshot is only refreshed by update(), so it may be stale (the hub started, or this page was left and
+        // revisited). Catch up first, or the first frame would see the gap as a new downbeat and accent it.
+        hub.update();
         // Compared with the snapshot's counter each frame to notice a downbeat without events or allocation.
         let seenDownbeats = snapshot.beat.downbeatCount;
         let downbeatAccent = 0;

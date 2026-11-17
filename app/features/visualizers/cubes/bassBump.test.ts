@@ -3,8 +3,9 @@ import { BassBump, BUMP_GAIN, BUMP_MARGIN, NEAR_SILENCE } from './bassBump';
 
 // The rule BassPulse applied per frame, with the same constants, fed the same input.
 function oldRule(inputs: number[]) {
-    let fast = 0;
-    let slow = 0;
+    // The followers are seeded from the first audible input, which the rule then keeps following.
+    let fast = inputs[0];
+    let slow = inputs[0];
     let pulse = 0;
     return inputs.map((energy) => {
         fast += (energy - fast) * (energy > fast ? 0.5 : 0.2);
@@ -33,6 +34,9 @@ function run(fps: number, seconds: number, input: (t: number) => number): BassBu
 function pulseAfterJump(fps: number, settle: number, level = 1): number {
     const bump = new BassBump();
     const dt = 1 / fps;
+    // Seeded just above near-silence, so the slow follower is still climbing toward the bed as it was when the
+    // envelope started at 0; at a settled bed the jump is small and the coarse 30 fps steps show in the pulse.
+    bump.step(NEAR_SILENCE * 1.01, dt);
     for (let i = 0; i < fps * 2; i++) bump.step(0.3, dt);
     let pulse = 0;
     for (let i = 0; i < Math.round(settle * fps); i++) pulse = bump.step(level, dt);
@@ -105,6 +109,23 @@ describe('BassBump', () => {
         expect(sustained.ratio).toBeCloseTo(1, 2);
     });
 
+    it('starts a sustained level at rest instead of flashing while the slow follower catches up', () => {
+        const bump = new BassBump();
+        let peak = 0;
+        for (let i = 0; i < 180; i++) peak = Math.max(peak, bump.step(0.8, 1 / 60));
+
+        expect(peak).toBeLessThan(0.3);
+    });
+
+    it('still bumps on a jump above a level it was seeded with', () => {
+        const bump = new BassBump();
+        for (let i = 0; i < 120; i++) bump.step(0.4, 1 / 60);
+        let peak = 0;
+        for (let i = 0; i < 6; i++) peak = Math.max(peak, bump.step(1, 1 / 60));
+
+        expect(peak).toBeGreaterThan(0.6);
+    });
+
     it('ignores near-silence', () => {
         const bump = run(60, 1, () => NEAR_SILENCE / 4);
 
@@ -114,14 +135,16 @@ describe('BassBump', () => {
 
     it('clamps a stalled frame instead of jumping', () => {
         const bump = new BassBump();
+        bump.step(0.3, 1 / 60);
         bump.step(1, 60);
 
-        expect(bump.fast).toBeCloseTo(1 - 0.5 ** 6, 6);
+        // Six reference frames of the rise from the seeded 0.3, not the whole stalled minute.
+        expect(bump.fast).toBeCloseTo(0.3 + 0.7 * (1 - 0.5 ** 6), 6);
     });
 
     it('treats a negative step as no time passing', () => {
         const bump = new BassBump();
-        bump.step(1, -1);
+        bump.step(NEAR_SILENCE / 2, -1);
 
         expect(bump.fast).toBe(0);
     });
