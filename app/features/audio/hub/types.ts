@@ -53,7 +53,7 @@ export interface AudioHubSnapshot {
     time: number;
     // HUB_BAND_COUNT values in HUB_BANDS order, 0..1: the band's energy from the newest frame at or before `time`
     // (the oldest held frame if `time` is earlier than all of them), scaled so 1 is the band's loudest of the last few
-    // seconds. Silence and no source read 0.
+    // seconds. Silence reads 0; before the first frame and after a reset all are 0; with no source the last values stay.
     bands: Float32Array;
     // Keyed by FEATURE_ONSET_BANDS. Valid without a tempo lock.
     onsets: Readonly<Record<HubOnsetBand, HubOnset>>;

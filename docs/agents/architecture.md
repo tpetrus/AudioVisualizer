@@ -83,7 +83,10 @@ visualizer render loop: hub.update() ─▶ hub.snapshot (one preallocated objec
   provide `FakeAudioHub` from `app/test/fakeAudioHub.ts`). A page passes it to its scene hook; it is a stable instance,
   so no `useLatestRef`.
 - **`update(now?)`**, once per frame before reading: without an argument it reads at the tracker's render time (audio
-  clock minus the user's sync offset, `timingModel.ts`), so the offset moves bands, onsets and beat together. A second
+  clock minus the user's sync offset, `timingModel.ts`). The beat is extrapolated to that time, so any offset moves
+  it. Bands and onsets can only be read from frames that have arrived, which are a few tens of milliseconds old (half
+  the analysis window plus one batch): at offset 0 or an earlier (negative) offset they are the newest frame and every
+  onset received, and only a later (positive) offset delays them. A second
   call at the same time does nothing, so several readers in one frame cost nothing. It allocates nothing.
 
 `hub.snapshot` (types in `hub/types.ts`; never copy it into React state):

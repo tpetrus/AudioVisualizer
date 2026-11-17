@@ -190,8 +190,13 @@ The types are the contract: `app/features/audio/hub/types.ts` (`AudioHubSnapshot
   emits (`kick`, `bass`, `snare`, `highs`); the six energy bands have no onsets of their own.
 - `bands` are normalized by the hub: 1 is the band's loudest of the last few seconds, silence reads 0. The hub owns the
   constants (`app/features/audio/hub/`), not `rhythmConfig.ts`.
-- Timing (C6 rule 3): the hub reads at render time, so the user sync offset moves the bands, the onsets and the beat
-  alike. Onset events stamped later than the render time are held until it reaches them.
+- Timing (C6 rule 3): the hub reads at render time. The beat is extrapolated to it, so any offset moves the beat. Bands
+  and onsets exist only for frames that have arrived, which lag the audio clock by half the analysis window plus one
+  batch: a positive (later) offset delays them (onset events stamped later than the render time are held until it
+  reaches them), while at 0 or a negative offset they are the newest frame and every event received. Amended after the
+  S7 review, which found the first wording claimed more than the data allows.
+- With no bound source `update()` leaves the snapshot at its last values (bands are 0 only before the first frame and
+  after a reset). Whether it should fall to rest instead is follow-up `FU-S7-hub-no-source`.
 - `update` with the same time twice does nothing: the analysis runs once, whatever the number of readers.
 - Lifetime: `RhythmProvider` loads the hub module with a dynamic import the first time the engine has a source, starts
   it on the app's `RhythmTracker`, and keeps it attached across source changes and navigation until the provider

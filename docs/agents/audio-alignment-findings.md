@@ -442,21 +442,22 @@ an older item, check that it still applies: some were recorded against code that
 | S6 tempo ratio scoring and library comparison | done (#88); bass gate evidence #89, its follow-ups #90 |
 | S9 tap-along and harness instrumentation | done |
 | S10 presentation audit | done (`audio-presentation-audit.md`) |
-| S7 shared audio hub, cubes as the reference migration, docs | not started |
-| S8 every other visualizer reads the hub, the audit is closed | not started; waits for S7 |
+| S7 shared audio hub, cubes as the reference migration, docs | done (`feat/audio-hub`); migration check in `audio-presentation-audit.md` |
+| S8 every other visualizer reads the hub, the audit is closed | not started |
 
 Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
   offline start variations.
 - **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
   `npm run measure:capture-delay` need a person and real hardware.
-- **AC6, AC7 and AC10** come with S7 and S8.
+- **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** is met
+  for cubes; the other visualizers and **AC7** come with S8.
 
 Suggested order:
 1. Measure AC9 on real hardware.
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave` (closed: intended behavior).
-4. S7. It freezes contract C5, the hub snapshot, before any worker starts.
+4. S7 (done). It froze contract C5, the hub snapshot, before any worker started.
 5. S8, one pull request per visualizer, bass ink last.
 
 The other tracker items can wait until after S7, because none of them blocks it.
