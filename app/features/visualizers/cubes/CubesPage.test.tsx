@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { audioHub } from '~/features/audio/hub/audioHub';
 import { CUBES_ANALYSER } from './cubesAnalyser';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -33,10 +34,10 @@ describe('CubesPage', () => {
         expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0'));
     });
 
-    it('hands the scene its own analyser node (not the tap), the rhythm tracker and the default control values', () => {
-        const { engine, tracker } = renderWithProviders(<CubesPage />);
+    it('hands the scene its own analyser node (not the tap), the audio hub and the default control values', () => {
+        const { engine } = renderWithProviders(<CubesPage />);
         expect(latestOptions().analyser).toBeUndefined();
-        expect(latestOptions().rhythm).toBe(tracker);
+        expect(latestOptions().hub).toBe(audioHub);
 
         const analyser = asWebAudio<AnalyserNode>({});
         act(() => engine.setAnalyser(analyser));

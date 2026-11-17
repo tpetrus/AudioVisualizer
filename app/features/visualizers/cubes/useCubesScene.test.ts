@@ -3,8 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { Color, type InstancedMesh, type PerspectiveCamera, type Scene } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
-import { METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
-import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
+import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
@@ -54,7 +53,7 @@ function createContainer(width: number, height: number): HTMLDivElement {
 
 function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } = {}) {
     const resizes = installFakeResizeObserver();
-    const tracker = new FakeRhythmTracker();
+    const hub = new FakeAudioHub();
     const containerRef = { current: createContainer(width, height) };
     const valuesRef: { current: CubesControlValues } = { current: defaultValues(cubesControls) };
     const onViewChanged = vi.fn();
@@ -63,7 +62,7 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
         ({ analyser, cameraLocked }: Props) =>
             useCubesScene(containerRef, {
                 analyser,
-                rhythm: asTracker(tracker),
+                hub,
                 valuesRef,
                 cameraLocked,
                 onViewChanged,
@@ -86,7 +85,7 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
         camera,
         gridMesh,
         frame,
-        tracker,
+        hub,
         valuesRef,
         onViewChanged,
         resizes,
@@ -137,13 +136,16 @@ describe('useCubesScene', () => {
     });
 
     describe('frames without an analyser', () => {
-        it('keeps rendering the resting grid and advances the rhythm phase every frame', () => {
-            const { tracker, frame, renderer, gridMesh } = mountScene();
+        it('keeps rendering the resting grid and brings the hub up to date once per frame', () => {
+            const { hub, frame, renderer, gridMesh } = mountScene();
 
             frame(16);
             frame(32);
 
-            expect(tracker.updatePhase).toHaveBeenCalledTimes(3);
+            // One catch-up call when the scene is built, then one per frame.
+            expect(hub.update).toHaveBeenCalledTimes(4);
+            // Read at the tracker's render time: the scene passes no time of its own.
+            expect(hub.update).toHaveBeenCalledWith();
             expect(renderer.render).toHaveBeenCalledTimes(3);
             expect(cubeZ(gridMesh(), CORNER_CUBE)).toBe(0);
         });
@@ -177,23 +179,10 @@ describe('useCubesScene', () => {
             expect(cubeZ(gridMesh(), 21 * 32 + 16)).toBeGreaterThan(calmZ);
         });
 
-        it('taps the analyser for the bass pulse once, however many frames run', () => {
-            const { context, analyser, node } = createAnalyser();
-            const { frame } = mountScene({ analyser: node });
-
-            frame(16);
-            frame(32);
-
-            expect(context.createBiquadFilter).toHaveBeenCalledTimes(2);
-            expect(context.createdAnalysers).toHaveLength(1);
-            expect(analyser.connect).toHaveBeenCalledTimes(1);
-        });
-
-        it('rebinds when the analyser changes: the old bass tap is released and the new source is read', () => {
+        it('rebinds when the analyser changes: the new source is read', () => {
             const first = createAnalyser();
             const second = createAnalyser();
             const { frame, rerender } = mountScene({ analyser: first.node });
-            const firstFilter = first.context.createdFilters[0];
 
             rerender({ analyser: second.node, cameraLocked: true });
             second.analyser.setByteFrequencyData(200);
@@ -201,8 +190,8 @@ describe('useCubesScene', () => {
 
             expect(second.analyser.fftSize).toBe(2048);
             expect(second.analyser.getByteFrequencyData).toHaveBeenCalled();
-            expect(first.analyser.disconnect).toHaveBeenCalledWith(firstFilter);
-            expect(second.analyser.connect).toHaveBeenCalledTimes(1);
+            // The columns need no tap: the scene never connects the analyser anywhere.
+            expect(second.analyser.connect).not.toHaveBeenCalled();
         });
 
         it('keeps the scene when the source goes away and keeps reading nothing from it', () => {
@@ -219,16 +208,21 @@ describe('useCubesScene', () => {
     });
 
     describe('bass pulse', () => {
-        it('flashes the background with the resting color when the bass jumps', () => {
-            const { context, node } = createAnalyser();
-            const { frame, scene, valuesRef } = mountScene({ analyser: node });
-            valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
-            const bassTap = context.createdAnalysers[0];
+        // A quiet bed, then a kick: the hub's low bands jump while the rest stays put.
+        function kick(hub: FakeAudioHub, frame: (time?: number) => void) {
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let i = 1; i <= 30; i++) frame(i * 16);
+            hub.setBands([1, 0.3, 0, 0, 0, 0]);
+            frame(31 * 16);
+            frame(32 * 16);
+            frame(33 * 16);
+        }
 
-            bassTap.setFloatTimeDomainData(0.5);
-            frame(16);
-            frame(32);
-            frame(48);
+        it('flashes the background with the resting color when the low end jumps', () => {
+            const { hub, frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
+
+            kick(hub, frame);
 
             const background = scene.background as Color;
             // The resting color is dark red, so the flash is red only.
@@ -237,31 +231,52 @@ describe('useCubesScene', () => {
             expect(background.b).toBe(0);
         });
 
-        it('does not flash when the bass bump is switched off', () => {
-            const { context, node } = createAnalyser();
-            const { frame, scene, valuesRef } = mountScene({ analyser: node });
-            valuesRef.current = { ...valuesRef.current, bassBump: false };
-            context.createdAnalysers[0].setFloatTimeDomainData(0.5);
+        it('reads the louder of the sub and kick bands', () => {
+            const { hub, frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
 
-            frame(16);
-            frame(32);
-            frame(48);
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let i = 1; i <= 30; i++) frame(i * 16);
+            hub.setBands([0.3, 1, 0, 0, 0, 0]);
+            frame(31 * 16);
+            frame(32 * 16);
+
+            expect((scene.background as Color).r).toBeGreaterThan(0);
+        });
+
+        it('ignores bands above the kick', () => {
+            const { hub, frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
+
+            hub.setBands([0, 0, 0.3, 0.3, 0.3, 0.3]);
+            for (let i = 1; i <= 30; i++) frame(i * 16);
+            hub.setBands([0, 0, 1, 1, 1, 1]);
+            frame(31 * 16);
+            frame(32 * 16);
+
+            expect((scene.background as Color).getHex()).toBe(0x000000);
+        });
+
+        it('does not flash when the bass bump is switched off', () => {
+            const { hub, frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, bassBump: false };
+
+            kick(hub, frame);
 
             expect((scene.background as Color).getHex()).toBe(0x000000);
         });
     });
 
     describe('downbeat accent', () => {
-        function downbeat(tracker: FakeRhythmTracker, beatsPerBar: 3 | 4 | undefined, meterConfidence: number): void {
-            tracker.state.beatsPerBar = beatsPerBar;
-            tracker.state.meterConfidence = meterConfidence;
-            tracker.state.downbeatCount += 1;
+        function downbeat(hub: FakeAudioHub, barLocked: boolean): void {
+            hub.snapshot.beat.barLocked = barLocked;
+            hub.snapshot.beat.downbeatCount += 1;
         }
 
         it('lifts the resting cubes on a downbeat of a confident meter, then fades', () => {
-            const { tracker, frame, gridMesh } = mountScene();
+            const { hub, frame, gridMesh } = mountScene();
 
-            downbeat(tracker, 4, METER_VISUAL_CONFIDENCE);
+            downbeat(hub, true);
             frame(16);
             const lifted = cubeZ(gridMesh(), CORNER_CUBE);
             frame(32);
@@ -272,21 +287,77 @@ describe('useCubesScene', () => {
             expect(fading).toBeCloseTo(0.567);
         });
 
-        it.each([
-            { name: 'an unconfident meter', beatsPerBar: 4 as const, confidence: METER_VISUAL_CONFIDENCE - 0.01 },
-            { name: 'an unknown meter', beatsPerBar: undefined, confidence: 1 },
-        ])('ignores a downbeat of $name', ({ beatsPerBar, confidence }) => {
-            const { tracker, frame, gridMesh } = mountScene();
+        it('ignores a downbeat while the bar is not locked', () => {
+            const { hub, frame, gridMesh } = mountScene();
 
-            downbeat(tracker, beatsPerBar, confidence);
+            downbeat(hub, false);
             frame(16);
 
             expect(cubeZ(gridMesh(), CORNER_CUBE)).toBe(0);
         });
 
+        it('does not accent a count the hub already held when the scene was built', () => {
+            const hub = new FakeAudioHub();
+            hub.snapshot.beat.downbeatCount = 7;
+            hub.snapshot.beat.barLocked = true;
+            installFakeResizeObserver();
+            renderHook(() =>
+                useCubesScene(
+                    { current: createContainer(800, 600) },
+                    {
+                        analyser: undefined,
+                        hub,
+                        valuesRef: { current: defaultValues(cubesControls) },
+                        cameraLocked: true,
+                        onViewChanged: vi.fn(),
+                    },
+                ),
+            );
+            const renderer = FakeRenderer.last;
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            const [scene] = renderer.render.mock.calls[0] as unknown as [Scene];
+            const mesh = scene.children.find(
+                (child): child is InstancedMesh => (child as InstancedMesh).isInstancedMesh,
+            );
+
+            expect(cubeZ(mesh, CORNER_CUBE)).toBe(0);
+        });
+
+        it('does not accent downbeats the hub counted while nobody was updating it', () => {
+            const hub = new FakeAudioHub();
+            hub.snapshot.beat.barLocked = true;
+            // A real hub catches up on its first update after a stale period, so the count moves then.
+            hub.update.mockImplementationOnce(() => {
+                hub.snapshot.beat.downbeatCount += 3;
+            });
+            installFakeResizeObserver();
+            renderHook(() =>
+                useCubesScene(
+                    { current: createContainer(800, 600) },
+                    {
+                        analyser: undefined,
+                        hub,
+                        valuesRef: { current: defaultValues(cubesControls) },
+                        cameraLocked: true,
+                        onViewChanged: vi.fn(),
+                    },
+                ),
+            );
+            const renderer = FakeRenderer.last;
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            const [scene] = renderer.render.mock.calls[0] as unknown as [Scene];
+            const mesh = scene.children.find(
+                (child): child is InstancedMesh => (child as InstancedMesh).isInstancedMesh,
+            );
+
+            expect(cubeZ(mesh, CORNER_CUBE)).toBe(0);
+        });
+
         it('accents each new downbeat once, not every frame', () => {
-            const { tracker, frame, gridMesh } = mountScene();
-            downbeat(tracker, 3, 0.9);
+            const { hub, frame, gridMesh } = mountScene();
+            downbeat(hub, true);
             frame(16);
             frame(32);
             const afterTwo = cubeZ(gridMesh(), CORNER_CUBE);
@@ -295,7 +366,7 @@ describe('useCubesScene', () => {
             frame(48);
             expect(cubeZ(gridMesh(), CORNER_CUBE)).toBeLessThan(afterTwo);
 
-            downbeat(tracker, 3, 0.9);
+            downbeat(hub, true);
             frame(64);
             expect(cubeZ(gridMesh(), CORNER_CUBE)).toBeCloseTo(0.63);
         });
@@ -391,7 +462,7 @@ describe('useCubesScene', () => {
                     { current: null },
                     {
                         analyser: undefined,
-                        rhythm: asTracker(new FakeRhythmTracker()),
+                        hub: new FakeAudioHub(),
                         valuesRef: { current: defaultValues(cubesControls) },
                         cameraLocked: true,
                         onViewChanged: vi.fn(),
@@ -419,7 +490,7 @@ describe('useCubesScene', () => {
             telemetry.tick.mockClear();
         });
 
-        it('registers the cubes columns and reads zeros before a source is bound', () => {
+        it('registers the cubes columns and reads rest values before the hub has data', () => {
             mountScene();
 
             expect(telemetry.register).toHaveBeenCalledWith(
@@ -427,24 +498,24 @@ describe('useCubesScene', () => {
                 ['in', 'fast', 'slow', 'ratio', 'out'],
                 expect.any(Function),
             );
-            expect(Array.from(readProbe(5))).toEqual([0, 0, 0, 0, 0]);
+            expect(Array.from(readProbe(5))).toEqual([0, 0, 0, 1, 0]);
         });
 
-        it('reads the bass pulse values and ticks with the frame time in seconds', () => {
-            const { context, node } = createAnalyser();
-            const { frame } = mountScene({ analyser: node });
-            context.createdAnalysers[0].setFloatTimeDomainData(0.5);
+        it('reads the bass envelope values and ticks with the frame time in seconds', () => {
+            const { hub, frame } = mountScene();
+            hub.setBands([0.2, 0.5, 0, 0, 0, 0]);
+            for (let i = 1; i <= 30; i++) frame(i * 16);
+            hub.setBands([1, 0.5, 0, 0, 0, 0]);
+            frame(31 * 16);
+            frame(32 * 16);
 
-            frame(16);
-            frame(48);
-
-            const [energy, fast, slow, ratio, out] = readProbe(5);
-            expect(energy).toBeCloseTo(0.5);
-            expect(fast).toBeGreaterThan(0.3);
-            expect(slow).toBeGreaterThan(0.005);
-            expect(ratio).toBeGreaterThan(1.15);
+            const [input, fast, slow, ratio, out] = readProbe(5);
+            expect(input).toBe(1);
+            expect(fast).toBeGreaterThan(0.5);
+            expect(slow).toBeGreaterThan(0.05);
+            expect(ratio).toBeGreaterThan(1.08);
             expect(out).toBeGreaterThan(0);
-            expect(telemetry.tick).toHaveBeenLastCalledWith(0.032);
+            expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);
         });
 
         it('unregisters when the scene is torn down', () => {
@@ -458,8 +529,8 @@ describe('useCubesScene', () => {
     });
 
     describe('unmount', () => {
-        it('frees the renderer, the grid, the bass tap and the controls', () => {
-            const { context, analyser, node } = createAnalyser();
+        it('frees the renderer, the grid and the controls', () => {
+            const { node } = createAnalyser();
             const { unmount, renderer, scene, gridMesh, frame, camera } = mountScene({
                 analyser: node,
                 cameraLocked: false,
@@ -467,15 +538,12 @@ describe('useCubesScene', () => {
             frame(16);
             const mesh = gridMesh();
             expect(mesh).toBeDefined();
-            const bassTap = context.createdAnalysers[0];
 
             unmount();
 
             expect(renderer.dispose).toHaveBeenCalledTimes(1);
             expect(renderer.forceContextLoss).toHaveBeenCalledTimes(1);
             expect(scene.children).not.toContain(mesh);
-            expect(analyser.disconnect).toHaveBeenCalledWith(context.createdFilters[0]);
-            expect(bassTap.disconnect).toHaveBeenCalled();
             // The orbit controls stop listening, so late input cannot move the camera of a dead scene.
             scroll(renderer.domElement, 1000);
             expect(camera.position.z).toBe(32);
