@@ -1,0 +1,72 @@
+import type { BeatsPerBar } from '~/features/rhythm/types';
+import type { FEATURE_ONSET_BANDS, HUB_BANDS } from '~/features/rhythm/rhythmConfig';
+
+// Contract C5 (docs/plans/audio-engine-alignment/contracts.md). Frozen by the orchestrator: a change is an escalation.
+
+// Names of the hub's energy bands, in the order of `AudioHubSnapshot.bands`.
+export type HubBand = (typeof HUB_BANDS)[number];
+// Names of the onset kinds, the keys of `AudioHubSnapshot.onsets`.
+export type HubOnsetBand = (typeof FEATURE_ONSET_BANDS)[number];
+
+// The newest onset of one kind at or before the snapshot's time. Events stamped later than that time are held back
+// until a later update reaches them, so a positive sync offset delays onsets like it delays the beat.
+export interface HubOnset {
+    // AudioContext seconds of the newest onset at or before `time`; -Infinity before the first one.
+    lastTime: number;
+    // 0..1 strength of that onset as the worklet reported it (not decayed; decay with `sinceSeconds`). 0 before the first.
+    strength: number;
+    // time - lastTime, never negative; Infinity before the first onset.
+    sinceSeconds: number;
+    // Onsets of this kind that have reached `time`. Only ever increases, across source changes too (the counters pattern).
+    count: number;
+}
+
+export interface HubBeat {
+    // 0..1 position in the beat and in the bar, as RhythmState.beatPhase / barPhase after updatePhase(time).
+    phase: number | undefined;
+    barPhase: number | undefined;
+    // Held tempo in BPM, 0 while unknown.
+    tempo: number;
+    // 0..1 tempo confidence.
+    confidence: number;
+    // True when the tracker has a tempo and a beat position: tempo > 0 and phase !== undefined.
+    locked: boolean;
+    // Additions to the plan's wording, so visualizers need not read the tracker as well:
+    beatsPerBar: BeatsPerBar | undefined;
+    // True when a downbeat is worth showing: beatsPerBar !== undefined and meterConfidence >= METER_VISUAL_CONFIDENCE.
+    barLocked: boolean;
+    // RhythmState.beatCount / downbeatCount after updatePhase(time).
+    beatCount: number;
+    downbeatCount: number;
+}
+
+export interface HubSection {
+    // RhythmState.songChangeCount.
+    changeCount: number;
+    // The snapshot time at which the hub first saw the current changeCount; -Infinity before the first change.
+    lastChangeTime: number;
+}
+
+// One preallocated object per hub, updated in place by `update`. Hold on to it; never copy it into React state.
+export interface AudioHubSnapshot {
+    // Render time (AudioContext seconds) this snapshot describes; 0 before the first update.
+    time: number;
+    // HUB_BAND_COUNT values in HUB_BANDS order, 0..1: the band's energy from the newest frame at or before `time`
+    // (the oldest held frame if `time` is earlier than all of them), scaled so 1 is the band's loudest of the last few
+    // seconds. Silence and no source read 0.
+    bands: Float32Array;
+    // Keyed by FEATURE_ONSET_BANDS. Valid without a tempo lock.
+    onsets: Readonly<Record<HubOnsetBand, HubOnset>>;
+    beat: HubBeat;
+    section: HubSection;
+}
+
+// The hub as visualizers see it.
+export interface AudioHubReader {
+    readonly snapshot: AudioHubSnapshot;
+    // Brings `snapshot` up to `now` (AudioContext seconds). Without an argument it reads at the tracker's render time
+    // (audio clock minus display delay and user sync offset, contract C6); with no bound source it leaves the snapshot
+    // unchanged. Calling it again with the same time does nothing, so every consumer may call it once per frame. It
+    // allocates nothing.
+    update(now?: number): void;
+}

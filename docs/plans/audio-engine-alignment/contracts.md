@@ -178,3 +178,26 @@ Rules:
 6. Production capture delay is measured with the dev-only loopback tool (`scripts/capture-delay/`), which plays clicks
    at known AudioContext times and times their arrival through a capture of the same machine. The figures are one
    machine's estimate and are not claimed as guaranteed.
+
+## C5 AudioHubSnapshot (frozen at the start of the S7 session)
+
+The types are the contract: `app/features/audio/hub/types.ts` (`AudioHubSnapshot`, `HubOnset`, `HubBeat`,
+`HubSection`, `AudioHubReader`) and `FeatureListener` in `app/features/rhythm/types.ts`. Decided with Trevor on
+2026-11-16.
+
+- Additions to the plan's wording, all additive: `beat.beatsPerBar`, `beat.barLocked`, `beat.beatCount` and
+  `beat.downbeatCount`, so a visualizer reads the hub alone. Onsets are keyed by the four onset kinds the worklet
+  emits (`kick`, `bass`, `snare`, `highs`); the six energy bands have no onsets of their own.
+- `bands` are normalized by the hub: 1 is the band's loudest of the last few seconds, silence reads 0. The hub owns the
+  constants (`app/features/audio/hub/`), not `rhythmConfig.ts`.
+- Timing (C6 rule 3): the hub reads at render time, so the user sync offset moves the bands, the onsets and the beat
+  alike. Onset events stamped later than the render time are held until it reaches them.
+- `update` with the same time twice does nothing: the analysis runs once, whatever the number of readers.
+- Lifetime: `RhythmProvider` loads the hub module with a dynamic import the first time the engine has a source, starts
+  it on the app's `RhythmTracker`, and keeps it attached across source changes and navigation until the provider
+  unmounts. The first-paint bundle does not grow. A visualizer page gets it through `useAudioHub()`; pages are behind
+  `RequireAudio`, so audio is connected by then.
+- The hub hears the worklet through `RhythmTracker.addFeatureListener` (`onBatch` after the tracker's own analysis,
+  `onReset` on each new source, before its first batch). On `onReset` the held frames, pending onsets and band peaks
+  are cleared; the counters keep counting.
+- Visualizers that need a raw or fine spectrum keep an owned analyser (C4) for that only.
