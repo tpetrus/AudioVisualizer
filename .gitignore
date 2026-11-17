@@ -22,3 +22,4 @@ playwright/.cache/
 
 # Output of npm run debug:viz (telemetry CSVs and screenshots)
 /.debug-out/
+.debug-in
