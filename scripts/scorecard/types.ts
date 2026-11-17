@@ -79,14 +79,18 @@ export interface TrackMeasures {
     // Whether the tracker ever reported a tempo within 2% of the truth after octave folding (ratio folded by powers
     // of 2 into [0.75, 1.5)); on beatless, whether the tracker ever reported any lock at all.
     everLocked: boolean;
-    // First time from which the octave-folded tempo stays within 2% of the truth to the end of the track.
+    // The lock (contract revision 2): the first time the octave-folded tempo is within 2% of the truth and then stays
+    // within it for at least LOCK_HOLD_SECONDS (2 s), so a reading passing through the right tempo on its way to a
+    // wrong one is not a lock. Everything "after lock" below is measured from here to the end of the track, so a later
+    // drift away from the truth shows up instead of moving the lock.
     lockSeconds: number | null;
-    // Share of tracker frames after lockSeconds whose octave-folded tempo is within 2% of the truth (local truth per
-    // 8-beat window on drifting tracks).
+    // Share of tracker frames from lockSeconds to the end whose octave-folded tempo is within 2% of the truth (local
+    // truth per 8-beat window on drifting tracks).
     tempoWithinShareAfterLock: number | null;
-    // Largest octave-folded tempo error after lockSeconds, as a fraction of the truth.
+    // Largest octave-folded tempo error from lockSeconds to the end, as a fraction of the truth.
     maxTempoErrorAfterLock: number | null;
-    // songChangeCount at the end of a single-song track; every one is false.
+    // Song changes on a single-song track, every one false, except a reset raised during or within 1 s after a stretch
+    // of at least 1 s of digital silence: the app resets on silence on purpose (contract revision 2).
     falseSongChanges: number;
     // Median absolute beat error in ms after the lock, as buildEvalReport computes it.
     beatErrorMedianMs: number | null;
