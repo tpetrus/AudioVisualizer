@@ -4,7 +4,13 @@ import { hopSizeFor } from './onsetExtractor';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import { RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
 import workletUrl from './rhythmProcessor.worklet?worker&url';
-import { type BeatsPerBar, type FrameBatch, type RhythmState, createRhythmState } from './types';
+import {
+    type BeatsPerBar,
+    type FeatureBatch,
+    type FeatureListener,
+    type RhythmState,
+    createRhythmState,
+} from './types';
 
 // Listens to the audio engine's analyser and keeps `state` describing the music's tempo, beat, meter and song
 // changes. Framework-free like AudioEngine: React reaches it through `subscribe` and the arrow-property getters
@@ -44,6 +50,8 @@ export class RhythmTracker {
     }
 
     private readonly listeners = new Set<() => void>();
+    // Raw worklet feature listeners (the audio hub), separate from the store because they hear every batch.
+    private readonly featureListeners = new Set<FeatureListener>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
@@ -83,9 +91,19 @@ export class RhythmTracker {
         }
     }
 
+    // Registers a listener for every worklet message and every new source (contract C5). Returns the function that
+    // removes it. A listener that throws is logged and does not stop the tracker or the other listeners.
+    public addFeatureListener(listener: FeatureListener): () => void {
+        this.featureListeners.add(listener);
+        return () => {
+            this.featureListeners.delete(listener);
+        };
+    }
+
     // The audio clock shifted by the timing settings, or undefined with no bound context. It fills the same settings
-    // object every call, because this runs every animation frame and must not allocate.
-    private renderTimeNow(): number | undefined {
+    // object every call, because this runs every animation frame and must not allocate. Public so the audio hub reads
+    // the same render time as the tracker.
+    public renderTimeNow(): number | undefined {
         const context = this.boundAnalyser?.context;
         if (!context) {
             return undefined;
@@ -119,6 +137,8 @@ export class RhythmTracker {
             this.analyzer.hardReset(true);
         }
         this.publish();
+        // Before the first batch of this source can arrive, so listeners never mix frames of two sources.
+        this.notifyFeatureListeners((listener) => listener.onReset());
 
         const generation = ++this.generation;
         this.loadModule(context)
@@ -187,7 +207,7 @@ export class RhythmTracker {
         return loaded;
     }
 
-    private readonly onMessage = (event: MessageEvent<FrameBatch>): void => {
+    private readonly onMessage = (event: MessageEvent<FeatureBatch>): void => {
         const analyzer = this.analyzer;
         const context = this.boundAnalyser?.context;
         if (!analyzer || !context) {
@@ -199,7 +219,24 @@ export class RhythmTracker {
         // time, so the counters never run ahead of what the visualizers show.
         this.updatePhase();
         this.publish();
+        // Last, so a listener sees the tracker's state already updated by this batch. The set is only walked when
+        // someone listens, so the common path allocates nothing.
+        if (this.featureListeners.size > 0) {
+            this.notifyFeatureListeners((listener) => listener.onBatch(batch));
+        }
     };
+
+    private notifyFeatureListeners(call: (listener: FeatureListener) => void): void {
+        // Copy first: a listener may remove itself while we iterate.
+        for (const listener of [...this.featureListeners]) {
+            try {
+                call(listener);
+            } catch (error) {
+                // One failing listener must not stop the others or the tracker.
+                console.error('RhythmTracker feature listener failed', error);
+            }
+        }
+    }
 
     // Copies the low-rate values into the store fields and notifies only if one changed.
     private publish(): void {

@@ -12,7 +12,7 @@ import { OnsetExtractor, packFrame } from './onsetExtractor';
 import { BATCH_FRAMES, FFT_SIZE, FRAME_STRIDE, RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
 import { RhythmTracker } from './rhythmTracker';
 import { renderTrack, TEST_SAMPLE_RATE } from './testSignals';
-import type { FrameBatch } from './types';
+import type { FeatureListener, FrameBatch } from './types';
 
 // The real import is a Vite worker-URL query that only exists in the bundler.
 vi.mock('./rhythmProcessor.worklet?worker&url', () => ({ default: '/assets/rhythm-worklet.js' }));
@@ -573,6 +573,112 @@ describe('RhythmTracker', () => {
 
         it('accepts an explicit time before start() as a harmless no-op', () => {
             expect(() => harness.tracker.updatePhase(1)).not.toThrow();
+        });
+    });
+
+    describe('feature listeners', () => {
+        function listener(): FeatureListener & { calls: string[] } {
+            const calls: string[] = [];
+            return {
+                calls,
+                onBatch: vi.fn(() => {
+                    calls.push('batch');
+                }),
+                onReset: vi.fn(() => {
+                    calls.push('reset');
+                }),
+            };
+        }
+
+        it('resets listeners for each new source, then hands them every batch after the analysis', async () => {
+            const first = createAnalyser();
+            harness.engine.setAnalyser(asAnalyser(first));
+            harness.tracker.start(asEngine(harness.engine));
+            const heard = listener();
+            harness.tracker.addFeatureListener(heard);
+            // Added after start(): it hears the batches and the next source, not the bind that already happened.
+            const node = await attachedNode(harness.web);
+            const batch = flatBatch();
+            let kickWhenHeard: number | undefined;
+            (heard.onBatch as ReturnType<typeof vi.fn>).mockImplementation(() => {
+                kickWhenHeard = harness.tracker.state.bandOnsets[0];
+            });
+            await deliver(node, batch, () => harness.tracker.state.bandOnsets[0]);
+            expect(heard.onBatch).toHaveBeenCalledTimes(1);
+            expect(heard.onBatch).toHaveBeenCalledWith(batch);
+            expect(kickWhenHeard).toBeGreaterThan(0);
+
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            expect(heard.onReset).toHaveBeenCalledTimes(1);
+        });
+
+        it('calls onReset in bind() before the first batch of the source', async () => {
+            const heard = listener();
+            harness.tracker.addFeatureListener(heard);
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            await deliver(node, flatBatch(), () => harness.tracker.state.bandOnsets[0]);
+            expect(heard.calls).toEqual(['reset', 'batch']);
+        });
+
+        it('stops calling a listener once it is removed', async () => {
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            const heard = listener();
+            const remove = harness.tracker.addFeatureListener(heard);
+            remove();
+            await deliver(node, flatBatch(), () => harness.tracker.state.bandOnsets[0]);
+            expect(heard.onBatch).not.toHaveBeenCalled();
+        });
+
+        it('logs a listener that throws and still serves the others and the tracker', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const bad: FeatureListener = {
+                onBatch: vi.fn(() => {
+                    throw new Error('boom');
+                }),
+                onReset: vi.fn(() => {
+                    throw new Error('boom');
+                }),
+            };
+            const good = listener();
+            harness.tracker.addFeatureListener(bad);
+            harness.tracker.addFeatureListener(good);
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            await deliver(node, flatBatch(), () => harness.tracker.state.bandOnsets[0]);
+
+            expect(good.calls).toEqual(['reset', 'batch']);
+            expect(harness.tracker.state.bandOnsets[0]).toBeGreaterThan(0);
+            expect(error).toHaveBeenCalledWith('RhythmTracker feature listener failed', expect.any(Error));
+            expect(error).toHaveBeenCalledTimes(2);
+        });
+
+        it('lets a listener remove itself while being called', async () => {
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            const other = listener();
+            const self: FeatureListener = { onBatch: () => remove(), onReset: () => {} };
+            const remove = harness.tracker.addFeatureListener(self);
+            harness.tracker.addFeatureListener(other);
+            await deliver(node, flatBatch(), () => harness.tracker.state.bandOnsets[0]);
+            expect(other.onBatch).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('renderTimeNow', () => {
+        it('is undefined without a source and applies the sync offset with one', () => {
+            expect(harness.tracker.renderTimeNow()).toBeUndefined();
+            const analyser = createAnalyser();
+            analyser.context.currentTime = 2;
+            harness.engine.setAnalyser(asAnalyser(analyser));
+            harness.tracker.start(asEngine(harness.engine));
+            harness.engine.setSyncOffsetMs(100);
+            expect(harness.tracker.renderTimeNow()).toBeCloseTo(1.9, 6);
         });
     });
 });
