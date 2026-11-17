@@ -1,7 +1,17 @@
-// The cubes' background flash and backdrop lift come from this envelope: it bumps when the low end of the music
-// (below 130 Hz, read from the audio hub) gets louder than it has recently been. It keeps the idea of the older
-// BassPulse (a fast and a slow follower, a bump being the fast one rising above the slow one, a smooth rise and a
-// slower settle) but every rate is per second, so the picture reacts the same at 30, 60 or 144 fps.
+// A shared bass envelope for the visualizers that read the audio hub (cubes and dancing-character): it bumps when the
+// low end of the music (below 130 Hz) gets louder than it has recently been. It keeps the idea of the older BassPulse
+// (a fast and a slow follower, a bump being the fast one rising above the slow one, a smooth rise and a slower settle)
+// but every rate is per second, so the picture reacts the same at 30, 60 or 144 fps.
+import { HUB_BANDS } from '~/features/rhythm/rhythmConfig';
+
+const SUB_BAND = HUB_BANDS.indexOf('sub');
+const KICK_BAND = HUB_BANDS.indexOf('kick');
+
+// The kick lives in the hub's `sub` and `kick` bands (20 to 130 Hz). The louder of the two is used, not a mean: kicks
+// differ in pitch, and a mean would halve the level of one that sits in a single band.
+export function hubLowEnd(bands: ArrayLike<number>): number {
+    return Math.max(bands[SUB_BAND], bands[KICK_BAND]);
+}
 
 // The per-frame rates this envelope was tuned with, at 60 fps. Each is turned into a time-based rate by `closing`.
 const REFERENCE_FPS = 60;

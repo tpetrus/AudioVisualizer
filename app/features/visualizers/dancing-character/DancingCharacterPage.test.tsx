@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dancingCharacterControls } from './dancingCharacterControls';
 import { DancingCharacterPage } from './DancingCharacterPage';
 import { useDancingCharacterScene } from './useDancingCharacterScene';
+import { audioHub } from '~/features/audio/hub/audioHub';
 import { renderWithProviders } from '~/test/renderWithProviders';
 
 // The default plus a made-up second character, so the page spec does not depend on which real characters ship.
@@ -56,6 +57,7 @@ describe('DancingCharacterPage', () => {
         const defaults = Object.fromEntries(dancingCharacterControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
         expect(latestOptions().reducedMotion).toBe(false);
+        expect(latestOptions().hub).toBe(audioHub);
     });
 
     it('lists the dance controls in the settings panel', async () => {

@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
-import { BassPulse } from '~/features/rhythm/bassPulse';
+import { BassBump, hubLowEnd } from '~/features/audio/hub/bassBump';
+import type { AudioHubReader } from '~/features/audio/hub/types';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, findCharacter, type CharacterEntry } from './characterRegistry';
 import { MAX_FRAME_DT } from './dancingCharacterConfig';
@@ -20,7 +21,10 @@ const CAMERA_FAR = 200;
 export type DancingCharacterLoadStatus = 'loading' | 'ready' | 'modelFailed';
 
 interface DancingCharacterSceneOptions {
+    // Only used to notice a new source; the bass itself comes from the hub.
     analyser: AnalyserNode | undefined;
+    // The shared audio hub: a stable instance, so the scene reads its snapshot directly without a ref.
+    hub: AudioHubReader;
     // The app-wide rhythm tracker: a stable instance, so the scene reads its state without a ref.
     rhythm: RhythmTracker;
     valuesRef: { readonly current: DancingCharacterSettings };
@@ -43,6 +47,7 @@ export function useDancingCharacterScene(
     containerRef: RefObject<HTMLElement | null>,
     {
         analyser,
+        hub,
         rhythm,
         valuesRef,
         cameraLocked,
@@ -157,8 +162,13 @@ export function useDancingCharacterScene(
         onStatusRef.current('loading');
         loadCharacter(valuesRef.current.character);
 
+        // The snapshot is only refreshed by update(), so it may be stale (the hub started, or this page was left and
+        // revisited). Catch up first so the first frame does not read an old low end.
+        hub.update();
         let boundAnalyser: AnalyserNode | undefined;
-        let bass: BassPulse | undefined;
+        // The bass envelope over the hub's low end. A new source gets a fresh one so the old source's levels are not
+        // carried over; it is replaced only then, never per frame.
+        let bump = new BassBump();
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
             dt: 0,
@@ -169,7 +179,7 @@ export function useDancingCharacterScene(
             danceSelection: valuesRef.current.dance,
         };
 
-        // DEV only: the gate's input is the frame's raw bass; the rest is read from the scene after its update.
+        // DEV only: the gate's input is the frame's bass (the hub's low end through the bump envelope); the rest is read from the scene after its update.
         let unregisterProbe: (() => void) | undefined;
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
@@ -254,19 +264,20 @@ export function useDancingCharacterScene(
                     if (wanted !== requestedId) loadCharacter(wanted);
                 }
 
-                // A new source: keep the scene and just rebind the bass tap.
+                // A new source: keep the scene and start the bass envelope afresh.
                 const source = analyserRef.current;
                 if (source !== boundAnalyser) {
-                    bass?.dispose();
-                    bass = source ? new BassPulse(source) : undefined;
+                    bump = new BassBump();
                     boundAnalyser = source;
                     if (source) character.restartDance();
                 }
 
                 rhythm.updatePhase();
+                hub.update();
                 frame.dt = Math.min(delta / 1000, MAX_FRAME_DT);
                 frame.rhythm = rhythm.state;
-                frame.bass = bass?.update() ?? 0;
+                // With no source the hub has nothing to read, so the gate sees silence.
+                frame.bass = source ? bump.step(hubLowEnd(hub.snapshot.bands), frame.dt) : 0;
                 frame.settings = valuesRef.current;
                 frame.danceSelection = valuesRef.current.dance;
                 frame.cameraLocked = cameraLockedRef.current;
@@ -282,7 +293,6 @@ export function useDancingCharacterScene(
             dispose: () => {
                 loadController?.abort();
                 orbit.dispose();
-                bass?.dispose();
                 character.dispose();
                 unregisterProbe?.();
             },

@@ -5,12 +5,14 @@ import { controlsForMotionPreference, dancingCharacterControls } from './dancing
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
+import { useAudioHub } from '~/features/audio/hub/useAudioHub';
 import { useAnalyser } from '~/features/audio/useAudioState';
 import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 
 export function DancingCharacterPage() {
     const containerRef = useRef<HTMLDivElement>(null);
     const analyser = useAnalyser();
+    const hub = useAudioHub();
     const rhythm = useRhythm();
     // The control table is chosen once on mount (reduced motion gets calmer defaults); useControlValues needs it stable.
     const [controls] = useState(() => controlsForMotionPreference());
@@ -24,6 +26,7 @@ export function DancingCharacterPage() {
 
     const { resetView } = useDancingCharacterScene(containerRef, {
         analyser,
+        hub,
         rhythm,
         valuesRef,
         cameraLocked,
