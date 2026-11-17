@@ -99,3 +99,13 @@ export interface FeatureBatch extends FrameBatch {
     // 0..1, comparable across events of the same band: 1 is a hit as strong as the band's recent loudest.
     onsetStrength: Float32Array;
 }
+
+// Contract C5: how the analysis hub hears the worklet. RhythmTracker.addFeatureListener(listener) registers one and
+// returns a function that removes it. The tracker calls `onBatch` with every message, after its own analysis has used
+// it (only the first `count` frames and `onsetCount` events are valid; copy what you need, do not keep the batch), and
+// `onReset` when it binds a new source, before the first batch from that source. A listener that throws is logged and
+// does not stop the tracker or the other listeners.
+export interface FeatureListener {
+    onBatch(batch: FeatureBatch): void;
+    onReset(): void;
+}

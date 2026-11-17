@@ -4,7 +4,13 @@ import { hopSizeFor } from './onsetExtractor';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import { RHYTHM_PROCESSOR_NAME } from './rhythmConfig';
 import workletUrl from './rhythmProcessor.worklet?worker&url';
-import { type BeatsPerBar, type FrameBatch, type RhythmState, createRhythmState } from './types';
+import {
+    type BeatsPerBar,
+    type FeatureBatch,
+    type FeatureListener,
+    type RhythmState,
+    createRhythmState,
+} from './types';
 
 // Listens to the audio engine's analyser and keeps `state` describing the music's tempo, beat, meter and song
 // changes. Framework-free like AudioEngine: React reaches it through `subscribe` and the arrow-property getters
@@ -44,6 +50,13 @@ export class RhythmTracker {
     }
 
     private readonly listeners = new Set<() => void>();
+    // Raw worklet feature listeners (the audio hub), separate from the store because they hear every batch.
+    private readonly featureListeners = new Set<FeatureListener>();
+    // The listeners as an array, rebuilt only when the set changes (never per message). A dispatch walks the array it
+    // started with, so a listener added mid-dispatch waits for the next batch.
+    private featureSnapshot: readonly FeatureListener[] = [];
+    // Listeners whose failure was already logged, so one that throws on every batch does not log about 50 times a second.
+    private readonly loggedFeatureFailures = new WeakSet<FeatureListener>();
     readonly subscribe = (listener: () => void): (() => void) => {
         this.listeners.add(listener);
         return () => this.listeners.delete(listener);
@@ -83,9 +96,21 @@ export class RhythmTracker {
         }
     }
 
+    // Registers a listener for every worklet message and every new source (contract C5). Returns the function that
+    // removes it. A listener that throws is logged and does not stop the tracker or the other listeners.
+    public addFeatureListener(listener: FeatureListener): () => void {
+        this.featureListeners.add(listener);
+        this.featureSnapshot = [...this.featureListeners];
+        return () => {
+            this.featureListeners.delete(listener);
+            this.featureSnapshot = [...this.featureListeners];
+        };
+    }
+
     // The audio clock shifted by the timing settings, or undefined with no bound context. It fills the same settings
-    // object every call, because this runs every animation frame and must not allocate.
-    private renderTimeNow(): number | undefined {
+    // object every call, because this runs every animation frame and must not allocate. Public so the audio hub reads
+    // the same render time as the tracker.
+    public renderTimeNow(): number | undefined {
         const context = this.boundAnalyser?.context;
         if (!context) {
             return undefined;
@@ -119,6 +144,8 @@ export class RhythmTracker {
             this.analyzer.hardReset(true);
         }
         this.publish();
+        // Before the first batch of this source can arrive, so listeners never mix frames of two sources.
+        this.notifyFeatureListeners(undefined);
 
         const generation = ++this.generation;
         this.loadModule(context)
@@ -187,7 +214,7 @@ export class RhythmTracker {
         return loaded;
     }
 
-    private readonly onMessage = (event: MessageEvent<FrameBatch>): void => {
+    private readonly onMessage = (event: MessageEvent<FeatureBatch>): void => {
         const analyzer = this.analyzer;
         const context = this.boundAnalyser?.context;
         if (!analyzer || !context) {
@@ -199,7 +226,37 @@ export class RhythmTracker {
         // time, so the counters never run ahead of what the visualizers show.
         this.updatePhase();
         this.publish();
+        // Last, so a listener sees the tracker's state already updated by this batch.
+        this.notifyFeatureListeners(batch);
     };
+
+    // Sends `batch` to every feature listener, or a reset when it is undefined. This runs for every worklet message
+    // (about 50 a second), so it allocates nothing: it walks the preallocated snapshot by index. The snapshot and its
+    // length are captured first, so a listener added during dispatch does not get this batch and one that removes and
+    // re-adds itself is not visited twice. A listener removed during dispatch is skipped if not yet reached.
+    private notifyFeatureListeners(batch: FeatureBatch | undefined): void {
+        const listeners = this.featureSnapshot;
+        const count = listeners.length;
+        for (let i = 0; i < count; i++) {
+            const listener = listeners[i];
+            if (!this.featureListeners.has(listener)) {
+                continue;
+            }
+            try {
+                if (batch) {
+                    listener.onBatch(batch);
+                } else {
+                    listener.onReset();
+                }
+            } catch (error) {
+                // One failing listener must not stop the others or the tracker. Each is logged once only.
+                if (!this.loggedFeatureFailures.has(listener)) {
+                    this.loggedFeatureFailures.add(listener);
+                    console.error('RhythmTracker feature listener failed', error);
+                }
+            }
+        }
+    }
 
     // Copies the low-rate values into the store fields and notifies only if one changed.
     private publish(): void {

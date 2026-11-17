@@ -111,8 +111,11 @@ helpers inside the folder are not (`spectrum.ts`, `bands.ts`).
 - Addons import from `three/addons/...` (three r186, pinned exactly). Don't upgrade three as part of another change.
 
 ## Web Audio
-- Never change the engine's graph from a visualizer beyond the analyser's `fftSize`/`smoothingTimeConstant`. For
-  anything else, tap your own nodes from the analyser.
+- Read audio features (band levels, onsets, bass, beat, song changes) from the audio hub: `useAudioHub()` in the page,
+  `hub.update()` once per frame in the scene, then `hub.snapshot` (architecture.md, "Audio hub"). Do not derive band
+  energy or onsets again in a visualizer.
+- A raw or fine spectrum is the one reason for a visualizer's own analyser: ask for it with `useAnalyser(settings)` and
+  use it for that only. Never change the engine's graph or the tap's settings (they are fixed, and assigning one throws).
 - Anything that taps nodes owns them: it remembers the `source` it connected to and disconnects in `dispose()`/on rebind,
   wrapping `source.disconnect(node)` in try/catch, because the old context may already be closed.
 - Rebind inside the render loop on `analyser !== boundAnalyser`; keep visual state (heights, envelopes) across a rebind
