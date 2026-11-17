@@ -2,17 +2,19 @@ import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
-import { BassPulse } from '~/features/rhythm/bassPulse';
+import { BassBump } from './bassBump';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
-import { METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
-import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
+import { HUB_BANDS } from '~/features/rhythm/rhythmConfig';
+import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
 import { disposeScene } from '~/lib/three/disposeScene';
 
+const SUB_BAND = HUB_BANDS.indexOf('sub');
+const KICK_BAND = HUB_BANDS.indexOf('kick');
 const CAMERA_FOV = 50;
 const CAMERA_DISTANCE = 32;
 // Frequency data: 2048 samples gives ~23 Hz bins, enough to separate bass notes.
@@ -38,8 +40,8 @@ const DOWNBEAT_ACCENT_DECAY = 0.9;
 
 interface CubesSceneOptions {
     analyser: AnalyserNode | undefined;
-    // The app-wide rhythm tracker: a stable instance, so the scene reads its state without a ref.
-    rhythm: RhythmTracker;
+    // The app-wide audio hub: a stable instance, so the scene reads its snapshot without a ref.
+    hub: AudioHubReader;
     valuesRef: { readonly current: CubesControlValues };
     // Locked means the picture can't be dragged, rotated or zoomed.
     cameraLocked: boolean;
@@ -49,7 +51,7 @@ interface CubesSceneOptions {
 // Audio-reactive grid of glass cubes rendered into `containerRef`.
 export function useCubesScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, rhythm, valuesRef, cameraLocked, onViewChanged }: CubesSceneOptions,
+    { analyser, hub, valuesRef, cameraLocked, onViewChanged }: CubesSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
@@ -82,34 +84,33 @@ export function useCubesScene(
         let spectrum = new Uint8Array(0);
         let bins: BinRange[] = [];
         let levels = new Float32Array(grid.bandCount);
-        let bass: BassPulse | undefined;
+        const bass = new BassBump();
         const restingColor = new THREE.Color();
         const raisedColor = new THREE.Color();
 
-        // Compared with the tracker's counter each frame to notice a downbeat without events or allocation.
-        let seenDownbeats = rhythm.state.downbeatCount;
+        const { snapshot } = hub;
+        // Compared with the snapshot's counter each frame to notice a downbeat without events or allocation.
+        let seenDownbeats = snapshot.beat.downbeatCount;
         let downbeatAccent = 0;
 
         const bandBinsFor = (source: AnalyserNode) =>
             createBandBins(grid.bandCount, source.context.sampleRate, source.fftSize);
 
-        // DEV only: reports BassPulse's latest values to the telemetry recorder (zeros until a source is bound).
+        // DEV only: reports the bass envelope's latest values to the telemetry recorder (zeros until the hub has data).
         let unregisterProbe: (() => void) | undefined;
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe('cubes', ['in', 'fast', 'slow', 'ratio', 'out'], (out) => {
-                out[0] = bass?.energy ?? 0;
-                out[1] = bass?.fast ?? 0;
-                out[2] = bass?.slow ?? 0;
-                out[3] = bass?.ratio ?? 0;
-                out[4] = bass?.pulse ?? 0;
+                out[0] = bass.input;
+                out[1] = bass.fast;
+                out[2] = bass.slow;
+                out[3] = bass.ratio;
+                out[4] = bass.pulse;
             });
         }
 
         const bindAudio = (source: AnalyserNode) => {
             spectrum = new Uint8Array(source.frequencyBinCount);
             bins = bandBinsFor(source);
-            bass?.dispose();
-            bass = new BassPulse(source);
             boundAnalyser = source;
         };
 
@@ -136,21 +137,20 @@ export function useCubesScene(
                     });
                 }
 
-                rhythm.updatePhase();
-                const rhythmState = rhythm.state;
-                if (rhythmState.downbeatCount !== seenDownbeats) {
-                    seenDownbeats = rhythmState.downbeatCount;
+                hub.update();
+                const { beat, bands } = snapshot;
+                if (beat.downbeatCount !== seenDownbeats) {
+                    seenDownbeats = beat.downbeatCount;
                     // Only a meter the tracker is sure about gets an accent; a guessed bar would pulse on the wrong beat.
-                    if (
-                        rhythmState.beatsPerBar !== undefined &&
-                        rhythmState.meterConfidence >= METER_VISUAL_CONFIDENCE
-                    ) {
+                    if (beat.barLocked) {
                         downbeatAccent = 1;
                     }
                 }
                 downbeatAccent *= DOWNBEAT_ACCENT_DECAY;
 
-                const bump = bass?.update() ?? 0;
+                // The kick lives in the hub's `sub` and `kick` bands (20 to 130 Hz). The louder of the two is used, not a
+                // mean: kicks differ in pitch, and a mean would halve the level of one that sits in a single band.
+                const bump = bass.step(Math.max(bands[SUB_BAND], bands[KICK_BAND]), delta / 1000);
                 const pulse = values.bassBump ? bump * values.bgPulse : 0;
                 backgroundColor.copy(restingColor).multiplyScalar((pulse * MAX_BACKGROUND_FLASH) ** DISPLAY_GAMMA);
 
@@ -185,7 +185,6 @@ export function useCubesScene(
             dispose: () => {
                 orbit.dispose();
                 grid.dispose();
-                bass?.dispose();
                 unregisterProbe?.();
             },
         };
