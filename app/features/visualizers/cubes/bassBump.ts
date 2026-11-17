@@ -16,8 +16,8 @@ const PULSE_FALL = 0.12;
 // The hub's bands are normalized log energies (1 is the band's loudest of the last few seconds), not linear RMS. A
 // log scale squeezes level differences, so the same kick that doubled the old RMS raises the band only by a fraction:
 // the margin is lower and the gain higher than BassPulse's 1.15 and 1.5.
-export const BUMP_MARGIN = 1.08;
-export const BUMP_GAIN = 3;
+export const BUMP_MARGIN = 1.04;
+export const BUMP_GAIN = 4;
 // Below this slow level the band is near silence (the hub reads 0 for silence and for a room's hiss), and a ratio of
 // two tiny numbers means nothing. BassPulse used 0.005 in RMS; here 0.05 is 5% of the band's recent peak.
 export const NEAR_SILENCE = 0.05;
