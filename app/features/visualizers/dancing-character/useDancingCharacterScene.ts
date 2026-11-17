@@ -179,7 +179,8 @@ export function useDancingCharacterScene(
             danceSelection: valuesRef.current.dance,
         };
 
-        // DEV only: the gate's input is the frame's bass (the hub's low end through the bump envelope); the rest is read from the scene after its update.
+        // DEV only: the gate's input is the frame's bass (the hub's low end through the bump envelope); the rest is
+        // read from the scene after its update.
         let unregisterProbe: (() => void) | undefined;
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
