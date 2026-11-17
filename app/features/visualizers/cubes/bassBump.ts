@@ -43,9 +43,19 @@ export class BassBump {
     public slow = 0;
     public ratio = 1;
     public pulse = 0;
+    // False until the first level above near-silence has seeded the followers.
+    private seeded = false;
 
     // Advances the envelope by `deltaSeconds` with the latest low-end level (0..1) and returns the pulse (0..1).
     public step(input: number, deltaSeconds: number): number {
+        // Both followers start at the first audible level, not at 0: from 0 the slow one would need seconds to catch up
+        // with a sustained level and the ratio would read as a huge bump the whole time. A later jump still bumps.
+        if (!this.seeded && input > NEAR_SILENCE) {
+            this.seeded = true;
+            this.fast = input;
+            this.slow = input;
+        }
+
         const frames = Math.min(Math.max(deltaSeconds, 0), MAX_STEP_SECONDS) * REFERENCE_FPS;
 
         this.fast += (input - this.fast) * closing(input > this.fast ? FAST_RISE_LN : FAST_FALL_LN, frames);

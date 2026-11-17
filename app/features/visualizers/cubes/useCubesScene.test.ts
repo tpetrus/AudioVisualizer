@@ -142,7 +142,8 @@ describe('useCubesScene', () => {
             frame(16);
             frame(32);
 
-            expect(hub.update).toHaveBeenCalledTimes(3);
+            // One catch-up call when the scene is built, then one per frame.
+            expect(hub.update).toHaveBeenCalledTimes(4);
             // Read at the tracker's render time: the scene passes no time of its own.
             expect(hub.update).toHaveBeenCalledWith();
             expect(renderer.render).toHaveBeenCalledTimes(3);
@@ -299,6 +300,37 @@ describe('useCubesScene', () => {
             const hub = new FakeAudioHub();
             hub.snapshot.beat.downbeatCount = 7;
             hub.snapshot.beat.barLocked = true;
+            installFakeResizeObserver();
+            renderHook(() =>
+                useCubesScene(
+                    { current: createContainer(800, 600) },
+                    {
+                        analyser: undefined,
+                        hub,
+                        valuesRef: { current: defaultValues(cubesControls) },
+                        cameraLocked: true,
+                        onViewChanged: vi.fn(),
+                    },
+                ),
+            );
+            const renderer = FakeRenderer.last;
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            const [scene] = renderer.render.mock.calls[0] as unknown as [Scene];
+            const mesh = scene.children.find(
+                (child): child is InstancedMesh => (child as InstancedMesh).isInstancedMesh,
+            );
+
+            expect(cubeZ(mesh, CORNER_CUBE)).toBe(0);
+        });
+
+        it('does not accent downbeats the hub counted while nobody was updating it', () => {
+            const hub = new FakeAudioHub();
+            hub.snapshot.beat.barLocked = true;
+            // A real hub catches up on its first update after a stale period, so the count moves then.
+            hub.update.mockImplementationOnce(() => {
+                hub.snapshot.beat.downbeatCount += 3;
+            });
             installFakeResizeObserver();
             renderHook(() =>
                 useCubesScene(

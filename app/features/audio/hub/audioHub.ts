@@ -5,7 +5,7 @@ import {
     METER_VISUAL_CONFIDENCE,
 } from '~/features/rhythm/rhythmConfig';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
-import type { FeatureBatch, FeatureListener } from '~/features/rhythm/types';
+import { FEATURE_MESSAGE_VERSION, type FeatureBatch, type FeatureListener } from '~/features/rhythm/types';
 import { HUB_FRAME_CAPACITY, HUB_MIN_PEAK, HUB_PEAK_HALF_LIFE_SECONDS, HUB_PENDING_ONSET_CAPACITY } from './hubConfig';
 import type { AudioHubReader, AudioHubSnapshot, HubOnset, HubOnsetBand } from './types';
 
@@ -36,6 +36,8 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     private peakTime = -Infinity;
 
     // Onset events not yet reached by the render time, in arrival order (not necessarily time order across kinds).
+    // Only update() empties this ring. While requestAnimationFrame is paused (a hidden tab) update() is not called, so
+    // the ring fills and drops the oldest events, and `count` then undercounts what fired.
     private readonly pendingTimes = new Float64Array(HUB_PENDING_ONSET_CAPACITY);
     private readonly pendingKinds = new Uint8Array(HUB_PENDING_ONSET_CAPACITY);
     private readonly pendingStrengths = new Float32Array(HUB_PENDING_ONSET_CAPACITY);
@@ -114,6 +116,11 @@ export class AudioHub implements AudioHubReader, FeatureListener {
 
     // Called by the tracker with every worklet message, after its own analysis has used it.
     public onBatch(batch: FeatureBatch): void {
+        // A message of another version may lay its arrays out differently, so reading it as this one would write
+        // garbage into the rings. The tracker keeps its own check; the hub just skips what it cannot read.
+        if (batch.version !== FEATURE_MESSAGE_VERSION) {
+            return;
+        }
         for (let i = 0; i < batch.count; i++) {
             this.pushFrame(batch.frameTimes[i], batch.bandEnergy, i * HUB_BAND_COUNT);
         }
@@ -161,7 +168,10 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.frameTimes[slot] = time;
         const base = slot * HUB_BAND_COUNT;
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
-            const value = energy[offset + b];
+            // A NaN or infinite energy would stick in the peak (Math.max with NaN stays NaN) and silence the band
+            // until the next reset, so it counts as silence.
+            const raw = energy[offset + b];
+            const value = Number.isFinite(raw) ? raw : 0;
             // The peak is the loudest of the last few seconds. A fixed minimum keeps silence at 0 and stops a faint
             // hiss from being stretched to 1. The energies are logarithmic and 0 for silence, so no floor needs to be
             // subtracted first.

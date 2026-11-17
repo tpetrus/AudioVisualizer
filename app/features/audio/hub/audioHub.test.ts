@@ -149,19 +149,42 @@ describe('AudioHub', () => {
 
         it('holds at least half a second of frames and drops the oldest when full', () => {
             expect(HUB_FRAME_CAPACITY).toBeGreaterThanOrEqual(50);
+            // Frame 0 is very loud and is overwritten, so the peak it set (decayed over the short run) is the same
+            // for every survivor; the others carry distinct energies, so reading the wrong slot gives a wrong value.
+            const extra = 10;
             const many: FrameSpec[] = [];
-            for (let i = 0; i < HUB_FRAME_CAPACITY + 10; i++) {
-                many.push({ time: i * 0.01, energy: i === 0 ? 0.4 : 0.8 });
+            for (let i = 0; i < HUB_FRAME_CAPACITY + extra; i++) {
+                many.push({ time: i * 0.001, energy: i === 0 ? 1000 : i });
             }
             feed(many);
-            // Frame 0 was overwritten, so a time before everything reads the oldest survivor (frame 10).
+            // Frame 0 was overwritten, so a time before everything reads the oldest survivor (frame 10), which
+            // normalized against the peak at its own time.
+            const peakAt = (i: number) => 1000 * Math.pow(0.5, (i * 0.001) / HUB_PEAK_HALF_LIFE_SECONDS);
             hub.update(-1);
+            expect(hub.snapshot.bands[0]).toBeCloseTo(extra / peakAt(extra), 5);
+            // Frames that sit across the wrap point each read their own value.
+            for (const i of [extra + 1, HUB_FRAME_CAPACITY - 1, HUB_FRAME_CAPACITY, HUB_FRAME_CAPACITY + extra - 1]) {
+                hub.update(i * 0.001 + 0.0001);
+                expect(hub.snapshot.bands[0]).toBeCloseTo(i / peakAt(i), 5);
+            }
+        });
+
+        it('reads the newest frame and reveals every received onset when the time is later than both', () => {
+            // A negative sync offset makes the render time later than the newest frame the worklet has sent.
+            feed(
+                [
+                    { time: 1.0, energy: 0.4 },
+                    { time: 1.01, energy: 0.8 },
+                ],
+                [
+                    { band: 0, time: 1.0 },
+                    { band: 0, time: 1.02 },
+                ],
+            );
+            hub.update(1.5);
             expect(hub.snapshot.bands[0]).toBeCloseTo(1, 5);
-            // The newest frame at the end of the ring is read correctly after wrapping.
-            hub.update(1000);
-            expect(hub.snapshot.bands[0]).toBeCloseTo(1, 5);
-            hub.update(10 * 0.01 + 0.0005);
-            expect(hub.snapshot.bands[0]).toBeCloseTo(1, 5);
+            expect(hub.snapshot.onsets.kick.count).toBe(2);
+            expect(hub.snapshot.onsets.kick.lastTime).toBe(1.02);
         });
     });
 
@@ -218,9 +241,39 @@ describe('AudioHub', () => {
             hub.update(2);
             expect(hub.snapshot.bands[0]).toBeGreaterThanOrEqual(0);
             expect(hub.snapshot.bands[0]).toBeLessThanOrEqual(1);
+            // The backward step to 0.5 must not have decayed or moved the peak (3): the last frame, energy 2, reads
+            // 2/3, and a later frame of 1.5 (almost no decay yet) reads 0.5.
+            expect(hub.snapshot.bands[0]).toBeCloseTo(2 / 3, 5);
+            feed([{ time: 0.501, energy: 1.5 }]);
+            hub.update(0.501);
+            expect(hub.snapshot.bands[0]).toBeCloseTo(1.5 / (3 * Math.pow(0.5, 0.001 / HUB_PEAK_HALF_LIFE_SECONDS)), 4);
             feed([{ time: 3, energy: -1 }]);
             hub.update(3);
             expect(hub.snapshot.bands[0]).toBe(0);
+        });
+    });
+
+    describe('input hardening', () => {
+        it('treats NaN and infinite energy as silence without poisoning the peak', () => {
+            feed([
+                { time: 1, energy: [NaN, Infinity, -Infinity, 0, 0, 0] },
+                { time: 1.01, energy: 2 },
+                { time: 1.02, energy: 1 },
+            ]);
+            hub.update(1);
+            expect(Array.from(hub.snapshot.bands)).toEqual([0, 0, 0, 0, 0, 0]);
+            hub.update(1.02);
+            for (let b = 0; b < 3; b++) {
+                expect(hub.snapshot.bands[b]).toBeCloseTo(0.5, 2);
+            }
+        });
+
+        it('ignores a batch of another version', () => {
+            const other = { ...batch([{ time: 1, energy: 1 }], [{ band: 0, time: 1 }]), version: 1 };
+            hub.onBatch(other as unknown as FeatureBatch);
+            hub.update(5);
+            expect(Array.from(hub.snapshot.bands)).toEqual([0, 0, 0, 0, 0, 0]);
+            expect(hub.snapshot.onsets.kick.count).toBe(0);
         });
     });
 
