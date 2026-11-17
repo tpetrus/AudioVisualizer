@@ -154,7 +154,11 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         // Decay by the frame time that passed, not per call, so the peak's memory does not depend on the batch size.
         const elapsed = time - this.peakTime;
         const decay = elapsed > 0 && elapsed < Infinity ? Math.pow(0.5, elapsed / HUB_PEAK_HALF_LIFE_SECONDS) : 1;
-        this.peakTime = time;
+        // Only a forward step moves the peak's clock: a frame stamped earlier would otherwise make the next one decay
+        // the peak by the whole span back to it.
+        if (elapsed > 0) {
+            this.peakTime = time;
+        }
 
         // Overwrite the oldest frame when the ring is full.
         let slot: number;

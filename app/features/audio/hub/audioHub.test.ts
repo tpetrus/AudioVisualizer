@@ -242,11 +242,11 @@ describe('AudioHub', () => {
             expect(hub.snapshot.bands[0]).toBeGreaterThanOrEqual(0);
             expect(hub.snapshot.bands[0]).toBeLessThanOrEqual(1);
             // The backward step to 0.5 must not have decayed or moved the peak (3): the last frame, energy 2, reads
-            // 2/3, and a later frame of 1.5 (almost no decay yet) reads 0.5.
+            // 2/3, and a later frame of 1.5, still before the peak's clock (1 s), is not decayed and reads 0.5.
             expect(hub.snapshot.bands[0]).toBeCloseTo(2 / 3, 5);
             feed([{ time: 0.501, energy: 1.5 }]);
             hub.update(0.501);
-            expect(hub.snapshot.bands[0]).toBeCloseTo(1.5 / (3 * Math.pow(0.5, 0.001 / HUB_PEAK_HALF_LIFE_SECONDS)), 4);
+            expect(hub.snapshot.bands[0]).toBeCloseTo(0.5, 6);
             feed([{ time: 3, energy: -1 }]);
             hub.update(3);
             expect(hub.snapshot.bands[0]).toBe(0);
@@ -274,6 +274,15 @@ describe('AudioHub', () => {
             hub.update(5);
             expect(Array.from(hub.snapshot.bands)).toEqual([0, 0, 0, 0, 0, 0]);
             expect(hub.snapshot.onsets.kick.count).toBe(0);
+        });
+
+        it('does not move the peak clock back on a frame stamped earlier', () => {
+            feed([{ time: 10, energy: 1 }]);
+            feed([{ time: 5, energy: 0.1 }]);
+            feed([{ time: 10.001, energy: 0.5 }]);
+            hub.update(10.001);
+            // Decayed by 1 ms since the loud frame, not by the 5 s back to the stray one.
+            expect(hub.snapshot.bands[0]).toBeCloseTo(0.5, 3);
         });
     });
 

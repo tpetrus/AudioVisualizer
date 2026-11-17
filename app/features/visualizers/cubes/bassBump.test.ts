@@ -77,6 +77,23 @@ describe('BassBump', () => {
         }
     });
 
+    it('answers a jump over a settled bed in the same time at 30, 60 and 144 fps, from 100 ms on', () => {
+        // Sampled at 100 ms and later only: at 50 ms a 30 fps run takes 2 frames (66.7 ms) and so reads 0.07 higher
+        // because more time has passed, not because the rates differ. From 100 ms the three agree within 0.003.
+        const settled = (fps: number, settle: number) => {
+            const bump = new BassBump();
+            for (let i = 0; i < fps * 3; i++) bump.step(0.3, 1 / fps);
+            let pulse = 0;
+            for (let i = 0; i < Math.round(settle * fps); i++) pulse = bump.step(1, 1 / fps);
+            return pulse;
+        };
+        for (const settle of [0.1, 0.2, 0.4]) {
+            const reference = settled(60, settle);
+            expect(Math.abs(settled(30, settle) - reference)).toBeLessThan(0.02);
+            expect(Math.abs(settled(144, settle) - reference)).toBeLessThan(0.02);
+        }
+    });
+
     it('settles back after a hit in the same time at 30, 60 and 144 fps, within 0.05 of the pulse', () => {
         const after = (fps: number) => {
             const bump = new BassBump();
