@@ -688,6 +688,7 @@ describe('useDancingCharacterScene', () => {
                 'gridMoves',
                 'octaveHolds',
                 'barVetoes',
+                'lowEnd',
             ]);
         });
 
@@ -710,10 +711,10 @@ describe('useDancingCharacterScene', () => {
                 songChangeCount: 2,
             });
 
-            const out = Array.from(readProbe(28));
+            const out = Array.from(readProbe(29));
 
             expect(out.slice(6)).toEqual(
-                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25, 0, 0, 0, 0].map(
+                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25, 0, 0, 0, 0, 0].map(
                     Math.fround,
                 ),
             );
@@ -736,7 +737,7 @@ describe('useDancingCharacterScene', () => {
             const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
             scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 0, kickOffset: NaN };
 
-            const out = readProbe(28);
+            const out = readProbe(29);
 
             expect([out[7], out[8], out[9], out[17], out[24], out[25], out[26], out[27]]).toEqual([
                 121, 60.5, 120, 3, 93.5, 4, 5, 6,
@@ -763,6 +764,43 @@ describe('useDancingCharacterScene', () => {
             expect(readProbe(6)[0]).toBe(Math.fround(frames[frames.length - 1].bass));
             expect(Array.from(readProbe(6)).slice(1)).toEqual([0.4, 1, 3, 0.5, 1].map(Math.fround));
             expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);
+        });
+
+        it('records the hub low end, the louder of the two low bands, as the last column and 0 with no source', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer, hub } = mountScene({ analyser });
+            renderer.renderFrame(0);
+            const live = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            live.bassGate = { open: false, score: 0, weight: 0 };
+            hub.setBands([0.25, 0.5, 0, 0, 0, 0]);
+            renderer.renderFrame(16);
+
+            expect(readProbe(29)[28]).toBe(0.5);
+
+            hub.setBands([0.75, 0.5, 0, 0, 0, 0]);
+            renderer.renderFrame(32);
+
+            expect(readProbe(29)[28]).toBe(0.75);
+
+            const silent = mountScene();
+            silent.renderer.renderFrame(16);
+            const quiet = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            quiet.bassGate = { open: false, score: 0, weight: 0 };
+
+            expect(readProbe(29)[28]).toBe(0);
+        });
+
+        it('still gives bass above 0 after a jump in the low end', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer, hub } = mountScene({ analyser });
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let i = 0; i < 30; i++) renderer.renderFrame(i * 16);
+            hub.setBands([1, 1, 0, 0, 0, 0]);
+            renderer.renderFrame(31 * 16);
+            renderer.renderFrame(32 * 16);
+
+            const frames = character().frames;
+            expect(frames[frames.length - 1].bass).toBeGreaterThan(0);
         });
 
         it('reads closed and unlocked as zeros', () => {

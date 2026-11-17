@@ -46,6 +46,13 @@ const PULSE_FALL_LN = lnKeep(PULSE_FALL);
 // Fraction of the gap to close over `frames` reference frames.
 const closing = (keepLn: number, frames: number) => 1 - Math.exp(keepLn * frames);
 
+export interface BassBumpOptions {
+    // The ratio of the fast to the slow follower above which a bump starts.
+    margin?: number;
+    // How steeply the pulse's target rises with the ratio above the margin.
+    gain?: number;
+}
+
 // State is public only so DEV telemetry can read it; nothing outside `step` writes it. Allocates nothing.
 export class BassBump {
     public input = 0;
@@ -55,6 +62,13 @@ export class BassBump {
     public pulse = 0;
     // False until the first level above near-silence has seeded the followers.
     private seeded = false;
+    private readonly margin: number;
+    private readonly gain: number;
+
+    public constructor(options: BassBumpOptions = {}) {
+        this.margin = options.margin ?? BUMP_MARGIN;
+        this.gain = options.gain ?? BUMP_GAIN;
+    }
 
     // Advances the envelope by `deltaSeconds` with the latest low-end level (0..1) and returns the pulse (0..1).
     public step(input: number, deltaSeconds: number): number {
@@ -74,7 +88,7 @@ export class BassBump {
         const ratio = this.slow > NEAR_SILENCE ? this.fast / this.slow : 1;
         this.input = input;
         this.ratio = ratio;
-        const target = Math.min(1, Math.max(0, (ratio - BUMP_MARGIN) * BUMP_GAIN));
+        const target = Math.min(1, Math.max(0, (ratio - this.margin) * this.gain));
 
         this.pulse += (target - this.pulse) * closing(target > this.pulse ? PULSE_RISE_LN : PULSE_FALL_LN, frames);
         return this.pulse;

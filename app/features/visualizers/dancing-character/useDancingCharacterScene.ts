@@ -4,7 +4,7 @@ import { BassBump, hubLowEnd } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, findCharacter, type CharacterEntry } from './characterRegistry';
-import { MAX_FRAME_DT } from './dancingCharacterConfig';
+import { DANCER_BUMP_GAIN, DANCER_BUMP_MARGIN, MAX_FRAME_DT } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
 import { useLatestRef } from '~/hooks/useLatestRef';
@@ -168,7 +168,11 @@ export function useDancingCharacterScene(
         let boundAnalyser: AnalyserNode | undefined;
         // The bass envelope over the hub's low end. A new source gets a fresh one so the old source's levels are not
         // carried over; it is replaced only then, never per frame.
-        let bump = new BassBump();
+        const newBump = () => new BassBump({ margin: DANCER_BUMP_MARGIN, gain: DANCER_BUMP_GAIN });
+        let bump = newBump();
+        // The hub's low end this frame, before the envelope: DEV telemetry records it so a recording can be replayed
+        // through other margins and gains.
+        let lowEnd = 0;
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
             dt: 0,
@@ -214,6 +218,7 @@ export function useDancingCharacterScene(
                     'gridMoves',
                     'octaveHolds',
                     'barVetoes',
+                    'lowEnd',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -247,6 +252,7 @@ export function useDancingCharacterScene(
                     out[25] = analysis?.beat.phaseShiftCount ?? 0;
                     out[26] = analysis?.tempo.octaveHoldCount ?? 0;
                     out[27] = analysis?.tempo.barVetoCount ?? 0;
+                    out[28] = lowEnd;
                 },
             );
         }
@@ -268,7 +274,7 @@ export function useDancingCharacterScene(
                 // A new source: keep the scene and start the bass envelope afresh.
                 const source = analyserRef.current;
                 if (source !== boundAnalyser) {
-                    bump = new BassBump();
+                    bump = newBump();
                     boundAnalyser = source;
                     if (source) character.restartDance();
                 }
@@ -278,7 +284,8 @@ export function useDancingCharacterScene(
                 frame.dt = Math.min(delta / 1000, MAX_FRAME_DT);
                 frame.rhythm = rhythm.state;
                 // With no source the hub has nothing to read, so the gate sees silence.
-                frame.bass = source ? bump.step(hubLowEnd(hub.snapshot.bands), frame.dt) : 0;
+                lowEnd = source ? hubLowEnd(hub.snapshot.bands) : 0;
+                frame.bass = source ? bump.step(lowEnd, frame.dt) : 0;
                 frame.settings = valuesRef.current;
                 frame.danceSelection = valuesRef.current.dance;
                 frame.cameraLocked = cameraLockedRef.current;

@@ -1,3 +1,4 @@
+import { BassBump } from '../../app/features/audio/hub/bassBump';
 import type { TelemetryTable } from '../../app/features/audio/devTelemetrySummary';
 import { createBassGateState, stepBassGate, type BassGateState } from '../../app/features/rhythm/bassGate';
 import type { RhythmState } from '../../app/features/rhythm/types';
@@ -56,6 +57,8 @@ export interface GateColumns {
     beatCount: number;
     songChanges: number;
     gateOpen: number;
+    // The hub's low end before the bump envelope; -1 in recordings made before the column existed.
+    lowEnd: number;
 }
 
 // The probe prefix is whatever precedes ".in", so any probe's recording replays.
@@ -77,11 +80,23 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         beatCount: at(`${prefix}beatCount`, true),
         songChanges: at(`${prefix}songChanges`, true),
         gateOpen: at(`${prefix}gateOpen`, false),
+        lowEnd: at(`${prefix}lowEnd`, false),
     };
 }
 
-export function replayGate(table: TelemetryTable, rule: GateRule): GateReplay {
+export interface BumpOptions {
+    margin: number;
+    gain: number;
+}
+
+// With `bump`, the gate's input is the recorded low end stepped through a fresh BassBump instead of the recorded `in`.
+export function replayGate(table: TelemetryTable, rule: GateRule, bump?: BumpOptions): GateReplay {
     const c = findGateColumns(table.columns);
+    if (bump !== undefined && c.lowEnd < 0) {
+        const prefix = table.columns[c.input].slice(0, -'in'.length);
+        throw new Error(`Missing column "${prefix}lowEnd": record with a newer build to replay through BassBump`);
+    }
+    const envelope = bump === undefined ? undefined : new BassBump(bump);
     const state = createBassGateState();
     // Only these three fields are read by the gate.
     const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0 };
@@ -100,7 +115,9 @@ export function replayGate(table: TelemetryTable, rule: GateRule): GateReplay {
         // The recorded dt is rounded to four digits; the time step is the fallback when the column is absent.
         const dt = c.dt >= 0 ? row[c.dt] : row[c.t] - previousT;
         previousT = row[c.t];
-        rule.step(row[c.input], rhythm as RhythmState, locked, state, Number.isFinite(dt) ? dt : 0);
+        const step = Number.isFinite(dt) ? dt : 0;
+        const input = envelope === undefined ? row[c.input] : envelope.step(row[c.lowEnd], step);
+        rule.step(input, rhythm as RhythmState, locked, state, step);
         if (state.open && firstOpen === undefined) firstOpen = row[c.t];
         if (firstOpen !== undefined) {
             rowsSinceOpen++;
@@ -126,9 +143,15 @@ function seconds(value: number | undefined): string {
     return value === undefined ? 'never' : `${Number(value.toFixed(3))} s`;
 }
 
-export function formatGateReplay(rule: string, replay: GateReplay, recorded: number | undefined): string[] {
+export function formatGateReplay(
+    rule: string,
+    replay: GateReplay,
+    recorded: number | undefined,
+    input = 'input: <probe>.in as recorded',
+): string[] {
     return [
         `rule ${rule}`,
+        input,
         `first open: ${seconds(replay.firstOpen)}`,
         `first lock: ${seconds(replay.firstLock)}`,
         `delay after lock: ${seconds(replay.delayAfterLock)}`,
