@@ -5,7 +5,20 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { renderTrack, TEST_SAMPLE_RATE } from '../../app/features/rhythm/testSignals';
 import { writeWav } from '../rhythm-tools/wav';
 import { buildScorecard } from './cells';
-import { DEFAULT_DIR, DEFAULT_OUT, loadTracks, measureSources, parseRunArgs, sha256, summaryLine } from './inputs';
+import {
+    DEFAULT_DIR,
+    DEFAULT_OUT,
+    LIVE_PATH,
+    loadTracks,
+    measureSources,
+    parseRunArgs,
+    readLiveCells,
+    sha256,
+    summaryLine,
+    withLiveCells,
+} from './inputs';
+import { TARGETS_VERSION } from './targets';
+import type { Scorecard, ScorecardCell } from './types';
 
 describe('parseRunArgs', () => {
     it('has defaults', () => {
@@ -113,5 +126,77 @@ describe('measureSources', () => {
         expect(result.available).toEqual([{ track: 'lonley.wav', hasBeats: false }]);
         const scorecard = buildScorecard({ revision: 'r', created: 'c', scenarios: [], ...result });
         expect(summaryLine(scorecard)).toMatch(/^Applicable cells \d+: \d+ passing, \d+ failing, \d+ unavailable\./);
+    });
+});
+
+describe('live cells in the scorecard', () => {
+    const dirs: string[] = [];
+    afterEach(() => {
+        for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+    });
+    const cell = (metric: string, track: string, visualizer: string): ScorecardCell => ({
+        metric,
+        track,
+        visualizer,
+        class: 'tapped',
+        applicable: true,
+        floor: null,
+        stretch: null,
+        prehub: null,
+        value: 1,
+        spread: 0,
+        runs: 4,
+        source: visualizer === 'rhythm' ? 'offline' : 'live',
+        blocking: false,
+        pass: true,
+        status: 'pass',
+    });
+    const scorecard = (cells: ScorecardCell[]): Scorecard => ({
+        header: { targetsVersion: TARGETS_VERSION, revision: 'r', created: 'c', sidecarHashes: {} },
+        cells,
+    });
+    const writeLive = (targetsVersion: number, cells: ScorecardCell[]): string => {
+        const dir = mkdtempSync(join(tmpdir(), 'scorecard-live-'));
+        dirs.push(dir);
+        const path = join(dir, 'live.json');
+        const file = scorecard(cells);
+        file.header.targetsVersion = targetsVersion;
+        writeFileSync(path, JSON.stringify({ ...file, runValues: [] }));
+        return path;
+    };
+
+    it('reads the cells of a file for this targets version', () => {
+        const live = cell('live.hit.share50ms', 'a.wav', 'cubes');
+        expect(readLiveCells(writeLive(TARGETS_VERSION, [live]))).toEqual({ cells: [live] });
+    });
+
+    it('has no cells and no warning without a file, and a warning with a file of another version', () => {
+        expect(readLiveCells(join(tmpdir(), 'no-such-live-file.json'))).toEqual({ cells: [] });
+        const stale = readLiveCells(writeLive(TARGETS_VERSION - 1, [cell('live.hit.share50ms', 'a.wav', 'cubes')]));
+        expect(stale.cells).toEqual([]);
+        expect(stale.warning).toMatch(/targets version/);
+        expect(LIVE_PATH).toBe('docs/agents/hub-scorecard.live.json');
+    });
+
+    it('returns the same scorecard when there are no live cells', () => {
+        const offline = scorecard([cell('tempo.within2pct', 'a.wav', 'rhythm')]);
+        expect(withLiveCells(offline, [])).toBe(offline);
+    });
+
+    it('merges live cells in metric, track, visualizer order', () => {
+        const offline = scorecard([
+            cell('tempo.within2pct', 'a.wav', 'rhythm'),
+            cell('onset.f50.kick', 'a.wav', 'rhythm'),
+        ]);
+        const merged = withLiveCells(offline, [
+            cell('live.hit.share50ms', 'a.wav', 'cubes'),
+            cell('live.hit.share50ms', 'a.wav', 'bass'),
+        ]);
+        expect(merged.cells.map((c) => `${c.metric}|${c.visualizer}`)).toEqual([
+            'live.hit.share50ms|bass',
+            'live.hit.share50ms|cubes',
+            'onset.f50.kick|rhythm',
+            'tempo.within2pct|rhythm',
+        ]);
     });
 });

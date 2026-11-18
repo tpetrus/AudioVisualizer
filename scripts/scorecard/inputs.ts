@@ -9,6 +9,8 @@ import { parseBeatSidecar } from '../../app/features/rhythm/eval/sidecar';
 import { GROUND_TRUTH_TRACKS, renderGroundTruthTrack } from '../ground-truth/render';
 import { readWav } from '../rhythm-tools/wav';
 import { measureTrack } from './engine/measureTrack';
+import { LIVE_FILE } from './live/args';
+import { TARGETS_VERSION } from './targets';
 import { EXPECTED_TRACKS, resolveTrack } from './tracks';
 import type { ScorecardInput } from './cells';
 import type { Scorecard, ScorecardCell, TrackClass, TrackMeasures } from './types';
@@ -23,6 +25,8 @@ export interface RunArgs {
 export const DEFAULT_DIR = '.debug-in';
 export const DEFAULT_OUT = 'docs/agents/hub-scorecard';
 export const BASELINE_PATH = 'docs/agents/hub-scorecard.baseline.json';
+// Where `npm run scorecard:live` writes; this runner merges it in when it exists.
+export const LIVE_PATH = LIVE_FILE;
 
 export function parseRunArgs(argv: readonly string[]): RunArgs {
     const args: RunArgs = { dir: DEFAULT_DIR, out: DEFAULT_OUT, writeBaseline: false, help: false };
@@ -156,4 +160,33 @@ export function summaryLine(scorecard: Scorecard): string {
         applicable.filter((cell) => cell.status === status).length;
     const blockingFailures = applicable.filter((cell) => cell.blocking && !cell.pass).length;
     return `Applicable cells ${applicable.length}: ${count('pass')} passing, ${count('fail')} failing, ${count('unavailable')} unavailable. Blocking failures: ${blockingFailures}.`;
+}
+
+// The live cells to merge into the scorecard: those of the live file, when it exists and was written for this targets
+// version. A file of another version is left out with a warning, since its floors and metrics are not this build's.
+// No file gives no cells and no warning, so the offline output does not change.
+export function readLiveCells(path: string): { cells: ScorecardCell[]; warning?: string } {
+    if (!existsSync(path)) return { cells: [] };
+    const file = JSON.parse(readFileSync(path, 'utf8')) as Partial<Scorecard>;
+    const version = file.header?.targetsVersion;
+    if (version !== TARGETS_VERSION) {
+        return {
+            cells: [],
+            warning: `${path} is targets version ${version}, this build is ${TARGETS_VERSION}; the live cells are left out`,
+        };
+    }
+    return { cells: file.cells ?? [] };
+}
+
+// Plain code-unit order, so the output does not depend on the machine's locale.
+const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+// Adds live cells to a scorecard, keeping the cell order (metric, track, visualizer). With no live cells the scorecard
+// is returned as it is.
+export function withLiveCells(scorecard: Scorecard, live: readonly ScorecardCell[]): Scorecard {
+    if (live.length === 0) return scorecard;
+    const cells = [...scorecard.cells, ...live].sort(
+        (a, b) => compare(a.metric, b.metric) || compare(a.track, b.track) || compare(a.visualizer, b.visualizer),
+    );
+    return { ...scorecard, cells };
 }
