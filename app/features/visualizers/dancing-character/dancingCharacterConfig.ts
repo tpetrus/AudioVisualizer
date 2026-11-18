@@ -1,4 +1,14 @@
+import { BUMP_GAIN, BUMP_MARGIN } from '~/features/audio/hub/bassBump';
+
 // Every tuning constant of the dancing character lives here, so the pure modules stay free of magic numbers.
+
+// ---- The bass envelope that feeds the bass gate ----
+
+// The gate's kick detector needs clean rises, and the cubes' margin and gain were tuned for the look of a flash, so the
+// dancer has its own pair. For now they equal the cubes' values; they are chosen offline with
+// `npm run replay:gate -- <recording.csv> --bump-margin N --bump-gain N`.
+export const DANCER_BUMP_MARGIN = BUMP_MARGIN;
+export const DANCER_BUMP_GAIN = BUMP_GAIN;
 
 // ---- The dances (assets/MakeHumanDances.glb) ----
 

@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 
 const folder = import.meta.dirname;
 
-// Beat, bar and tempo come only from the shared rhythm tracker, and the bass only from the shared BassPulse. This
+// Beat, bar and tempo come only from the shared rhythm tracker, and the bass only from the shared audio hub. This
 // folder must not grow an analysis path of its own (a second filter chain or FFT read would duplicate work and drift
 // from the tracker). The scan bans the analysis calls themselves. The bare `AnalyserNode` type is allowed, but only
 // as a type annotation (`: AnalyserNode`, `| AnalyserNode`, `<AnalyserNode`), because the hook has to name the type of
-// the source it hands to BassPulse and a type cannot analyze anything. Any other use, such as `new` or `instanceof`,
+// the source it watches for a change and a type cannot analyze anything. Any other use, such as `new` or `instanceof`,
 // still fails.
 const BANNED_CALLS = [
     'getByteFrequencyData',

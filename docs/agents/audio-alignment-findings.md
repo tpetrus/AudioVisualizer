@@ -443,7 +443,7 @@ an older item, check that it still applies: some were recorded against code that
 | S9 tap-along and harness instrumentation | done |
 | S10 presentation audit | done (`audio-presentation-audit.md`) |
 | S7 shared audio hub, cubes as the reference migration, docs | done (`feat/audio-hub`); migration check in `audio-presentation-audit.md` |
-| S8 every other visualizer reads the hub, the audit is closed | not started |
+| S8 every other visualizer reads the hub, the audit is closed | started: dancing character in draft #96, held for the bass gate input (see "S8 and the bass gate input" below) |
 
 Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
@@ -458,7 +458,8 @@ Suggested order:
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave` (closed: intended behavior).
 4. S7 (done). It froze contract C5, the hub snapshot, before any worker started.
-5. S8, one pull request per visualizer, bass ink last.
+5. S8, one pull request per visualizer, bass ink last. Held after the dancing character (#96) until the follow-up
+   plan below settles the bass gate's input.
 
 The other tracker items can wait until after S7, because none of them blocks it.
 
@@ -468,6 +469,33 @@ person would dance at to that song. The octave prior is centered at 128.5 BPM, w
 track with eighth notes that can be heard reads at double time (65 reads 130), 80 BPM stays 80 because 160 is too fast
 to step to, and a pulse above about 182 BPM folds to half time, as drum and bass is danced. Judge octave fixes against
 this rule, not against the notated beat.
+
+### S8 and the bass gate input (follow-up plan in progress)
+Moving the dancing character onto the hub (draft #96) passed the reaction-delay check (`dancing-character.in` on
+`drums-128`: 30.4 ms over three runs against 29.0 ms before, limit 39.0 ms) but not the bass gate. Fed the hub's low end
+(the louder of `sub` and `kick`) through `BassBump`, the shared gate opens later and far less repeatably than with
+`BassPulse`. Replayed with `npm run replay:gate`, from the first locked frame, two runs each:
+
+| Track | `BassPulse` | Hub, cubes' margin and gain | Hub, best of a 36-pair sweep (margin 1.12, gain 1.0) |
+|---|---|---|---|
+| `drums-128` | 3.89, 3.89 s | 6.0, 4.6 s | 4.6, 4.6 s |
+| `imyourgirl` | 4.52, 4.53 s | 4.5, 4.5 s | 4.5, 4.5 s |
+| `lonley` | 5.62, 5.61 s | 8.4, 5.6 s | 5.6, 8.4 s |
+| `summer2000` | 6.86, 6.96 s | 21.2 s, never | 21.2, 9.3 s |
+| `syncopationbass` | 15.0, 18.0 s | 9.5, 9.5 s | 11.5, 11.0 s |
+| `syncopationbass2` | 4.05, 3.97 s | 6.4, 9.2 s | 4.1, 4.1 s |
+| `syncopation-no-kick` (should stay shut) | 4.51, 4.50 s | 8.4, 11.6 s | 5.5, 6.6 s |
+
+`BassPulse` repeats within about 0.1 s per track; the hub-fed gate varies by up to 10 s between runs. No margin and gain
+from 1.0 to 1.12 and 1 to 6 matches `BassPulse` on every track. The suspected cause, not yet tested, is timing rather
+than level: the hub hands over bands in 20 ms batches scaled by a running peak, so the per-frame value steps with batch
+arrival, and the gate's level-rise kick detector scatters its kick positions.
+
+Trevor is writing a separate plan, in the same format as this one, to research and resolve this. It replaces the
+choice recorded at the end of S8a (move the dancing character back to `BassPulse`, or have the gate count the hub's
+time-stamped kick onsets). Until it lands: #96 stays a draft, the rest of S8 (bass ink, and the trio-color-wave audit
+note) waits for it, and `FU-S10-basspulse-time-based` stays open. The tooling from #96 (`BassBump` options, the
+dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-gain`) is there for that plan to use.
 
 ### Audio hub follow-ups (from the S7 review)
 - **`FU-S7-hub-no-source`** (needs a full run and Trevor: it changes contract C5): with no bound source `hub.update()`
