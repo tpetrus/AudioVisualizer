@@ -1,0 +1,217 @@
+[
+  {
+    "metric": "ac9.dottedPassageQuiet",
+    "track": "scenario:dotted-passage",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "click-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "no-kick-124.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "beat.errorMedianMs",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.bass",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.bass",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.highs",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.highs",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.highs",
+    "track": "no-kick-124.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.highs",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.highs",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.kick",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.kick",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.kick",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.kick",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.kick",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "click-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "no-kick-124.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.snare",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "click-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "no-kick-124.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.falseSongChanges",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "click-120.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "drums-100.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "no-kick-124.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "pad-lead-groove-110.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "tempo.maxErrorAfterLock",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "rhythm"
+  }
+]

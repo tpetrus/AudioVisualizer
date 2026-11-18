@@ -16,3 +16,5 @@ playwright/.cache/
 scripts/title-banner/*.json
 # Exported plans are hash-verified and must never be rewritten.
 docs/plans/**/*.plan.json
+# Written by npm run scorecard and scorecard:live on every run.
+docs/agents/hub-scorecard*.json
