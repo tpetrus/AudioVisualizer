@@ -86,4 +86,26 @@ describe('renderMarkdown', () => {
         expect(renderMarkdown(card([cell({ metric: 'solo' })]))).toContain('## solo');
         expect(renderMarkdown(card([]))).toContain('Applicable cells 0: 0 passing, 0 failing, 0 unavailable.');
     });
+    it('renders live cells in their own table with the visualizer, spread and run count', () => {
+        const live = cell({
+            metric: 'live.reaction.latencyMs',
+            track: 'drums-128.wav',
+            visualizer: 'cubes',
+            source: 'live',
+            blocking: false,
+            floor: null,
+            stretch: 46.7,
+            prehub: 28,
+            value: 31.25,
+            spread: 4.5,
+            runs: 4,
+        });
+        const text = renderMarkdown(card([cell({}), live]));
+        expect(text).toContain('## live');
+        expect(text).toContain('| Metric | Track | Visualizer | Class | Median | Spread | Runs |');
+        expect(text).toContain(
+            '| live.reaction.latencyMs | drums-128.wav | cubes | synthetic | 31.3 | 4.5 | 4 | - | 46.7 | 28.0 | pass (advisory) |',
+        );
+        expect(text).not.toContain('| live.reaction.latencyMs | drums-128.wav | synthetic |');
+    });
 });

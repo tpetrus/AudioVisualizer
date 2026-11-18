@@ -24,6 +24,14 @@ function row(cell: ScorecardCell): string {
     return `| ${cell.metric} | ${cell.track} | ${cell.class} | ${formatNumber(cell.value, unit)} | ${formatNumber(cell.floor, unit)} | ${formatNumber(cell.stretch, unit)} | ${formatNumber(cell.prehub, unit)} | ${status} |`;
 }
 
+// Live cells (source live) come from browser runs on several visualizers, so their table also shows the visualizer, the
+// run-to-run spread and the run count; the value is the median over the runs.
+function liveRow(cell: ScorecardCell): string {
+    const unit = unitOf(cell.metric);
+    const status = cell.status === 'n/a' ? cell.status : `${cell.status} (advisory)`;
+    return `| ${cell.metric} | ${cell.track} | ${cell.visualizer} | ${cell.class} | ${formatNumber(cell.value, unit)} | ${formatNumber(cell.spread, unit)} | ${cell.runs} | ${formatNumber(cell.floor, unit)} | ${formatNumber(cell.stretch, unit)} | ${formatNumber(cell.prehub, unit)} | ${status} |`;
+}
+
 // `notes` carries caveats the cells cannot, such as an unobservable scenario count.
 export function renderMarkdown(scorecard: Scorecard, notes: string[] = []): string {
     const applicable = scorecard.cells.filter((cell) => cell.applicable);
@@ -50,6 +58,19 @@ export function renderMarkdown(scorecard: Scorecard, notes: string[] = []): stri
         groups.set(group, [...(groups.get(group) ?? []), cell]);
     }
     for (const [group, cells] of groups) {
+        if (group === 'live') {
+            lines.push(
+                '',
+                '## live',
+                '',
+                'Median over the runs; spread is max minus min; advisory (decision D13).',
+                '',
+                '| Metric | Track | Visualizer | Class | Median | Spread | Runs | Floor | Stretch | Pre-hub | Status |',
+                '|---|---|---|---|---|---|---|---|---|---|---|',
+                ...cells.map(liveRow),
+            );
+            continue;
+        }
         lines.push(
             '',
             `## ${group}`,

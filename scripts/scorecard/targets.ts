@@ -220,6 +220,145 @@ export const SCENARIO_TARGETS: readonly ScenarioTarget[] = [
     },
 ];
 
+// The live cells (S3): measured from debug:viz recordings in a browser, 4 runs per track, advisory rather than blocking
+// (decision D13). `npm run scorecard:live` reads this table; the ratchet knows their direction through directionOf.
+export type LiveVisualizer = 'dancing-character' | 'cubes' | 'trio-color-wave';
+
+// The telemetry column whose rise is the visualizer's reaction to a beat (AC8).
+export const LIVE_REACTION_COLUMN: Readonly<Record<LiveVisualizer, string>> = {
+    'dancing-character': 'dancing-character.out',
+    cubes: 'cubes.out',
+    'trio-color-wave': 'trio-color-wave.out',
+};
+
+// AC8's hit, defined once: a labeled beat is hit when the reaction column rises by at least LIVE_RISE_FRACTION of its
+// whole-recording range above its level just before the beat, within LIVE_HIT_WINDOW_SECONDS after the beat. A fire is
+// the first row of such a rise; a fire that is no labeled beat's hit is a false fire.
+export const LIVE_HIT_WINDOW_SECONDS = 0.05;
+export const LIVE_RISE_FRACTION = 0.2;
+
+export interface LiveMetricTarget {
+    id: string;
+    description: string;
+    direction: MetricDirection;
+    unit: MetricUnit;
+    // The absolute target from the acceptance criteria; null when the pre-hub value is the only bound or none applies.
+    floor: number | null;
+    stretch: number | null;
+    // How much worse than the pre-hub median a live median may be before it counts as worse than pre-hub. Browser runs
+    // jitter, so an exact comparison would flap. null means the pre-hub value is shown but does not bound the floor.
+    prehubTolerance: number | null;
+    visualizers: readonly LiveVisualizer[];
+    applies: (trackClass: TrackClass, kick: boolean) => boolean;
+    // True when the metric is judged against the track's .beats.json; a missing sidecar makes the cell unavailable.
+    needsBeats: boolean;
+    // A per-run metric is judged run by run (the cell passes when at least 3 of 4 runs pass); a cross-run metric is one
+    // number over the runs that already encodes the 3-of-4 rule.
+    perRun: boolean;
+}
+
+const isReal = (trackClass: TrackClass): boolean => trackClass === 'tapped' || trackClass === 'drifting';
+const kickWithBeat = (trackClass: TrackClass, kick: boolean): boolean => kick && hasBeat(trackClass);
+const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio-color-wave'];
+
+export const LIVE_METRICS: readonly LiveMetricTarget[] = [
+    {
+        // AC6 in the browser: the first row whose gateOpen column is 1, on track time.
+        id: 'live.gate.firstOpenSeconds',
+        description: 'Seconds from track start until the dancing character gate first opens, live',
+        direction: 'lower',
+        unit: 'seconds',
+        floor: 4,
+        stretch: 2,
+        prehubTolerance: 0.5,
+        visualizers: ['dancing-character'],
+        applies: kickWithBeat,
+        needsBeats: false,
+        perRun: true,
+    },
+    {
+        // AC7: per run, the largest circular distance (in loops) between the run's dance clip phase and the median of
+        // all runs at the same track time, sampled every 0.25 s from the latest run's meter lock, as compareRuns samples.
+        id: 'live.clip.maxDeviationLoops',
+        description: 'Largest distance of the dance clip phase of a run from the run median after lock, in loops',
+        direction: 'lower',
+        unit: 'fraction',
+        floor: 0.05,
+        stretch: null,
+        prehubTolerance: null,
+        visualizers: ['dancing-character'],
+        applies: (trackClass) => isReal(trackClass),
+        needsBeats: false,
+        perRun: true,
+    },
+    {
+        // AC7: the first tempoLocked time of each run; the value is the range of the 3 runs closest together, so it
+        // passes when at least 3 of 4 runs lock within 2 s of each other.
+        id: 'live.lock.spreadSeconds',
+        description: 'Range of the dancer lock times over the 3 closest of 4 runs',
+        direction: 'lower',
+        unit: 'seconds',
+        floor: 2,
+        stretch: null,
+        prehubTolerance: null,
+        visualizers: ['dancing-character'],
+        applies: (trackClass) => isReal(trackClass),
+        needsBeats: false,
+        perRun: false,
+    },
+    {
+        // AC8: hits / (hits + misses) over the labeled beats the recording covers.
+        id: 'live.hit.share50ms',
+        description: 'Share of labeled beats with a reaction within 50 ms',
+        direction: 'higher',
+        unit: 'fraction',
+        floor: null,
+        stretch: 0.9,
+        prehubTolerance: 0.05,
+        visualizers: ALL_LIVE,
+        applies: kickWithBeat,
+        needsBeats: true,
+        perRun: true,
+    },
+    {
+        // Success metric stretch only (at most 10% false fires): reported, not bounded by pre-hub.
+        id: 'live.falseFire.share',
+        description: 'Share of reaction fires that hit no labeled beat',
+        direction: 'lower',
+        unit: 'fraction',
+        floor: null,
+        stretch: 0.1,
+        prehubTolerance: null,
+        visualizers: ALL_LIVE,
+        applies: kickWithBeat,
+        needsBeats: true,
+        perRun: true,
+    },
+    {
+        // AC8: the median delay of a reaction after a labeled beat, as measureReactionOffset measures it (its default
+        // 250 ms search window). The stretch is 30 ms plus one 60 Hz frame.
+        id: 'live.reaction.latencyMs',
+        description: 'Median reaction delay after a labeled beat',
+        direction: 'lower',
+        unit: 'ms',
+        floor: null,
+        stretch: 30 + 1000 / 60,
+        prehubTolerance: 5,
+        visualizers: ALL_LIVE,
+        applies: kickWithBeat,
+        needsBeats: true,
+        perRun: true,
+    },
+];
+
+// The floor a live value is judged against: the AC floor, tightened by the pre-hub median widened by the tolerance.
+export function liveEffectiveFloor(metric: LiveMetricTarget, prehub: number | null): number | null {
+    if (prehub === null || metric.prehubTolerance === null) return metric.floor;
+    const bound = metric.direction === 'lower' ? prehub + metric.prehubTolerance : prehub - metric.prehubTolerance;
+    if (metric.floor === null) return bound;
+    return metric.direction === 'lower' ? Math.min(metric.floor, bound) : Math.max(metric.floor, bound);
+}
+
 export function floorFor(metric: MetricTarget, trackClass: TrackClass): number | null {
     return metric.floorByClass?.[trackClass] ?? metric.floor;
 }
@@ -234,11 +373,15 @@ export function effectiveFloor(direction: MetricDirection, floor: number | null,
 export function directionOf(metricId: string): MetricDirection | null {
     const metric = METRICS.find((candidate) => candidate.id === metricId);
     if (metric) return metric.direction;
+    const live = LIVE_METRICS.find((candidate) => candidate.id === metricId);
+    if (live) return live.direction;
     return SCENARIO_TARGETS.find((candidate) => candidate.id === metricId)?.direction ?? null;
 }
 
 export function unitOf(metricId: string): MetricUnit {
     const metric = METRICS.find((candidate) => candidate.id === metricId);
     if (metric) return metric.unit;
+    const live = LIVE_METRICS.find((candidate) => candidate.id === metricId);
+    if (live) return live.unit;
     return SCENARIO_TARGETS.find((candidate) => candidate.id === metricId)?.unit ?? 'fraction';
 }

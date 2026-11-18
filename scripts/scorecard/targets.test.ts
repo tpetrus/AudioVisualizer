@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { METRICS, SCENARIO_TARGETS, TARGETS_VERSION, directionOf, effectiveFloor, floorFor, unitOf } from './targets';
+import {
+    LIVE_METRICS,
+    METRICS,
+    SCENARIO_TARGETS,
+    TARGETS_VERSION,
+    directionOf,
+    effectiveFloor,
+    floorFor,
+    liveEffectiveFloor,
+    unitOf,
+} from './targets';
 import type { TrackMeasures } from './types';
 
 function measures(overrides: Partial<TrackMeasures> = {}): TrackMeasures {
@@ -184,5 +194,46 @@ describe('lookups', () => {
         expect(unitOf('beat.errorMedianMs')).toBe('ms');
         expect(unitOf('ac9.dottedChangeCounted')).toBe('count');
         expect(unitOf('nope')).toBe('fraction');
+    });
+});
+
+describe('live metrics', () => {
+    const live = (id: string) => {
+        const metric = LIVE_METRICS.find((candidate) => candidate.id === id);
+        if (!metric) throw new Error(id);
+        return metric;
+    };
+
+    it('have unique ids that do not clash with the offline metrics, and are known to directionOf and unitOf', () => {
+        const ids = LIVE_METRICS.map((metric) => metric.id);
+        expect(new Set(ids).size).toBe(ids.length);
+        for (const metric of LIVE_METRICS) {
+            expect(metric.id.startsWith('live.')).toBe(true);
+            expect(METRICS.some((offline) => offline.id === metric.id)).toBe(false);
+            expect(directionOf(metric.id)).toBe(metric.direction);
+            expect(unitOf(metric.id)).toBe(metric.unit);
+        }
+    });
+
+    it('bound the floor by the pre-hub median widened by the tolerance', () => {
+        // The gate: within 4 s and no later than pre-hub plus 0.5 s.
+        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), null)).toBe(4);
+        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), 2)).toBe(2.5);
+        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), 6)).toBe(4);
+        // Hit share has no absolute floor: pre-hub minus 0.05 is the bound, and without pre-hub it is report-only.
+        expect(liveEffectiveFloor(live('live.hit.share50ms'), null)).toBeNull();
+        expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.5)).toBeCloseTo(0.45);
+        expect(liveEffectiveFloor(live('live.reaction.latencyMs'), 28)).toBe(33);
+        // False fires and clip phase show pre-hub without being bounded by it.
+        expect(liveEffectiveFloor(live('live.falseFire.share'), 0.3)).toBeNull();
+        expect(liveEffectiveFloor(live('live.clip.maxDeviationLoops'), 0.01)).toBe(0.05);
+    });
+
+    it('apply AC7 to real tracks only and AC8 to kick tracks with a beat', () => {
+        expect(live('live.lock.spreadSeconds').applies('tapped', false)).toBe(true);
+        expect(live('live.lock.spreadSeconds').applies('synthetic', true)).toBe(false);
+        expect(live('live.hit.share50ms').applies('synthetic', true)).toBe(true);
+        expect(live('live.hit.share50ms').applies('beatless', true)).toBe(false);
+        expect(live('live.hit.share50ms').applies('tapped', false)).toBe(false);
     });
 });
