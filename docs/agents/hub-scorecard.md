@@ -6,8 +6,12 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
 
 ## How to run it
 - `npm run scorecard` replays the app's own rhythm pipeline, band onsets, `AudioHub` and the dancing character's gate
-  over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.json` and `.md` here. About 6 s for
-  the current folder, and two runs give identical cells.
+  over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.cells.json` and `.md` here (not
+  `hub-scorecard.md`, which is this doc). About 8 s for the current folder, and two runs give identical cells. It merges
+  the live cells from `hub-scorecard.live.json` when their targets version matches.
+- `npm run scorecard:live -- --viz <name>` records the live cells (4 `debug:viz` runs per track: two fresh page loads
+  and one page that plays the track twice); `--ingest <folder> --prehub` reads runs of the pre-hub build. About 45 min
+  per visualizer. Live cells are advisory (decision D13): they never block.
 - `npm run scorecard -- --write-baseline` also writes `hub-scorecard.baseline.json`; `npm run scorecard:check` then fails
   on any blocking cell that passed in the baseline and no longer does, on a changed `.beats.json` hash, or on a changed
   targets version.
@@ -45,6 +49,8 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
 ## S3 findings, offline (targets version 3)
 Measured on `test/hub-scorecard` after the S3 engine work (`91322a2`): 142 of 170 applicable cells pass, 28 fail, all
 blocking. The S2 table above is kept for history; the cells moved because the replay now applies the engine's gain.
+Rerun at targets version 4 (`043ddd8`, AC6 timed from the lock) for the committed baseline: still 142 of 170, and the 16
+gate failures are now `gate.secondsAfterLock` (only the gate cells changed metric).
 
 ### Offline versus live (risk K1, question Q1): answered
 - **Most of the gap was a definition.** The live figures in `audio-alignment-findings.md` are timed from the first
@@ -139,11 +145,93 @@ and `BassPulse`. Seconds from the dancer's lock to the first opening, offline, o
 | `tempo.beatlessNeverLocks` | `beatless` locks at 3.1 s (and the dancer's lock holds, so both gates open) | S7 |
 | `ac9.dottedChangeCounted` | the dotted 100 to 150 change is never counted (the shelved 3/2 work) | S7, deferral candidate (D11) |
 
-## Open for S3
-- Live cells (`npm run scorecard:live`, metrics in `targets.ts` under `LIVE_METRICS`): record today's build and the
-  pre-hub worktree on `dancing-character`, `cubes` and `trio-color-wave`, then commit the baseline.
-- C1: the third-option search is above; Trevor picks the input (or asks for more) before S4.
-- Review with Trevor once the live cells are in: stretch targets (D10), which fix slices proceed, and deferrals.
+## S3 findings, live (targets version 4)
+Recorded headless on 2026-11-17 and 18, one run at a time from the main checkout: today's build at `043ddd8`, and the
+pre-hub build at `2a19e55` from a worktree with its own `npm ci`. 4 runs per track (two fresh page loads, then one page
+that plays the track twice), on 17 tracks for `dancing-character` and the 15 kick tracks for `cubes` and
+`trio-color-wave`. 182 applicable live cells: 133 pass, 35 fail, 14 unavailable (`bassline-kick-120` is rendered in
+memory and has no WAV to play, and 4 dancer latency cells have fewer than 3 measurable runs). With the 170 offline cells
+the committed scorecard has 352: 275 pass, 63 fail, 14 unavailable. The hit share and latency floors are the pre-hub
+median plus a tolerance (0.05 and 5 ms), so those cells fail only where the hub made a visualizer worse.
+
+| Metric | Dancer | Cubes | Trio |
+|---|---|---|---|
+| `live.gate.secondsAfterLock` (floor 4 s) | 1 pass, 14 fail | - | - |
+| `live.clip.maxDeviationLoops` (floor 0.05) | 6 pass, 5 fail | - | - |
+| `live.lock.spreadSeconds` (floor 2 s) | 11 pass | - | - |
+| `live.hit.share50ms` (no worse than pre-hub) | 11 pass, 4 fail | 13 pass, 2 fail | 15 pass |
+| `live.reaction.latencyMs` (no worse than pre-hub) | 7 pass, 4 fail, 4 unavailable | 10 pass, 5 fail | 14 pass, 1 fail |
+| `live.falseFire.share` (report only) | 15 | 15 | 15 |
+
+### Gate, live: the offline causes confirmed
+Seconds from the dancer's lock to the first opening, median of 4 runs (pre-hub in parentheses). Only `drums-128` meets
+4 s (3.9; 3.9 pre-hub), so the gate rule's pace (S5) is still the main cause on every other track.
+- **The hub's input is later:** `summer2000` 17.4 s and 2 of 4 runs never open (7.7 s, all 4 open),
+  `syncopationbass2` 6.4 (4.1), `drifting-tempo` 5.2 (4.6), `drums-100` 5.4 (4.9). Owner S4.
+- **The hub's input is earlier:** `syncopationbass` 9.3 (15.0), `high-bpm-dnb` 16.2 with 2 runs at 10.5 (never opens
+  pre-hub), `imyourgirl` 4.1 (4.5), `drums-150` 4.0 (4.5).
+- **The same within 0.1 s:** `drums-128`, `half-time-shuffle` 10.7, `lonley` 5.6 and the three trap tracks (4.3 to
+  5.9). `low-bpm-rnb` opens about 20 s after the lock in both builds, and one run never opens in either.
+- **`lonley` is the same live in both builds** (5.6 s), while offline it is 17.1 s against 11.5 s. The offline `lonley`
+  gap above is a replay artifact; tune `lonley` live.
+
+### Clip phase (AC7): two causes, both older than the hub
+The same 4 tracks fail pre-hub (`6-8-time`, `drifting-tempo`, `half-time-shuffle`, `summer2000`); `low-bpm-rnb` fails
+only today, through one run's lock (below).
+- **Re-select keeps the dance (owner S8).** In both builds, the second play in one page continues the auto rotation (a
+  new dance every 8 bars, `AUTO_ROTATE_BARS`) from the dance the first play ended on: `restartDance` rewinds the clock
+  and resets the director but keeps the active dance. So that run is a step further along the rotation than a fresh
+  load. On `imyourgirl`, `half-time-shuffle` and `6-8-time` it dances another clip from the start (on `imyourgirl` a
+  4-beat loop, 0.25 loop per beat, against the fresh runs' 8-beat loop at 0.125). On `lonley`, `summer2000`,
+  `drifting-tempo`, `syncopation-no-kick`, `syncopationbass` and `syncopationbass2` it rotates into the 4-beat dance at
+  18 to 30 s, where the fresh runs' clip keeps its 8-beat loop. It then reads 0.44 to 0.5 loop off on 9 of 11 tracks;
+  the 3-of-4 rule hides it wherever the other 3 runs agree. (`high-bpm-dnb`'s re-select run is 0.37 off with no change
+  of loop length; not isolated.)
+- **Fresh runs disagree (owner S7).** `6-8-time`: the runs settle on different tempos (120 against 184 to 190 bpm).
+  `summer2000`: two fresh runs' beat grids sit a beat apart (0.11 to 0.13 loop from 9 to 17 s, 0.16 to 0.19 from 26 s),
+  the live side of its 129 ms beat error. `low-bpm-rnb`: one run locks at 8.2 s instead of 3.2 s and follows another
+  tempo path (0.28 loop), which with the re-select run splits the 4 runs 2 against 2. `half-time-shuffle`: two runs'
+  clips jump about half a loop at different moments late in the track (26.5 and 27.7 s); not isolated (S8, or S7 if it
+  is the 3-beat bar the tracker reports from 19 s).
+- **Lock spread passes everywhere** (the closest 3 runs lock within 0.06 s), but `drifting-tempo` and `low-bpm-rnb` each
+  had one run lock 5 s away from the others (3.2 against 8.2 s), the decision edge already seen on `syncopationbass`.
+
+### Reaction (AC8): `cubes` is later through the hub, `trio-color-wave` is unchanged
+- **`cubes` (owner S4):** on clean synthetic drums its median reaction is 8 to 12 ms later than pre-hub, and every run
+  is later than every pre-hub run: `drums-150` 40 against 31 ms, `trap-2to1-double-90` 39 against 31,
+  `trap-2to1-half-140` 26 against 15; on `syncopationbass` 89 against 70. The 50 ms hit share drops on `drums-150` (0.22
+  against 0.47) and `trap-2to1-double-90` (0.88 against 1.0). On real songs it is earlier: `summer2000` 98 against 144
+  ms (hit share 0.14 against 0.03), `lonley` 54 against 71, `imyourgirl` 39 against 49. The `low-bpm-rnb` latency fail
+  (43 against 33 ms) is inside both builds' run spread (20 to 47 ms). The mechanism of the delay is not isolated yet;
+  the cubes input is the hub's low end since the hub merge.
+- **`dancing-character` (owner S4):** later on `trap-2to1-half-140` in all 4 runs (34 against 25 ms); fewer hits on
+  `drums-150` (2 runs never hit; 1 run pre-hub) and slightly fewer on `trap-4to3-120` (0.53 against 0.57). Its other
+  fails are noise, explained in the next bullet. The dancer never hits within 50 ms on `drums-100` or `low-bpm-rnb` in
+  either build, so those cells pass at 0.
+- **The tolerances are tighter than the run-to-run noise.** One frame at 60 fps is 16.7 ms, more than the 5 ms latency
+  tolerance, and the dancer's hit share is bimodal per run in both builds (a run hits about 0.7 or 0). The dancer fails
+  on `drifting-tempo` hit share with the same median as pre-hub (0.36) and on `drums-128` and `trap-2to1-double-90`
+  latency by 2 ms; the `trio-color-wave` `imyourgirl` latency fail is two runs 0.2 ms over its floor. A tolerance of
+  one frame, or the pre-hub run spread, would separate these from the real changes above (a targets change, for the
+  review).
+- **False fires** are 0.5 to 1.0 for `cubes` and `trio-color-wave` on most tracks in both builds: every reaction to an
+  onset that is not a labeled beat counts as false. Report only until `FU-HR-falsefire-onset` settles the rule.
+
+### Failing live cells by owner
+| Cells | Tracks | Cause | Owner |
+|---|---|---|---|
+| `live.gate.secondsAfterLock` | 14 kick tracks | the gate rule's pace; the hub input is later on `summer2000`, `syncopationbass2`, `drifting-tempo`, `drums-100` | S5, S4 |
+| `live.clip.maxDeviationLoops` | `6-8-time`, `drifting-tempo`, `half-time-shuffle`, `low-bpm-rnb`, `summer2000` | re-select keeps the dance; tempo, beat and meter disagreements between fresh runs | S8, S7 |
+| `live.hit.share50ms`, `live.reaction.latencyMs` (`cubes`) | `drums-150`, `trap-2to1-double-90`, `trap-2to1-half-140`, `syncopationbass`; `low-bpm-rnb` is noise | cubes reacts later through the hub | S4 |
+| `live.hit.share50ms`, `live.reaction.latencyMs` (dancer) | `drums-150`, `trap-4to3-120`, `trap-2to1-half-140`; `drifting-tempo`, `drums-128`, `trap-2to1-double-90`, `syncopationbass` are noise | later reaction through the hub | S4 |
+| `live.reaction.latencyMs` (`trio-color-wave`) | `imyourgirl` | noise (0.2 ms over) | none, tolerance |
+
+## Open for the S3 review
+- C1: the third-option search is above; Trevor picks the input (or asks for more) before S4. The two-gate option needs
+  its false-open rate measured first.
+- Stretch targets (D10), which fix slices proceed and any deferrals (D11).
+- The live tolerances: one frame (16.7 ms) or the pre-hub run spread for latency, and a per-run rule that copes with the
+  dancer's bimodal hit share.
 
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
