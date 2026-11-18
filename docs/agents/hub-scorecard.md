@@ -146,7 +146,7 @@ and `BassPulse`. Seconds from the dancer's lock to the first opening, offline, o
 | `tempo.beatlessNeverLocks` | `beatless` locks at 3.1 s (and the dancer's lock holds, so both gates open) | S7 |
 | `ac9.dottedChangeCounted` | the dotted 100 to 150 change is never counted (the shelved 3/2 work) | deferred (D11) |
 
-## S3 findings, live (targets version 5)
+## S3 findings, live (targets version 6)
 Recorded headless on 2026-11-17 and 18, one run at a time from the main checkout: today's build at `043ddd8`, and the
 pre-hub build at `2a19e55` from a worktree with its own `npm ci`. 4 runs per track (two fresh page loads, then one page
 that plays the track twice), on 17 tracks for `dancing-character` and the 15 kick tracks for `cubes` and
@@ -154,7 +154,8 @@ that plays the track twice), on 17 tracks for `dancing-character` and the 15 kic
 review (every per-run value is identical to version 4; the file's revision is the commit it was ingested on, and the app
 code is unchanged since `043ddd8`). 172 applicable live cells: 143 pass, 25 fail, 4 unavailable (dancer latency cells
 with fewer than 3 measurable runs; `bassline-kick-120` is rendered in memory, has no WAV to play and so has no live
-cells). With the 170 offline cells the committed scorecard has 342: 285 pass, 53 fail, 4 unavailable. The hit share
+cells). Version 6 (below) moved 3 hit share cells to fail: 140 pass, 28 fail, 4 unavailable. With the 170 offline cells
+the committed scorecard has 342: 282 pass, 56 fail, 4 unavailable. The hit share
 floor is the pre-hub median minus 0.05 and the latency floor the pre-hub median plus one frame (16.7 ms), so those cells
 fail only where the hub made a visualizer worse.
 
@@ -163,9 +164,23 @@ fail only where the hub made a visualizer worse.
 | `live.gate.secondsAfterLock` (floor 4 s) | 1 pass, 14 fail | - | - |
 | `live.clip.maxDeviationLoops` (floor 0.05) | 6 pass, 5 fail | - | - |
 | `live.lock.spreadSeconds` (floor 2 s) | 11 pass | - | - |
-| `live.hit.share50ms` (no worse than pre-hub) | 13 pass, 2 fail | 13 pass, 2 fail | 15 pass |
+| `live.hit.share50ms` (no worse than pre-hub) | 13 pass, 2 fail | 11 pass, 4 fail | 14 pass, 1 fail |
 | `live.reaction.latencyMs` (no worse than pre-hub) | 10 pass, 1 fail, 4 unavailable | 14 pass, 1 fail | 15 pass |
 | `live.falseFire.share` (report only) | 15 | 15 | 15 |
+
+### Version 6: one fire-to-beat rule (`FU-HR-falsefire-onset`)
+At version 5 the hit share compared a rise with the level just before the beat, while the false-fire share counted a
+fire only in [beat, beat + 50 ms]. A reaction a few ms ahead of a tapped beat (tapped beats jitter about 20 ms) was then
+a hit and a false fire at once, or a miss and a false fire. Version 6 uses one detector and one window for both: a fire
+is the first row 0.2 of the column's range above its minimum over the previous 50 ms, and it belongs to a beat when it
+lies in [beat - 20 ms, beat + 50 ms] (`liveFireHitsBeat` in `targets.ts`). Recomputed with `--ingest` from the same
+recordings (the version 5 file reproduces exactly first; `cubes` `drums-128` is pinned to its 4 S3 runs of 2026-11-18,
+because the folder holds newer ones): false fires fall in every run that changed (150 runs, mean -0.03), hit share rises
+in 117 runs and falls in 33 (a rise that starts more than 20 ms early is no longer a hit; a rise on an already raised
+column is no fire). No offline cell changes. 3 hit share cells now fail, all on tracks hit below 0.25 in both builds:
+`cubes` `drifting-tempo` (0.018 against a pre-hub median that rises from 0 to 0.080, since pre-hub `cubes` reacts
+just ahead of the beat), `cubes` `low-bpm-rnb` (0.100 against 0.157) and `trio-color-wave` `low-bpm-rnb` (0.157
+against 0.200).
 
 ### Gate, live: the offline causes confirmed
 Seconds from the dancer's lock to the first opening, median of 4 runs (pre-hub in parentheses). Only `drums-128` meets
@@ -218,8 +233,9 @@ only today, through one run's lock (below).
   per-run cell) 6 reaction cells failed on that noise, for example the dancer's `drifting-tempo` hit share with the same
   median as pre-hub (0.36). Latency may now be one frame later than pre-hub, and the dancer's hit share passes on its
   median.
-- **False fires** are 0.5 to 1.0 for `cubes` and `trio-color-wave` on most tracks in both builds: every reaction to an
-  onset that is not a labeled beat counts as false. Report only until `FU-HR-falsefire-onset` settles the rule.
+- **False fires** are still 0.5 to 1.0 for `cubes` and `trio-color-wave` on most tracks in both builds at version 6
+  (medians 0.76 and 0.66; the dancer's fell from 0.69 to 0.43): every reaction to an onset that is not a labeled beat
+  counts as false, so the 0.1 stretch measures onset selectivity, not timing. Report only.
 
 ### Failing live cells by owner
 | Cells | Tracks | Cause | Owner |
@@ -228,6 +244,7 @@ only today, through one run's lock (below).
 | `live.clip.maxDeviationLoops` | `drifting-tempo`, `half-time-shuffle`, `low-bpm-rnb`, `summer2000` | re-select keeps the dance; tempo, beat and meter disagreements between fresh runs | S8, S7 |
 | `live.clip.maxDeviationLoops` | `6-8-time` | the tracker settles on no one tempo for 6/8 | deferred (D11) |
 | `live.hit.share50ms` (`cubes`) | `drums-150`, `trap-2to1-double-90` | cubes reacts 8 to 12 ms later through the hub on synthetic drums | S4 |
+| `live.hit.share50ms` (`cubes`, `trio-color-wave`) | `drifting-tempo` (`cubes`), `low-bpm-rnb` (both) | below 0.25 in both builds; pre-hub gains more early hits at version 6 | S4 |
 | `live.reaction.latencyMs` (`cubes`) | `syncopationbass` | 89 against 70 ms | S4 |
 | `live.hit.share50ms` (dancer) | `drums-150`; `drums-128` (0.006 under) | fewer hits through the hub | S4 |
 | `live.reaction.latencyMs` (dancer) | `syncopationbass` | noise (runs from 9 to 220 ms in both builds) | none |
@@ -237,7 +254,8 @@ only today, through one run's lock (below).
 - **Live tolerances** (targets version 5): latency may be one frame later than pre-hub; the dancer's hit share passes on
   the median of its runs.
 - **Stretch targets (D10):** the gate within 2 s of the lock and latency at 30 ms plus a frame stay. Hit share 0.9 and
-  false fires 0.1 stay for now and are revisited once `FU-HR-falsefire-onset` settles the false-fire rule.
+  false fires 0.1 stay for now and are revisited once `FU-HR-falsefire-onset` settles the false-fire rule (settled at
+  targets version 6, above; the stretch values are unchanged).
 - **Slices:** S4 to S10 go, in the plan's order.
 - **Deferred to a separate plan (D11; out of the 100 percent):** `ac9.dottedChangeCounted` (the dotted 100 to 150 change
   needs the shelved 3/2 work), and the `6-8-time` cells, which share one cause, the tracker settling on no one tempo for

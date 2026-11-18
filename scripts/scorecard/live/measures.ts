@@ -4,7 +4,14 @@
 
 import type { TelemetryTable } from '../../../app/features/audio/devTelemetrySummary';
 import { measureReactionOffset } from '../../debug-visualizer/reactionOffset';
-import { LIVE_HIT_WINDOW_SECONDS, LIVE_REACTION_COLUMN, LIVE_RISE_FRACTION, type LiveVisualizer } from '../targets';
+import {
+    LIVE_HIT_WINDOW_SECONDS,
+    LIVE_REACTION_COLUMN,
+    LIVE_RISE_FRACTION,
+    LIVE_TAP_TOLERANCE_SECONDS,
+    liveFireHitsBeat,
+    type LiveVisualizer,
+} from '../targets';
 
 const GATE_COLUMN = 'dancing-character.gateOpen';
 const TEMPO_LOCK_COLUMN = 'dancing-character.tempoLocked';
@@ -140,15 +147,59 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
     return samples === 0 ? none : worst;
 }
 
-// AC8: hits / (hits + misses), the hit being a rise of the reaction column within LIVE_HIT_WINDOW_SECONDS of a beat.
+// The reaction fires of one recording, as targets.ts defines them next to liveFireHitsBeat: a row where the reaction
+// column is above (its minimum over the rows within LIVE_HIT_WINDOW_SECONDS before the row) by LIVE_RISE_FRACTION of the
+// whole recording's range, and the row before it was not. null when the column is missing or never changes.
+interface ReactionFires {
+    firstSeconds: number;
+    lastSeconds: number;
+    // Ascending track times.
+    fires: number[];
+}
+
+function reactionFires(table: TelemetryTable, viz: LiveVisualizer): ReactionFires | null {
+    const tIndex = table.columns.indexOf('t');
+    const cIndex = table.columns.indexOf(LIVE_REACTION_COLUMN[viz]);
+    if (tIndex < 0 || cIndex < 0) return null;
+    const rows = table.rows.filter((row) => Number.isFinite(row[tIndex]) && Number.isFinite(row[cIndex]));
+    if (rows.length < 2) return null;
+    const times = rows.map((row) => row[tIndex]);
+    const values = rows.map((row) => row[cIndex]);
+    const range = Math.max(...values) - Math.min(...values);
+    if (!(range > 0)) return null;
+    const threshold = LIVE_RISE_FRACTION * range;
+
+    const fires: number[] = [];
+    let windowStart = 0;
+    let wasAbove = false;
+    for (let i = 0; i < times.length; i++) {
+        while (windowStart < i && times[windowStart] < times[i] - LIVE_HIT_WINDOW_SECONDS) windowStart++;
+        let floor = Infinity;
+        for (let j = windowStart; j < i; j++) floor = Math.min(floor, values[j]);
+        const above = floor !== Infinity && values[i] > floor + threshold;
+        if (above && !wasAbove) fires.push(times[i]);
+        wasAbove = above;
+    }
+    return { firstSeconds: times[0], lastSeconds: times[times.length - 1], fires };
+}
+
+// AC8: hits / (hits + misses), a beat being hit when one of the recording's fires belongs to it by liveFireHitsBeat. A
+// beat whose whole window the recording does not cover says nothing about the visualizer and is skipped.
 export function hitShare(table: TelemetryTable, viz: LiveVisualizer, beats: readonly number[]): number | null {
-    const result = measureReactionOffset(table, LIVE_REACTION_COLUMN[viz], beats, {
-        windowSeconds: LIVE_HIT_WINDOW_SECONDS,
-        riseFraction: LIVE_RISE_FRACTION,
-    });
-    if ('unavailable' in result) return null;
-    const total = result.hits + result.misses;
-    return total === 0 ? null : result.hits / total;
+    const result = reactionFires(table, viz);
+    if (result === null) return null;
+    let hits = 0;
+    let judged = 0;
+    let fire = 0;
+    for (const beat of beats) {
+        if (beat - LIVE_TAP_TOLERANCE_SECONDS <= result.firstSeconds) continue;
+        if (beat + LIVE_HIT_WINDOW_SECONDS > result.lastSeconds) continue;
+        judged++;
+        // Beats are ascending, so the pointer skips the fires that come before this beat's window for good.
+        while (fire < result.fires.length && result.fires[fire] < beat - LIVE_TAP_TOLERANCE_SECONDS - 1e-9) fire++;
+        if (fire < result.fires.length && liveFireHitsBeat(result.fires[fire], beat)) hits++;
+    }
+    return judged === 0 ? null : hits / judged;
 }
 
 // AC8: the median delay of a reaction after a beat, with measureReactionOffset's own search window.
@@ -158,46 +209,25 @@ export function reactionLatencyMs(table: TelemetryTable, viz: LiveVisualizer, be
     return result.medianMs ?? null;
 }
 
-// The share of fires that are no beat's hit. A fire is a row where the reaction column is above (its minimum over the
-// rows within LIVE_HIT_WINDOW_SECONDS before the row) by LIVE_RISE_FRACTION of the whole recording's range, and the row
-// before it was not; it is a hit when it lies in [beat, beat + LIVE_HIT_WINDOW_SECONDS] of a labeled beat. Fires outside
-// the span the beats cover (first beat to last beat plus the window) are not counted: the unlabeled part of a track
-// says nothing about false fires. 0 with no fires; null when the column is missing or never changes.
+// The share of fires that belong to no labeled beat by liveFireHitsBeat (the fires of hitShare). Fires outside the span
+// the beats cover (the first beat's window start to the last beat's window end) are not counted: the unlabeled part of a
+// track says nothing about false fires. 0 with no fires; null when the column is missing or never changes.
 export function falseFireShare(table: TelemetryTable, viz: LiveVisualizer, beats: readonly number[]): number | null {
-    const tIndex = table.columns.indexOf('t');
-    const cIndex = table.columns.indexOf(LIVE_REACTION_COLUMN[viz]);
-    if (tIndex < 0 || cIndex < 0 || beats.length === 0) return null;
-    const rows = table.rows.filter((row) => Number.isFinite(row[tIndex]) && Number.isFinite(row[cIndex]));
-    if (rows.length < 2) return null;
-    const times = rows.map((row) => row[tIndex]);
-    const values = rows.map((row) => row[cIndex]);
-    const range = Math.max(...values) - Math.min(...values);
-    if (!(range > 0)) return null;
-    const threshold = LIVE_RISE_FRACTION * range;
-
-    const above: boolean[] = [];
-    let windowStart = 0;
-    for (let i = 0; i < times.length; i++) {
-        while (windowStart < i && times[windowStart] < times[i] - LIVE_HIT_WINDOW_SECONDS) windowStart++;
-        let floor = Infinity;
-        for (let j = windowStart; j < i; j++) floor = Math.min(floor, values[j]);
-        above.push(i > 0 && floor !== Infinity && values[i] > floor + threshold);
-    }
-
-    const spanStart = beats[0];
-    const spanEnd = beats[beats.length - 1] + LIVE_HIT_WINDOW_SECONDS;
+    if (beats.length === 0) return null;
+    const result = reactionFires(table, viz);
+    if (result === null) return null;
+    const spanStart = beats[0] - LIVE_TAP_TOLERANCE_SECONDS - 1e-9;
+    const spanEnd = beats[beats.length - 1] + LIVE_HIT_WINDOW_SECONDS + 1e-9;
     let fires = 0;
     let falseFires = 0;
     let beat = 0;
-    for (let i = 1; i < times.length; i++) {
-        if (!above[i] || above[i - 1]) continue;
-        const time = times[i];
+    for (const time of result.fires) {
         if (time < spanStart || time > spanEnd) continue;
         fires++;
-        // Beats are ascending, so the pointer moves to the last beat at or before the fire.
-        while (beat + 1 < beats.length && beats[beat + 1] <= time) beat++;
-        const hit = beats[beat] <= time && time <= beats[beat] + LIVE_HIT_WINDOW_SECONDS + 1e-9;
-        if (!hit) falseFires++;
+        // Beats are ascending and their windows do not overlap, so the only candidate is the first beat whose window
+        // has not ended before the fire.
+        while (beat + 1 < beats.length && beats[beat] + LIVE_HIT_WINDOW_SECONDS + 1e-9 < time) beat++;
+        if (!liveFireHitsBeat(time, beats[beat])) falseFires++;
     }
     return fires === 0 ? 0 : falseFires / fires;
 }

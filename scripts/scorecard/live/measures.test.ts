@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TelemetryTable } from '../../../app/features/audio/devTelemetrySummary';
+import { liveFireHitsBeat } from '../targets';
 import {
     circularDistance,
     circularMedian,
@@ -191,6 +192,25 @@ describe('reaction metrics', () => {
         expect(falseFireShare(reacting(beats, 0.2), 'cubes', beats)).toBe(1);
         // A fire at 0.5 s is before the first beat, and one at 5 s after the last beat's window.
         expect(falseFireShare(reacting(beats, 0.02, [0.5, 5]), 'cubes', beats)).toBe(0);
+    });
+
+    it('judges hit share and false fires by one fire-to-beat rule, from 20 ms before the beat to 50 ms after', () => {
+        expect(liveFireHitsBeat(0.98, 1)).toBe(true);
+        expect(liveFireHitsBeat(1.05, 1)).toBe(true);
+        expect(liveFireHitsBeat(0.97, 1)).toBe(false);
+        expect(liveFireHitsBeat(1.06, 1)).toBe(false);
+    });
+
+    it('counts a rise starting 10 ms before a tapped beat as a hit in both metrics', () => {
+        const early = reacting(beats, -0.01);
+        expect(hitShare(early, 'cubes', beats)).toBe(1);
+        expect(falseFireShare(early, 'cubes', beats)).toBe(0);
+    });
+
+    it('counts a rise more than the tap tolerance before the beat as a miss and a false fire in both metrics', () => {
+        const tooEarly = reacting(beats, -0.03);
+        expect(hitShare(tooEarly, 'cubes', beats)).toBe(0);
+        expect(falseFireShare(tooEarly, 'cubes', beats)).toBe(1);
     });
 
     it('is 0 with no fires and null with nothing to judge', () => {
