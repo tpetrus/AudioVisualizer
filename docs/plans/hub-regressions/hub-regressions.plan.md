@@ -235,3 +235,13 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
 - **S4's scope** also covers the worklet message (contract C3, `FeatureBatch` version 3, which carries the per-frame
   feature), `app/features/rhythm/rhythmProcessor.worklet.ts` and a new feature module beside it, and
   `scripts/scorecard/` (the false-open probe, the replay of the new input and the offline cube cells).
+- **C1 picked (Trevor, 2026-11-18): the `BassPulse` feature alone**, read at worklet frame times. Measured with
+  `npm run probe:gate-inputs` (300 random-bass patterns, beat clock locked): false opens at 120 and 400 beats were
+  hub 2 and 19, `BassPulse` at frame times 5 and 23, pre-hub 5 and 27, two gates 6 and 37. The 400-beat bound of 16
+  comes from level-domain specs and every input exceeds it on rendered audio, pre-hub included, so the comparison is
+  against pre-hub: two gates opened 1.4 times as often as pre-hub, and the `BassPulse` feature less often. Seconds from
+  the dancer's lock to the first opening, summed over the 16 kick tracks: hub 148.2, `BassPulse` at frame times 139.6,
+  pre-hub 139.1, two gates 121.9.
+- **`summer2000` is a recorded exception to S4's gate acceptance, owned by S5.** The frame-timed feature opens the gate
+  7.52 s after the lock against pre-hub's 7.03 s (one kick missed through a read at most a batch older than the render
+  time); S4 does not have to beat it. Every other kick track must open no later than pre-hub, within one render tick.
