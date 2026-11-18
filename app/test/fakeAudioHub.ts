@@ -39,7 +39,15 @@ export class FakeAudioHub implements AudioHubReader {
                 downbeatCount: 0,
             },
             section: { changeCount: 0, lastChangeTime: -Infinity },
+            gateBass: { pulse: 0, lowEnd: 0 },
         };
+    }
+
+    // Sets the gate-input bass (contract C1) the scene reads this frame.
+    setGateBass(pulse: number, lowEnd = 0): void {
+        const gateBass = this.snapshot.gateBass as { pulse: number; lowEnd: number };
+        gateBass.pulse = pulse;
+        gateBass.lowEnd = lowEnd;
     }
 
     // Sets the band energies; missing values read 0.

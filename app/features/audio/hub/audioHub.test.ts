@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { HUB_BAND_COUNT, METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
+import { HUB_BANDS, HUB_BAND_COUNT, METER_VISUAL_CONFIDENCE } from '~/features/rhythm/rhythmConfig';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import {
     createRhythmState,
@@ -33,6 +33,8 @@ class StubTracker {
 interface FrameSpec {
     time: number;
     energy: number | number[];
+    // FeatureBatch.gateBass of the frame; 0 when not given.
+    gate?: number;
 }
 interface OnsetSpec {
     band: number;
@@ -43,8 +45,10 @@ interface OnsetSpec {
 function batch(frames: FrameSpec[], onsets: OnsetSpec[] = []): FeatureBatch {
     const frameTimes = new Float64Array(frames.length);
     const bandEnergy = new Float32Array(frames.length * HUB_BAND_COUNT);
+    const gateBass = new Float32Array(frames.length);
     frames.forEach((frame, i) => {
         frameTimes[i] = frame.time;
+        gateBass[i] = frame.gate ?? 0;
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
             bandEnergy[i * HUB_BAND_COUNT + b] = Array.isArray(frame.energy) ? frame.energy[b] : frame.energy;
         }
@@ -56,6 +60,7 @@ function batch(frames: FrameSpec[], onsets: OnsetSpec[] = []): FeatureBatch {
         frames: new Float32Array(0),
         frameTimes,
         bandEnergy,
+        gateBass,
         onsetCount: onsets.length,
         onsetBand: Uint8Array.from(onsets.map((o) => o.band)),
         onsetTime: Float64Array.from(onsets.map((o) => o.time)),
@@ -283,6 +288,53 @@ describe('AudioHub', () => {
             hub.update(10.001);
             // Decayed by 1 ms since the loud frame, not by the 5 s back to the stray one.
             expect(hub.snapshot.bands[0]).toBeCloseTo(0.5, 3);
+        });
+    });
+
+    describe('gate-input bass', () => {
+        const SUB = HUB_BANDS.indexOf('sub');
+        const KICK = HUB_BANDS.indexOf('kick');
+        const energies = (sub: number, kick: number) =>
+            HUB_BANDS.map((_, b) => (b === SUB ? sub : b === KICK ? kick : 0.9));
+
+        it('reads the level and the unscaled low end of the same frame as the bands', () => {
+            feed([
+                { time: 1.0, energy: energies(0.3, 0.6), gate: 0.12 },
+                { time: 1.1, energy: energies(0.5, 0.2), gate: 0.04 },
+            ]);
+            const gateBass = hub.snapshot.gateBass;
+            hub.update(1.05);
+            expect(gateBass.pulse).toBeCloseTo(0.12, 6);
+            expect(gateBass.lowEnd).toBeCloseTo(0.6, 6);
+            hub.update(1.1);
+            expect(gateBass.pulse).toBeCloseTo(0.04, 6);
+            expect(gateBass.lowEnd).toBeCloseTo(0.5, 6);
+            // Updated in place: consumers may hold on to the object.
+            expect(hub.snapshot.gateBass).toBe(gateBass);
+        });
+
+        it('is not scaled by the running peak, unlike the bands', () => {
+            feed([
+                { time: 1.0, energy: energies(2, 0), gate: 0.5 },
+                { time: 1.1, energy: energies(1, 0), gate: 0.25 },
+            ]);
+            hub.update(1.1);
+            expect(hub.snapshot.bands[SUB]).toBeCloseTo(0.5, 1);
+            expect(hub.snapshot.gateBass.lowEnd).toBeCloseTo(1, 6);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
+        });
+
+        it('reads 0 before the first frame and after a reset, and treats non-finite values as silence', () => {
+            hub.update(1);
+            expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
+            feed([{ time: 2, energy: energies(Number.NaN, Infinity), gate: Number.NaN }]);
+            hub.update(2);
+            expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
+            feed([{ time: 3, energy: energies(0.4, 0.1), gate: 0.3 }]);
+            hub.update(3);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.3, 6);
+            hub.onReset();
+            expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
         });
     });
 

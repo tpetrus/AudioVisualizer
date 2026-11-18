@@ -1,8 +1,11 @@
+import { GATE_BASS_CUTOFF_HZ, GATE_BASS_WINDOW } from './rhythmConfig';
+
 // The bass is isolated by its own steep low-pass filter chain feeding a separate analyser, so mids and drums
-// don't leak in the way they do into the coarse low FFT bins.
-const BASS_CUTOFF_HZ = 120;
-// ~43 ms at 48 kHz: long enough to hold a full cycle of the lowest bass notes.
-const BASS_FFT_SIZE = 2048;
+// don't leak in the way they do into the coarse low FFT bins. The cutoff and the window (~43 ms at 48 kHz, a full cycle
+// of the lowest bass notes) are the hub's gate-input bass's too (GateBassFeature), which computes this same feature in
+// the worklet.
+const BASS_CUTOFF_HZ = GATE_BASS_CUTOFF_HZ;
+const BASS_FFT_SIZE = GATE_BASS_WINDOW;
 
 // 0..1 bass envelope that bumps when the bass (and only the bass) gets louder than it has recently been.
 // Comparing against its own recent level means it works at any volume, and a busy mix doesn't trigger it.

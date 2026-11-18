@@ -3,6 +3,7 @@ import { BassBump, hubLowEnd } from '../../../app/features/audio/hub/bassBump';
 import type { TempoSample } from '../../../app/features/rhythm/eval/metrics';
 import { BandOnsets } from '../../../app/features/rhythm/bandOnsets';
 import { createBassGateState, stepBassGate } from '../../../app/features/rhythm/bassGate';
+import { GateBassFeature } from '../../../app/features/rhythm/gateBass';
 import { OnsetExtractor, packFrame, type FrameSink } from '../../../app/features/rhythm/onsetExtractor';
 import { RhythmAnalyzer } from '../../../app/features/rhythm/rhythmAnalyzer';
 import {
@@ -164,6 +165,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         frames: new Float32Array(BATCH_FRAMES * FRAME_STRIDE),
         frameTimes: new Float64Array(BATCH_FRAMES),
         bandEnergy: new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT),
+        gateBass: new Float32Array(BATCH_FRAMES),
         onsetCount: 0,
         onsetBand: new Uint8Array(onsetCapacity),
         onsetTime: new Float64Array(onsetCapacity),
@@ -288,11 +290,16 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         batch.frameTimes[batch.count] = time;
         bandOnsets.push(frame.logMagnitude, time, onOnset);
         batch.bandEnergy.set(bandOnsets.energy, batch.count * HUB_BAND_COUNT);
+        batch.gateBass[batch.count] = gateBass.levelAt(frame.endSample);
         if (++batch.count === BATCH_FRAMES) deliver(time);
     };
 
+    // As in the worklet, the gate bass filters each block before the extractor cuts frames from it.
+    const gateBass = new GateBassFeature(sampleRate);
     for (let offset = 0; offset < pcm.length; offset += blockSize) {
-        extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + blockSize)), onFrame);
+        const block = pcm.subarray(offset, Math.min(pcm.length, offset + blockSize));
+        gateBass.push(block);
+        extractor.push(block, onFrame);
     }
     // The render clock keeps running to the end of the audio.
     while (tick * RENDER_DT <= seconds) renderTick();

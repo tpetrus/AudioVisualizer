@@ -6,6 +6,13 @@
 // Analysis window in samples. Must be a power of two. ~21 ms at 48 kHz: short enough to localise a drum hit,
 // long enough to separate a kick from the mids.
 export const FFT_SIZE = 1024;
+
+// The gate-input bass of the worklet message (FeatureBatch.gateBass, contract C1 of hub-regressions): BassPulse's
+// feature, so the gate hears the bass the way it did before the hub. Its own lowpass isolates the bass, so mids and
+// drums do not leak in the way they do into the coarse low FFT bins, and its window of about 43 ms at 48 kHz holds a full
+// cycle of the lowest bass notes. BassPulse reads the same two constants.
+export const GATE_BASS_CUTOFF_HZ = 120;
+export const GATE_BASS_WINDOW = 2048;
 // Time between analysis frames in seconds. 10 ms gives ~100 frames/s, which pins a beat to within a few ms.
 export const HOP_SECONDS = 0.01;
 // Frames per message posted by the worklet. Every onset waits for its batch to fill, so this is reaction delay: measured

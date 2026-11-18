@@ -13,6 +13,7 @@ import {
     randomBassPcm,
     secondsAfterLock,
 } from './gateInputs';
+import { GateBassFeature } from '../../../app/features/rhythm/gateBass';
 import { PrehubBass } from './prehubBass';
 import { replayPcm, type ReplayResult } from './replay';
 
@@ -106,6 +107,23 @@ describe('the frame-timed gate input', () => {
             const time = tick / 60;
             expect(atSample.updateAtSample(Math.floor(time * TEST_SAMPLE_RATE))).toBe(atTime.update(time));
         }
+    });
+
+    // The worklet's feature (contract C1) is the same number BassPulse computed from its analyser, so the hub's gate
+    // input is the pre-hub one at frame times and nothing else.
+    it('matches the worklet gate bass to BassPulse at every frame end', () => {
+        const pulse = new PrehubBass(TEST_SAMPLE_RATE);
+        pulse.prepare(click);
+        const feature = new GateBassFeature(TEST_SAMPLE_RATE);
+        // Pushed block by block and read at the end of each, as the worklet reads it at the end of each frame.
+        for (let end = 4321; end <= click.length; end += 4321) {
+            feature.push(click.subarray(end - 4321, end));
+            pulse.updateAtSample(end);
+            // Within 5e-6: the offline biquads keep their feedback in double and round only their output, the worklet's
+            // feed back the float32 output a node would; a browser's own filters differ from both by as little.
+            expect(feature.levelAt(end)).toBeCloseTo(pulse.energy, 5);
+        }
+        expect(pulse.energy).toBeGreaterThanOrEqual(0);
     });
 
     it('reads silence before the first frame is delivered', () => {

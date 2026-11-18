@@ -1,13 +1,21 @@
 import {
     FEATURE_ONSET_BANDS,
     FEATURE_ONSET_BAND_COUNT,
+    HUB_BANDS,
     HUB_BAND_COUNT,
     METER_VISUAL_CONFIDENCE,
 } from '~/features/rhythm/rhythmConfig';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { FEATURE_MESSAGE_VERSION, type FeatureBatch, type FeatureListener } from '~/features/rhythm/types';
 import { HUB_FRAME_CAPACITY, HUB_MIN_PEAK, HUB_PEAK_HALF_LIFE_SECONDS, HUB_PENDING_ONSET_CAPACITY } from './hubConfig';
-import type { AudioHubReader, AudioHubSnapshot, HubOnset, HubOnsetBand } from './types';
+import type { AudioHubReader, AudioHubSnapshot, HubGateBass, HubOnset, HubOnsetBand } from './types';
+
+const SUB_BAND = HUB_BANDS.indexOf('sub');
+const KICK_BAND = HUB_BANDS.indexOf('kick');
+
+// A NaN or infinite value from the worklet counts as silence, so it can neither stick in a running peak nor reach a
+// consumer's threshold.
+const finiteOrZero = (value: number): number => (Number.isFinite(value) ? value : 0);
 
 function createOnset(): HubOnset {
     return { lastTime: -Infinity, strength: 0, sinceSeconds: Infinity, count: 0 };
@@ -29,6 +37,9 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     // Held frames, oldest first from `frameStart`. Times are AudioContext seconds; values are already normalized.
     private readonly frameTimes = new Float64Array(HUB_FRAME_CAPACITY);
     private readonly frameValues = new Float32Array(HUB_FRAME_CAPACITY * HUB_BAND_COUNT);
+    // The gate-input bass of each held frame (contract C1): the worklet's level and the unscaled low end.
+    private readonly framePulse = new Float32Array(HUB_FRAME_CAPACITY);
+    private readonly frameLowEnd = new Float32Array(HUB_FRAME_CAPACITY);
     private frameStart = 0;
     private frameCount = 0;
     // Running peak per band, in the frames' energy units, and the frame time it was last decayed to.
@@ -71,6 +82,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
                 downbeatCount: 0,
             },
             section: { changeCount: 0, lastChangeTime: -Infinity },
+            gateBass: { pulse: 0, lowEnd: 0 },
         };
     }
 
@@ -122,7 +134,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
             return;
         }
         for (let i = 0; i < batch.count; i++) {
-            this.pushFrame(batch.frameTimes[i], batch.bandEnergy, i * HUB_BAND_COUNT);
+            this.pushFrame(batch.frameTimes[i], batch.bandEnergy, i * HUB_BAND_COUNT, batch.gateBass[i]);
         }
         for (let i = 0; i < batch.onsetCount; i++) {
             this.pushOnset(batch.onsetBand[i], batch.onsetTime[i], batch.onsetStrength[i]);
@@ -138,6 +150,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.peakTime = -Infinity;
         this.pendingCount = 0;
         this.snapshot.bands.fill(0);
+        this.writeGateBass(0, 0);
         // Times from the old source are on the old AudioContext's clock, which the new one does not share: kept, they
         // would read as an onset or a change that just happened. The counts stay.
         for (const onset of this.onsetByIndex) {
@@ -150,7 +163,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.lastUpdateTime = Number.NaN;
     }
 
-    private pushFrame(time: number, energy: Float32Array, offset: number): void {
+    private pushFrame(time: number, energy: Float32Array, offset: number, gatePulse: number): void {
         // Decay by the frame time that passed, not per call, so the peak's memory does not depend on the batch size.
         const elapsed = time - this.peakTime;
         const decay = elapsed > 0 && elapsed < Infinity ? Math.pow(0.5, elapsed / HUB_PEAK_HALF_LIFE_SECONDS) : 1;
@@ -170,12 +183,16 @@ export class AudioHub implements AudioHubReader, FeatureListener {
             this.frameCount++;
         }
         this.frameTimes[slot] = time;
+        this.framePulse[slot] = finiteOrZero(gatePulse);
+        this.frameLowEnd[slot] = Math.max(
+            finiteOrZero(energy[offset + SUB_BAND]),
+            finiteOrZero(energy[offset + KICK_BAND]),
+        );
         const base = slot * HUB_BAND_COUNT;
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
             // A NaN or infinite energy would stick in the peak (Math.max with NaN stays NaN) and silence the band
             // until the next reset, so it counts as silence.
-            const raw = energy[offset + b];
-            const value = Number.isFinite(raw) ? raw : 0;
+            const value = finiteOrZero(energy[offset + b]);
             // The peak is the loudest of the last few seconds. A fixed minimum keeps silence at 0 and stops a faint
             // hiss from being stretched to 1. The energies are logarithmic and 0 for silence, so no floor needs to be
             // subtracted first.
@@ -203,21 +220,32 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.pendingStrengths[slot] = strength;
     }
 
-    // Copies the newest held frame at or before `time`, or the oldest one when `time` precedes all of them.
+    // Copies the newest held frame at or before `time`, or the oldest one when `time` precedes all of them: its bands
+    // and its gate-input bass.
     private readBands(time: number): void {
         const bands = this.snapshot.bands;
         if (this.frameCount === 0) {
             bands.fill(0);
+            this.writeGateBass(0, 0);
             return;
         }
         let age = this.frameCount - 1;
         while (age > 0 && this.frameTimes[(this.frameStart + age) % HUB_FRAME_CAPACITY] > time) {
             age--;
         }
-        const base = ((this.frameStart + age) % HUB_FRAME_CAPACITY) * HUB_BAND_COUNT;
+        const slot = (this.frameStart + age) % HUB_FRAME_CAPACITY;
+        const base = slot * HUB_BAND_COUNT;
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
             bands[b] = this.frameValues[base + b];
         }
+        this.writeGateBass(this.framePulse[slot], this.frameLowEnd[slot]);
+    }
+
+    // The snapshot's gateBass is read-only to consumers; only the hub writes it, in place.
+    private writeGateBass(pulse: number, lowEnd: number): void {
+        const gateBass = this.snapshot.gateBass as HubGateBass;
+        gateBass.pulse = pulse;
+        gateBass.lowEnd = lowEnd;
     }
 
     // Makes the pending events at or before `time` visible and removes them from the pending list, keeping the rest

@@ -82,6 +82,11 @@ export class PrehubBass {
         this.filtered = other.filtered;
     }
 
+    // BassPulse's feature at its last update: the RMS of its analyser window, before the envelope.
+    public get energy(): number {
+        return this.pulse.energy;
+    }
+
     // One animation frame at `time` seconds: the envelope BassPulse shows.
     public update(time: number): number {
         return this.updateAtSample(Math.floor(time * this.sampleRate));

@@ -1,4 +1,5 @@
 import { BandOnsets, type OnsetSink } from './bandOnsets';
+import { GateBassFeature } from './gateBass';
 import { OnsetExtractor, packFrame, type FrameSink } from './onsetExtractor';
 import {
     BATCH_FRAMES,
@@ -33,11 +34,13 @@ const ONSET_CAPACITY = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
 class RhythmProcessor extends AudioWorkletProcessor {
     private readonly extractor = new OnsetExtractor(sampleRate);
     private readonly bandOnsets = new BandOnsets(sampleRate, this.extractor.frameRate);
+    private readonly gateBass = new GateBassFeature(sampleRate);
     private mix = new Float32Array(RENDER_QUANTUM);
     // A batch is posted by transferring its buffers, so fresh ones are needed after each post (~50 per second).
     private batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
     private frameTimes = new Float64Array(BATCH_FRAMES);
     private bandEnergy = new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT);
+    private gateBassLevels = new Float32Array(BATCH_FRAMES);
     private onsetBand = new Uint8Array(ONSET_CAPACITY);
     private onsetTime = new Float64Array(ONSET_CAPACITY);
     private onsetStrength = new Float32Array(ONSET_CAPACITY);
@@ -72,6 +75,8 @@ class RhythmProcessor extends AudioWorkletProcessor {
         this.frameTimes[this.batchCount] = time;
         this.bandOnsets.push(frame.logMagnitude, time, this.onOnset);
         this.bandEnergy.set(this.bandOnsets.energy, this.batchCount * HUB_BAND_COUNT);
+        // The gate bass has already filtered the whole block, so the window that ends with this frame's is held.
+        this.gateBassLevels[this.batchCount] = this.gateBass.levelAt(frame.endSample);
         if (++this.batchCount === BATCH_FRAMES) {
             this.post();
         }
@@ -89,6 +94,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
             this.post();
             this.extractor.reset();
             this.bandOnsets.reset();
+            this.gateBass.reset();
             this.started = false;
         }
         if (!this.started) {
@@ -113,6 +119,8 @@ class RhythmProcessor extends AudioWorkletProcessor {
             }
             block = mixed;
         }
+        // The gate bass filters the block first, so every frame the extractor cuts from it can read its window.
+        this.gateBass.push(block);
         this.extractor.push(block, this.onFrame);
         this.consumed += length;
         return true;
@@ -130,6 +138,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
             frames: this.batch,
             frameTimes: this.frameTimes,
             bandEnergy: this.bandEnergy,
+            gateBass: this.gateBassLevels,
             onsetCount: this.onsetCount,
             onsetBand: this.onsetBand,
             onsetTime: this.onsetTime,
@@ -139,6 +148,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
             this.batch.buffer,
             this.frameTimes.buffer,
             this.bandEnergy.buffer,
+            this.gateBassLevels.buffer,
             this.onsetBand.buffer,
             this.onsetTime.buffer,
             this.onsetStrength.buffer,
@@ -146,6 +156,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
         this.batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
         this.frameTimes = new Float64Array(BATCH_FRAMES);
         this.bandEnergy = new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT);
+        this.gateBassLevels = new Float32Array(BATCH_FRAMES);
         this.onsetBand = new Uint8Array(ONSET_CAPACITY);
         this.onsetTime = new Float64Array(ONSET_CAPACITY);
         this.onsetStrength = new Float32Array(ONSET_CAPACITY);
