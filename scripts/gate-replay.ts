@@ -6,7 +6,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseCsv } from './debug-visualizer/csv';
 import { BUMP_GAIN, BUMP_MARGIN } from '../app/features/audio/hub/bassBump';
-import { GATE_RULES, findGateRule, formatGateReplay, recordedOpening, replayGate } from './rhythm-tools/gateReplay';
+import {
+    GATE_RULES,
+    findGateColumns,
+    findGateRule,
+    formatGateReplay,
+    recordedOpening,
+    replayGate,
+} from './rhythm-tools/gateReplay';
 
 const USAGE = `Usage: npm run replay:gate -- <telemetry.csv> [--rule NAME] [--bump-margin N] [--bump-gain N]
 
@@ -54,11 +61,8 @@ function main(): void {
             ? undefined
             : { margin: margin ?? BUMP_MARGIN, gain: gain ?? BUMP_GAIN };
     const replay = replayGate(table, findGateRule(rule), bump);
-    const input =
-        bump === undefined
-            ? undefined
-            : `input: <probe>.lowEnd through BassBump margin ${bump.margin} gain ${bump.gain}`;
-    console.log(formatGateReplay(rule, replay, recordedOpening(table), input).join('\n'));
+    const { probe } = findGateColumns(table.columns);
+    console.log(formatGateReplay(rule, replay, recordedOpening(table), probe, bump).join('\n'));
 }
 
 try {

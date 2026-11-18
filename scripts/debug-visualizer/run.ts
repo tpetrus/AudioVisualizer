@@ -12,6 +12,7 @@ import { VISUALIZATIONS } from '../../app/features/landing/visualizations';
 import { causeNote, createLineCollector, type LineCollector } from './output';
 import { chooseReference, listAudioFiles, parseArgs, playFolderName, scheduleShots, sidecarName, USAGE } from './args';
 import { parseBpmSidecar, summarizeTempo } from './tempoReport';
+import { createPlaybackStart } from './playbackStart';
 
 const SERVER_TIMEOUT_MS = 60_000;
 const PLAYBACK_TIMEOUT_MS = 30_000;
@@ -123,11 +124,10 @@ interface PlayOptions {
 // position to be back near 0, so the old playback that keeps running until the new file decodes does not count.
 async function waitForPlaybackStart(page: Page, restartedFrom: number | undefined): Promise<void> {
     const startDeadline = Date.now() + PLAYBACK_TIMEOUT_MS;
+    const started = createPlaybackStart(restartedFrom, RESTART_WITHIN_SECONDS);
     for (;;) {
         const position = await page.evaluate(() => window.__vizTelemetry?.playback()?.position ?? null);
-        if (position !== null) {
-            if (restartedFrom === undefined || position < Math.min(restartedFrom, RESTART_WITHIN_SECONDS)) return;
-        }
+        if (position !== null && started.observe(position)) return;
         const alert = page.getByRole('alert');
         if (await alert.count()) throw new UserError((await alert.first().innerText()).trim().split('\n')[0]);
         if (Date.now() > startDeadline) {
