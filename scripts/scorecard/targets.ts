@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 5;
+export const TARGETS_VERSION = 6;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -235,11 +235,25 @@ export const LIVE_REACTION_COLUMN: Readonly<Record<LiveVisualizer, string>> = {
     'trio-color-wave': 'trio-color-wave.out',
 };
 
-// AC8's hit, defined once: a labeled beat is hit when the reaction column rises by at least LIVE_RISE_FRACTION of its
-// whole-recording range above its level just before the beat, within LIVE_HIT_WINDOW_SECONDS after the beat. A fire is
-// the first row of such a rise; a fire that is no labeled beat's hit is a false fire.
+// AC8's fire-to-beat rule, defined once for live.hit.share50ms and live.falseFire.share (targets version 6). A fire is
+// the first row at which the reaction column is LIVE_RISE_FRACTION of its whole-recording range above its minimum over
+// the preceding LIVE_HIT_WINDOW_SECONDS. A fire belongs to a labeled beat when it lies in
+// [beat - LIVE_TAP_TOLERANCE_SECONDS, beat + LIVE_HIT_WINDOW_SECONDS] (liveFireHitsBeat). A beat with a fire of its own is
+// hit; a fire that belongs to no beat is a false fire. The tolerance before the beat absorbs the jitter of hand-tapped
+// beats (about 20 ms): without it a reaction a few ms ahead of a tapped beat was a miss and a false fire.
 export const LIVE_HIT_WINDOW_SECONDS = 0.05;
+export const LIVE_TAP_TOLERANCE_SECONDS = 0.02;
 export const LIVE_RISE_FRACTION = 0.2;
+
+// The epsilon keeps a row time that is a float step off a window edge inside it.
+const LIVE_WINDOW_EPSILON = 1e-9;
+
+export function liveFireHitsBeat(fireSeconds: number, beatSeconds: number): boolean {
+    return (
+        beatSeconds - LIVE_TAP_TOLERANCE_SECONDS - LIVE_WINDOW_EPSILON <= fireSeconds &&
+        fireSeconds <= beatSeconds + LIVE_HIT_WINDOW_SECONDS + LIVE_WINDOW_EPSILON
+    );
+}
 
 export interface LiveMetricTarget {
     id: string;
@@ -314,10 +328,11 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
         perRun: false,
     },
     {
-        // AC8: hits / (hits + misses) over the labeled beats the recording covers. The dancer's runs are bimodal in both
-        // builds (a run hits about 0.7 or 0), so its cell is judged on the median (Trevor's S3 review, targets version 5).
+        // AC8: hits / (hits + misses) over the labeled beats the recording covers, by liveFireHitsBeat (targets version
+        // 6). The dancer's runs are bimodal in both builds (a run hits about 0.7 or 0), so its cell is judged on the
+        // median (Trevor's S3 review, targets version 5).
         id: 'live.hit.share50ms',
-        description: 'Share of labeled beats with a reaction within 50 ms',
+        description: 'Share of labeled beats with a reaction from 20 ms before to 50 ms after',
         direction: 'higher',
         unit: 'fraction',
         floor: null,
@@ -330,7 +345,8 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
         medianFor: ['dancing-character'],
     },
     {
-        // Success metric stretch only (at most 10% false fires): reported, not bounded by pre-hub.
+        // Success metric stretch only (at most 10% false fires): reported, not bounded by pre-hub. Same fires and
+        // fire-to-beat rule as live.hit.share50ms.
         id: 'live.falseFire.share',
         description: 'Share of reaction fires that hit no labeled beat',
         direction: 'lower',
