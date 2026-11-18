@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { BassBump, type BassBumpOptions, BUMP_GAIN, BUMP_MARGIN, hubLowEnd, NEAR_SILENCE } from './bassBump';
+import {
+    BassBump,
+    type BassBumpOptions,
+    BUMP_GAIN,
+    BUMP_MARGIN,
+    GATE_BASS_BUMP,
+    hubLowEnd,
+    NEAR_SILENCE,
+} from './bassBump';
 
 // The rule BassPulse applied per frame, with the same constants, fed the same input.
 function oldRule(inputs: number[]) {
@@ -202,5 +210,43 @@ describe('hubLowEnd', () => {
         expect(final({ margin: 1.3 })).toBeLessThan(base);
         expect(final({ gain: 1 })).toBeLessThan(base);
         expect(final({ margin: 1.04 })).toBe(base);
+    });
+
+    // The dancer and the cubes run GATE_BASS_BUMP over the hub's gate-input bass, a linear RMS: once seeded it must be
+    // BassPulse's envelope frame for frame at 60 fps, so the gate hears what it heard before the hub.
+    it('with the gate-bass options, is BassPulse frame for frame at 60 fps on a linear level', () => {
+        const dt = 1 / 60;
+        const bump = new BassBump(GATE_BASS_BUMP);
+        const levels = Array.from({ length: 300 }, (_, i) => (i % 30 < 3 ? 0.2 : 0.03));
+        let fast = levels[0];
+        let slow = levels[0];
+        let pulse = 0;
+        let peak = 0;
+        for (const energy of levels) {
+            fast += (energy - fast) * (energy > fast ? 0.5 : 0.2);
+            slow += (energy - slow) * 0.01;
+            const ratio = slow > 0.005 ? fast / slow : 1;
+            const target = Math.min(1, Math.max(0, (ratio - 1.15) * 1.5));
+            pulse += (target - pulse) * (target > pulse ? 0.45 : 0.12);
+            expect(bump.step(energy, dt)).toBeCloseTo(pulse, 9);
+            peak = Math.max(peak, pulse);
+        }
+        // The kicks do bump it, so the comparison covers rises as well as falls.
+        expect(peak).toBeGreaterThan(0.1);
+    });
+
+    it('takes its near-silence level from the options', () => {
+        const dt = 1 / 60;
+        // 0.01 is near silence by the default (a normalized band) but audible bass by the gate-bass level.
+        const loud = new BassBump(GATE_BASS_BUMP);
+        const plain = new BassBump();
+        loud.step(0.01, dt);
+        plain.step(0.01, dt);
+        for (let i = 0; i < 3; i++) {
+            loud.step(0.03, dt);
+            plain.step(0.03, dt);
+        }
+        expect(loud.ratio).toBeGreaterThan(1);
+        expect(plain.ratio).toBe(1);
     });
 });

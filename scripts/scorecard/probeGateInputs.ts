@@ -26,8 +26,9 @@ Random bass: for N seeded patterns (default 300) of two random bass notes per be
 (default 120 and 400), counts the patterns that open the dancer's bass gate for each input, with the beat clock locked.
 Kick tracks: for every kick track in <folder> (default ${DEFAULT_DIR}), prints the seconds from the dancer's lock to each
 input's first opening (the rest of the track if it never opens) and the sum per input.
-Inputs: hub (the hub's low end, today), frameTimed (BassPulse's feature at the newest delivered worklet frame), prehub
-(BassPulse at the render time, before the hub) and twoGates (hub and frameTimed, open when either is).`;
+Inputs: gateBass (the hub's gate-input bass, shipped since S4), hubLowEnd (the hub's normalized low end, from the hub
+until S4), frameTimed (BassPulse's pre-hub chain read at the newest delivered worklet frame), prehub (BassPulse at the
+render time, before the hub) and twoGates (hubLowEnd and gateBass, open when either is).`;
 
 interface ProbeArgs {
     patterns: number;
@@ -99,7 +100,8 @@ function printKickTracks(dir: string): void {
     console.log(
         ['track', 'lock', ...GATE_INPUTS].map((text, i) => (i === 0 ? text.padEnd(24) : pad(text, 11))).join(''),
     );
-    const sums: Record<GateInput, number> = { hub: 0, frameTimed: 0, prehub: 0, twoGates: 0 };
+    const sums = {} as Record<GateInput, number>;
+    for (const input of GATE_INPUTS) sums[input] = 0;
     for (const source of kickTracks) {
         const replay = replayPcm(source.pcm, source.sampleRate);
         const after = secondsAfterLock(replay);

@@ -21,7 +21,8 @@ import { replayPcm, type ReplayResult } from './replay';
 function replayWith(fields: {
     seconds?: number;
     lock: number | null;
-    hub: number | null;
+    gateBass: number | null;
+    hubLowEnd: number | null;
     frameTimed: number | null;
     prehub: number | null;
 }): ReplayResult {
@@ -29,9 +30,9 @@ function replayWith(fields: {
     return {
         seconds: fields.seconds ?? 30,
         dancerLockSeconds: fields.lock,
-        gate: gate(fields.hub),
+        gate: gate(fields.gateBass),
         prehubGate: gate(fields.prehub),
-        gateInputs: { frameTimed: gate(fields.frameTimed) },
+        gateInputs: { frameTimed: gate(fields.frameTimed), hubLowEnd: gate(fields.hubLowEnd) },
     } as ReplayResult;
 }
 
@@ -71,19 +72,33 @@ describe('earlierOpening', () => {
 });
 
 describe('firstOpenings and secondsAfterLock', () => {
-    it('take two gates from the hub and frame-timed gates only', () => {
-        const replay = replayWith({ lock: 3, hub: 9, frameTimed: 6, prehub: 4 });
-        expect(firstOpenings(replay)).toEqual({ hub: 9, frameTimed: 6, prehub: 4, twoGates: 6 });
-        expect(secondsAfterLock(replay)).toEqual({ hub: 6, frameTimed: 3, prehub: 1, twoGates: 3 });
+    it('take two gates from the hub low end and gate bass gates only', () => {
+        const replay = replayWith({ lock: 3, gateBass: 7, hubLowEnd: 9, frameTimed: 6, prehub: 4 });
+        expect(firstOpenings(replay)).toEqual({ gateBass: 7, hubLowEnd: 9, frameTimed: 6, prehub: 4, twoGates: 7 });
+        expect(secondsAfterLock(replay)).toEqual({ gateBass: 4, hubLowEnd: 6, frameTimed: 3, prehub: 1, twoGates: 4 });
     });
 
     it('count the rest of the track for a gate that never opens', () => {
-        const replay = replayWith({ seconds: 20, lock: 5, hub: null, frameTimed: null, prehub: 8 });
-        expect(secondsAfterLock(replay)).toEqual({ hub: 15, frameTimed: 15, prehub: 3, twoGates: 15 });
+        const replay = replayWith({
+            seconds: 20,
+            lock: 5,
+            gateBass: null,
+            hubLowEnd: null,
+            frameTimed: null,
+            prehub: 8,
+        });
+        expect(secondsAfterLock(replay)).toEqual({
+            gateBass: 15,
+            hubLowEnd: 15,
+            frameTimed: 15,
+            prehub: 3,
+            twoGates: 15,
+        });
     });
 
     it('have nothing to say when the dancer never locks', () => {
-        expect(secondsAfterLock(replayWith({ lock: null, hub: null, frameTimed: null, prehub: null }))).toBeUndefined();
+        const never = { gateBass: null, hubLowEnd: null, frameTimed: null, prehub: null };
+        expect(secondsAfterLock(replayWith({ lock: null, ...never }))).toBeUndefined();
     });
 });
 
@@ -149,7 +164,7 @@ describe('the locked clock', () => {
     it('counts how many random patterns open each input, two gates at least as often as either of its gates', () => {
         const counts = countFalseOpens(3, 40);
         for (const input of GATE_INPUTS) expect(counts[input]).toBeGreaterThanOrEqual(0);
-        expect(counts.twoGates).toBeGreaterThanOrEqual(Math.max(counts.hub, counts.frameTimed));
-        expect(counts.twoGates).toBeLessThanOrEqual(counts.hub + counts.frameTimed);
+        expect(counts.twoGates).toBeGreaterThanOrEqual(Math.max(counts.hubLowEnd, counts.gateBass));
+        expect(counts.twoGates).toBeLessThanOrEqual(counts.hubLowEnd + counts.gateBass);
     });
 });

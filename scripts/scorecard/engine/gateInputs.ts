@@ -3,13 +3,15 @@ import { replayPcm, type ReplayResult } from './replay';
 // The offline measurements S4 needs before it freezes contract C1 (the hub's gate-input bass): how often each candidate
 // input opens the dancer's bass gate on random bass, where it should never open, and how soon it opens after the
 // dancer's lock on real kick tracks. The inputs are the ones the replay steps:
-//  - hub: the hub's low end through the dancer's bump envelope (today's input);
-//  - frameTimed: BassPulse's feature read at the end of the newest delivered worklet frame (what a per-frame worklet
-//    feature in the hub would give);
+//  - gateBass: the hub's gate-input bass through the dancer's envelope, the input the app ships since S4 (C1);
+//  - hubLowEnd: the hub's normalized low end through the envelope tuned for it, the input from the hub until S4;
+//  - frameTimed: BassPulse's feature from the pre-hub chain, read at the end of the newest delivered worklet frame (the
+//    measurement C1 was chosen on, before the worklet computed it; it should match gateBass);
 //  - prehub: BassPulse read at the render time (the input before the hub, the reference);
-//  - twoGates: the hub and frameTimed gates side by side, the dancer's gate open when either is.
+//  - twoGates: the hubLowEnd and gateBass gates side by side, the dancer's gate open when either is (measured, not
+//    chosen).
 
-export const GATE_INPUTS = ['hub', 'frameTimed', 'prehub', 'twoGates'] as const;
+export const GATE_INPUTS = ['gateBass', 'hubLowEnd', 'frameTimed', 'prehub', 'twoGates'] as const;
 export type GateInput = (typeof GATE_INPUTS)[number];
 
 // The random bass of the gate specs (bassGate.test.ts, "two random notes per beat"), rendered as audio so it passes
@@ -88,13 +90,14 @@ export function earlierOpening(a: number | null, b: number | null): number | nul
 
 // First opening of each input in a replay, null where it never opens.
 export function firstOpenings(replay: ReplayResult): Record<GateInput, number | null> {
-    const hub = replay.gate.firstOpenSeconds;
-    const frameTimed = replay.gateInputs.frameTimed.firstOpenSeconds;
+    const gateBass = replay.gate.firstOpenSeconds;
+    const hubLowEnd = replay.gateInputs.hubLowEnd.firstOpenSeconds;
     return {
-        hub,
-        frameTimed,
+        gateBass,
+        hubLowEnd,
+        frameTimed: replay.gateInputs.frameTimed.firstOpenSeconds,
         prehub: replay.prehubGate.firstOpenSeconds,
-        twoGates: earlierOpening(hub, frameTimed),
+        twoGates: earlierOpening(hubLowEnd, gateBass),
     };
 }
 
@@ -128,7 +131,8 @@ export function countFalseOpens(
     beats: number,
     onPattern?: (seed: number) => void,
 ): Record<GateInput, number> {
-    const counts: Record<GateInput, number> = { hub: 0, frameTimed: 0, prehub: 0, twoGates: 0 };
+    const counts = {} as Record<GateInput, number>;
+    for (const input of GATE_INPUTS) counts[input] = 0;
     for (let seed = 1; seed <= patterns; seed++) {
         const opens = opensOnLockedClock(randomBassPcm(seed, beats));
         for (const input of GATE_INPUTS) if (opens[input]) counts[input]++;

@@ -1,5 +1,5 @@
 import { AudioHub } from '../../../app/features/audio/hub/audioHub';
-import { BassBump, hubLowEnd } from '../../../app/features/audio/hub/bassBump';
+import { BassBump, BUMP_GAIN, BUMP_MARGIN, hubLowEnd } from '../../../app/features/audio/hub/bassBump';
 import type { TempoSample } from '../../../app/features/rhythm/eval/metrics';
 import { BandOnsets } from '../../../app/features/rhythm/bandOnsets';
 import { createBassGateState, stepBassGate } from '../../../app/features/rhythm/bassGate';
@@ -20,10 +20,7 @@ import {
     createDanceTimingState,
     computeDanceTiming,
 } from '../../../app/features/visualizers/dancing-character/dancingCharacterSync';
-import {
-    DANCER_BUMP_GAIN,
-    DANCER_BUMP_MARGIN,
-} from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
+import { DANCER_BUMP } from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
 import { applyAgc } from './agc';
 import { countSoftBoundaries } from './boundaryProbe';
 import { PrehubBass } from './prehubBass';
@@ -57,9 +54,10 @@ import { PrehubBass } from './prehubBass';
 //  - Output latency. The live render time subtracts the output latency and the sync offset, and the analysers see audio
 //    that has already passed through the output path; none of that is modeled.
 //  - Mono input. The worklet averages the channels; callers pass mono (readWav already mixes down).
-//  - Frame-timed gate input (S4, the contract C1 candidates). A third gate is stepped from BassPulse's feature as a
-//    per-frame worklet value would deliver it: its window ends at the end of the newest frame delivered so far, so it is
-//    only as new as the last batch, as the hub's bands are. It does not change the two gates above.
+//  - The dancer's gate hears the hub's gate-input bass (contract C1, S4) through its bump envelope, as the scene does.
+//    Two more gates are stepped for comparison only (S4's measurement, `npm run probe:gate-inputs`): the input before S4
+//    (the hub's normalized low end through the old dancer envelope), and BassPulse's feature from the pre-hub chain read
+//    at the end of the newest delivered frame, which the worklet's feature matches to within float rounding.
 
 // The render clock of the replay: one hub read and one gate step per tick.
 export const RENDER_HZ = 60;
@@ -95,10 +93,12 @@ export interface ReplayResult {
     dancerLockSeconds: number | null;
     // The same gate fed the pre-hub way: BassPulse over the same post-gain audio, same rhythm state and tempo lock.
     prehubGate: GateSummary;
-    // The candidate gate inputs of contract C1 that are not the gates above (S4 measures them before C1 is frozen).
+    // Gate inputs compared with the dancer's in S4's measurement; nothing in the scorecard reads them.
     gateInputs: {
-        // The gate fed by BassPulse's feature read at the end of the newest delivered worklet frame.
+        // The gate fed by BassPulse's feature read at the end of the newest delivered worklet frame, through BassPulse.
         frameTimed: GateSummary;
+        // The gate fed as before S4: the hub's normalized low end through the bump envelope tuned for it.
+        hubLowEnd: GateSummary;
     };
 }
 
@@ -177,8 +177,12 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     const onsets: ReplayResult['onsets'] = { kick: [], bass: [], snare: [], highs: [] };
     let lastBeatCount = 0;
 
-    // The dancer's gate chain: the bump envelope with the dancer's own margin and gain, as the scene builds it.
-    const bump = new BassBump({ margin: DANCER_BUMP_MARGIN, gain: DANCER_BUMP_GAIN });
+    // The dancer's gate chain: the bump envelope with the dancer's own options, over the hub's gate-input bass, as the
+    // scene builds it.
+    const bump = new BassBump(DANCER_BUMP);
+    // The input before S4, for comparison.
+    const lowEndBump = new BassBump({ margin: BUMP_MARGIN, gain: BUMP_GAIN });
+    const lowEndGate = createBassGateState();
     const timingState = createDanceTimingState();
     const timing = createDanceTimingResult();
     const timingSettings = { danceSpeed: 1 };
@@ -198,6 +202,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     const hubTally = new GateTally();
     const prehubTally = new GateTally();
     const frameTimedTally = new GateTally();
+    const lowEndTally = new GateTally();
     // The locked clock of `lockedTempo`, written in place each tick.
     const lockedRhythm = createRhythmState();
 
@@ -226,8 +231,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
             everReportedLock = true;
             tempoLocked = true;
         }
-        const lowEnd = hubLowEnd(hub.snapshot.bands);
-        const bass = bump.step(lowEnd, RENDER_DT);
+        const bass = bump.step(hub.snapshot.gateBass.pulse, RENDER_DT);
         stepBassGate(bass, rhythm, tempoLocked, gate, RENDER_DT);
         hubTally.tick(gate.open, time);
         if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;
@@ -235,6 +239,14 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         prehubTally.tick(prehubGate.open, time);
         stepBassGate(frameTimedBass.updateAtSample(newestFrameEnd), rhythm, tempoLocked, frameTimedGate, RENDER_DT);
         frameTimedTally.tick(frameTimedGate.open, time);
+        stepBassGate(
+            lowEndBump.step(hubLowEnd(hub.snapshot.bands), RENDER_DT),
+            rhythm,
+            tempoLocked,
+            lowEndGate,
+            RENDER_DT,
+        );
+        lowEndTally.tick(lowEndGate.open, time);
     };
 
     // Every tick strictly before `until` has happened by the time a batch that arrives at `until` is delivered; a tick at
@@ -314,6 +326,6 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         gate: hubTally.summary(),
         dancerLockSeconds,
         prehubGate: prehubTally.summary(),
-        gateInputs: { frameTimed: frameTimedTally.summary() },
+        gateInputs: { frameTimed: frameTimedTally.summary(), hubLowEnd: lowEndTally.summary() },
     };
 }
