@@ -11,10 +11,13 @@ import {
     BASELINE_PATH,
     DEFAULT_DIR,
     DEFAULT_OUT,
+    LIVE_PATH,
     loadTracks,
     measureSources,
     parseRunArgs,
+    readLiveCells,
     summaryLine,
+    withLiveCells,
 } from './inputs';
 import { renderMarkdown } from './report';
 
@@ -24,7 +27,8 @@ Measures every WAV in <folder> (default ${DEFAULT_DIR}) offline, with the .beats
 writes <basename>.json and <basename>.md (default ${DEFAULT_OUT}). The generated tracks (bassline-kick-120,
 pad-lead-groove-110) are rendered in memory when the folder lacks them. A listed track that is missing, or has no tempo
 truth, shows up as unavailable cells.
---write-baseline also writes ${BASELINE_PATH}, the file npm run scorecard:check compares against.`;
+--write-baseline also writes ${BASELINE_PATH}, the file npm run scorecard:check compares against.
+When ${LIVE_PATH} (written by npm run scorecard:live) exists for this targets version, its cells are merged in.`;
 
 function revision(): string {
     try {
@@ -56,12 +60,16 @@ function main(): void {
     const scenarios = measureScenarios();
     console.log(`  scenarios: ${((Date.now() - scenarioStarted) / 1000).toFixed(1)} s`);
 
-    const scorecard = buildScorecard({
+    const offline = buildScorecard({
         revision: revision(),
         created: new Date().toISOString(),
         scenarios,
         ...measured,
     });
+    // The live cells come from `npm run scorecard:live` and are advisory; they are merged in only when that file exists.
+    const live = readLiveCells(resolve(LIVE_PATH));
+    if (live.warning) console.warn(`warning: ${live.warning}`);
+    const scorecard = withLiveCells(offline, live.cells);
     const json = `${JSON.stringify(scorecard, null, 2)}\n`;
     write(`${args.out}.json`, json);
     write(`${args.out}.md`, renderMarkdown(scorecard, scenarioNotes(scenarios)));
