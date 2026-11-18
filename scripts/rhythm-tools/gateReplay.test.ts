@@ -71,8 +71,8 @@ describe('gate rules', () => {
         const silent = { columns: table.columns, rows: table.rows.map((row) => row.map((v, c) => (c === 2 ? 0 : v))) };
         const replay = replayGate(silent, findGateRule('current'));
         expect(replay).toMatchObject({ firstOpen: undefined, delayAfterLock: undefined, openShare: 0 });
-        expect(formatGateReplay('current', replay, undefined).join('\n')).toContain('first open: never');
-        expect(formatGateReplay('current', replayGate(table, findGateRule('current')), 5.4)[2]).toBe(
+        expect(formatGateReplay('current', replay, undefined, 'x').join('\n')).toContain('first open: never');
+        expect(formatGateReplay('current', replayGate(table, findGateRule('current')), 5.4, 'x')[2]).toBe(
             'first open: 7.259 s',
         );
     });
@@ -136,10 +136,13 @@ describe('replay through BassBump', () => {
 
     it('names the input in the printed lines, after the rule line', () => {
         const replay = replayGate(build(true), findGateRule('current'));
-        expect(formatGateReplay('current', replay, undefined).slice(0, 2)).toEqual([
+        expect(formatGateReplay('current', replay, undefined, 'dancing-character').slice(0, 2)).toEqual([
             'rule current',
-            'input: <probe>.in as recorded',
+            'input: dancing-character.in as recorded',
         ]);
-        expect(formatGateReplay('current', replay, undefined, 'input: x')[1]).toBe('input: x');
+        expect(formatGateReplay('current', replay, undefined, 'x', { margin: 2, gain: 3 })[1]).toBe(
+            'input: x.lowEnd through BassBump margin 2 gain 3',
+        );
+        expect(findGateColumns(build(true).columns).probe).toBe('x');
     });
 });

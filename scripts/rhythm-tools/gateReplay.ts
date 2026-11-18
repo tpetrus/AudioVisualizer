@@ -49,6 +49,8 @@ export interface GateReplay {
 }
 
 export interface GateColumns {
+    // The probe name before ".in" (for example "dancing-character"), for printing which recording column fed the gate.
+    probe: string;
     t: number;
     dt: number;
     input: number;
@@ -72,6 +74,7 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         return index;
     };
     return {
+        probe: prefixed.slice(0, -'.in'.length),
         t: at('t', true),
         dt: at('dt', false),
         input: at(prefixed, true),
@@ -147,8 +150,13 @@ export function formatGateReplay(
     rule: string,
     replay: GateReplay,
     recorded: number | undefined,
-    input = 'input: <probe>.in as recorded',
+    probe: string,
+    bump?: { margin: number; gain: number },
 ): string[] {
+    const input =
+        bump === undefined
+            ? `input: ${probe}.in as recorded`
+            : `input: ${probe}.lowEnd through BassBump margin ${bump.margin} gain ${bump.gain}`;
     return [
         `rule ${rule}`,
         input,
