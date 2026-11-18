@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BassBump, BUMP_GAIN, BUMP_MARGIN, NEAR_SILENCE } from './bassBump';
+import { BassBump, type BassBumpOptions, BUMP_GAIN, BUMP_MARGIN, hubLowEnd, NEAR_SILENCE } from './bassBump';
 
 // The rule BassPulse applied per frame, with the same constants, fed the same input.
 function oldRule(inputs: number[]) {
@@ -164,5 +164,43 @@ describe('BassBump', () => {
         bump.step(NEAR_SILENCE / 2, -1);
 
         expect(bump.fast).toBe(0);
+    });
+});
+
+describe('hubLowEnd', () => {
+    it('picks the louder of sub and kick', () => {
+        expect(hubLowEnd([0.2, 0.7, 0, 0, 0, 0])).toBe(0.7);
+        expect(hubLowEnd([0.9, 0.1, 0, 0, 0, 0])).toBe(0.9);
+    });
+
+    it('ignores the other bands', () => {
+        expect(hubLowEnd([0.1, 0.2, 1, 1, 1, 1])).toBe(0.2);
+    });
+
+    it('gives the same pulses with the default options spelled out', () => {
+        const dt = 1 / 60;
+        const plain = new BassBump();
+        const spelled = new BassBump({ margin: BUMP_MARGIN, gain: BUMP_GAIN });
+        for (let i = 0; i < 300; i++) {
+            const input = drumInput(i * dt);
+            expect(spelled.step(input, dt)).toBe(plain.step(input, dt));
+        }
+    });
+
+    it('gives a smaller pulse for a higher margin and for a lower gain', () => {
+        const dt = 1 / 60;
+        const final = (options: BassBumpOptions) => {
+            const bump = new BassBump(options);
+            bump.step(0.3, dt);
+            for (let i = 0; i < 120; i++) bump.step(0.3, dt);
+            let pulse = 0;
+            for (let i = 0; i < 6; i++) pulse = bump.step(0.45, dt);
+            return pulse;
+        };
+        const base = final({});
+        expect(base).toBeGreaterThan(0);
+        expect(final({ margin: 1.3 })).toBeLessThan(base);
+        expect(final({ gain: 1 })).toBeLessThan(base);
+        expect(final({ margin: 1.04 })).toBe(base);
     });
 });

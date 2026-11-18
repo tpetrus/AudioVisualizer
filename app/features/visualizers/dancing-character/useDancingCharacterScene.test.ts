@@ -6,7 +6,9 @@ import { defaultValues } from '~/components/ControlPanel/controls';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
+import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
+import type { AudioHubReader } from '~/features/audio/hub/types';
 import type { DancingCharacterAssets } from './dancingCharacterAssets';
 import { loadDancingCharacterAssets, disposeDancingCharacterAssets } from './dancingCharacterAssets';
 import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, type CharacterEntry } from './characterRegistry';
@@ -20,17 +22,14 @@ vi.mock('three', async (importOriginal) => {
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
 
-// The loader, the character scene and the shared BassPulse have their own specs; here only the hook's wiring matters.
+// The loader and the character scene have their own specs; here only the hook's wiring matters.
 vi.mock('./dancingCharacterAssets', () => ({
     loadDancingCharacterAssets: vi.fn(),
     disposeDancingCharacterAssets: vi.fn(),
     isAbortError: (error: unknown) => (error as { name?: string }).name === 'AbortError',
 }));
 
-const { scenes, pulses } = vi.hoisted(() => ({
-    scenes: [] as unknown[],
-    pulses: [] as Array<{ source: unknown; update: ReturnType<typeof vi.fn>; dispose: ReturnType<typeof vi.fn> }>,
-}));
+const { scenes } = vi.hoisted(() => ({ scenes: [] as unknown[] }));
 
 vi.mock('./dancingCharacterScene', () => ({
     DancingCharacterScene: class {
@@ -55,17 +54,6 @@ vi.mock('./dancingCharacterScene', () => ({
             readonly options: unknown,
         ) {
             scenes.push(this as unknown as Record<string, unknown>);
-        }
-    },
-}));
-
-vi.mock('~/features/rhythm/bassPulse', () => ({
-    BassPulse: class {
-        level = 0;
-        readonly update = vi.fn(() => this.level);
-        readonly dispose = vi.fn();
-        constructor(readonly source: unknown) {
-            pulses.push(this as never);
         }
     },
 }));
@@ -121,6 +109,7 @@ interface Props {
 function mountScene(initial: Partial<Props> = {}) {
     const resizes = installFakeResizeObserver();
     const tracker = new FakeRhythmTracker();
+    const hub = new FakeAudioHub();
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });
@@ -135,6 +124,7 @@ function mountScene(initial: Partial<Props> = {}) {
         ({ analyser, cameraLocked, reducedMotion, registry }: Props) =>
             useDancingCharacterScene(containerRef, {
                 analyser,
+                hub,
                 rhythm: asTracker(tracker),
                 valuesRef,
                 cameraLocked,
@@ -152,6 +142,7 @@ function mountScene(initial: Partial<Props> = {}) {
         ...hook,
         renderer,
         tracker,
+        hub,
         valuesRef,
         onViewChanged,
         onStatus,
@@ -181,7 +172,6 @@ const FAKE_REGISTRY = [makeEntry(DEFAULT_CHARACTER_ID), makeEntry('robot'), make
 describe('useDancingCharacterScene', () => {
     beforeEach(() => {
         scenes.length = 0;
-        pulses.length = 0;
         loads.length = 0;
         vi.mocked(loadDancingCharacterAssets).mockReset();
         vi.mocked(disposeDancingCharacterAssets).mockReset();
@@ -541,25 +531,94 @@ describe('useDancingCharacterScene', () => {
 
             renderer.renderFrame(0);
 
-            expect(pulses).toHaveLength(0);
             expect(character().frames[0].bass).toBe(0);
         });
     });
 
-    describe('bass pulse', () => {
+    describe('bass from the hub', () => {
         const createAnalyser = () => asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
 
-        it('is created for the analyser and its level reaches the frames', () => {
-            const analyser = createAnalyser();
-            const { renderer } = mountScene({ analyser });
+        it('catches the hub up once when the scene is built, then once per frame', () => {
+            const { renderer, hub } = mountScene({ analyser: createAnalyser() });
+            expect(hub.update).toHaveBeenCalledTimes(1);
 
             renderer.renderFrame(0);
-            pulses[0].update.mockReturnValue(0.7);
             renderer.renderFrame(16);
 
-            expect(pulses).toHaveLength(1);
-            expect(pulses[0].source).toBe(analyser);
-            expect(character().frames.map((frame) => frame.bass)).toEqual([0, 0.7]);
+            expect(hub.update).toHaveBeenCalledTimes(3);
+        });
+
+        it('rises above 0 when the low band jumps from a settled level', () => {
+            const { renderer, hub } = mountScene({ analyser: createAnalyser() });
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let t = 0; t < 40; t++) renderer.renderFrame(t * 16);
+            hub.setBands([1, 0.3, 0, 0, 0, 0]);
+            renderer.renderFrame(40 * 16);
+            renderer.renderFrame(41 * 16);
+
+            const bass = character().frames.map((frame) => frame.bass);
+            expect(Math.max(...bass.slice(0, 40))).toBeLessThan(0.01);
+            expect(bass[41]).toBeGreaterThan(0);
+        });
+
+        it('ignores the bands above the low end', () => {
+            const { renderer, hub } = mountScene({ analyser: createAnalyser() });
+            hub.setBands([0, 0, 0.3, 0.3, 0.3, 0.3]);
+            for (let t = 0; t < 20; t++) renderer.renderFrame(t * 16);
+            hub.setBands([0, 0, 1, 1, 1, 1]);
+            renderer.renderFrame(20 * 16);
+
+            expect(character().frames[20].bass).toBe(0);
+        });
+
+        it('reads 0 for a silent hub', () => {
+            const { renderer } = mountScene({ analyser: createAnalyser() });
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+
+            expect(character().frames.map((frame) => frame.bass)).toEqual([0, 0]);
+        });
+
+        it('stays 0 with no source even when the hub is loud', () => {
+            const { renderer, hub } = mountScene();
+            hub.setBands([1, 1, 1, 1, 1, 1]);
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+
+            expect(character().frames.map((frame) => frame.bass)).toEqual([0, 0]);
+        });
+
+        it('starts the envelope afresh for a new source and drops to 0 when the source goes away', () => {
+            const { renderer, hub, rerender } = mountScene({ analyser: createAnalyser() });
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let t = 0; t < 10; t++) renderer.renderFrame(t * 16);
+            hub.setBands([1, 0.3, 0, 0, 0, 0]);
+            renderer.renderFrame(160);
+            renderer.renderFrame(176);
+            expect(character().frames[11].bass).toBeGreaterThan(0);
+
+            // A fresh envelope seeds from the first audible level, so the loud band is not a bump.
+            rerender({ analyser: createAnalyser(), cameraLocked: true });
+            renderer.renderFrame(192);
+            expect(character().frames[12].bass).toBe(0);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            renderer.renderFrame(208);
+            expect(character().frames[13].bass).toBe(0);
+        });
+
+        it('creates no filter and no analyser of its own', () => {
+            const context = new FakeAudioContext();
+            const filters = vi.spyOn(context, 'createBiquadFilter');
+            const analysers = vi.spyOn(context, 'createAnalyser');
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(context));
+
+            const { renderer } = mountScene({ analyser });
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+
+            expect(filters).not.toHaveBeenCalled();
+            expect(analysers).not.toHaveBeenCalled();
         });
 
         it('restarts the dance for each new source, but not when the source goes away', () => {
@@ -577,36 +636,6 @@ describe('useDancingCharacterScene', () => {
             rerender({ analyser: undefined, cameraLocked: true });
             renderer.renderFrame(48);
             expect(scene.restartDance).toHaveBeenCalledTimes(2);
-        });
-
-        it('is rebound when the analyser changes and dropped when it goes away', () => {
-            const first = createAnalyser();
-            const second = createAnalyser();
-            const { renderer, rerender } = mountScene({ analyser: first });
-            renderer.renderFrame(0);
-
-            rerender({ analyser: second, cameraLocked: true });
-            renderer.renderFrame(16);
-            renderer.renderFrame(32);
-
-            expect(pulses).toHaveLength(2);
-            expect(pulses[0].dispose).toHaveBeenCalledTimes(1);
-            expect(pulses[1].source).toBe(second);
-
-            rerender({ analyser: undefined, cameraLocked: true });
-            renderer.renderFrame(48);
-
-            expect(pulses[1].dispose).toHaveBeenCalledTimes(1);
-            expect(character().frames[3].bass).toBe(0);
-        });
-
-        it('is disposed on unmount', () => {
-            const { renderer, unmount } = mountScene({ analyser: createAnalyser() });
-            renderer.renderFrame(0);
-
-            unmount();
-
-            expect(pulses[0].dispose).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -659,6 +688,7 @@ describe('useDancingCharacterScene', () => {
                 'gridMoves',
                 'octaveHolds',
                 'barVetoes',
+                'lowEnd',
             ]);
         });
 
@@ -681,10 +711,10 @@ describe('useDancingCharacterScene', () => {
                 songChangeCount: 2,
             });
 
-            const out = Array.from(readProbe(28));
+            const out = Array.from(readProbe(29));
 
             expect(out.slice(6)).toEqual(
-                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25, 0, 0, 0, 0].map(
+                [120, 0, 0, 0, 0.5, 0.25, 4, 0.5, 0.125, 9, 2, 0, 1.25, -0.01, 1, 0.75, 7, -0.25, 0, 0, 0, 0, 0].map(
                     Math.fround,
                 ),
             );
@@ -707,7 +737,7 @@ describe('useDancingCharacterScene', () => {
             const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
             scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 0, kickOffset: NaN };
 
-            const out = readProbe(28);
+            const out = readProbe(29);
 
             expect([out[7], out[8], out[9], out[17], out[24], out[25], out[26], out[27]]).toEqual([
                 121, 60.5, 120, 3, 93.5, 4, 5, 6,
@@ -718,19 +748,59 @@ describe('useDancingCharacterScene', () => {
 
         it('reads the gate input from the frame and the rest from the character, and ticks in seconds', () => {
             const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
-            const { renderer } = mountScene({ analyser });
+            const { renderer, hub } = mountScene({ analyser });
             renderer.renderFrame(0);
             const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
             scene.gateOutput = 0.4;
             scene.gateTempoLocked = true;
             scene.bassGate = { open: true, score: 3, weight: 0.5 };
-            pulses[0].update.mockReturnValue(0.75);
+            hub.setBands([0.75, 0.5, 0, 0, 0, 0]);
 
             renderer.renderFrame(16);
             renderer.renderFrame(32);
 
-            expect(Array.from(readProbe(6))).toEqual([0.75, 0.4, 1, 3, 0.5, 1].map(Math.fround));
+            // The probe's `in` is the frame's bass, the gate's input, so recordings still replay through the gate.
+            const frames = character().frames;
+            expect(readProbe(6)[0]).toBe(Math.fround(frames[frames.length - 1].bass));
+            expect(Array.from(readProbe(6)).slice(1)).toEqual([0.4, 1, 3, 0.5, 1].map(Math.fround));
             expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);
+        });
+
+        it('records the hub low end, the louder of the two low bands, as the last column and 0 with no source', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer, hub } = mountScene({ analyser });
+            renderer.renderFrame(0);
+            const live = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            live.bassGate = { open: false, score: 0, weight: 0 };
+            hub.setBands([0.25, 0.5, 0, 0, 0, 0]);
+            renderer.renderFrame(16);
+
+            expect(readProbe(29)[28]).toBe(0.5);
+
+            hub.setBands([0.75, 0.5, 0, 0, 0, 0]);
+            renderer.renderFrame(32);
+
+            expect(readProbe(29)[28]).toBe(0.75);
+
+            const silent = mountScene();
+            silent.renderer.renderFrame(16);
+            const quiet = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            quiet.bassGate = { open: false, score: 0, weight: 0 };
+
+            expect(readProbe(29)[28]).toBe(0);
+        });
+
+        it('still gives bass above 0 after a jump in the low end', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer, hub } = mountScene({ analyser });
+            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            for (let i = 0; i < 30; i++) renderer.renderFrame(i * 16);
+            hub.setBands([1, 1, 0, 0, 0, 0]);
+            renderer.renderFrame(31 * 16);
+            renderer.renderFrame(32 * 16);
+
+            const frames = character().frames;
+            expect(frames[frames.length - 1].bass).toBeGreaterThan(0);
         });
 
         it('reads closed and unlocked as zeros', () => {
@@ -787,6 +857,7 @@ describe('useDancingCharacterScene', () => {
                     { current: null },
                     {
                         analyser: undefined,
+                        hub: new FakeAudioHub() as AudioHubReader,
                         rhythm: asTracker(new FakeRhythmTracker()),
                         valuesRef: { current: defaultValues(dancingCharacterControls) },
                         cameraLocked: true,

@@ -2,19 +2,16 @@ import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
-import { BassBump } from './bassBump';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
-import { HUB_BANDS } from '~/features/rhythm/rhythmConfig';
+import { BassBump, hubLowEnd } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
 import { disposeScene } from '~/lib/three/disposeScene';
 
-const SUB_BAND = HUB_BANDS.indexOf('sub');
-const KICK_BAND = HUB_BANDS.indexOf('kick');
 const CAMERA_FOV = 50;
 const CAMERA_DISTANCE = 32;
 // Frequency data: 2048 samples gives ~23 Hz bins, enough to separate bass notes.
@@ -151,9 +148,7 @@ export function useCubesScene(
                 }
                 downbeatAccent *= DOWNBEAT_ACCENT_DECAY;
 
-                // The kick lives in the hub's `sub` and `kick` bands (20 to 130 Hz). The louder of the two is used, not a
-                // mean: kicks differ in pitch, and a mean would halve the level of one that sits in a single band.
-                const bump = bass.step(Math.max(bands[SUB_BAND], bands[KICK_BAND]), delta / 1000);
+                const bump = bass.step(hubLowEnd(bands), delta / 1000);
                 const pulse = values.bassBump ? bump * values.bgPulse : 0;
                 backgroundColor.copy(restingColor).multiplyScalar((pulse * MAX_BACKGROUND_FLASH) ** DISPLAY_GAMMA);
 

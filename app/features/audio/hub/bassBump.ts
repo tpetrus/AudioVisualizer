@@ -1,7 +1,17 @@
-// The cubes' background flash and backdrop lift come from this envelope: it bumps when the low end of the music
-// (below 130 Hz, read from the audio hub) gets louder than it has recently been. It keeps the idea of the older
-// BassPulse (a fast and a slow follower, a bump being the fast one rising above the slow one, a smooth rise and a
-// slower settle) but every rate is per second, so the picture reacts the same at 30, 60 or 144 fps.
+// A shared bass envelope for the visualizers that read the audio hub (cubes and dancing-character): it bumps when the
+// low end of the music (below 130 Hz) gets louder than it has recently been. It keeps the idea of the older BassPulse
+// (a fast and a slow follower, a bump being the fast one rising above the slow one, a smooth rise and a slower settle)
+// but every rate is per second, so the picture reacts the same at 30, 60 or 144 fps.
+import { HUB_BANDS } from '~/features/rhythm/rhythmConfig';
+
+const SUB_BAND = HUB_BANDS.indexOf('sub');
+const KICK_BAND = HUB_BANDS.indexOf('kick');
+
+// The kick lives in the hub's `sub` and `kick` bands (20 to 130 Hz). The louder of the two is used, not a mean: kicks
+// differ in pitch, and a mean would halve the level of one that sits in a single band.
+export function hubLowEnd(bands: ArrayLike<number>): number {
+    return Math.max(bands[SUB_BAND], bands[KICK_BAND]);
+}
 
 // The per-frame rates this envelope was tuned with, at 60 fps. Each is turned into a time-based rate by `closing`.
 const REFERENCE_FPS = 60;
@@ -36,6 +46,13 @@ const PULSE_FALL_LN = lnKeep(PULSE_FALL);
 // Fraction of the gap to close over `frames` reference frames.
 const closing = (keepLn: number, frames: number) => 1 - Math.exp(keepLn * frames);
 
+export interface BassBumpOptions {
+    // The ratio of the fast to the slow follower above which a bump starts.
+    margin?: number;
+    // How steeply the pulse's target rises with the ratio above the margin.
+    gain?: number;
+}
+
 // State is public only so DEV telemetry can read it; nothing outside `step` writes it. Allocates nothing.
 export class BassBump {
     public input = 0;
@@ -45,6 +62,13 @@ export class BassBump {
     public pulse = 0;
     // False until the first level above near-silence has seeded the followers.
     private seeded = false;
+    private readonly margin: number;
+    private readonly gain: number;
+
+    public constructor(options: BassBumpOptions = {}) {
+        this.margin = options.margin ?? BUMP_MARGIN;
+        this.gain = options.gain ?? BUMP_GAIN;
+    }
 
     // Advances the envelope by `deltaSeconds` with the latest low-end level (0..1) and returns the pulse (0..1).
     public step(input: number, deltaSeconds: number): number {
@@ -64,7 +88,7 @@ export class BassBump {
         const ratio = this.slow > NEAR_SILENCE ? this.fast / this.slow : 1;
         this.input = input;
         this.ratio = ratio;
-        const target = Math.min(1, Math.max(0, (ratio - BUMP_MARGIN) * BUMP_GAIN));
+        const target = Math.min(1, Math.max(0, (ratio - this.margin) * this.gain));
 
         this.pulse += (target - this.pulse) * closing(target > this.pulse ? PULSE_RISE_LN : PULSE_FALL_LN, frames);
         return this.pulse;

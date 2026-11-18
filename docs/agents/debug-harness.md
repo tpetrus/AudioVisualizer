@@ -38,6 +38,11 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   unknown name is an error. A recording made before the last change to the gate will not reproduce its own opening under
   `current`; that is the gate having changed, not the replay. Trimmed recordings of the kick-bearing tracks are in
   `scripts/fixtures/rhythm/gate/` and replayed by `scripts/rhythm-tools/gateReplay.test.ts`.
+  `--bump-margin N` and `--bump-gain N` (either one turns it on; the other defaults to the shipped `BUMP_MARGIN` /
+  `BUMP_GAIN`) replay the recording's `lowEnd` column through a fresh `BassBump` with those values and feed the result
+  to the gate instead of the recorded `in`, to choose the dancer's `DANCER_BUMP_MARGIN` and `DANCER_BUMP_GAIN`. The
+  output gains an `input:` line naming which input was used. A recording without a `lowEnd` column is an error with
+  that flag.
 - The telemetry CSV writes `NaN`, `Infinity` and `-Infinity` each under its own name, and the scripts read all three back
   (`scripts/debug-visualizer/csv.ts`).
 - `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` (`scripts/rhythm-ablate.ts`) runs the real `OnsetExtractor` and
@@ -335,6 +340,7 @@ accessors named below.
 | `gridMoves` | `BeatTracker.phaseShiftCount`: times the phase check moved the beat grid; back to 0 on a reset. Recordings made before this column still load |
 | `octaveHolds` | `TempoTracker.octaveHoldCount`: estimates where an octave-away challenger was held back for low confidence; back to 0 on a reset. Recordings made before this column still load |
 | `barVetoes` | `TempoTracker.barVetoCount`: estimates where a dotted challenger was refused because bar evidence did not favor it; back to 0 on a reset. Recordings made before this column still load |
+| `lowEnd` | the hub's louder of the `sub` and `kick` bands this frame (`hubLowEnd`), 0 with no source: what `BassBump` is fed, so `in` is its output. Last column. Recordings made before it still load, but cannot be replayed through BassBump |
 
 `rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`. The three counters are read through its read-only `beat` and `tempo` fields (`beat.phaseShiftCount`, `tempo.octaveHoldCount`, `tempo.barVetoCount`), because a forwarding getter each does not fit the production JS budget.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
