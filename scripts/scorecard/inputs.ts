@@ -23,7 +23,8 @@ export interface RunArgs {
 }
 
 export const DEFAULT_DIR = '.debug-in';
-export const DEFAULT_OUT = 'docs/agents/hub-scorecard';
+// Not docs/agents/hub-scorecard: that name is the findings doc, which a run would overwrite.
+export const DEFAULT_OUT = 'docs/agents/hub-scorecard.cells';
 export const BASELINE_PATH = 'docs/agents/hub-scorecard.baseline.json';
 // Where `npm run scorecard:live` writes; this runner merges it in when it exists.
 export const LIVE_PATH = LIVE_FILE;

@@ -23,6 +23,8 @@ import type { Scorecard, ScorecardCell } from './types';
 describe('parseRunArgs', () => {
     it('has defaults', () => {
         expect(parseRunArgs([])).toEqual({ dir: DEFAULT_DIR, out: DEFAULT_OUT, writeBaseline: false, help: false });
+        // docs/agents/hub-scorecard.md is the findings doc, so the generated report must not take its name.
+        expect(`${DEFAULT_OUT}.md`).not.toBe('docs/agents/hub-scorecard.md');
     });
 
     it('reads every flag', () => {
