@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 1;
+export const TARGETS_VERSION = 2;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -33,8 +33,6 @@ export interface MetricTarget {
     value: (measures: TrackMeasures) => number | null;
     // Data-dependent n/a: for example an onset band the track has no labels for.
     notApplicable?: (measures: TrackMeasures) => boolean;
-    // A kick track whose gate never opens is a failure with no value, not a missing measurement.
-    nullValueFails?: boolean;
 }
 
 const hasBeat = (trackClass: TrackClass): boolean => trackClass !== 'beatless';
@@ -127,7 +125,6 @@ export const METRICS: readonly MetricTarget[] = [
         applies: (trackClass, kick) => kick && hasBeat(trackClass),
         needsBeats: false,
         value: (measures) => measures.gateFirstOpenSeconds,
-        nullValueFails: true,
     },
     {
         id: 'gate.closedOnNoKick',

@@ -28,7 +28,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(1);
+        expect(TARGETS_VERSION).toBe(2);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
@@ -95,7 +95,6 @@ describe('targets', () => {
         expect(entry.visualizer).toBe('dancing-character');
         expect(entry.floor).toBe(4);
         expect(entry.stretch).toBe(2);
-        expect(entry.nullValueFails).toBe(true);
         expect(entry.applies('synthetic', true)).toBe(true);
         expect(entry.applies('synthetic', false)).toBe(false);
         expect(entry.applies('beatless', true)).toBe(false);

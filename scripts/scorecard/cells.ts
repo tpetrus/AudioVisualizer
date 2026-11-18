@@ -71,12 +71,10 @@ function trackCell(
         return offlineCell(base, true, null, 'unavailable', false);
     }
     if (metric.notApplicable?.(measures)) return offlineCell(base, false, null, 'n/a', false);
+    // The track and its truth are here, so a missing value is the tracker's doing (no lock, a gate that never opens),
+    // not a missing measurement. Unavailable is kept for missing inputs only, as contract C2 defines it.
     const value = metric.value(measures);
-    if (value === null) {
-        return metric.nullValueFails
-            ? offlineCell(base, true, null, 'fail', false)
-            : offlineCell(base, true, null, 'unavailable', false);
-    }
+    if (value === null) return offlineCell(base, true, null, 'fail', false);
     return scoredCell(base, metric.direction, value);
 }
 

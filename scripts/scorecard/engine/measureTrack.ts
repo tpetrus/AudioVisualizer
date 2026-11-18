@@ -1,7 +1,7 @@
-import { buildEvalReport } from '../../../app/features/rhythm/eval/evalReport';
 import { ONSET_BANDS, type BeatSidecar, type OnsetBand } from '../../../app/features/rhythm/eval/evalTypes';
 import { scoreOnsets, type TempoSample } from '../../../app/features/rhythm/eval/metrics';
 import type { TrackMeasures, TrackClass } from '../types';
+import { scorecardBeatErrorMs, trackerOctave } from './beatError';
 import { replayPcm } from './replay';
 import { countUnexplainedChanges, findSilences, recordSongChanges } from './songChanges';
 import { SCORECARD_TEMPO_TOLERANCE, constantTruth, driftingTruth, foldedError, type TempoTruth } from './tempoTruth';
@@ -126,13 +126,14 @@ export function measureTrack(input: MeasureTrackInput): TrackMeasures {
             : constantTruth(bpm);
     const figures = tempoFigures(replay.tempo, truth);
 
-    // Beat error as the evaluation code computes it, so the scorecard and `eval:rhythm` agree. Its lock is the unfolded
-    // tempo within 2% of the sidecar's single tempo, so a track that locks on an octave has no beat error here, and a
-    // drifting track has one only if its mean tempo is held.
+    // Beat error from the scorecard's own lock rather than `eval:rhythm`'s unfolded one, which has no figure for an
+    // octave lock or a drifting track (see beatError.ts). A track that never locks has none, and its cell fails.
     let beatErrorMedianMs: number | null = null;
-    if (sidecar && sidecar.beats.length > 0) {
-        const report = buildEvalReport({ ...sidecar, tempo: bpm }, { beats: replay.beats, tempo: replay.tempo });
-        beatErrorMedianMs = report.beatErrorMs?.median ?? null;
+    if (sidecar && sidecar.beats.length > 0 && figures.lockSeconds !== null) {
+        const octave = trackerOctave(replay.tempo, truth, figures.lockSeconds);
+        if (octave !== undefined) {
+            beatErrorMedianMs = scorecardBeatErrorMs(sidecar.beats, replay.beats, figures.lockSeconds, octave);
+        }
     }
 
     return {

@@ -151,13 +151,13 @@ describe('buildScorecard', () => {
         expect(cell(card, 'gate.firstOpenSeconds', 'lonley.wav').status).toBe('pass');
     });
 
-    it('marks a needed measure that is null unavailable', () => {
+    it('fails a measured track whose measure is null, because the tracker never got there', () => {
         const card = build({
             measures: [measures('click-90.wav', { maxTempoErrorAfterLock: null })],
             available: [{ track: 'click-90.wav', hasBeats: true }],
         });
         expect(cell(card, 'tempo.maxErrorAfterLock', 'click-90.wav')).toMatchObject({
-            status: 'unavailable',
+            status: 'fail',
             value: null,
             pass: false,
         });
