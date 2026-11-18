@@ -92,14 +92,42 @@ pre-hub input have passed either.
 | `half-time-shuffle` | 19.68 | 18.95 | 19.68 | 18.95 | 19.68 | 18.95 |
 | `high-bpm-dnb` | 18.23 | never | 18.88 | never | 18.88 | never |
 
-  Batching is not the cause (per-frame delivery does not help `lonley`). The running-peak scaling costs `lonley`, the log
-  compression costs `syncopationbass2`, and on `summer2000` no FFT-band feature opens the gate at all. `BassPulse`'s
+  Batching is not the cause (per-frame delivery does not help `lonley`). The running-peak scaling costs `lonley`, the
+  log compression costs `syncopationbass2`, and on `summer2000` no FFT-band feature opens the gate at all. `BassPulse`'s
   own feature (RMS of the 120 Hz, 24 dB/octave lowpass over the last 2048 samples), read only at the end of the newest
   delivered worklet frame, matches the pre-hub gate within 0.02 s on 12 of 13 tracks (`summer2000` +0.48 s). The hub
   input is better than pre-hub on `syncopationbass` and `high-bpm-dnb`; that gain is lost with the `BassPulse` feature.
 - **C1 candidate (for the S3 review):** `gateBass` carries `BassPulse`'s feature, computed in the worklet per frame and
   read through the hub at render time; the dancer and cubes run a `BassPulse`-rate envelope over it. It restores pre-hub
   gate timing by construction and keeps a single analysis path (AC10).
+
+### C1: a third gate input (searched at Trevor's request)
+Trevor asked for an input that does better across all the clips together rather than a choice between the hub's low end
+and `BassPulse`. Seconds from the dancer's lock to the first opening, offline, over the 15 kick tracks in `.debug-in`
+(a gate that never opens counts the rest of the track):
+
+| Input | Sum after lock | Tracks worse than the better of hub and pre-hub (by more than 0.1 s) |
+|---|---|---|
+| Hub low end (today) | 143.5 s | 6 |
+| `BassPulse` (pre-hub) | 133.7 s | 3 |
+| `BassPulse` feature at worklet frame times | 134.2 s | 4 |
+| Louder of the two pulses, one gate | 141.5 s | 5 |
+| **Two gates, one per input, the dancer's gate opens when either opens** | **117.2 s** | **1** (`summer2000`, +0.5 s) |
+| Hub kick and bass onset events as the pulse | 131.0 s | 5 |
+| Hub kick onset events only | 154.2 s | 8 |
+| Linear sum of the hub's sub and kick bands | 156.9 s | 7 |
+
+- **Two gates** is the clear collective best: it takes the earlier of two independent kick detectors, so it is never
+  later than either input except where the frame-timed `BassPulse` feature lags (`summer2000`). Its cost is false opens:
+  on tracks without a kick it opens as soon as the faster of the two (`syncopation-no-kick` 6.7 s after the lock,
+  `click-120` 4.4 s, `beatless` 4.2 s), and its false-open rate on random bass has not been measured; it is at most the
+  sum of the two gates' rates. Measure that before S4 builds it.
+- **Onset events** are the most hub-native input (time-stamped, no level scaling): fastest on `drums-150`,
+  `half-time-shuffle` and `drifting-tempo`, and the slowest to open on `syncopation-no-kick` (9.9 s; kick onsets alone
+  never open it). But they never open on `summer2000` and lag on `imyourgirl` and `syncopationbass`; they depend on the
+  kick onsets S6 is to improve, so they are worth re-scoring after S6.
+- **No input meets AC6 alone.** Even the best one opens within 4 s of the lock only on `drums-128`; clean synthetic
+  drums still take 4.4 to 5.7 s. The gate rule's evidence pace (S5) decides AC6 more than the input does.
 
 ### Other failing cells (not hub regressions: their code is unchanged since before the hub)
 | Metric | Tracks | Owner |
@@ -114,8 +142,7 @@ pre-hub input have passed either.
 ## Open for S3
 - Live cells (`npm run scorecard:live`, metrics in `targets.ts` under `LIVE_METRICS`): record today's build and the
   pre-hub worktree on `dancing-character`, `cubes` and `trio-color-wave`, then commit the baseline.
-- C1: Trevor asked for a third gate input that does better than both the hub's low end and `BassPulse` across all the
-  clips together, rather than a choice between them; it is searched offline before S4.
+- C1: the third-option search is above; Trevor picks the input (or asks for more) before S4.
 - Review with Trevor once the live cells are in: stretch targets (D10), which fix slices proceed, and deferrals.
 
 ## Follow-ups outside the fast lane
