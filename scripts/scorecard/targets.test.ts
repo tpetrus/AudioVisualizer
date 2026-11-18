@@ -31,14 +31,14 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(2);
+        expect(TARGETS_VERSION).toBe(3);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('makes every offline metric blocking except the report-only ones', () => {
         const reportOnly = METRICS.filter((entry) => !entry.blocking).map((entry) => entry.id);
-        expect(reportOnly.sort()).toEqual(['gate.closedOnNoKick', 'tempo.lockSeconds']);
+        expect(reportOnly.sort()).toEqual(['gate.closedOnNoKick', 'gate.secondsAfterLock', 'tempo.lockSeconds']);
         for (const entry of METRICS.filter((candidate) => !candidate.blocking)) expect(entry.floor).toBeNull();
     });
 
@@ -102,6 +102,35 @@ describe('targets', () => {
         expect(entry.applies('synthetic', false)).toBe(false);
         expect(entry.applies('beatless', true)).toBe(false);
         expect(entry.value(measures({ gateFirstOpenSeconds: null }))).toBeNull();
+    });
+
+    it('reads the pre-hub gate time for the gate metric only', () => {
+        const entry = metric('gate.firstOpenSeconds');
+        expect(entry.prehubValue?.(measures({ prehubGateFirstOpenSeconds: 2.5 }))).toBe(2.5);
+        expect(entry.prehubValue?.(measures({ prehubGateFirstOpenSeconds: null }))).toBeNull();
+        expect(metric('tempo.lockSeconds').prehubValue).toBeUndefined();
+        expect(metric('beat.errorMedianMs').prehubValue).toBeUndefined();
+    });
+
+    it('reports the gap between the dancer lock and the gate opening, now and pre-hub', () => {
+        const entry = metric('gate.secondsAfterLock');
+        expect(entry).toMatchObject({
+            visualizer: 'dancing-character',
+            floor: null,
+            stretch: null,
+            blocking: false,
+            needsBeats: false,
+        });
+        expect(entry.applies('synthetic', true)).toBe(true);
+        expect(entry.applies('synthetic', false)).toBe(false);
+        expect(entry.applies('beatless', true)).toBe(false);
+        const m = measures({ gateFirstOpenSeconds: 3, prehubGateFirstOpenSeconds: 2, dancerLockSeconds: 0.5 });
+        expect(entry.value(m)).toBe(2.5);
+        expect(entry.prehubValue?.(m)).toBe(1.5);
+        expect(entry.value(measures({ gateFirstOpenSeconds: null }))).toBeNull();
+        expect(entry.value(measures({ dancerLockSeconds: null }))).toBeNull();
+        expect(entry.prehubValue?.(measures({ prehubGateFirstOpenSeconds: null }))).toBeNull();
+        expect(entry.prehubValue?.(measures({ dancerLockSeconds: null }))).toBeNull();
     });
 
     it('reports whether the gate opened on a track with no kick', () => {

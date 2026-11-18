@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 2;
+export const TARGETS_VERSION = 3;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -31,11 +31,18 @@ export interface MetricTarget {
     // unavailable rather than failing it.
     needsBeats: boolean;
     value: (measures: TrackMeasures) => number | null;
+    // The same metric on the pre-hub input (decision D8); absent for metrics the hub did not touch, whose pre-hub
+    // value is today's value because the rhythm DSP is unchanged since the commit before the hub merge.
+    prehubValue?: (measures: TrackMeasures) => number | null;
     // Data-dependent n/a: for example an onset band the track has no labels for.
     notApplicable?: (measures: TrackMeasures) => boolean;
 }
 
 const hasBeat = (trackClass: TrackClass): boolean => trackClass !== 'beatless';
+
+// A gate that never opened or a dancer that never locked leaves no gap to report.
+const secondsAfterLock = (open: number | null, lock: number | null): number | null =>
+    open === null || lock === null ? null : open - lock;
 
 const ONSET_BANDS_SCORED: readonly OnsetBand[] = ['kick', 'bass', 'snare', 'highs'];
 
@@ -125,6 +132,22 @@ export const METRICS: readonly MetricTarget[] = [
         applies: (trackClass, kick) => kick && hasBeat(trackClass),
         needsBeats: false,
         value: (measures) => measures.gateFirstOpenSeconds,
+        prehubValue: (measures) => measures.prehubGateFirstOpenSeconds,
+    },
+    {
+        id: 'gate.secondsAfterLock',
+        description: 'Seconds from the dancer tempo lock until the dancing character gate first opens',
+        direction: 'lower',
+        unit: 'seconds',
+        // Report-only: it shows how much of the opening delay is the hub's rather than the tempo lock's.
+        floor: null,
+        stretch: null,
+        visualizer: 'dancing-character',
+        blocking: false,
+        applies: (trackClass, kick) => kick && hasBeat(trackClass),
+        needsBeats: false,
+        value: (measures) => secondsAfterLock(measures.gateFirstOpenSeconds, measures.dancerLockSeconds),
+        prehubValue: (measures) => secondsAfterLock(measures.prehubGateFirstOpenSeconds, measures.dancerLockSeconds),
     },
     {
         id: 'gate.closedOnNoKick',

@@ -52,8 +52,8 @@ describe('buildScorecard', () => {
             created: '2026-01-01T00:00:00Z',
             sidecarHashes: { 'click-90.wav': 'h' },
         });
-        // 11 track metrics (4 onset bands) times 25 tracks, plus 2 scenario cells.
-        expect(card.cells).toHaveLength(11 * EXPECTED_TRACK_NAMES.length + 2);
+        // 12 track metrics (4 onset bands) times 25 tracks, plus 2 scenario cells.
+        expect(card.cells).toHaveLength(12 * EXPECTED_TRACK_NAMES.length + 2);
     });
 
     it('sorts cells by metric, then track', () => {
@@ -191,8 +191,8 @@ describe('buildScorecard', () => {
     it('fails a slow gate and passes a fast one', () => {
         const card = build({
             measures: [
-                measures('drums-100.wav', { gateFirstOpenSeconds: 4.5 }),
-                measures('drums-128.wav', { gateFirstOpenSeconds: 4 }),
+                measures('drums-100.wav', { gateFirstOpenSeconds: 4.5, prehubGateFirstOpenSeconds: null }),
+                measures('drums-128.wav', { gateFirstOpenSeconds: 4, prehubGateFirstOpenSeconds: null }),
             ],
             available: [
                 { track: 'drums-100.wav', hasBeats: true },
@@ -254,6 +254,95 @@ describe('buildScorecard', () => {
             value: null,
             pass: false,
         });
+    });
+});
+
+describe('pre-hub gate rule', () => {
+    const gateCell = (open: number | null, prehub: number | null): ScorecardCell =>
+        cell(
+            build({
+                measures: [
+                    measures('drums-100.wav', { gateFirstOpenSeconds: open, prehubGateFirstOpenSeconds: prehub }),
+                ],
+                available: [{ track: 'drums-100.wav', hasBeats: true }],
+            }),
+            'gate.firstOpenSeconds',
+            'drums-100.wav',
+        );
+
+    it('passes a gate at 3 s when it never opened pre-hub, keeping the 4 s floor', () => {
+        expect(gateCell(3, null)).toMatchObject({ status: 'pass', pass: true, prehub: null, floor: 4 });
+    });
+
+    it('fails a gate at 3.5 s when it opened at 2 s pre-hub', () => {
+        expect(gateCell(3.5, 2)).toMatchObject({ status: 'fail', pass: false, prehub: 2, floor: 4 });
+    });
+
+    it('passes a gate that is no later than pre-hub', () => {
+        expect(gateCell(2, 2)).toMatchObject({ status: 'pass', prehub: 2 });
+    });
+
+    it('fails a gate at 5 s even when pre-hub was 6 s, because the 4 s floor still holds', () => {
+        expect(gateCell(5, 6)).toMatchObject({ status: 'fail', pass: false, prehub: 6 });
+    });
+
+    it('records the pre-hub value on a gate that never opened', () => {
+        expect(gateCell(null, 2)).toMatchObject({ status: 'fail', pass: false, value: null, prehub: 2 });
+    });
+
+    it('leaves prehub null on rhythm metrics', () => {
+        const card = build({
+            measures: [measures('click-90.wav')],
+            available: [{ track: 'click-90.wav', hasBeats: true }],
+        });
+        for (const metric of ['beat.errorMedianMs', 'tempo.lockSeconds', 'tempo.falseSongChanges']) {
+            expect(cell(card, metric, 'click-90.wav').prehub).toBeNull();
+        }
+    });
+});
+
+describe('gate.secondsAfterLock', () => {
+    const lagCell = (overrides: Partial<TrackMeasures>): ScorecardCell =>
+        cell(
+            build({
+                measures: [measures('drums-100.wav', overrides)],
+                available: [{ track: 'drums-100.wav', hasBeats: true }],
+            }),
+            'gate.secondsAfterLock',
+            'drums-100.wav',
+        );
+
+    it('reports the value and the pre-hub value without blocking', () => {
+        expect(
+            lagCell({ gateFirstOpenSeconds: 3, prehubGateFirstOpenSeconds: 2, dancerLockSeconds: 0.5 }),
+        ).toMatchObject({
+            value: 2.5,
+            prehub: 1.5,
+            floor: null,
+            blocking: false,
+            pass: true,
+            status: 'pass',
+        });
+    });
+
+    it('does not show a null value as a failure', () => {
+        expect(lagCell({ dancerLockSeconds: null, prehubGateFirstOpenSeconds: null })).toMatchObject({
+            applicable: true,
+            value: null,
+            prehub: null,
+            pass: true,
+            status: 'pass',
+            blocking: false,
+        });
+        expect(lagCell({ gateFirstOpenSeconds: null })).toMatchObject({ value: null, status: 'pass' });
+    });
+
+    it('is n/a on a track with no kick', () => {
+        const card = build({
+            measures: [measures('click-90.wav')],
+            available: [{ track: 'click-90.wav', hasBeats: true }],
+        });
+        expect(cell(card, 'gate.secondsAfterLock', 'click-90.wav')).toMatchObject({ applicable: false, status: 'n/a' });
     });
 });
 

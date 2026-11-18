@@ -32,8 +32,9 @@ function offlineCell(
     value: number | null,
     status: ScorecardCell['status'],
     pass: boolean,
+    prehub: number | null = null,
 ): ScorecardCell {
-    return { ...base, applicable, prehub: null, value, spread: 0, runs: 1, source: 'offline', pass, status };
+    return { ...base, applicable, prehub, value, spread: 0, runs: 1, source: 'offline', pass, status };
 }
 
 function meetsFloor(direction: MetricDirection, value: number, floor: number | null): boolean {
@@ -41,11 +42,16 @@ function meetsFloor(direction: MetricDirection, value: number, floor: number | n
     return direction === 'lower' ? value <= floor : value >= floor;
 }
 
-function scoredCell(base: CellBase, direction: MetricDirection, value: number): ScorecardCell {
-    // The effective floor folds in the pre-hub value; it is null in this slice but the rule is already in place.
-    const floor = effectiveFloor(direction, base.floor, null);
+function scoredCell(
+    base: CellBase,
+    direction: MetricDirection,
+    value: number,
+    prehub: number | null = null,
+): ScorecardCell {
+    // The effective floor folds in the pre-hub value, so a gate must open within its floor and no later than before.
+    const floor = effectiveFloor(direction, base.floor, prehub);
     const pass = meetsFloor(direction, value, floor);
-    return offlineCell(base, true, value, pass ? 'pass' : 'fail', pass);
+    return offlineCell(base, true, value, pass ? 'pass' : 'fail', pass, prehub);
 }
 
 function trackCell(
@@ -74,8 +80,13 @@ function trackCell(
     // The track and its truth are here, so a missing value is the tracker's doing (no lock, a gate that never opens),
     // not a missing measurement. Unavailable is kept for missing inputs only, as contract C2 defines it.
     const value = metric.value(measures);
-    if (value === null) return offlineCell(base, true, null, 'fail', false);
-    return scoredCell(base, metric.direction, value);
+    const prehub = metric.prehubValue?.(measures) ?? null;
+    if (value === null) {
+        // A report-only metric has no floor to miss, so a missing value is not a failure; it shows as a dash.
+        if (base.floor === null) return offlineCell(base, true, null, 'pass', true, prehub);
+        return offlineCell(base, true, null, 'fail', false, prehub);
+    }
+    return scoredCell(base, metric.direction, value, prehub);
 }
 
 function scenarioCell(target: ScenarioTarget, measures: ScenarioMeasures | undefined): ScorecardCell {

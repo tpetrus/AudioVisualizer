@@ -36,6 +36,8 @@ export function renderMarkdown(scorecard: Scorecard, notes: string[] = []): stri
         '',
         `Targets version ${scorecard.header.targetsVersion}, revision ${scorecard.header.revision}, created ${scorecard.header.created}.`,
         '',
+        'Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.',
+        '',
         `Applicable cells ${applicable.length}: ${count('pass')} passing, ${count('fail')} failing, ${count('unavailable')} unavailable. Blocking failures: ${blockingFailures}.`,
     ];
     if (notes.length > 0) {

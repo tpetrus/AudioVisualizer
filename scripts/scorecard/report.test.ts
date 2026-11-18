@@ -69,6 +69,12 @@ describe('renderMarkdown', () => {
         expect(renderMarkdown(card(cells))).toContain('| 1 | - | - | - | pass (report-only) |');
     });
 
+    it('explains the blank pre-hub column in one line', () => {
+        const text = renderMarkdown(card(cells));
+        expect(text.match(/^Pre-hub is /gm)).toHaveLength(1);
+        expect(text).toContain('rhythm DSP is unchanged since the commit before the hub merge');
+    });
+
     it('prints notes and is stable', () => {
         const text = renderMarkdown(card(cells), ['careful']);
         expect(text).toContain('- careful');
