@@ -76,9 +76,21 @@ export class PrehubBass {
         this.filtered = signal;
     }
 
+    // Reuses another instance's filtered signal, so a second reader of the same audio (with its own envelope) does not
+    // filter the whole track again. Both were built by BassPulse with the same filters, so the signal is the same.
+    public shareFiltered(other: PrehubBass): void {
+        this.filtered = other.filtered;
+    }
+
     // One animation frame at `time` seconds: the envelope BassPulse shows.
     public update(time: number): number {
-        this.end = Math.floor(time * this.sampleRate);
+        return this.updateAtSample(Math.floor(time * this.sampleRate));
+    }
+
+    // One animation frame whose analyser window ends at sample `end` rather than at the frame's time: the read a
+    // per-frame feature from the worklet gives, which is only as new as the last frame delivered.
+    public updateAtSample(end: number): number {
+        this.end = end;
         return this.pulse.update();
     }
 }

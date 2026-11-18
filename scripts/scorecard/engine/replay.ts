@@ -13,7 +13,7 @@ import {
     FRAME_STRIDE,
     HUB_BAND_COUNT,
 } from '../../../app/features/rhythm/rhythmConfig';
-import { FEATURE_MESSAGE_VERSION, type FeatureBatch } from '../../../app/features/rhythm/types';
+import { FEATURE_MESSAGE_VERSION, createRhythmState, type FeatureBatch } from '../../../app/features/rhythm/types';
 import {
     createDanceTimingResult,
     createDanceTimingState,
@@ -56,6 +56,9 @@ import { PrehubBass } from './prehubBass';
 //  - Output latency. The live render time subtracts the output latency and the sync offset, and the analysers see audio
 //    that has already passed through the output path; none of that is modeled.
 //  - Mono input. The worklet averages the channels; callers pass mono (readWav already mixes down).
+//  - Frame-timed gate input (S4, the contract C1 candidates). A third gate is stepped from BassPulse's feature as a
+//    per-frame worklet value would deliver it: its window ends at the end of the newest frame delivered so far, so it is
+//    only as new as the last batch, as the hub's bands are. It does not change the two gates above.
 
 // The render clock of the replay: one hub read and one gate step per tick.
 export const RENDER_HZ = 60;
@@ -90,24 +93,60 @@ export interface ReplayResult {
     // Time of the first render tick at which the dancer's own tempo lock holds; null if it never does.
     dancerLockSeconds: number | null;
     // The same gate fed the pre-hub way: BassPulse over the same post-gain audio, same rhythm state and tempo lock.
-    prehubGate: {
-        firstOpenSeconds: number | null;
-        openShare: number;
+    prehubGate: GateSummary;
+    // The candidate gate inputs of contract C1 that are not the gates above (S4 measures them before C1 is frozen).
+    gateInputs: {
+        // The gate fed by BassPulse's feature read at the end of the newest delivered worklet frame.
+        frameTimed: GateSummary;
     };
+}
+
+export interface GateSummary {
+    // Time of the first render tick at which the gate is open; null if it never opens.
+    firstOpenSeconds: number | null;
+    // Share of render ticks from the first opening on where it is open; 0 if it never opens.
+    openShare: number;
 }
 
 export interface ReplayOptions {
     // Applies the engine's automatic gain control to the PCM first (default true); false replays the raw samples.
     agc?: boolean;
+    // Steps every gate with a perfectly locked beat clock at this tempo (beats from time 0, tempo locked from the start,
+    // no song changes) instead of the tracker's state and the dancer's lock, and skips the tracker. It isolates what the
+    // gate inputs do from what the tracker does, as the gate specs drive the gate; `tempo` and `beats` are then empty,
+    // there are no song changes and `dancerLockSeconds` is 0.
+    lockedTempo?: number;
 }
 
 export function replayPcm(pcm: Float32Array, sampleRate: number, options: ReplayOptions = {}): ReplayResult {
     const audio = options.agc === false ? pcm : applyAgc(pcm, sampleRate);
-    const { result, softBoundaries } = countSoftBoundaries(() => run(audio, sampleRate));
+    const { result, softBoundaries } = countSoftBoundaries(() => run(audio, sampleRate, options.lockedTempo));
     return { ...result, softBoundaries };
 }
 
-function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBoundaries'> {
+// Counts the render ticks of one gate into its summary.
+class GateTally {
+    private firstOpen: number | null = null;
+    private ticksSinceOpen = 0;
+    private ticksOpen = 0;
+
+    public tick(open: boolean, time: number): void {
+        if (open && this.firstOpen === null) this.firstOpen = time;
+        if (this.firstOpen !== null) {
+            this.ticksSinceOpen++;
+            if (open) this.ticksOpen++;
+        }
+    }
+
+    public summary(): GateSummary {
+        return {
+            firstOpenSeconds: this.firstOpen,
+            openShare: this.ticksSinceOpen === 0 ? 0 : this.ticksOpen / this.ticksSinceOpen,
+        };
+    }
+}
+
+function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<ReplayResult, 'softBoundaries'> {
     const seconds = pcm.length / sampleRate;
     const blockSize = 128;
     const extractor = new OnsetExtractor(sampleRate);
@@ -145,15 +184,20 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
     const prehubBass = new PrehubBass(sampleRate);
     prehubBass.prepare(pcm);
     const prehubGate = createBassGateState();
+    // The frame-timed candidate: its own BassPulse envelope over the same filtered audio, read at the end sample of the
+    // newest delivered frame (-1 before the first batch, which reads an all-zero window).
+    const frameTimedBass = new PrehubBass(sampleRate);
+    frameTimedBass.shareFiltered(prehubBass);
+    const frameTimedGate = createBassGateState();
+    let newestFrameEnd = -1;
     let dancerLockSeconds: number | null = null;
-    let prehubFirstOpenSeconds: number | null = null;
-    let prehubTicksSinceOpen = 0;
-    let prehubTicksOpen = 0;
     let tick = 0;
     let everReportedLock = false;
-    let firstOpenSeconds: number | null = null;
-    let ticksSinceOpen = 0;
-    let ticksOpen = 0;
+    const hubTally = new GateTally();
+    const prehubTally = new GateTally();
+    const frameTimedTally = new GateTally();
+    // The locked clock of `lockedTempo`, written in place each tick.
+    const lockedRhythm = createRhythmState();
 
     // One animation frame: the order of the scene's update. The tracker's phase is brought to the render time, the hub
     // reads its bands and onsets at that time, the low end goes through the bump envelope, and the gate steps with the
@@ -161,26 +205,34 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
     const renderTick = (): void => {
         const time = tick * RENDER_DT;
         tick++;
-        analyzer.updatePhase(time);
-        hub.update(time);
-        if (state.bpm > 0 && state.beatPhase !== undefined) everReportedLock = true;
+        let rhythm = state;
+        let tempoLocked: boolean;
+        if (lockedTempo === undefined) {
+            analyzer.updatePhase(time);
+            hub.update(time);
+            if (state.bpm > 0 && state.beatPhase !== undefined) everReportedLock = true;
+            computeDanceTiming(state, REPLAY_CLIP_BEATS, 0, timingSettings, timingState, RENDER_DT, timing);
+            tempoLocked = timing.normalizedBpm !== undefined;
+        } else {
+            hub.update(time);
+            const beat = (time * lockedTempo) / 60;
+            lockedRhythm.bpm = lockedTempo;
+            lockedRhythm.tempoConfidence = 1;
+            lockedRhythm.beatPhase = beat % 1;
+            lockedRhythm.beatCount = Math.floor(beat);
+            rhythm = lockedRhythm;
+            everReportedLock = true;
+            tempoLocked = true;
+        }
         const lowEnd = hubLowEnd(hub.snapshot.bands);
         const bass = bump.step(lowEnd, RENDER_DT);
-        computeDanceTiming(state, REPLAY_CLIP_BEATS, 0, timingSettings, timingState, RENDER_DT, timing);
-        const tempoLocked = timing.normalizedBpm !== undefined;
-        stepBassGate(bass, state, tempoLocked, gate, RENDER_DT);
-        if (gate.open && firstOpenSeconds === null) firstOpenSeconds = time;
-        if (firstOpenSeconds !== null) {
-            ticksSinceOpen++;
-            if (gate.open) ticksOpen++;
-        }
+        stepBassGate(bass, rhythm, tempoLocked, gate, RENDER_DT);
+        hubTally.tick(gate.open, time);
         if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;
-        stepBassGate(prehubBass.update(time), state, tempoLocked, prehubGate, RENDER_DT);
-        if (prehubGate.open && prehubFirstOpenSeconds === null) prehubFirstOpenSeconds = time;
-        if (prehubFirstOpenSeconds !== null) {
-            prehubTicksSinceOpen++;
-            if (prehubGate.open) prehubTicksOpen++;
-        }
+        stepBassGate(prehubBass.update(time), rhythm, tempoLocked, prehubGate, RENDER_DT);
+        prehubTally.tick(prehubGate.open, time);
+        stepBassGate(frameTimedBass.updateAtSample(newestFrameEnd), rhythm, tempoLocked, frameTimedGate, RENDER_DT);
+        frameTimedTally.tick(frameTimedGate.open, time);
     };
 
     // Every tick strictly before `until` has happened by the time a batch that arrives at `until` is delivered; a tick at
@@ -191,8 +243,9 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
 
     const deliver = (arrival: number): void => {
         renderBefore(arrival);
-        // The tracker's analysis: the batch's frames in order, spaced by the frame rate from the first one's time.
-        for (let i = 0; i < batch.count; i++) {
+        // The tracker's analysis: the batch's frames in order, spaced by the frame rate from the first one's time. A
+        // locked clock replaces the tracker, so it is skipped then.
+        for (let i = 0; lockedTempo === undefined && i < batch.count; i++) {
             const time = batch.time0 + i / analyzer.frameRate;
             analyzer.pushFrame(time, batch.frames, i * FRAME_STRIDE);
             analyzer.updatePhase(time);
@@ -208,6 +261,7 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
         }
         // The hub is told after the tracker's own analysis, as RhythmTracker does.
         hub.onBatch(batch);
+        newestFrameEnd = batchEndSample;
         batch.count = 0;
         batch.onsetCount = 0;
     };
@@ -223,7 +277,10 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
         batch.onsetCount++;
     };
 
+    // End sample of the newest frame of the batch being filled.
+    let batchEndSample = -1;
     const onFrame: FrameSink = (frame) => {
+        batchEndSample = frame.endSample;
         // The window is centered half its length before its end.
         const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
         if (batch.count === 0) batch.time0 = time;
@@ -247,11 +304,9 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
         onsets,
         songChangeCount: state.songChangeCount,
         everReportedLock,
-        gate: { firstOpenSeconds, openShare: ticksSinceOpen === 0 ? 0 : ticksOpen / ticksSinceOpen },
+        gate: hubTally.summary(),
         dancerLockSeconds,
-        prehubGate: {
-            firstOpenSeconds: prehubFirstOpenSeconds,
-            openShare: prehubTicksSinceOpen === 0 ? 0 : prehubTicksOpen / prehubTicksSinceOpen,
-        },
+        prehubGate: prehubTally.summary(),
+        gateInputs: { frameTimed: frameTimedTally.summary() },
     };
 }
