@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { debugVizArgs, parseOutputFolders, planJobs, shellQuote } from './record';
+import { debugVizArgs, parseOutputFolders, planJobs } from './record';
 
 describe('planJobs', () => {
     it('runs the last two as one page and the others as fresh loads', () => {
@@ -23,15 +23,12 @@ describe('parseOutputFolders', () => {
 });
 
 describe('debugVizArgs', () => {
-    const options = { dir: 'C:/my music', track: 'a.wav', viz: 'cubes', seconds: 12, headless: true };
+    const options = { dir: 'C:/my "music"', track: 'a.wav', viz: 'cubes', seconds: 12, headless: true };
 
-    it('passes the options through', () => {
+    it('passes only the debug:viz arguments, one element per value and unquoted', () => {
         expect(debugVizArgs(options, { reselect: 2 })).toEqual([
-            'run',
-            'debug:viz',
-            '--',
             '--dir',
-            'C:/my music',
+            'C:/my "music"',
             '--track',
             'a.wav',
             '--viz',
@@ -46,23 +43,12 @@ describe('debugVizArgs', () => {
 
     it('leaves out what is not set', () => {
         expect(debugVizArgs({ ...options, seconds: undefined, headless: false }, { reselect: 1 })).toEqual([
-            'run',
-            'debug:viz',
-            '--',
             '--dir',
-            'C:/my music',
+            'C:/my "music"',
             '--track',
             'a.wav',
             '--viz',
             'cubes',
         ]);
-    });
-});
-
-describe('shellQuote', () => {
-    it('quotes only what needs it', () => {
-        expect(shellQuote('C:/music/a.wav')).toBe('C:/music/a.wav');
-        expect(shellQuote('C:/my music')).toBe('"C:/my music"');
-        expect(shellQuote('a"b')).toBe('"a\\"b"');
     });
 });
