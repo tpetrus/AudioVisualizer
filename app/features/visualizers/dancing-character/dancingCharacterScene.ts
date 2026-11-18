@@ -39,7 +39,7 @@ export interface DancingCharacterFrame {
     dt: number;
     // Read only; the caller has already called tracker.updatePhase().
     rhythm: RhythmState;
-    // 0..1 from BassPulse (0 when there is no source).
+    // 0..1 from the audio hub's low end through the shared bass envelope (0 when there is no source).
     bass: number;
     settings: DancingCharacterSettings;
     cameraLocked: boolean;
