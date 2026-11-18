@@ -21,6 +21,10 @@ function measures(track: string, overrides: Partial<TrackMeasures> = {}): TrackM
         dancerLockSeconds: 0.5,
         prehubGateFirstOpenSeconds: 1,
         prehubGateOpenShare: 0.5,
+        cubesHitShare: 0.8,
+        cubesLatencyMs: 20,
+        prehubCubesHitShare: 0.8,
+        prehubCubesLatencyMs: 20,
         ...overrides,
     };
 }
@@ -52,8 +56,8 @@ describe('buildScorecard', () => {
             created: '2026-01-01T00:00:00Z',
             sidecarHashes: { 'click-90.wav': 'h' },
         });
-        // 12 track metrics (4 onset bands) times 25 tracks, plus 2 scenario cells.
-        expect(card.cells).toHaveLength(12 * EXPECTED_TRACK_NAMES.length + 2);
+        // 14 track metrics (4 onset bands, 2 cubes reactions) times 25 tracks, plus 2 scenario cells.
+        expect(card.cells).toHaveLength(14 * EXPECTED_TRACK_NAMES.length + 2);
     });
 
     it('sorts cells by metric, then track', () => {
@@ -367,6 +371,51 @@ describe('gate.secondsAfterLock', () => {
             available: [{ track: 'click-90.wav', hasBeats: true }],
         });
         expect(cell(card, 'gate.secondsAfterLock', 'click-90.wav')).toMatchObject({ applicable: false, status: 'n/a' });
+    });
+});
+
+describe('cubes reaction cells (version 7)', () => {
+    const cubesCell = (metric: string, overrides: Partial<TrackMeasures>): ScorecardCell =>
+        cell(
+            build({
+                measures: [measures('drums-100.wav', overrides)],
+                available: [{ track: 'drums-100.wav', hasBeats: true }],
+            }),
+            metric,
+            'drums-100.wav',
+        );
+
+    it('passes a hit share no more than 0.05 below pre-hub and fails one further below', () => {
+        const share = (value: number) =>
+            cubesCell('cubes.hit.share50ms', { cubesHitShare: value, prehubCubesHitShare: 0.8 });
+        expect(share(0.76)).toMatchObject({ status: 'pass', visualizer: 'cubes', blocking: true, prehub: 0.8 });
+        expect(share(0.74)).toMatchObject({ status: 'fail', pass: false, stretch: 0.9 });
+    });
+
+    it('passes a latency at most one frame later than pre-hub and fails a later one', () => {
+        const latency = (value: number) =>
+            cubesCell('cubes.reaction.latencyMs', { cubesLatencyMs: value, prehubCubesLatencyMs: 30 });
+        expect(latency(46)).toMatchObject({ status: 'pass', prehub: 30 });
+        expect(latency(47)).toMatchObject({ status: 'fail', pass: false });
+    });
+
+    it('fails a cubes cell with no reaction when pre-hub had one, and passes it when neither had one', () => {
+        expect(cubesCell('cubes.hit.share50ms', { cubesHitShare: null, prehubCubesHitShare: 0.5 })).toMatchObject({
+            status: 'fail',
+            value: null,
+        });
+        expect(cubesCell('cubes.hit.share50ms', { cubesHitShare: null, prehubCubesHitShare: null })).toMatchObject({
+            status: 'pass',
+            value: null,
+        });
+    });
+
+    it('is n/a on a track with no kick', () => {
+        const card = build({
+            measures: [measures('click-90.wav')],
+            available: [{ track: 'click-90.wav', hasBeats: true }],
+        });
+        expect(cell(card, 'cubes.hit.share50ms', 'click-90.wav')).toMatchObject({ applicable: false, status: 'n/a' });
     });
 });
 

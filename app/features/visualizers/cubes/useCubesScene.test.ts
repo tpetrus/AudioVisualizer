@@ -210,15 +210,15 @@ describe('useCubesScene', () => {
     describe('bass pulse', () => {
         // A quiet bed, then a kick: the hub's low bands jump while the rest stays put.
         function kick(hub: FakeAudioHub, frame: (time?: number) => void) {
-            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            hub.setGateBass(0.05);
             for (let i = 1; i <= 30; i++) frame(i * 16);
-            hub.setBands([1, 0.3, 0, 0, 0, 0]);
+            hub.setGateBass(0.2);
             frame(31 * 16);
             frame(32 * 16);
             frame(33 * 16);
         }
 
-        it('flashes the background with the resting color when the low end jumps', () => {
+        it('flashes the background with the resting color when the gate-input bass jumps', () => {
             const { hub, frame, scene, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
 
@@ -231,24 +231,12 @@ describe('useCubesScene', () => {
             expect(background.b).toBe(0);
         });
 
-        it('reads the louder of the sub and kick bands', () => {
+        it('ignores the bands, the low end included: only the gate-input bass flashes it', () => {
             const { hub, frame, scene, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
 
-            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
-            for (let i = 1; i <= 30; i++) frame(i * 16);
-            hub.setBands([0.3, 1, 0, 0, 0, 0]);
-            frame(31 * 16);
-            frame(32 * 16);
-
-            expect((scene.background as Color).r).toBeGreaterThan(0);
-        });
-
-        it('ignores bands above the kick', () => {
-            const { hub, frame, scene, valuesRef } = mountScene();
-            valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
-
-            hub.setBands([0, 0, 0.3, 0.3, 0.3, 0.3]);
+            hub.setGateBass(0.05);
+            hub.setBands([0.3, 0.3, 0.3, 0.3, 0.3, 0.3]);
             for (let i = 1; i <= 30; i++) frame(i * 16);
             hub.setBands([0, 0, 1, 1, 1, 1]);
             frame(31 * 16);
@@ -503,17 +491,17 @@ describe('useCubesScene', () => {
 
         it('reads the bass envelope values and ticks with the frame time in seconds', () => {
             const { hub, frame } = mountScene();
-            hub.setBands([0.2, 0.5, 0, 0, 0, 0]);
+            hub.setGateBass(0.05);
             for (let i = 1; i <= 30; i++) frame(i * 16);
-            hub.setBands([1, 0.5, 0, 0, 0, 0]);
+            hub.setGateBass(0.25);
             frame(31 * 16);
             frame(32 * 16);
 
             const [input, fast, slow, ratio, out] = readProbe(5);
-            expect(input).toBe(1);
-            expect(fast).toBeGreaterThan(0.5);
+            expect(input).toBe(0.25);
+            expect(fast).toBeGreaterThan(0.1);
             expect(slow).toBeGreaterThan(0.05);
-            expect(ratio).toBeGreaterThan(1.08);
+            expect(ratio).toBeGreaterThan(1.15);
             expect(out).toBeGreaterThan(0);
             expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);
         });

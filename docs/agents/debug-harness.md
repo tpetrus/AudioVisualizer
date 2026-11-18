@@ -253,8 +253,9 @@ export function attachTelemetry(engine: AudioEngine, onsets?: { bandOnsets: Arra
   (the column layout changed).
 - Probe names and columns. Every probe has an `in` column (the bass value the visualizer reads) and an `out` column (the
   bass-driven value it renders); the summary relies on those two names.
-  - `cubes`: `in` (the audio hub's low end below 130 Hz, the louder of `sub` and `kick`, 0..1 normalized; before S7 it
-    was BassPulse's bass RMS), `fast`, `slow`, `ratio` (1 at rest), `out` (the bass flash, `cubes/bassBump.ts`).
+  - `cubes`: `in` (the hub's gate-input bass, `snapshot.gateBass.pulse`: BassPulse's feature from the worklet, linear
+    RMS, since hub-regressions S4; from S7 of the hub plan until then the hub's normalized low end, and before it
+    BassPulse's own RMS), `fast`, `slow`, `ratio` (1 at rest), `out` (the bass flash, `cubes/cubesBass.ts`).
   - `trio-color-wave`: `in` (bass sheet frame level before balancing), `peak` (its decaying peak), `out` (bass level
     after balancing).
   - `dancing-character`: `in` (bass input to the gate), `out` (gate output), `gateOpen`, `gateScore`, `gateWeight`,

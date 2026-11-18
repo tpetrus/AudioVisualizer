@@ -20,6 +20,7 @@ import {
     createDanceTimingState,
     computeDanceTiming,
 } from '../../../app/features/visualizers/dancing-character/dancingCharacterSync';
+import { createCubesBassEnvelope, stepCubesBass } from '../../../app/features/visualizers/cubes/cubesBass';
 import { DANCER_BUMP } from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
 import { applyAgc } from './agc';
 import { countSoftBoundaries } from './boundaryProbe';
@@ -54,6 +55,10 @@ import { PrehubBass } from './prehubBass';
 //  - Output latency. The live render time subtracts the output latency and the sync offset, and the analysers see audio
 //    that has already passed through the output path; none of that is modeled.
 //  - Mono input. The worklet averages the channels; callers pass mono (readWav already mixes down).
+//  - The cubes' bass trigger (S4) is stepped on the same render clock with the switch on and full strength, from the same
+//    hub snapshot, and its pre-hub reference is BassPulse's own pulse at the render time, which is what the cubes showed
+//    before the hub. Only the trigger is replayed: the cube grid's own bars read a private analyser and are not part of
+//    any cell.
 //  - The dancer's gate hears the hub's gate-input bass (contract C1, S4) through its bump envelope, as the scene does.
 //    Two more gates are stepped for comparison only (S4's measurement, `npm run probe:gate-inputs`): the input before S4
 //    (the hub's normalized low end through the old dancer envelope), and BassPulse's feature from the pre-hub chain read
@@ -93,6 +98,11 @@ export interface ReplayResult {
     dancerLockSeconds: number | null;
     // The same gate fed the pre-hub way: BassPulse over the same post-gain audio, same rhythm state and tempo lock.
     prehubGate: GateSummary;
+    // The cubes' bass pulse (the background flash) at every render tick, today and before the hub; tick k is at k / 60 s.
+    cubes: {
+        pulse: Float32Array;
+        prehubPulse: Float32Array;
+    };
     // Gate inputs compared with the dancer's in S4's measurement; nothing in the scorecard reads them.
     gateInputs: {
         // The gate fed by BassPulse's feature read at the end of the newest delivered worklet frame, through BassPulse.
@@ -203,6 +213,12 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     const prehubTally = new GateTally();
     const frameTimedTally = new GateTally();
     const lowEndTally = new GateTally();
+    // The cubes' trigger, at full strength so its pulse is the reaction the scorecard scores.
+    const cubesEnvelope = createCubesBassEnvelope();
+    const cubesSettings = { bassBump: true, bgPulse: 1 };
+    const ticks = Math.floor(seconds * RENDER_HZ) + 1;
+    const cubesPulse = new Float32Array(ticks);
+    const prehubCubesPulse = new Float32Array(ticks);
     // The locked clock of `lockedTempo`, written in place each tick.
     const lockedRhythm = createRhythmState();
 
@@ -235,7 +251,12 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         stepBassGate(bass, rhythm, tempoLocked, gate, RENDER_DT);
         hubTally.tick(gate.open, time);
         if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;
-        stepBassGate(prehubBass.update(time), rhythm, tempoLocked, prehubGate, RENDER_DT);
+        const prehubPulse = prehubBass.update(time);
+        stepBassGate(prehubPulse, rhythm, tempoLocked, prehubGate, RENDER_DT);
+        if (tick - 1 < ticks) {
+            cubesPulse[tick - 1] = stepCubesBass(cubesEnvelope, hub.snapshot.gateBass, RENDER_DT, cubesSettings);
+            prehubCubesPulse[tick - 1] = prehubPulse;
+        }
         prehubTally.tick(prehubGate.open, time);
         stepBassGate(frameTimedBass.updateAtSample(newestFrameEnd), rhythm, tempoLocked, frameTimedGate, RENDER_DT);
         frameTimedTally.tick(frameTimedGate.open, time);
@@ -326,6 +347,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         gate: hubTally.summary(),
         dancerLockSeconds,
         prehubGate: prehubTally.summary(),
+        cubes: { pulse: cubesPulse, prehubPulse: prehubCubesPulse },
         gateInputs: { frameTimed: frameTimedTally.summary(), hubLowEnd: lowEndTally.summary() },
     };
 }
