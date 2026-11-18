@@ -219,3 +219,19 @@ Passes: 1. Verdict: sound with fixes
 ## Hand-off
 
 A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first is embedded in plan.json under `handoff.verified_diamond` (plan hash `0688af7a6cc53ab3`).
+
+## Amendments after hand-off (Trevor, 2026-11-18, at the start of S4)
+`plan.json` is hash-locked at revision 1 and is not edited; these decisions override it where they differ.
+- **AC6's 4 s floor moves to S5.** No gate input alone opens the dancer's gate within 4 s of the lock except on
+  `drums-128` (`docs/agents/hub-scorecard.md`, "C1: a third gate input"), so S4's gate acceptance is: on every kick
+  track, the gate opens no later after the lock than the pre-hub reference (offline, with the live median reported).
+  S4 still owns the hit share and latency floors of AC8 for `cubes` and `dancing-character`. S5 owns the 4 s floor and
+  the 2 s stretch of AC6.
+- **C1's shape** is `gateBass: { pulse, lowEnd }`, not `{ sub, kick, lowEnd }`: `pulse` is the linear RMS of the 120 Hz,
+  24 dB/octave lowpass over the last 2048 samples (BassPulse's feature) at each worklet frame, read on frame time; `lowEnd`
+  is the louder of the hub's `sub` and `kick` band energies before peak scaling. S4 first measures the two-gate input's
+  false-open rate offline and picks two gates if its false opens on random bass stay within the current gate specs'
+  bounds (6 of 300 patterns at 120 beats, 16 of 300 at 400 beats), otherwise the `BassPulse` feature alone.
+- **S4's scope** also covers the worklet message (contract C3, `FeatureBatch` version 3, which carries the per-frame
+  feature), `app/features/rhythm/rhythmProcessor.worklet.ts` and a new feature module beside it, and
+  `scripts/scorecard/` (the false-open probe, the replay of the new input and the offline cube cells).
