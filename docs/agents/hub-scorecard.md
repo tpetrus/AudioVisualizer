@@ -295,3 +295,7 @@ time) with the live cells' tolerances: a hit share at most 0.05 lower and a late
   (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
   `RhythmAnalyzer` prototype methods for the duration of a replay. It works and its specs fail on a rename, but the
   analyzer should expose both counters instead.
+- **`FU-S4-hitshare-relative-tolerance`** (R2, it changes the targets; from S4's review): the hit share cells allow an
+  absolute 0.05 below pre-hub, so they cannot fail where pre-hub is under 0.05 (`high-bpm-dnb` 0 against 0,
+  `summer2000` 0.034) and allow a 58% loss on `lonley` (0.086). Decide on a relative tolerance, such as
+  max(0.05, 0.1 × pre-hub), or mark tracks with pre-hub under 0.1 as uninformative.
