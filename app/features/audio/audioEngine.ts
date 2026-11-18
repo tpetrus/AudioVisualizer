@@ -1,3 +1,4 @@
+import { AGC_INTERVAL_MS, METER_FFT_SIZE, agcStep } from './agc';
 import {
     clearNormalizeSettings,
     clearSource,
@@ -23,11 +24,6 @@ import {
     type SourceInput,
     type SourceOpener,
 } from './types';
-
-const AGC_INTERVAL_MS = 30;
-const ATTACK_TIME_CONSTANT = 0.02;
-const MIN_GAIN = 0.25;
-const METER_FFT_SIZE = 1024;
 
 const ANALYSER_KEYS = ['fftSize', 'smoothingTimeConstant', 'minDecibels', 'maxDecibels'] as const;
 
@@ -263,19 +259,11 @@ export class AudioEngine {
         }
         const { gainNode, audioContext } = this.graph;
 
-        const { targetPeak, maxGain, peakHold, releaseTime, noiseFloor } = this.normalizeSettings;
-        // Per-tick decay that halves the envelope every `peakHold` seconds.
-        const decay = Math.pow(0.5, AGC_INTERVAL_MS / 1000 / peakHold);
-
-        this.envelope = Math.max(this.getLevel(), this.envelope * decay);
-        if (this.envelope < noiseFloor) {
-            return; // don't amplify silence or noise
+        const decision = agcStep(this.envelope, this.getLevel(), gainNode.gain.value, this.normalizeSettings);
+        this.envelope = decision.envelope;
+        if (decision.wantedGain !== undefined && decision.timeConstant !== undefined) {
+            gainNode.gain.setTargetAtTime(decision.wantedGain, audioContext.currentTime, decision.timeConstant);
         }
-
-        const wanted = Math.min(maxGain, Math.max(MIN_GAIN, targetPeak / this.envelope));
-        // Fast attack when too loud, slower release when too quiet, to avoid pumping.
-        const timeConstant = wanted < gainNode.gain.value ? ATTACK_TIME_CONSTANT : releaseTime;
-        gainNode.gain.setTargetAtTime(wanted, audioContext.currentTime, timeConstant);
     }
 
     // Latencies the browser reports, in ms. Time spent in the OS capture pipeline (e.g. screen-share buffering)

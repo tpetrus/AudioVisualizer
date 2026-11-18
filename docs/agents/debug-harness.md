@@ -439,9 +439,10 @@ export function formatRepeatReport(comparison: RepeatComparison, targets?: Parti
 
 - `scripts/debug-visualizer/repeat.ts` is `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]`. `--bpm` is used only for
   a line per run giving its median's octave-normalized deviation.
-- `debug:viz` gains `--reselect N` (a whole number, at least 1, default 1): play the track N times in one page, choosing it
-  again in the source dialog each time, each play with its own output folder and summary. `--reselect` above 1 with
-  `--shots` is an error.
+- `debug:viz` gains `--reselect N` (a whole number from 1 to 10, default 1): play the track N times in one page,
+  choosing it again in the source dialog each time, each play with its own output folder and summary. `--reselect` above
+  1 with `--shots` is an error. A play counts as started once the position is back near 0 or goes backward, so a very
+  short previous play cannot time out the wait.
 - With `--from 0` the harness no longer seeks after the upload, because restarting the track a moment after it began feeds
   the tracker a discontinuity of a different length on every run. It resets the recorder only, so the first row's `t` is
   slightly above 0.
