@@ -16,6 +16,9 @@ function measures(overrides: Partial<TrackMeasures> = {}): TrackMeasures {
         onsetF50: { kick: 0.95 },
         gateFirstOpenSeconds: 1,
         gateOpenShare: 0.5,
+        dancerLockSeconds: 0.5,
+        prehubGateFirstOpenSeconds: 1,
+        prehubGateOpenShare: 0.5,
         ...overrides,
     };
 }

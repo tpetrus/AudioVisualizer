@@ -101,6 +101,16 @@ export interface TrackMeasures {
     gateFirstOpenSeconds: number | null;
     // Share of hub frames from the first opening on where the gate is open; 0 when it never opens.
     gateOpenShare: number;
+    // Contract revision 3 (S3). The dancer's own tempo lock (computeDanceTiming reports a normalized tempo), seconds
+    // from track start to the first render tick it holds; null if it never does. The gate cannot open before it, so a
+    // gate that opens late because the tracker locks late shows up here and not as a gate fault.
+    dancerLockSeconds: number | null;
+    // The pre-hub reference for the gate (decision D8). The same replay, with the gate fed the way it was before the
+    // audio hub (PR 95): the BassPulse class over the same post-gain audio, stepped through stepBassGate with the same
+    // tempo lock. The rhythm DSP is unchanged since the commit before the hub merge, so the gate input is the only
+    // pre-hub difference an offline cell can see. Same meaning as gateFirstOpenSeconds and gateOpenShare.
+    prehubGateFirstOpenSeconds: number | null;
+    prehubGateOpenShare: number;
 }
 
 // The two AC9 cases, run on constructed audio rather than a .debug-in file.

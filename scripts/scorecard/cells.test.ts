@@ -18,6 +18,9 @@ function measures(track: string, overrides: Partial<TrackMeasures> = {}): TrackM
         onsetF50: { kick: 0.95, bass: 0.95, snare: 0.95, highs: 0.95 },
         gateFirstOpenSeconds: 1,
         gateOpenShare: 0.5,
+        dancerLockSeconds: 0.5,
+        prehubGateFirstOpenSeconds: 1,
+        prehubGateOpenShare: 0.5,
         ...overrides,
     };
 }
