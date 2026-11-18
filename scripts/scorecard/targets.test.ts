@@ -41,7 +41,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(4);
+        expect(TARGETS_VERSION).toBe(5);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
@@ -224,7 +224,8 @@ describe('live metrics', () => {
         // Hit share has no absolute floor: pre-hub minus 0.05 is the bound, and without pre-hub it is report-only.
         expect(liveEffectiveFloor(live('live.hit.share50ms'), null)).toBeNull();
         expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.5)).toBeCloseTo(0.45);
-        expect(liveEffectiveFloor(live('live.reaction.latencyMs'), 28)).toBe(33);
+        // Latency may be one 60 Hz frame later than pre-hub, the step a reaction moves by from run to run.
+        expect(liveEffectiveFloor(live('live.reaction.latencyMs'), 28)).toBeCloseTo(28 + 1000 / 60);
         // False fires and clip phase show pre-hub without being bounded by it.
         expect(liveEffectiveFloor(live('live.falseFire.share'), 0.3)).toBeNull();
         expect(liveEffectiveFloor(live('live.clip.maxDeviationLoops'), 0.01)).toBe(0.05);

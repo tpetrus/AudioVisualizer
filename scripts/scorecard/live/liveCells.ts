@@ -130,6 +130,11 @@ export function buildLiveCell(input: LiveCellInput): ScorecardCell {
     // that is missing.
     const counted = isGate ? current.length : valued.length;
     if (counted < REQUIRED_RUNS) return unavailable;
+    // A metric judged on the median for this visualizer passes when its median meets the floor.
+    if (metric.medianFor?.includes(input.visualizer)) {
+        const pass = value !== null && meets(metric, value, floor);
+        return { ...unavailable, pass, status: pass ? 'pass' : 'fail' };
+    }
     const passing = valued.filter((run) => meets(metric, run, floor)).length;
     // With 4 or more runs, 3 must pass; with 3 runs all must (nothing may fail when there is no run to spare).
     const required = counted > REQUIRED_RUNS ? REQUIRED_RUNS : counted;

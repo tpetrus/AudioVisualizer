@@ -95,6 +95,26 @@ describe('buildLiveCell for a per-run metric', () => {
         expect(cell(HIT, [0.1, 0.1, 0.1, 0.1])).toMatchObject({ prehub: null, status: 'pass' });
     });
 
+    it("judges the dancer's hit share on the median of its runs and the other visualizers' on 3 of 4", () => {
+        // drifting-tempo at the S3 review: the dancer's runs are bimodal, so 2 of 4 runs miss a floor the median meets.
+        const runs = [0.25, 0.464, 0.464, 0];
+        const prehub = [0, 0.357, 0.446, 0.357];
+        expect(cell(HIT, runs, prehub)).toMatchObject({ value: 0.357, prehub: 0.357, status: 'pass' });
+        const cubes = buildLiveCell({
+            metric: HIT,
+            track: 'drums-128.wav',
+            visualizer: 'cubes',
+            class: 'synthetic',
+            kick: true,
+            current: runs,
+            prehub,
+        });
+        expect(cubes).toMatchObject({ status: 'fail' });
+        expect(cell(HIT, [0.1, 0.1, 0, 0], [0.5, 0.5, 0.5])).toMatchObject({ status: 'fail' });
+        // The median rule still needs 3 measured runs.
+        expect(cell(HIT, [0.9, 0.9, null, null])).toMatchObject({ status: 'unavailable' });
+    });
+
     it('is n/a for a track the metric does not apply to', () => {
         expect(cell(GATE, [1, 2, 3, 4], [], 'synthetic', false)).toMatchObject({
             applicable: false,

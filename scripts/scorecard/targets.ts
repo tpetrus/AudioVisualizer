@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 4;
+export const TARGETS_VERSION = 5;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -259,6 +259,9 @@ export interface LiveMetricTarget {
     // A per-run metric is judged run by run (the cell passes when at least 3 of 4 runs pass); a cross-run metric is one
     // number over the runs that already encodes the 3-of-4 rule.
     perRun: boolean;
+    // Visualizers whose per-run cell is judged on the median of its runs instead (at least 3 runs measured), for a
+    // metric whose runs are bimodal, so the 3-of-4 rule would fail on noise.
+    medianFor?: readonly LiveVisualizer[];
 }
 
 const isReal = (trackClass: TrackClass): boolean => trackClass === 'tapped' || trackClass === 'drifting';
@@ -311,7 +314,8 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
         perRun: false,
     },
     {
-        // AC8: hits / (hits + misses) over the labeled beats the recording covers.
+        // AC8: hits / (hits + misses) over the labeled beats the recording covers. The dancer's runs are bimodal in both
+        // builds (a run hits about 0.7 or 0), so its cell is judged on the median (Trevor's S3 review, targets version 5).
         id: 'live.hit.share50ms',
         description: 'Share of labeled beats with a reaction within 50 ms',
         direction: 'higher',
@@ -323,6 +327,7 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
         applies: kickWithBeat,
         needsBeats: true,
         perRun: true,
+        medianFor: ['dancing-character'],
     },
     {
         // Success metric stretch only (at most 10% false fires): reported, not bounded by pre-hub.
@@ -340,14 +345,15 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     },
     {
         // AC8: the median delay of a reaction after a labeled beat, as measureReactionOffset measures it (its default
-        // 250 ms search window). The stretch is 30 ms plus one 60 Hz frame.
+        // 250 ms search window). The stretch is 30 ms plus one 60 Hz frame. The pre-hub tolerance is one frame, the
+        // step a reaction moves by from run to run (Trevor's S3 review, targets version 5; it was 5 ms).
         id: 'live.reaction.latencyMs',
         description: 'Median reaction delay after a labeled beat',
         direction: 'lower',
         unit: 'ms',
         floor: null,
         stretch: 30 + 1000 / 60,
-        prehubTolerance: 5,
+        prehubTolerance: 1000 / 60,
         visualizers: ALL_LIVE,
         applies: kickWithBeat,
         needsBeats: true,
