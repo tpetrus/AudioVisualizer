@@ -245,3 +245,12 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
 - **`summer2000` is a recorded exception to S4's gate acceptance, owned by S5.** The frame-timed feature opens the gate
   7.52 s after the lock against pre-hub's 7.03 s (one kick missed through a read at most a batch older than the render
   time); S4 does not have to beat it. Every other kick track must open no later than pre-hub, within one render tick.
+- **`bassline-kick-120`'s offline cube hit share is a second recorded exception to S4, owned by S5** (Trevor,
+  2026-11-18). The cubes hit 0.51 of its beats within 50 ms against pre-hub's 0.78, because every hit shows one render
+  tick (16.7 ms) later: the hub reads the feature at the end of the newest delivered worklet frame, which is up to one
+  batch (2 frames, 21 ms) older than pre-hub's read at the render time. On a perfectly periodic track that tick moves
+  most hits just past the window; its latency (50 ms against 33 ms) still passes, and the other 15 tracks' cube cells
+  all pass. It is the same lag as S3's live finding that `cubes` reacts 8 to 12 ms later through the hub. Batches of one
+  frame (`BATCH_FRAMES = 1`) fix it offline (0.95) but open `syncopationbass`'s gate 1.6 s later than pre-hub (19.78
+  against 18.17 s after the lock) and double the worklet message rate, so S5, which owns the gate's pace, decides the
+  batch size with both numbers.

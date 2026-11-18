@@ -5,8 +5,8 @@ acceptance metric for every `.debug-in` track, so a fix tuned on one track canno
 each failing cell to a measured cause and the slice that owns it; S3 fills in the causes.
 
 ## How to run it
-- `npm run scorecard` replays the app's own rhythm pipeline, band onsets, `AudioHub` and the dancing character's gate
-  over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.cells.json` and `.md` here (not
+- `npm run scorecard` replays the app's own rhythm pipeline, band onsets, `AudioHub`, the dancing character's gate
+  and the cubes' bass trigger over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.cells.json` and `.md` here (not
   `hub-scorecard.md`, which is this doc). About 8 s for the current folder, and two runs give identical cells. It merges
   the live cells from `hub-scorecard.live.json` when their targets version matches.
 - `npm run scorecard:live -- --viz <name>` records the live cells (4 `debug:viz` runs per track: two fresh page loads
@@ -261,6 +261,34 @@ only today, through one run's lock (below).
   needs the shelved 3/2 work), and the `6-8-time` cells, which share one cause, the tracker settling on no one tempo for
   6/8 (offline it never locks; live runs settle on 120 or 184 to 190 bpm): `beat.errorMedianMs`,
   `tempo.maxErrorAfterLock`, `tempo.falseSongChanges` and `live.clip.maxDeviationLoops`.
+
+## S4 findings, offline (targets version 7, measured on `f8097a0`)
+S4 added contract C1 (`docs/plans/hub-regressions/contracts.md`): the hub's `gateBass.pulse` is `BassPulse`'s feature
+(the RMS of a 120 Hz, 24 dB/octave lowpass over the last 2048 samples), computed per frame in the worklet and carried
+in `FeatureBatch` version 3. The dancer's gate and the cubes' bass trigger (`app/features/visualizers/cubes/cubesBass.ts`,
+now replayed offline) read it through `BassPulse`'s own envelope (`GATE_BASS_BUMP`). Version 7 adds the offline cube
+cells `cubes.hit.share50ms` and `cubes.reaction.latencyMs`, judged against the pre-hub cubes (`BassPulse` at the render
+time) with the live cells' tolerances: a hit share at most 0.05 lower and a latency at most one frame later.
+
+- **The worklet's feature is `BassPulse`'s.** Its value matches `BassPulse`'s at the same sample to within 5e-6 (float32
+  against double feedback in the biquads; `gateBass.test.ts`).
+- **Gate (AC6, as amended):** summed over the 16 kick tracks, the seconds from the dancer's lock to the first opening
+  are 138.6 with `gateBass`, 148.2 with the hub's low end before S4, and 139.1 for pre-hub
+  (`npm run probe:gate-inputs`). Every kick track opens no later than pre-hub, within one render tick (`trap-4to3-120` 4.40 against 4.38 s), except
+  `summer2000` (7.52 against 7.03 s, the recorded exception owned by S5). `syncopationbass2` went from 9.27 to 4.13 s,
+  `lonley` from 17.05 to 11.47 s, `summer2000` from 21.58 to 7.52 s and `drums-128` from 4.20 to 3.95 s, the only track
+  inside the 4 s floor, which S5 now owns. Three tracks open later than with the old input but exactly with pre-hub:
+  `imyourgirl` (4.60 against 4.15 s), `syncopationbass` (18.15 against 14.10 s) and `high-bpm-dnb` (22.45 against
+  10.10 s).
+- **False opens on random bass** (300 patterns, beat clock locked): 5 at 120 beats and 23 at 400 beats, as measured for
+  the pick, against pre-hub's 5 and 27.
+- **Cubes (AC8):** 31 of 32 cells pass. The hit share is at or above pre-hub on 13 of the 16 kick tracks and within
+  0.05 on 2 more (`half-time-shuffle` 0.35 against 0.38, `low-bpm-rnb` 0.14 against 0.17); every latency is within a
+  frame of pre-hub's. The one failure is `bassline-kick-120`'s hit share, 0.51 against 0.78: every hit shows one tick
+  later, because the hub reads the feature at the newest delivered frame, up to one batch (2 frames) older than
+  pre-hub's render-time read. It is a recorded exception owned by S5, with the batch size (plan amendments).
+- **Ratchet:** against the version 6 baseline, no existing cell went from pass to fail, and the 32 applicable cube
+  cells add the one failure above. The version 7 baseline holds the 202 offline cells: 174 pass, 28 fail.
 
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
