@@ -102,10 +102,9 @@ export function measureTrack(input: MeasureTrackInput): TrackMeasures {
         falseSongChanges: countUnexplainedChanges(events, findSilences(input.pcm, input.sampleRate)),
         gateFirstOpenSeconds: replay.gate.firstOpenSeconds,
         gateOpenShare: replay.gate.openShare,
-        // Placeholders until the S3 engine work fills them (contract revision 3).
-        dancerLockSeconds: null,
-        prehubGateFirstOpenSeconds: null,
-        prehubGateOpenShare: 0,
+        dancerLockSeconds: replay.dancerLockSeconds,
+        prehubGateFirstOpenSeconds: replay.prehubGate.firstOpenSeconds,
+        prehubGateOpenShare: replay.prehubGate.openShare,
     };
 
     if (input.class === 'beatless') {

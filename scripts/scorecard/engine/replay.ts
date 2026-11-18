@@ -23,7 +23,9 @@ import {
     DANCER_BUMP_GAIN,
     DANCER_BUMP_MARGIN,
 } from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
+import { applyAgc } from './agc';
 import { countSoftBoundaries } from './boundaryProbe';
+import { PrehubBass } from './prehubBass';
 
 // The offline replay: the app's own pipeline over decoded PCM, with no browser. Nothing here is DSP of its own. It wires
 // the same classes the worklet, the tracker, the hub and the dancing character wire, in the same order, so a number
@@ -43,6 +45,16 @@ import { countSoftBoundaries } from './boundaryProbe';
 //    the clip speed, which never feed back into whether the tempo is locked, so the lock and the gate are unaffected.
 //    The dance director, the club and the model are not part of the gate and are not replayed.
 //  - The scene clamps the frame delta to MAX_FRAME_DT and the hub clamps nothing; at 1/60 s neither clamp acts.
+//  - Gain. The live engine runs an automatic gain control (AGC) before anything reads the audio; this replay applies the
+//    same decision (agcStep) on the same 30 ms schedule to the PCM first (see agc.ts), so the post-gain signal feeds the
+//    extractor and the pre-hub chain. What stays different: the engine's setInterval jitters and drifts against the audio
+//    clock, a gain change takes effect at the next 128-sample render quantum rather than at the exact tick sample, and the
+//    meter's 1024-sample window is read at the tick's exact sample rather than at an arbitrary moment of the audio thread.
+//  - Pre-hub gate. The gate is also stepped from BassPulse, as the dancer was fed before the hub (see prehubBass.ts). Its
+//    biquads are the spec's formulas run offline with float32 stage outputs, and the analyser window ends at the render
+//    tick's audio time, where live it ends at whatever the audio thread had rendered.
+//  - Output latency. The live render time subtracts the output latency and the sync offset, and the analysers see audio
+//    that has already passed through the output path; none of that is modeled.
 //  - Mono input. The worklet averages the channels; callers pass mono (readWav already mixes down).
 
 // The render clock of the replay: one hub read and one gate step per tick.
@@ -75,10 +87,23 @@ export interface ReplayResult {
         // Share of render ticks from the first opening on where it is open; 0 if it never opens.
         openShare: number;
     };
+    // Time of the first render tick at which the dancer's own tempo lock holds; null if it never does.
+    dancerLockSeconds: number | null;
+    // The same gate fed the pre-hub way: BassPulse over the same post-gain audio, same rhythm state and tempo lock.
+    prehubGate: {
+        firstOpenSeconds: number | null;
+        openShare: number;
+    };
 }
 
-export function replayPcm(pcm: Float32Array, sampleRate: number): ReplayResult {
-    const { result, softBoundaries } = countSoftBoundaries(() => run(pcm, sampleRate));
+export interface ReplayOptions {
+    // Applies the engine's automatic gain control to the PCM first (default true); false replays the raw samples.
+    agc?: boolean;
+}
+
+export function replayPcm(pcm: Float32Array, sampleRate: number, options: ReplayOptions = {}): ReplayResult {
+    const audio = options.agc === false ? pcm : applyAgc(pcm, sampleRate);
+    const { result, softBoundaries } = countSoftBoundaries(() => run(audio, sampleRate));
     return { ...result, softBoundaries };
 }
 
@@ -117,6 +142,13 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
     const timing = createDanceTimingResult();
     const timingSettings = { danceSpeed: 1 };
     const gate = createBassGateState();
+    const prehubBass = new PrehubBass(sampleRate);
+    prehubBass.prepare(pcm);
+    const prehubGate = createBassGateState();
+    let dancerLockSeconds: number | null = null;
+    let prehubFirstOpenSeconds: number | null = null;
+    let prehubTicksSinceOpen = 0;
+    let prehubTicksOpen = 0;
     let tick = 0;
     let everReportedLock = false;
     let firstOpenSeconds: number | null = null;
@@ -141,6 +173,13 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
         if (firstOpenSeconds !== null) {
             ticksSinceOpen++;
             if (gate.open) ticksOpen++;
+        }
+        if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;
+        stepBassGate(prehubBass.update(time), state, tempoLocked, prehubGate, RENDER_DT);
+        if (prehubGate.open && prehubFirstOpenSeconds === null) prehubFirstOpenSeconds = time;
+        if (prehubFirstOpenSeconds !== null) {
+            prehubTicksSinceOpen++;
+            if (prehubGate.open) prehubTicksOpen++;
         }
     };
 
@@ -209,5 +248,10 @@ function run(pcm: Float32Array, sampleRate: number): Omit<ReplayResult, 'softBou
         songChangeCount: state.songChangeCount,
         everReportedLock,
         gate: { firstOpenSeconds, openShare: ticksSinceOpen === 0 ? 0 : ticksOpen / ticksSinceOpen },
+        dancerLockSeconds,
+        prehubGate: {
+            firstOpenSeconds: prehubFirstOpenSeconds,
+            openShare: prehubTicksSinceOpen === 0 ? 0 : prehubTicksOpen / prehubTicksSinceOpen,
+        },
     };
 }

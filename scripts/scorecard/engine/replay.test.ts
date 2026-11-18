@@ -33,6 +33,32 @@ describe('replayPcm', () => {
         expect(ticks).toBeCloseTo(Math.round(ticks), 6);
     });
 
+    it('reports the dancer lock and opens the pre-hub gate on a steady kick track', () => {
+        const replay = replayPcm(click, TEST_SAMPLE_RATE);
+        expect(replay.dancerLockSeconds).not.toBeNull();
+        expect(replay.dancerLockSeconds!).toBeLessThan(replay.seconds);
+        // The gate cannot open before the dancer's lock, hub-fed or pre-hub.
+        expect(replay.prehubGate.firstOpenSeconds).not.toBeNull();
+        expect(replay.prehubGate.firstOpenSeconds!).toBeGreaterThanOrEqual(replay.dancerLockSeconds!);
+        expect(replay.gate.firstOpenSeconds!).toBeGreaterThanOrEqual(replay.dancerLockSeconds!);
+        expect(replay.prehubGate.openShare).toBeGreaterThan(0.5);
+    });
+
+    it('has no lock and a closed pre-hub gate in silence', () => {
+        const replay = replayPcm(silence(8), TEST_SAMPLE_RATE);
+        expect(replay.dancerLockSeconds).toBeNull();
+        expect(replay.prehubGate).toEqual({ firstOpenSeconds: null, openShare: 0 });
+    });
+
+    it('feeds the pipeline the gain-controlled signal unless agc is off', () => {
+        const quiet = renderTrack({ seconds: 20, bpm: 120, beatsPerBar: 4, gain: 0.1 }).pcm;
+        const raw = replayPcm(quiet, TEST_SAMPLE_RATE, { agc: false });
+        const controlled = replayPcm(quiet, TEST_SAMPLE_RATE);
+        const defaulted = replayPcm(quiet, TEST_SAMPLE_RATE, { agc: true });
+        expect(defaulted).toEqual(controlled);
+        expect(controlled.onsets).not.toEqual(raw.onsets);
+    });
+
     it('gives identical results for identical input', () => {
         const first = replayPcm(click, TEST_SAMPLE_RATE);
         const second = replayPcm(click.slice(), TEST_SAMPLE_RATE);
