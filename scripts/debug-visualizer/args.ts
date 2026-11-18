@@ -4,6 +4,9 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Each play is a full recording of the track, so more than 10 in one page is almost certainly a typo.
+const MAX_RESELECT = 10;
+
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
 export const USAGE =
@@ -82,8 +85,11 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     if (values.has('reselect')) {
         const text = values.get('reselect') ?? '';
         const parsed = text.trim() === '' ? NaN : Number(text);
-        if (!Number.isInteger(parsed) || parsed < 1) {
-            return { kind: 'error', message: `--reselect needs a whole number of at least 1, got "${text}".` };
+        if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_RESELECT) {
+            return {
+                kind: 'error',
+                message: `--reselect needs a whole number from 1 to ${MAX_RESELECT}, got "${text}".`,
+            };
         }
         reselect = parsed;
     }

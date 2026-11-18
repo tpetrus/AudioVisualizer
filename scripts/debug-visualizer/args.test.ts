@@ -221,10 +221,14 @@ describe('parseArgs --reselect', () => {
         expect(run(['--reselect', '3']).reselect).toBe(3);
     });
 
-    it.each(['0', '-1', '1.5', 'two', ' '])('rejects %j', (value) => {
+    it('accepts the upper bound', () => {
+        expect(run(['--reselect', '10']).reselect).toBe(10);
+    });
+
+    it.each(['0', '-1', '1.5', 'two', ' ', '11', '100'])('rejects %j', (value) => {
         expect(parseArgs([...base, '--reselect', value])).toEqual({
             kind: 'error',
-            message: `--reselect needs a whole number of at least 1, got "${value}".`,
+            message: `--reselect needs a whole number from 1 to 10, got "${value}".`,
         });
     });
 
