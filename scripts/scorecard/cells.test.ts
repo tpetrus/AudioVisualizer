@@ -180,7 +180,7 @@ describe('buildScorecard', () => {
             measures: [measures('drums-100.wav', { gateFirstOpenSeconds: null })],
             available: [{ track: 'drums-100.wav', hasBeats: true }],
         });
-        expect(cell(card, 'gate.firstOpenSeconds', 'drums-100.wav')).toMatchObject({
+        expect(cell(card, 'gate.secondsAfterLock', 'drums-100.wav')).toMatchObject({
             visualizer: 'dancing-character',
             status: 'fail',
             pass: false,
@@ -188,19 +188,34 @@ describe('buildScorecard', () => {
         });
     });
 
-    it('fails a slow gate and passes a fast one', () => {
+    it('fails a slow gate and passes a fast one, timed from the dancer lock', () => {
         const card = build({
             measures: [
-                measures('drums-100.wav', { gateFirstOpenSeconds: 4.5, prehubGateFirstOpenSeconds: null }),
-                measures('drums-128.wav', { gateFirstOpenSeconds: 4, prehubGateFirstOpenSeconds: null }),
+                measures('drums-100.wav', {
+                    dancerLockSeconds: 3,
+                    gateFirstOpenSeconds: 7.5,
+                    prehubGateFirstOpenSeconds: null,
+                }),
+                measures('drums-128.wav', {
+                    dancerLockSeconds: 3,
+                    gateFirstOpenSeconds: 7,
+                    prehubGateFirstOpenSeconds: null,
+                }),
             ],
             available: [
                 { track: 'drums-100.wav', hasBeats: true },
                 { track: 'drums-128.wav', hasBeats: true },
             ],
         });
-        expect(cell(card, 'gate.firstOpenSeconds', 'drums-100.wav').status).toBe('fail');
-        expect(cell(card, 'gate.firstOpenSeconds', 'drums-128.wav')).toMatchObject({ status: 'pass', stretch: 2 });
+        expect(cell(card, 'gate.secondsAfterLock', 'drums-100.wav').status).toBe('fail');
+        expect(cell(card, 'gate.secondsAfterLock', 'drums-128.wav')).toMatchObject({ status: 'pass', stretch: 2 });
+        // Time from track start is still shown, but it no longer blocks (AC6 restated from the lock at the S3 review).
+        expect(cell(card, 'gate.firstOpenSeconds', 'drums-100.wav')).toMatchObject({
+            value: 7.5,
+            blocking: false,
+            floor: null,
+            status: 'pass',
+        });
     });
 
     it('passes report-only cells whenever a value exists and does not block', () => {
@@ -258,15 +273,20 @@ describe('buildScorecard', () => {
 });
 
 describe('pre-hub gate rule', () => {
+    // The dancer locks at 0 here, so the times from the lock equal the times given.
     const gateCell = (open: number | null, prehub: number | null): ScorecardCell =>
         cell(
             build({
                 measures: [
-                    measures('drums-100.wav', { gateFirstOpenSeconds: open, prehubGateFirstOpenSeconds: prehub }),
+                    measures('drums-100.wav', {
+                        dancerLockSeconds: 0,
+                        gateFirstOpenSeconds: open,
+                        prehubGateFirstOpenSeconds: prehub,
+                    }),
                 ],
                 available: [{ track: 'drums-100.wav', hasBeats: true }],
             }),
-            'gate.firstOpenSeconds',
+            'gate.secondsAfterLock',
             'drums-100.wav',
         );
 
@@ -312,29 +332,33 @@ describe('gate.secondsAfterLock', () => {
             'drums-100.wav',
         );
 
-    it('reports the value and the pre-hub value without blocking', () => {
+    it('blocks with the AC6 floor and judges against the pre-hub gap', () => {
         expect(
             lagCell({ gateFirstOpenSeconds: 3, prehubGateFirstOpenSeconds: 2, dancerLockSeconds: 0.5 }),
         ).toMatchObject({
             value: 2.5,
             prehub: 1.5,
-            floor: null,
-            blocking: false,
-            pass: true,
-            status: 'pass',
+            floor: 4,
+            stretch: 2,
+            blocking: true,
+            pass: false,
+            status: 'fail',
         });
+        expect(
+            lagCell({ gateFirstOpenSeconds: 3, prehubGateFirstOpenSeconds: 3.5, dancerLockSeconds: 0.5 }),
+        ).toMatchObject({ value: 2.5, prehub: 3, pass: true, status: 'pass' });
     });
 
-    it('does not show a null value as a failure', () => {
+    it('fails a kick track whose dancer never locks or whose gate never opens', () => {
         expect(lagCell({ dancerLockSeconds: null, prehubGateFirstOpenSeconds: null })).toMatchObject({
             applicable: true,
             value: null,
             prehub: null,
-            pass: true,
-            status: 'pass',
-            blocking: false,
+            pass: false,
+            status: 'fail',
+            blocking: true,
         });
-        expect(lagCell({ gateFirstOpenSeconds: null })).toMatchObject({ value: null, status: 'pass' });
+        expect(lagCell({ gateFirstOpenSeconds: null })).toMatchObject({ value: null, status: 'fail' });
     });
 
     it('is n/a on a track with no kick', () => {

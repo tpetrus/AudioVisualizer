@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 3;
+export const TARGETS_VERSION = 4;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -125,10 +125,12 @@ export const METRICS: readonly MetricTarget[] = [
         description: 'Seconds from track start until the dancing character gate first opens',
         direction: 'lower',
         unit: 'seconds',
-        floor: 4,
-        stretch: 2,
+        // Report-only since S3: AC6 is measured from the dancer's tempo lock (gate.secondsAfterLock), because the gate
+        // cannot open before the lock and the lock alone comes at 3 to 11 s. Kept to show the whole wait a viewer sees.
+        floor: null,
+        stretch: null,
         visualizer: 'dancing-character',
-        blocking: true,
+        blocking: false,
         applies: (trackClass, kick) => kick && hasBeat(trackClass),
         needsBeats: false,
         value: (measures) => measures.gateFirstOpenSeconds,
@@ -139,11 +141,13 @@ export const METRICS: readonly MetricTarget[] = [
         description: 'Seconds from the dancer tempo lock until the dancing character gate first opens',
         direction: 'lower',
         unit: 'seconds',
-        // Report-only: it shows how much of the opening delay is the hub's rather than the tempo lock's.
-        floor: null,
-        stretch: null,
+        // AC6 as restated at the S3 review (decision by Trevor): the gate opens within 4 s of the dancer's own tempo lock
+        // and no later than the pre-hub input did; 2 s is the stretch. A gate that never opens, or a dancer that never
+        // locks on a kick track, fails.
+        floor: 4,
+        stretch: 2,
         visualizer: 'dancing-character',
-        blocking: false,
+        blocking: true,
         applies: (trackClass, kick) => kick && hasBeat(trackClass),
         needsBeats: false,
         value: (measures) => secondsAfterLock(measures.gateFirstOpenSeconds, measures.dancerLockSeconds),
@@ -263,9 +267,9 @@ const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio
 
 export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     {
-        // AC6 in the browser: the first row whose gateOpen column is 1, on track time.
-        id: 'live.gate.firstOpenSeconds',
-        description: 'Seconds from track start until the dancing character gate first opens, live',
+        // AC6 in the browser, restated from the lock: per run, the first gateOpen row minus the first tempoLocked row.
+        id: 'live.gate.secondsAfterLock',
+        description: 'Seconds from the dancer tempo lock until the dancing character gate first opens, live',
         direction: 'lower',
         unit: 'seconds',
         floor: 4,

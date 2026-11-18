@@ -41,14 +41,14 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(3);
+        expect(TARGETS_VERSION).toBe(4);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('makes every offline metric blocking except the report-only ones', () => {
         const reportOnly = METRICS.filter((entry) => !entry.blocking).map((entry) => entry.id);
-        expect(reportOnly.sort()).toEqual(['gate.closedOnNoKick', 'gate.secondsAfterLock', 'tempo.lockSeconds']);
+        expect(reportOnly.sort()).toEqual(['gate.closedOnNoKick', 'gate.firstOpenSeconds', 'tempo.lockSeconds']);
         for (const entry of METRICS.filter((candidate) => !candidate.blocking)) expect(entry.floor).toBeNull();
     });
 
@@ -103,11 +103,12 @@ describe('targets', () => {
         expect(bass.value(measures())).toBeNull();
     });
 
-    it('applies the gate opening time to kick tracks that have a beat', () => {
+    it('reports the gate opening time from track start on kick tracks that have a beat, without blocking', () => {
         const entry = metric('gate.firstOpenSeconds');
         expect(entry.visualizer).toBe('dancing-character');
-        expect(entry.floor).toBe(4);
-        expect(entry.stretch).toBe(2);
+        expect(entry.floor).toBeNull();
+        expect(entry.stretch).toBeNull();
+        expect(entry.blocking).toBe(false);
         expect(entry.applies('synthetic', true)).toBe(true);
         expect(entry.applies('synthetic', false)).toBe(false);
         expect(entry.applies('beatless', true)).toBe(false);
@@ -122,13 +123,13 @@ describe('targets', () => {
         expect(metric('beat.errorMedianMs').prehubValue).toBeUndefined();
     });
 
-    it('reports the gap between the dancer lock and the gate opening, now and pre-hub', () => {
+    it('holds the gap between the dancer lock and the gate opening to AC6, now and pre-hub', () => {
         const entry = metric('gate.secondsAfterLock');
         expect(entry).toMatchObject({
             visualizer: 'dancing-character',
-            floor: null,
-            stretch: null,
-            blocking: false,
+            floor: 4,
+            stretch: 2,
+            blocking: true,
             needsBeats: false,
         });
         expect(entry.applies('synthetic', true)).toBe(true);
@@ -217,9 +218,9 @@ describe('live metrics', () => {
 
     it('bound the floor by the pre-hub median widened by the tolerance', () => {
         // The gate: within 4 s and no later than pre-hub plus 0.5 s.
-        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), null)).toBe(4);
-        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), 2)).toBe(2.5);
-        expect(liveEffectiveFloor(live('live.gate.firstOpenSeconds'), 6)).toBe(4);
+        expect(liveEffectiveFloor(live('live.gate.secondsAfterLock'), null)).toBe(4);
+        expect(liveEffectiveFloor(live('live.gate.secondsAfterLock'), 2)).toBe(2.5);
+        expect(liveEffectiveFloor(live('live.gate.secondsAfterLock'), 6)).toBe(4);
         // Hit share has no absolute floor: pre-hub minus 0.05 is the bound, and without pre-hub it is report-only.
         expect(liveEffectiveFloor(live('live.hit.share50ms'), null)).toBeNull();
         expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.5)).toBeCloseTo(0.45);

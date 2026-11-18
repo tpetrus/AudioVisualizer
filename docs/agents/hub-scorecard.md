@@ -25,6 +25,9 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
   whose gate never opens, fails.
 - **Beatless lock** is the hub's lock test (`bpm > 0` with a beat phase), which is weaker than the dancer's (it also needs
   confidence 0.2). Decide in S3 which one AC3 means.
+- **Gate (AC6)** is timed from the dancer's own tempo lock (`gate.secondsAfterLock`, floor 4 s, stretch 2 s, no later
+  than pre-hub), as Trevor restated it at the S3 review (targets version 4). The gate cannot open before the lock, and
+  the lock alone comes at 3 to 11 s. The time from track start (`gate.firstOpenSeconds`) is still reported.
 
 ## S2 result (offline, targets version 2, measured on `dd53ed2`)
 124 of 154 applicable cells pass, 30 fail, none unavailable.
@@ -69,12 +72,12 @@ runs) and 7.27 s on `syncopationbass2` (7.27 s); `syncopation-no-kick` and `sync
 spread; `lonley` is the outlier above. Live pre-hub cells (hit share, latency) come from a worktree at `2a19e55`.
 
 ### Gate: two separate causes
-`gate.firstOpenSeconds` fails on all 16 kick tracks, and on none of them would the pre-hub input pass either.
-- **Cause 1, every track: the floor cannot be met by any gate input.** The dancer's tempo lock arrives at 3.1 s or 8.1 s
-  (11.4 s on `half-time-shuffle`), and even the pre-hub gate then needs 3.9 to 5 s of kicks on clean synthetic drums
-  (`gate.secondsAfterLock`). So 4 s from track start needs both an earlier lock (tracker, S7) and a faster gate rule
-  (S5), or an AC6 restated from the lock. The older "pre-hub 0.3 s on `imyourgirl`" figure does not reproduce under
-  any timing.
+Measured from track start (targets version 3), the gate failed on all 16 kick tracks, and on none of them would the
+pre-hub input have passed either.
+- **Cause 1, every track: 4 s from track start cannot be met by any gate input.** The dancer's tempo lock arrives at
+  3.1 s or 8.1 s (11.4 s on `half-time-shuffle`), and even the pre-hub gate then needs 3.9 to 5 s of kicks on clean
+  synthetic drums (`gate.secondsAfterLock`). Trevor restated AC6 from the lock at the S3 review, so what remains is the
+  gate rule's own pace (S5). The older "pre-hub 0.3 s on `imyourgirl`" figure does not reproduce under any timing.
 - **Cause 2, the hub's low end is a different feature.** Seconds from track start to the first opening, offline:
 
 | Track | Hub (today) | Pre-hub (`BassPulse`) | Hub band, no peak scaling | Linear band, `BassPulse` margin | Hub band, per-frame delivery | `BassPulse` feature at worklet frame times |
@@ -111,7 +114,9 @@ spread; `lonley` is the outlier above. Live pre-hub cells (hit share, latency) c
 ## Open for S3
 - Live cells (`npm run scorecard:live`, metrics in `targets.ts` under `LIVE_METRICS`): record today's build and the
   pre-hub worktree on `dancing-character`, `cubes` and `trio-color-wave`, then commit the baseline.
-- Review with Trevor: AC6 restated or kept, stretch targets (D10), which fix slices proceed, deferrals, and C1.
+- C1: Trevor asked for a third gate input that does better than both the hub's low end and `BassPulse` across all the
+  clips together, rather than a choice between them; it is searched offline before S4.
+- Review with Trevor once the live cells are in: stretch targets (D10), which fix slices proceed, and deferrals.
 
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries

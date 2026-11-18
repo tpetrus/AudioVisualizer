@@ -6,6 +6,7 @@ import {
     clipMaxDeviations,
     falseFireShare,
     gateFirstOpenSeconds,
+    gateSecondsAfterLock,
     hitShare,
     lockRange,
     lockSeconds,
@@ -29,6 +30,13 @@ describe('gateFirstOpenSeconds and lockSeconds', () => {
         ]);
         expect(gateFirstOpenSeconds(t)).toBe(2);
         expect(lockSeconds(t)).toBe(1);
+        // AC6 as restated at the S3 review is timed from the lock.
+        expect(gateSecondsAfterLock(t)).toBe(1);
+    });
+
+    it('has no time from the lock when the gate never opens or the dancer never locks', () => {
+        expect(gateSecondsAfterLock(table(columns, [[0, 0, 1]]))).toBeNull();
+        expect(gateSecondsAfterLock(table(columns, [[0, 1, 0]]))).toBeNull();
     });
 
     it('is null when it never opens or the column is missing', () => {

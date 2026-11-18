@@ -7,7 +7,7 @@ import { liveMetricsFor } from './liveCells';
 import {
     clipMaxDeviations,
     falseFireShare,
-    gateFirstOpenSeconds,
+    gateSecondsAfterLock,
     hitShare,
     lockSeconds,
     reactionLatencyMs,
@@ -30,7 +30,7 @@ export function measureRuns(viz: LiveVisualizer, runs: readonly MeasuredRun[]): 
             return run.beats === undefined ? null : measure(run, run.beats);
         });
     const measures: Record<string, () => RunValue[]> = {
-        'live.gate.firstOpenSeconds': () => perRun((run) => gateFirstOpenSeconds(run.table), false),
+        'live.gate.secondsAfterLock': () => perRun((run) => gateSecondsAfterLock(run.table), false),
         'live.clip.maxDeviationLoops': () => clipMaxDeviations(runs.map((run) => run.table)),
         'live.lock.spreadSeconds': () => perRun((run) => lockSeconds(run.table), false),
         'live.hit.share50ms': () => perRun((run, beats) => hitShare(run.table, viz, beats), true),

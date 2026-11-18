@@ -15,7 +15,7 @@ const metricOf = (id: string): LiveMetricTarget => {
     if (!metric) throw new Error(id);
     return metric;
 };
-const GATE = metricOf('live.gate.firstOpenSeconds');
+const GATE = metricOf('live.gate.secondsAfterLock');
 const HIT = metricOf('live.hit.share50ms');
 const LOCK = metricOf('live.lock.spreadSeconds');
 const CLIP = metricOf('live.clip.maxDeviationLoops');
@@ -49,7 +49,7 @@ describe('buildLiveCell for a per-run metric', () => {
     it('passes when 3 of 4 runs meet the floor, with the median, spread and run count', () => {
         const result = cell(GATE, [1, 2, 3, 9]);
         expect(result).toMatchObject({
-            metric: 'live.gate.firstOpenSeconds',
+            metric: 'live.gate.secondsAfterLock',
             applicable: true,
             floor: 4,
             stretch: 2,
@@ -129,19 +129,19 @@ describe('mergeLiveFile', () => {
     const update = (track: string, gate: RunValue[]) => ({
         track,
         class: 'synthetic' as const,
-        values: new Map<string, RunValue[]>([['live.gate.firstOpenSeconds', gate]]),
+        values: new Map<string, RunValue[]>([['live.gate.secondsAfterLock', gate]]),
     });
 
     it('creates a cell for every metric of the visualizer on each updated track', () => {
         const file = mergeLiveFile(undefined, [update('drums-128.wav', [1, 2, 3, 4])], options);
         expect(file.header.targetsVersion).toBe(TARGETS_VERSION);
         expect(file.cells.map((c) => c.metric)).toEqual(LIVE_METRICS.map((metric) => metric.id).sort());
-        const gate = file.cells.find((c) => c.metric === 'live.gate.firstOpenSeconds');
+        const gate = file.cells.find((c) => c.metric === 'live.gate.secondsAfterLock');
         expect(gate?.status).toBe('pass');
         // The metrics with no values are unavailable (or n/a on a synthetic track).
         expect(file.cells.find((c) => c.metric === 'live.hit.share50ms')?.status).toBe('unavailable');
         expect(file.cells.find((c) => c.metric === 'live.clip.maxDeviationLoops')?.status).toBe('n/a');
-        expect(file.runValues.find((entry) => entry.metric === 'live.gate.firstOpenSeconds')?.current).toEqual([
+        expect(file.runValues.find((entry) => entry.metric === 'live.gate.secondsAfterLock')?.current).toEqual([
             1, 2, 3, 4,
         ]);
     });
@@ -159,7 +159,7 @@ describe('mergeLiveFile', () => {
         const gateOf = (file: LiveFile, track: string) =>
             file.cells.find(
                 (c) =>
-                    c.metric === 'live.gate.firstOpenSeconds' &&
+                    c.metric === 'live.gate.secondsAfterLock' &&
                     c.track === track &&
                     c.visualizer === 'dancing-character',
             );
@@ -169,18 +169,18 @@ describe('mergeLiveFile', () => {
 
     it('stores pre-hub runs without touching the value, then recomputes the pass from them', () => {
         const first = mergeLiveFile(undefined, [update('drums-128.wav', [3, 3, 3, 3])], options);
-        expect(first.cells.find((c) => c.metric === 'live.gate.firstOpenSeconds')?.status).toBe('pass');
+        expect(first.cells.find((c) => c.metric === 'live.gate.secondsAfterLock')?.status).toBe('pass');
         const withPrehub = mergeLiveFile(first, [update('drums-128.wav', [1, 1, 1, 1])], { ...options, prehub: true });
-        const gate = withPrehub.cells.find((c) => c.metric === 'live.gate.firstOpenSeconds');
+        const gate = withPrehub.cells.find((c) => c.metric === 'live.gate.secondsAfterLock');
         // Pre-hub 1 + tolerance 0.5 is 1.5, tighter than the floor of 4, so 3 s is now worse than pre-hub.
         expect(gate).toMatchObject({ value: 3, prehub: 1, status: 'fail' });
-        const stored = withPrehub.runValues.find((entry) => entry.metric === 'live.gate.firstOpenSeconds');
+        const stored = withPrehub.runValues.find((entry) => entry.metric === 'live.gate.secondsAfterLock');
         expect(stored).toMatchObject({ current: [3, 3, 3, 3], prehub: [1, 1, 1, 1] });
     });
 
     it('makes a prehub-only cell unavailable', () => {
         const file = mergeLiveFile(undefined, [update('drums-128.wav', [1, 1, 1, 1])], { ...options, prehub: true });
-        expect(file.cells.find((c) => c.metric === 'live.gate.firstOpenSeconds')).toMatchObject({
+        expect(file.cells.find((c) => c.metric === 'live.gate.secondsAfterLock')).toMatchObject({
             value: null,
             prehub: 1,
             status: 'unavailable',

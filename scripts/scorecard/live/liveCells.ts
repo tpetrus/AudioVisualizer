@@ -13,8 +13,8 @@ import { resolveTrack } from '../tracks';
 import type { Scorecard, ScorecardCell, TrackClass } from '../types';
 import { lockRange, smallestLockRange } from './measures';
 
-// What one run of one cell measured: a number, or null. For live.gate.firstOpenSeconds a null is a gate that never
-// opened (a failed run); for every other metric it is a run that could not be measured (a missing run).
+// What one run of one cell measured: a number, or null. For live.gate.secondsAfterLock a null is a gate that never
+// opened or a dancer that never locked (a failed run); for every other metric it is a run that could not be measured (a missing run).
 export type RunValue = number | null;
 
 export interface LiveRunValues {
@@ -31,7 +31,7 @@ export interface LiveFile extends Scorecard {
     runValues: LiveRunValues[];
 }
 
-export const LIVE_GATE_METRIC = 'live.gate.firstOpenSeconds';
+export const LIVE_GATE_METRIC = 'live.gate.secondsAfterLock';
 // The cell passes when this many runs pass, or all of them when fewer than REQUIRED_RUNS + 1 were measured.
 const REQUIRED_RUNS = 3;
 

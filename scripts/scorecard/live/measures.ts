@@ -34,6 +34,14 @@ export function lockSeconds(table: TelemetryTable): number | null {
     return firstSetSeconds(table, TEMPO_LOCK_COLUMN);
 }
 
+// AC6 as restated at the S3 review: seconds from the run's first tempoLocked row to its first gateOpen row. null when
+// either never happens, which the cell builder counts as a failed run.
+export function gateSecondsAfterLock(table: TelemetryTable): number | null {
+    const open = gateFirstOpenSeconds(table);
+    const lock = lockSeconds(table);
+    return open === null || lock === null ? null : open - lock;
+}
+
 // The smallest range (max minus min) over any 3 of the lock times: with 4 runs that is "3 of 4 lock within N seconds".
 // null with fewer than 3 runs that locked. Values that are null are runs that never locked.
 export function smallestLockRange(times: readonly (number | null)[]): number | null {
