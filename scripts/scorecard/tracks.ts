@@ -15,9 +15,8 @@ export interface TrackSpec {
 // The sidecar sources a .beats.json can declare.
 export type SidecarSource = 'synthetic' | 'tapped';
 
-// PROVISIONAL kick flags: the one place to edit when a listening check disagrees. Every listed track not in this
-// table is a non-kick track: click-*, no-kick-124, syncopation-no-kick and pad-lead-groove-110 by design, and
-// 6-8-time and drifting-tempo by assumption (those two are unconfirmed, see KICK_UNCONFIRMED).
+// Which tracks have a kick drum, confirmed by listening: the one place to edit if that changes. Every listed track not in
+// this table has none: click-*, no-kick-124, syncopation-no-kick, 6-8-time and pad-lead-groove-110.
 const KICK_TRACKS: readonly string[] = [
     'drums-100.wav',
     'drums-128.wav',
@@ -33,11 +32,9 @@ const KICK_TRACKS: readonly string[] = [
     'high-bpm-dnb.wav',
     'low-bpm-rnb.wav',
     'half-time-shuffle.wav',
+    'drifting-tempo.wav',
     'bassline-kick-120.wav',
 ];
-
-// Non-kick flags that nobody has confirmed by ear yet.
-export const KICK_UNCONFIRMED: readonly string[] = ['6-8-time.wav', 'drifting-tempo.wav'];
 
 // Class overrides win over the sidecar's source. beatless.wav has no .beats.json by design: its no-beat truth lives
 // here because the sidecar format requires a tempo above 0.

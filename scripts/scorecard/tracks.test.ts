@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EXPECTED_TRACKS, EXPECTED_TRACK_NAMES, KICK_UNCONFIRMED, resolveTrack } from './tracks';
+import { EXPECTED_TRACKS, EXPECTED_TRACK_NAMES, resolveTrack } from './tracks';
 
 describe('expected tracks', () => {
     it('lists 25 unique tracks, two of them generated in memory', () => {
@@ -19,12 +19,15 @@ describe('expected tracks', () => {
         expect(classOf('lonley.wav')).toBe('tapped');
     });
 
-    it('flags the provisional kick tracks and leaves the rest non-kick', () => {
+    it('flags the confirmed kick tracks and leaves the rest non-kick', () => {
         const kicks = EXPECTED_TRACKS.filter((track) => track.kick).map((track) => track.name);
-        expect(kicks).toHaveLength(15);
+        expect(kicks).toHaveLength(16);
         expect(kicks).toContain('bassline-kick-120.wav');
         expect(kicks).not.toContain('pad-lead-groove-110.wav');
-        for (const name of KICK_UNCONFIRMED) expect(kicks).not.toContain(name);
+        for (const name of ['drifting-tempo.wav', 'high-bpm-dnb.wav', 'low-bpm-rnb.wav', 'half-time-shuffle.wav']) {
+            expect(kicks).toContain(name);
+        }
+        expect(kicks).not.toContain('6-8-time.wav');
         expect(kicks.some((name) => name.startsWith('click-'))).toBe(false);
     });
 });

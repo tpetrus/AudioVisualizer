@@ -3,6 +3,7 @@ import { ONSET_BANDS, type BeatSidecar, type OnsetBand } from '../../../app/feat
 import { scoreOnsets, type TempoSample } from '../../../app/features/rhythm/eval/metrics';
 import type { TrackMeasures, TrackClass } from '../types';
 import { replayPcm } from './replay';
+import { countUnexplainedChanges, findSilences, recordSongChanges } from './songChanges';
 import { SCORECARD_TEMPO_TOLERANCE, constantTruth, driftingTruth, foldedError, type TempoTruth } from './tempoTruth';
 
 export interface MeasureTrackInput {
@@ -29,18 +30,23 @@ interface TempoFigures {
     maxTempoErrorAfterLock: number | null;
 }
 
-function tempoFigures(series: readonly TempoSample[], truth: TempoTruth): TempoFigures {
+// A reading that passes through the right tempo for less than this long is not a lock (contract revision 2).
+export const LOCK_HOLD_SECONDS = 2;
+
+export function tempoFigures(series: readonly TempoSample[], truth: TempoTruth): TempoFigures {
     const within = (sample: TempoSample): boolean =>
         sample.bpm > 0 && foldedError(sample.bpm, truth(sample.time)) <= SCORECARD_TEMPO_TOLERANCE;
     let everLocked = false;
-    // The first sample of the final unbroken run of readings within tolerance (the run must reach the last sample).
+    // The first sample of the first unbroken run of readings within tolerance that lasts LOCK_HOLD_SECONDS.
     let lockIndex = -1;
+    let runStart = -1;
     for (let i = 0; i < series.length; i++) {
         if (within(series[i])) {
             everLocked = true;
-            if (lockIndex < 0) lockIndex = i;
+            if (runStart < 0) runStart = i;
+            if (lockIndex < 0 && series[i].time - series[runStart].time >= LOCK_HOLD_SECONDS) lockIndex = runStart;
         } else {
-            lockIndex = -1;
+            runStart = -1;
         }
     }
     if (lockIndex < 0) {
@@ -50,7 +56,9 @@ function tempoFigures(series: readonly TempoSample[], truth: TempoTruth): TempoF
     let largest = 0;
     for (let i = lockIndex; i < series.length; i++) {
         if (within(series[i])) inside++;
-        largest = Math.max(largest, foldedError(series[i].bpm, truth(series[i].time)));
+        // A reading of 0 (no tempo) after the lock counts as fully wrong rather than being skipped as NaN.
+        const error = series[i].bpm > 0 ? foldedError(series[i].bpm, truth(series[i].time)) : 1;
+        largest = Math.max(largest, error);
     }
     return {
         everLocked,
@@ -80,16 +88,18 @@ function onsetF50(sidecar: BeatSidecar, detected: Record<OnsetBand, number[]>): 
 // tempo figures are null.
 //
 // Tempo figures: readings are the held tempo after each analyzed frame. A reading of 0 (no tempo) is never within
-// tolerance. `lockSeconds` is where the final unbroken run of readings within tolerance starts, so it is null when the
-// last reading is off, and the share and the largest error after it are then null too.
+// tolerance. `lockSeconds` is where the first run of readings within tolerance that lasts LOCK_HOLD_SECONDS starts; the
+// share and the largest error are taken over every reading from there to the end, so a later drift shows up. They are
+// null when there is no such run. Song changes are counted without those raised in or just after digital silence (see
+// songChanges.ts).
 export function measureTrack(input: MeasureTrackInput): TrackMeasures {
-    const replay = replayPcm(input.pcm, input.sampleRate);
+    const { result: replay, events } = recordSongChanges(() => replayPcm(input.pcm, input.sampleRate));
     const { sidecar } = input;
     const base = {
         track: input.track,
         class: input.class,
         seconds: replay.seconds,
-        falseSongChanges: replay.songChangeCount,
+        falseSongChanges: countUnexplainedChanges(events, findSilences(input.pcm, input.sampleRate)),
         gateFirstOpenSeconds: replay.gate.firstOpenSeconds,
         gateOpenShare: replay.gate.openShare,
     };

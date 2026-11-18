@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { renderTrack, silence, TEST_SAMPLE_RATE } from '../../../app/features/rhythm/testSignals';
+import { concat, renderTrack, silence, TEST_SAMPLE_RATE } from '../../../app/features/rhythm/testSignals';
 import { GROUND_TRUTH_TRACKS, renderGroundTruthTrack } from '../../ground-truth/render';
-import { measureTrack } from './measureTrack';
+import { replayPcm } from './replay';
+import { constantTruth } from './tempoTruth';
+import { LOCK_HOLD_SECONDS, measureTrack, tempoFigures } from './measureTrack';
 
 const click = renderTrack({ seconds: 20, bpm: 120, beatsPerBar: 4 });
 const input = { pcm: click.pcm, sampleRate: TEST_SAMPLE_RATE };
@@ -136,5 +138,72 @@ describe('measureTrack on a synthetic track', () => {
 
     it('is deterministic', () => {
         expect(measure()).toEqual(measure());
+    });
+});
+
+// A reading every 0.1 s from the given bpm values.
+const series = (bpms: number[]) => bpms.map((bpm, i) => ({ time: i * 0.1, bpm }));
+const repeat = (bpm: number, count: number) => new Array<number>(count).fill(bpm);
+
+describe('tempoFigures', () => {
+    const truth = constantTruth(120);
+
+    it('holds the lock for LOCK_HOLD_SECONDS and then measures to the end', () => {
+        expect(LOCK_HOLD_SECONDS).toBe(2);
+        const figures = tempoFigures(series([...repeat(0, 10), ...repeat(120, 50)]), truth);
+        expect(figures.lockSeconds).toBeCloseTo(1, 6);
+        expect(figures.tempoWithinShareAfterLock).toBe(1);
+        expect(figures.maxTempoErrorAfterLock).toBe(0);
+    });
+
+    it('is not locked by a pass-through blip shorter than the hold', () => {
+        const figures = tempoFigures(series([...repeat(100, 10), ...repeat(120, 15), ...repeat(140, 20)]), truth);
+        expect(figures.everLocked).toBe(true);
+        expect(figures.lockSeconds).toBeNull();
+        expect(figures.tempoWithinShareAfterLock).toBeNull();
+    });
+
+    it('shows a track that locks and then drifts off', () => {
+        const figures = tempoFigures(series([...repeat(120, 30), ...repeat(130, 30)]), truth);
+        expect(figures.lockSeconds).toBe(0);
+        expect(figures.tempoWithinShareAfterLock).toBeCloseTo(0.5, 6);
+        expect(figures.maxTempoErrorAfterLock!).toBeGreaterThan(0.02);
+    });
+
+    it('counts a lost tempo after the lock as fully wrong', () => {
+        const figures = tempoFigures(series([...repeat(120, 30), ...repeat(0, 10)]), truth);
+        expect(figures.maxTempoErrorAfterLock).toBe(1);
+        expect(figures.tempoWithinShareAfterLock).toBeCloseTo(0.75, 6);
+    });
+});
+
+describe('falseSongChanges', () => {
+    const before = renderTrack({ seconds: 14, bpm: 120, beatsPerBar: 4 }).pcm;
+    const after = renderTrack({ seconds: 14, bpm: 100, beatsPerBar: 4, clickHz: 2200 }).pcm;
+
+    it('does not count a reset raised by digital silence', () => {
+        const pcm = concat(before, silence(4), after);
+        // The reset is real (it is raised inside the silence), and only the silence excuses it.
+        expect(replayPcm(pcm, TEST_SAMPLE_RATE).songChangeCount).toBe(1);
+        const measures = measureTrack({
+            track: 'gap.wav',
+            class: 'tapped',
+            bpm: 120,
+            pcm,
+            sampleRate: TEST_SAMPLE_RATE,
+        });
+        expect(measures.falseSongChanges).toBe(0);
+    });
+
+    it('counts a reset with no silence', () => {
+        const pcm = concat(before, after);
+        const measures = measureTrack({
+            track: 'join.wav',
+            class: 'tapped',
+            bpm: 100,
+            pcm,
+            sampleRate: TEST_SAMPLE_RATE,
+        });
+        expect(measures.falseSongChanges).toBeGreaterThan(0);
     });
 });
