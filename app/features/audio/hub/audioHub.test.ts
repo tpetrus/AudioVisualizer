@@ -304,6 +304,22 @@ describe('AudioHub', () => {
             expect(hub.snapshot.onsets.kick.count).toBe(0);
         });
 
+        it('warns once per hub in development about batches of another version, and never otherwise', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const other = { ...batch([{ time: 1, energy: 1 }]), version: 1 } as unknown as FeatureBatch;
+            vi.stubEnv('DEV', true);
+            hub.onBatch(other);
+            hub.onBatch(other);
+            expect(warn).toHaveBeenCalledTimes(1);
+            const quiet = new AudioHub();
+            vi.stubEnv('DEV', false);
+            quiet.onBatch(other);
+            quiet.onBatch(other);
+            expect(warn).toHaveBeenCalledTimes(1);
+            vi.unstubAllEnvs();
+            warn.mockRestore();
+        });
+
         it('does not move the peak clock back on a frame stamped earlier', () => {
             feed([{ time: 10, energy: 1 }]);
             feed([{ time: 5, energy: 0.1 }]);
@@ -387,6 +403,19 @@ describe('AudioHub', () => {
             hub.update(1);
             hub.dispose();
             expect(disconnected.length).toBe(4);
+        });
+
+        it('taps exactly once per start across a StrictMode-style start, dispose, start', () => {
+            const { source, nodes, disconnected } = stubSource(0.25);
+            tracker.source = source;
+            hub.update(1);
+            const built = nodes.length;
+            hub.dispose();
+            expect(disconnected.length).toBe(4);
+            hub.start(tracker.asTracker());
+            hub.update(2);
+            // One more tap: two filters and an analyser.
+            expect(nodes.length).toBe(built + 3);
         });
 
         it('reads a given level reader instead of tapping, and treats a non-finite level as silence', () => {
