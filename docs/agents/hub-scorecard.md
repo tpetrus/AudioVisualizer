@@ -5,8 +5,8 @@ acceptance metric for every `.debug-in` track, so a fix tuned on one track canno
 each failing cell to a measured cause and the slice that owns it; S3 fills in the causes.
 
 ## How to run it
-- `npm run scorecard` replays the app's own rhythm pipeline, band onsets, `AudioHub` and the dancing character's gate
-  over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.cells.json` and `.md` here (not
+- `npm run scorecard` replays the app's own rhythm pipeline, band onsets, `AudioHub`, the dancing character's gate
+  and the cubes' bass trigger over every WAV in `.debug-in`, offline and on track time, and writes `hub-scorecard.cells.json` and `.md` here (not
   `hub-scorecard.md`, which is this doc). About 8 s for the current folder, and two runs give identical cells. It merges
   the live cells from `hub-scorecard.live.json` when their targets version matches.
 - `npm run scorecard:live -- --viz <name>` records the live cells (4 `debug:viz` runs per track: two fresh page loads
@@ -262,8 +262,84 @@ only today, through one run's lock (below).
   6/8 (offline it never locks; live runs settle on 120 or 184 to 190 bpm): `beat.errorMedianMs`,
   `tempo.maxErrorAfterLock`, `tempo.falseSongChanges` and `live.clip.maxDeviationLoops`.
 
+## S4 findings (targets version 7, measured on `1493adf`)
+S4 added contract C1 (`docs/plans/hub-regressions/contracts.md`): the hub's `gateBass.pulse` is `BassPulse`'s feature
+(the RMS of a 120 Hz, 24 dB/octave lowpass over the newest 2048 samples), read at the render time from the hub's own
+tap of the tracker's source (`app/features/audio/hub/gateBassTap.ts`, which `BassPulse` now uses too). The dancer's
+gate and the cubes' bass trigger (`app/features/visualizers/cubes/cubesBass.ts`, now replayed offline) read it through
+`BassPulse`'s own envelope (`GATE_BASS_BUMP`, unseeded as `BassPulse` is). Version 7 adds the offline cube cells
+`cubes.hit.share50ms` and `cubes.reaction.latencyMs`, judged against the pre-hub cubes with the live cells' tolerances:
+a hit share at most 0.05 lower and a latency at most one frame later.
+
+The first design carried the feature in the worklet's frames (`FeatureBatch` version 3, `13f4f34`). It matched pre-hub
+offline but was later live, where a frame is up to a batch plus a message old when the hub reads it: the cubes'
+latency averaged 72.7 ms against 62.9 pre-hub, the dancer's hit share 0.22 against 0.37, and the gate opened 0.5 to
+2.4 s later than pre-hub on the three drum tracks. Trevor chose the render-time read (plan amendments, option A); the
+worklet is back to version 2.
+
+### Offline
+- **Every gate and cube cell equals pre-hub.** The replay gives the hub the same filtered audio pre-hub reads
+  (`gateInputs.test.ts`: the hub gate is the pre-hub gate on the same audio). That retires the `summer2000` and
+  `bassline-kick-120` exceptions recorded for the frame-timed design.
+- **Gate (AC6, as amended):** on all 16 kick tracks the first opening after the lock equals pre-hub's; `drums-128`
+  (3.95 s) is the only one inside the 4 s floor, which S5 owns. `high-bpm-dnb` and `low-bpm-rnb` never open in either
+  build.
+- **False opens on random bass** (300 patterns, beat clock locked): 5 at 120 beats and 27
+  at 400 beats, equal to pre-hub (the frame-timed feature gave 5 and 23, the hub low end 2 and 19;
+  `npm run probe:gate-inputs`). The 16 kick tracks' seconds to the first opening sum to 139.1, equal to pre-hub (hub
+  low end 148.2, frame-timed 139.6).
+- **Cubes (AC8):** 32 of 32 cells pass.
+- **Ratchet:** against the version 7 baseline of the frame-timed design, no cell went from pass to fail. The new
+  baseline holds the 202 offline cells: 175 pass, 27 fail.
+
+### Live
+Recorded headless on 2026-11-19, one run at a time from the main checkout at `1493adf`, 4 runs per track; the pre-hub
+runs are S3's, ingested again. 179 applicable live cells: 138 pass, 28 fail, 13 unavailable (`cubes` 45 pass, 0 fail;
+`dancing-character` 49 pass, 27 fail; `trio-color-wave` 44 pass, 1 fail, unchanged).
+
+| Mean over the tracks | S3 (hub low end) | S4, frame-timed | S4, render time | Pre-hub |
+|---|---|---|---|---|
+| `cubes` latency (ms) | 60.5 | 72.7 | 61.2 | 62.9 |
+| `cubes` hit share | 0.33 | 0.29 | 0.35 | 0.34 |
+| `cubes` hit share cells passing | 11 of 15 | 10 of 15 | 15 of 15 | - |
+| `cubes` latency cells passing | 14 of 15 | 12 of 15 | 15 of 15 | - |
+| dancer hit share | 0.32 | 0.22 | 0.34 | 0.37 |
+| dancer hit share cells passing | 13 of 15 | 6 of 14 | 12 of 14 | - |
+| dancer gate, seconds after the lock | 8.28 | 7.76 | 7.16 | 7.21 |
+
+- **`cubes` (AC8) passes on every track**, which retires S3's four `cubes` hit share failures and its latency failure.
+- **The dancer's gate opens as pre-hub does** (medians within the run spread on every track, AC6 as amended).
+  `drums-128` is back to 3.88 s (frame-timed 6.31, pre-hub 3.89), and its hit share back to 0.75 (frame-timed 0).
+- **The dancer's remaining failures are run-to-run modes, not the input.** On `drums-150` each run either learns the
+  kick place (hit share 0.74 to 0.76) or not (0): 2 of 4 runs here, 2 of 4 in S3, 1 of 4 pre-hub. That leaves a median of
+  0.37 against 0.76. On `drifting-tempo` and `high-bpm-dnb` the tracker locks either at about 3.2 or at about 8.2 s
+  (pre-hub and S3 have the early mode on `drifting-tempo` too). Two of four runs locked early here, which fails
+  `live.lock.spreadSeconds` on both tracks, moves the runs' clip phases apart (`live.clip.maxDeviationLoops`) and gives
+  `drifting-tempo` a median hit share of 0.15 and a latency of 125 ms. The tracker's code is unchanged in S4 (the
+  worklet is version 2 again), and the offline cells, which replay one deterministic run, equal pre-hub. The dance clip's
+  phase is set before the gate runs, and the gate only drives the club, the rim light and the bump. A confirmation run
+  of the three tracks on the same commit (4 runs each, not committed) had one odd run per track: `drums-150`'s hit share
+  0.74 against 0.76 and latency 28 against 31 ms, `drifting-tempo`'s hit share 0.29 against 0.29, latency 13 ms, lock
+  spread 0.01 s and clip deviation 0.003 all pass, and `high-bpm-dnb`'s lock spread passes. `high-bpm-dnb`'s clip
+  deviation still fails (0.19 against 0.003) in a phase the gate does not touch; its owner stays S7 and S8.
+- **`syncopationbass`'s dancer latency** still fails on noise (runs from 9 to 228 ms in every build).
+
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
   (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
   `RhythmAnalyzer` prototype methods for the duration of a replay. It works and its specs fail on a rename, but the
   analyzer should expose both counters instead.
+- **`FU-S4-hitshare-relative-tolerance`** (R2, it changes the targets; from S4's review): the hit share cells allow an
+  absolute 0.05 below pre-hub, so they cannot fail where pre-hub is under 0.05 (`high-bpm-dnb` 0 against 0,
+  `summer2000` 0.034) and allow a 58% loss on `lonley` (0.086). Decide on a relative tolerance, such as
+  max(0.05, 0.1 × pre-hub), or mark tracks with pre-hub under 0.1 as uninformative.
+- **`FU-S4-gatebass-no-source`** (contract C1's wording; from the review of the render-time redesign): the contract and
+  `types.ts` say `gateBass.pulse` is 0 with no source, but when the capture stops the tracker has no render time, so
+  `hub.update()` returns early and the pulse keeps its last value (the dancer masks it; the cubes' envelope decays), and
+  the old tap stays connected until the next source or the hub's dispose. Either release the tap and zero the pulse when
+  the tracker has no render time, or document that the last value stays; test it with a tracker whose `renderTimeNow()`
+  is undefined.
+- **`FU-S4-gatebass-sync-offset`** (contract C1's wording; same review): the pulse is the newest audio, not shifted by
+  the user's sync offset as `bands`, `lowEnd` and `beat` are. That is pre-hub's behavior, but the hub's class comment,
+  `types.ts` and C1 say every field is read at one render time. Reword them, or shift the pulse, which would change the
+  cubes and the dancer for users with an offset.
