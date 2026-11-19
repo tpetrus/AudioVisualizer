@@ -6,7 +6,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 6;
+export const TARGETS_VERSION = 7;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count';
@@ -23,8 +23,12 @@ export interface MetricTarget {
     // Class-specific floors (tapped songs get more slack than synthetic ones); a class not listed uses `floor`.
     floorByClass?: Partial<Record<TrackClass, number>>;
     stretch: number | null;
-    visualizer: 'rhythm' | 'dancing-character';
+    visualizer: 'rhythm' | 'dancing-character' | 'cubes';
     blocking: boolean;
+    // How much worse than the pre-hub value the value may be (version 7). When set, the floor is the pre-hub value
+    // widened by it, tightened by `floor` if that is set too, as the live cells judge their pre-hub column; a cell with
+    // a pre-hub value but no value of its own then fails.
+    prehubTolerance?: number;
     // Whether the metric applies to a track of this class and kick flag.
     applies: (trackClass: TrackClass, kick: boolean) => boolean;
     // True when the value is measured against the track's .beats.json truth, so a missing sidecar makes the cell
@@ -166,6 +170,41 @@ export const METRICS: readonly MetricTarget[] = [
         applies: (trackClass, kick) => !kick && hasBeat(trackClass),
         needsBeats: false,
         value: (measures) => (measures.gateFirstOpenSeconds === null ? 0 : 1),
+    },
+    {
+        // AC8 offline (version 7, S4): the cubes' bass trigger is a pure function the scene calls (stepCubesBass), so
+        // the replay runs it on every kick track with beats. Same fire-to-beat rule and tolerances as the live cell: no
+        // more than 0.05 below the pre-hub value (BassPulse's own pulse at the render time). 0.9 is the stretch.
+        id: 'cubes.hit.share50ms',
+        description: 'Share of labeled beats with a cubes bass reaction from 20 ms before to 50 ms after, offline',
+        direction: 'higher',
+        unit: 'fraction',
+        floor: null,
+        stretch: 0.9,
+        prehubTolerance: 0.05,
+        visualizer: 'cubes',
+        blocking: true,
+        applies: (trackClass, kick) => kick && hasBeat(trackClass),
+        needsBeats: true,
+        value: (measures) => measures.cubesHitShare,
+        prehubValue: (measures) => measures.prehubCubesHitShare,
+    },
+    {
+        // AC8 offline: the median reaction delay after a labeled beat, at most one 60 Hz frame later than pre-hub, as the
+        // live cell; 30 ms plus a frame is the stretch.
+        id: 'cubes.reaction.latencyMs',
+        description: 'Median cubes bass reaction delay after a labeled beat, offline',
+        direction: 'lower',
+        unit: 'ms',
+        floor: null,
+        stretch: 30 + 1000 / 60,
+        prehubTolerance: 1000 / 60,
+        visualizer: 'cubes',
+        blocking: true,
+        applies: (trackClass, kick) => kick && hasBeat(trackClass),
+        needsBeats: true,
+        value: (measures) => measures.cubesLatencyMs,
+        prehubValue: (measures) => measures.prehubCubesLatencyMs,
     },
     {
         id: 'tempo.lockSeconds',
@@ -385,8 +424,32 @@ export function liveEffectiveFloor(metric: LiveMetricTarget, prehub: number | nu
     return metric.direction === 'lower' ? Math.min(metric.floor, bound) : Math.max(metric.floor, bound);
 }
 
+// Slack, in the metric's own unit, when a value is compared to a floor. A pre-hub bound such as prehub + 1000/60 is
+// computed in floating point, so a value that sits exactly one tolerance away can land about 1e-12 past it. 1e-6 is
+// far below any real measurement step (milliseconds, shares, seconds), so it only absorbs that noise.
+export const FLOOR_EPSILON = 1e-6;
+
+// Whether a value meets a floor, for both directions; a null floor is report-only and always met.
+export function meetsFloor(direction: MetricDirection, value: number, floor: number | null): boolean {
+    if (floor === null) return true;
+    return direction === 'lower' ? value <= floor + FLOOR_EPSILON : value >= floor - FLOOR_EPSILON;
+}
+
 export function floorFor(metric: MetricTarget, trackClass: TrackClass): number | null {
     return metric.floorByClass?.[trackClass] ?? metric.floor;
+}
+
+// An offline metric's floor once its pre-hub value is known: with a pre-hub tolerance, the pre-hub value widened by it
+// (tightened by the AC floor when there is one); otherwise the AC floor bounded by the pre-hub value.
+export function offlineEffectiveFloor(
+    metric: MetricTarget,
+    floor: number | null,
+    prehub: number | null,
+): number | null {
+    if (metric.prehubTolerance === undefined || prehub === null) return effectiveFloor(metric.direction, floor, prehub);
+    const bound = metric.direction === 'lower' ? prehub + metric.prehubTolerance : prehub - metric.prehubTolerance;
+    if (floor === null) return bound;
+    return metric.direction === 'lower' ? Math.min(floor, bound) : Math.max(floor, bound);
 }
 
 // The pre-hub value also bounds the floor once it exists: a metric must not end up worse than it started.
