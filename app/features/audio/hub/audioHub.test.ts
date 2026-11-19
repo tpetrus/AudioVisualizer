@@ -405,6 +405,19 @@ describe('AudioHub', () => {
             expect(disconnected.length).toBe(4);
         });
 
+        it('taps exactly once per start across a StrictMode-style start, dispose, start', () => {
+            const { source, nodes, disconnected } = stubSource(0.25);
+            tracker.source = source;
+            hub.update(1);
+            const built = nodes.length;
+            hub.dispose();
+            expect(disconnected.length).toBe(4);
+            hub.start(tracker.asTracker());
+            hub.update(2);
+            // One more tap: two filters and an analyser.
+            expect(nodes.length).toBe(built + 3);
+        });
+
         it('reads a given level reader instead of tapping, and treats a non-finite level as silence', () => {
             let level = 0.3;
             const reader = { level: vi.fn(() => level), dispose: vi.fn() };
