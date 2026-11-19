@@ -7,6 +7,7 @@ import {
     directionOf,
     effectiveFloor,
     floorFor,
+    offlineEffectiveFloor,
     liveEffectiveFloor,
     unitOf,
 } from './targets';
@@ -29,6 +30,10 @@ function measures(overrides: Partial<TrackMeasures> = {}): TrackMeasures {
         dancerLockSeconds: 0.5,
         prehubGateFirstOpenSeconds: 1,
         prehubGateOpenShare: 0.5,
+        cubesHitShare: 0.8,
+        cubesLatencyMs: 20,
+        prehubCubesHitShare: 0.8,
+        prehubCubesLatencyMs: 20,
         ...overrides,
     };
 }
@@ -41,7 +46,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(6);
+        expect(TARGETS_VERSION).toBe(7);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
@@ -167,6 +172,29 @@ describe('targets', () => {
         expect(quiet.scenario).toBe('scenario:dotted-passage');
         expect(quiet.value({ id: quiet.scenario, songChanges: 0, softBoundaries: 2 })).toBe(2);
         expect(quiet.value({ id: quiet.scenario, songChanges: 1, softBoundaries: -1 })).toBe(1);
+    });
+});
+
+describe('offlineEffectiveFloor', () => {
+    const metric = (id: string) => METRICS.find((candidate) => candidate.id === id)!;
+
+    it('widens the pre-hub value by the tolerance for a metric that has one', () => {
+        expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, 0.8)).toBeCloseTo(0.75, 12);
+        expect(offlineEffectiveFloor(metric('cubes.reaction.latencyMs'), null, 30)).toBeCloseTo(30 + 1000 / 60, 12);
+        expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, null)).toBeNull();
+    });
+
+    it('takes the stricter of an AC floor and the widened pre-hub value', () => {
+        const share = metric('cubes.hit.share50ms');
+        expect(offlineEffectiveFloor(share, 0.9, 0.8)).toBe(0.9);
+        expect(offlineEffectiveFloor(share, 0.5, 0.8)).toBeCloseTo(0.75, 12);
+        const latency = metric('cubes.reaction.latencyMs');
+        expect(offlineEffectiveFloor(latency, 20, 30)).toBe(20);
+        expect(offlineEffectiveFloor(latency, 100, 30)).toBeCloseTo(30 + 1000 / 60, 12);
+    });
+
+    it('is effectiveFloor for a metric without a tolerance', () => {
+        expect(offlineEffectiveFloor(metric('gate.secondsAfterLock'), 4, 2)).toBe(2);
     });
 });
 

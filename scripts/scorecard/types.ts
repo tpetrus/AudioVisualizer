@@ -96,8 +96,8 @@ export interface TrackMeasures {
     beatErrorMedianMs: number | null;
     // Per-band onset F at 50 ms; only synthetic tracks with onset labels.
     onsetF50: Partial<Record<OnsetBand, number>> | null;
-    // The dancing character's gate (BassBump with the dancer's margin and gain over the hub's low end, then
-    // stepBassGate), seconds from track start to its first opening; null if it never opens.
+    // The dancing character's gate (BassBump with the dancer's options over the hub's gate-input bass since S4, the hub's
+    // low end before it, then stepBassGate), seconds from track start to its first opening; null if it never opens.
     gateFirstOpenSeconds: number | null;
     // Share of hub frames from the first opening on where the gate is open; 0 when it never opens.
     gateOpenShare: number;
@@ -111,6 +111,14 @@ export interface TrackMeasures {
     // pre-hub difference an offline cell can see. Same meaning as gateFirstOpenSeconds and gateOpenShare.
     prehubGateFirstOpenSeconds: number | null;
     prehubGateOpenShare: number;
+    // Revision 4 (S4). The cubes' bass trigger (stepCubesBass over the hub's gate-input bass) on the replay's render
+    // clock, scored against the .beats.json beats with the live cells' fire-to-beat rule: the share of beats hit within
+    // [beat - 20 ms, beat + 50 ms] and the median reaction latency in ms. The pre-hub pair is BassPulse's own pulse at
+    // the render time, which the cubes showed before the hub. null without beats or with no fires.
+    cubesHitShare: number | null;
+    cubesLatencyMs: number | null;
+    prehubCubesHitShare: number | null;
+    prehubCubesLatencyMs: number | null;
 }
 
 // The two AC9 cases, run on constructed audio rather than a .debug-in file.

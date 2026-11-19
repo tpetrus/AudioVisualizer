@@ -1,7 +1,8 @@
 import type { BeatsPerBar } from '~/features/rhythm/types';
 import type { FEATURE_ONSET_BANDS, HUB_BANDS } from '~/features/rhythm/rhythmConfig';
 
-// Contract C5 (docs/plans/audio-engine-alignment/contracts.md). Frozen by the orchestrator: a change is an escalation.
+// Contract C5 (docs/plans/audio-engine-alignment/contracts.md) and, for `gateBass`, C1
+// (docs/plans/hub-regressions/contracts.md). Frozen by the orchestrator: a change is an escalation.
 
 // Names of the hub's energy bands, in the order of `AudioHubSnapshot.bands`.
 export type HubBand = (typeof HUB_BANDS)[number];
@@ -47,6 +48,19 @@ export interface HubSection {
     lastChangeTime: number;
 }
 
+// Contract C1 of hub-regressions (S4): the bass for consumers that compare it with a threshold (the dancing character's
+// gate, the cubes' bump, later bass-ink). Neither value is normalized, so a level reads the same however loud the last
+// few seconds were. 0 before the first update and after a reset.
+export interface HubGateBass {
+    // BassPulse's feature at the render time: the linear RMS of the newest GATE_BASS_WINDOW samples after the 120 Hz,
+    // 24 dB/octave lowpass (GateBassTap), read from the audio graph rather than from a frame, so it is as new as the
+    // audio; 0 with no source. A level, not an envelope: run a fast and a slow follower over it to find bumps.
+    pulse: number;
+    // The louder of the `sub` and `kick` band energies of the frame `bands` comes from, before the hub scales them, in
+    // FeatureBatch.bandEnergy units (mean of log(1 + MAGNITUDE_LOG_GAIN * magnitude)).
+    lowEnd: number;
+}
+
 // One preallocated object per hub, updated in place by `update`. Hold on to it; never copy it into React state.
 export interface AudioHubSnapshot {
     // Render time (AudioContext seconds) this snapshot describes; 0 before the first update.
@@ -59,6 +73,8 @@ export interface AudioHubSnapshot {
     onsets: Readonly<Record<HubOnsetBand, HubOnset>>;
     beat: HubBeat;
     section: HubSection;
+    // Written in place each update, never replaced.
+    gateBass: Readonly<HubGateBass>;
 }
 
 // The hub as visualizers see it.

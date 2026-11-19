@@ -48,6 +48,7 @@ describe('replayPcm', () => {
         const replay = replayPcm(silence(8), TEST_SAMPLE_RATE);
         expect(replay.dancerLockSeconds).toBeNull();
         expect(replay.prehubGate).toEqual({ firstOpenSeconds: null, openShare: 0 });
+        expect(replay.gateInputs.frameTimed).toEqual({ firstOpenSeconds: null, openShare: 0 });
     });
 
     it('feeds the pipeline the gain-controlled signal unless agc is off', () => {
