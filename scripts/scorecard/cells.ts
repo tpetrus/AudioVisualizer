@@ -8,6 +8,7 @@ import {
     effectiveFloor,
     offlineEffectiveFloor,
     floorFor,
+    meetsFloor,
     type MetricDirection,
     type MetricTarget,
     type ScenarioTarget,
@@ -36,11 +37,6 @@ function offlineCell(
     prehub: number | null = null,
 ): ScorecardCell {
     return { ...base, applicable, prehub, value, spread: 0, runs: 1, source: 'offline', pass, status };
-}
-
-function meetsFloor(direction: MetricDirection, value: number, floor: number | null): boolean {
-    if (floor === null) return true;
-    return direction === 'lower' ? value <= floor : value >= floor;
 }
 
 function scoredCell(

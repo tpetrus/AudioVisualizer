@@ -6,6 +6,7 @@ import {
     LIVE_METRICS,
     TARGETS_VERSION,
     liveEffectiveFloor,
+    meetsFloor,
     type LiveMetricTarget,
     type LiveVisualizer,
 } from '../targets';
@@ -52,10 +53,8 @@ export function median(values: readonly number[]): number | null {
 const numbersOf = (values: readonly RunValue[]): number[] =>
     values.filter((value): value is number => value !== null && Number.isFinite(value));
 
-const meets = (metric: LiveMetricTarget, value: number, floor: number | null): boolean => {
-    if (floor === null) return true;
-    return metric.direction === 'lower' ? value <= floor : value >= floor;
-};
+const meets = (metric: LiveMetricTarget, value: number, floor: number | null): boolean =>
+    meetsFloor(metric.direction, value, floor);
 
 // The number a set of runs stands for: the median of the runs with a value, or for the cross-run metric the smallest lock
 // range over any 3 runs.

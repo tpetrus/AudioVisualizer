@@ -9,6 +9,7 @@ import {
     floorFor,
     offlineEffectiveFloor,
     liveEffectiveFloor,
+    meetsFloor,
     unitOf,
 } from './targets';
 import type { TrackMeasures } from './types';
@@ -265,5 +266,39 @@ describe('live metrics', () => {
         expect(live('live.hit.share50ms').applies('synthetic', true)).toBe(true);
         expect(live('live.hit.share50ms').applies('beatless', true)).toBe(false);
         expect(live('live.hit.share50ms').applies('tapped', false)).toBe(false);
+    });
+});
+
+describe('meetsFloor float tolerance', () => {
+    const prehubLatency = 33.33333333333499;
+    const tolerance = 1000 / 60;
+    const prehubShare = 0.8;
+    const live = (id: string) => {
+        const found = LIVE_METRICS.find((candidate) => candidate.id === id);
+        if (!found) throw new Error(id);
+        return found;
+    };
+
+    it('passes a lower-is-better value within 1e-9 of the bound and fails one 1e-3 past it', () => {
+        const floor = offlineEffectiveFloor(metric('cubes.reaction.latencyMs'), null, prehubLatency);
+        expect(meetsFloor('lower', 50.00000000000071, floor)).toBe(true);
+        expect(meetsFloor('lower', prehubLatency + tolerance + 1e-9, floor)).toBe(true);
+        expect(meetsFloor('lower', prehubLatency + tolerance + 1e-3, floor)).toBe(false);
+        const liveFloor = liveEffectiveFloor(live('live.reaction.latencyMs'), prehubLatency);
+        expect(meetsFloor('lower', prehubLatency + tolerance + 1e-9, liveFloor)).toBe(true);
+        expect(meetsFloor('lower', prehubLatency + tolerance + 1e-3, liveFloor)).toBe(false);
+    });
+
+    it('passes a higher-is-better value within 1e-9 of the bound and fails one 1e-3 past it', () => {
+        const floor = offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, prehubShare);
+        expect(meetsFloor('higher', prehubShare - 0.05 - 1e-9, floor)).toBe(true);
+        expect(meetsFloor('higher', prehubShare - 0.05 - 1e-3, floor)).toBe(false);
+        const liveFloor = liveEffectiveFloor(live('live.hit.share50ms'), prehubShare);
+        expect(meetsFloor('higher', prehubShare - 0.05 - 1e-9, liveFloor)).toBe(true);
+        expect(meetsFloor('higher', prehubShare - 0.05 - 1e-3, liveFloor)).toBe(false);
+    });
+
+    it('treats a null floor as met', () => {
+        expect(meetsFloor('lower', 1e9, null)).toBe(true);
     });
 });
