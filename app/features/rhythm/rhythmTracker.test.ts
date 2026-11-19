@@ -131,6 +131,16 @@ describe('RhythmTracker', () => {
             expect(analyser.connect).toHaveBeenCalled();
         });
 
+        it('reports the analyser it hears as its source, and none once the capture stops', () => {
+            harness.tracker.start(asEngine(harness.engine));
+            expect(harness.tracker.getSource()).toBeUndefined();
+            const analyser = asAnalyser(createAnalyser());
+            harness.engine.setAnalyser(analyser);
+            expect(harness.tracker.getSource()).toBe(analyser);
+            harness.engine.setAnalyser(undefined);
+            expect(harness.tracker.getSource()).toBeUndefined();
+        });
+
         it('ignores engine updates that keep the same analyser', async () => {
             const analyser = createAnalyser();
             harness.engine.setAnalyser(asAnalyser(analyser));

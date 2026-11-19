@@ -73,8 +73,8 @@ export interface FrameBatch {
 }
 
 // Version of the message the worklet posts. Version 1 was a bare FrameBatch; version 2 adds the fields of
-// FeatureBatch beside the packed frames, which are unchanged; version 3 adds `gateBass` (hub-regressions S4, C1).
-export const FEATURE_MESSAGE_VERSION = 3;
+// FeatureBatch beside the packed frames, which are unchanged.
+export const FEATURE_MESSAGE_VERSION = 2;
 
 // Contract C3: the message the worklet posts. The packed frames are exactly a FrameBatch, so the tracker can keep
 // reading `time0`, `count` and `frames` as before; the rest is for the analysis hub and the offline evaluation. All
@@ -88,11 +88,6 @@ export interface FeatureBatch extends FrameBatch {
     // magnitude) over the band's FFT bins, the same units as the packed frame's band energy. Not normalized: the hub
     // does that.
     bandEnergy: Float32Array;
-    // One value per frame: the bass level the threshold consumers (the dancer's gate, the cubes' bump) read, which is
-    // BassPulse's feature. The root mean square of the post-gain mono signal after two cascaded lowpass biquads at
-    // GATE_BASS_CUTOFF_HZ (Q 1/sqrt 2 each, 24 dB/octave), over the GATE_BASS_WINDOW samples that end where the frame's
-    // analysis window ends. Linear, not normalized: 0 for silence, about 0.7 for a full-scale sine below the cutoff.
-    gateBass: Float32Array;
     // Onset events decided while this batch's frames were analysed, in time order. An event is never sent twice and
     // does not wait for a tempo lock. Because of the look-ahead (ONSET_LOOKAHEAD_FRAMES), an event's time can be up to
     // that many frames earlier than frameTimes[0].

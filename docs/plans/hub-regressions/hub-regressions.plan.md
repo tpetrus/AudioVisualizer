@@ -254,3 +254,12 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   frame (`BATCH_FRAMES = 1`) fix it offline (0.95) but open `syncopationbass`'s gate 1.6 s later than pre-hub (19.78
   against 18.17 s after the lock) and double the worklet message rate, so S5, which owns the gate's pace, decides the
   batch size with both numbers.
+- **C1's level is read at the render time, not carried in the frames** (Trevor chose option A, 2026-11-19, after S4's
+  first live run). Live, the per-frame worklet feature was later than offline predicted: the cubes' latency averaged
+  72.7 ms against 62.9 pre-hub (S3 60.5), the dancer's hit share 0.24 against 0.37 (`drums-128` 0, the gate learned a
+  kick place 135 ms before the beat), and the gate opened 0.5 to 2.4 s later than pre-hub on the three drum tracks. The
+  hub now reads `gateBass.pulse` from its own tap of the tracker's source (`GateBassTap`, `BassPulse`'s two filters and
+  analyser), so the gate input is pre-hub's by construction; the worklet and `FeatureBatch` are back to version 2. The
+  envelope (`GATE_BASS_BUMP`) also starts its followers at 0 as `BassPulse` does, rather than seeding them at the first
+  level, which had moved the gate by up to 0.85 s. Offline, every gate and cube cell now equals pre-hub, which retires
+  the `summer2000` and `bassline-kick-120` exceptions above; the live cells decide S4.

@@ -49,14 +49,14 @@ export interface HubSection {
 }
 
 // Contract C1 of hub-regressions (S4): the bass for consumers that compare it with a threshold (the dancing character's
-// gate, the cubes' bump, later bass-ink). Both values come from the same frame as `bands` and are not normalized, so a
-// level reads the same however loud the last few seconds were. 0 before the first frame and after a reset; with no
-// source the last values stay.
+// gate, the cubes' bump, later bass-ink). Neither value is normalized, so a level reads the same however loud the last
+// few seconds were. 0 before the first update and after a reset.
 export interface HubGateBass {
-    // FeatureBatch.gateBass of that frame: the linear RMS of the 120 Hz lowpass over the last GATE_BASS_WINDOW samples,
-    // BassPulse's feature. A level, not an envelope: run a fast and a slow follower over it to find bumps.
+    // BassPulse's feature at the render time: the linear RMS of the newest GATE_BASS_WINDOW samples after the 120 Hz,
+    // 24 dB/octave lowpass (GateBassTap), read from the audio graph rather than from a frame, so it is as new as the
+    // audio; 0 with no source. A level, not an envelope: run a fast and a slow follower over it to find bumps.
     pulse: number;
-    // The louder of the `sub` and `kick` band energies of that frame before the hub scales them, in
+    // The louder of the `sub` and `kick` band energies of the frame `bands` comes from, before the hub scales them, in
     // FeatureBatch.bandEnergy units (mean of log(1 + MAGNITUDE_LOG_GAIN * magnitude)).
     lowEnd: number;
 }

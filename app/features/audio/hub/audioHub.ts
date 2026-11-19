@@ -7,6 +7,7 @@ import {
 } from '~/features/rhythm/rhythmConfig';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { FEATURE_MESSAGE_VERSION, type FeatureBatch, type FeatureListener } from '~/features/rhythm/types';
+import { GateBassTap, type GateBassLevel } from './gateBassTap';
 import { HUB_FRAME_CAPACITY, HUB_MIN_PEAK, HUB_PEAK_HALF_LIFE_SECONDS, HUB_PENDING_ONSET_CAPACITY } from './hubConfig';
 import type { AudioHubReader, AudioHubSnapshot, HubGateBass, HubOnset, HubOnsetBand } from './types';
 
@@ -21,12 +22,18 @@ function createOnset(): HubOnset {
     return { lastTime: -Infinity, strength: 0, sinceSeconds: Infinity, count: 0 };
 }
 
+export interface AudioHubOptions {
+    // Reads the gate-input bass level instead of tapping the tracker's source: the offline replay's reader, or a test's.
+    gateBass?: GateBassLevel;
+}
+
 // The shared analysis of the music for every visualizer (contract C5): normalized band energies, onset events and the
 // beat, all read at one render time so they agree with each other and with the user's sync offset.
 //
 // It hears the worklet through RhythmTracker.addFeatureListener. Batches arrive a few times a second and are written
-// into preallocated rings; `update` then reads them at the render time, once per animation frame. Nothing here
-// allocates after the constructor.
+// into preallocated rings; `update` then reads them at the render time, once per animation frame. The gate-input bass's
+// level (contract C1) is not in the frames: the hub reads it at the render time from its own tap of the tracker's
+// source (GateBassTap), which it rebuilds when the source changes. Nothing else here allocates after the constructor.
 export class AudioHub implements AudioHubReader, FeatureListener {
     // Updated in place for the hub's whole life; consumers may hold on to it.
     readonly snapshot: AudioHubSnapshot;
@@ -37,8 +44,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     // Held frames, oldest first from `frameStart`. Times are AudioContext seconds; values are already normalized.
     private readonly frameTimes = new Float64Array(HUB_FRAME_CAPACITY);
     private readonly frameValues = new Float32Array(HUB_FRAME_CAPACITY * HUB_BAND_COUNT);
-    // The gate-input bass of each held frame (contract C1): the worklet's level and the unscaled low end.
-    private readonly framePulse = new Float32Array(HUB_FRAME_CAPACITY);
+    // The unscaled low end of each held frame (contract C1's lowEnd).
     private readonly frameLowEnd = new Float32Array(HUB_FRAME_CAPACITY);
     private frameStart = 0;
     private frameCount = 0;
@@ -59,7 +65,13 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     private lastUpdateTime = Number.NaN;
     private seenChangeCount = 0;
 
-    constructor() {
+    // The gate-input bass level: the reader given to the constructor, or the tap of the tracker's current source.
+    private readonly fixedGateBass: GateBassLevel | undefined;
+    private tap: GateBassLevel | undefined;
+    private tappedSource: AnalyserNode | undefined;
+
+    constructor(options: AudioHubOptions = {}) {
+        this.fixedGateBass = options.gateBass;
         const onsets = {} as Record<HubOnsetBand, HubOnset>;
         for (let i = 0; i < FEATURE_ONSET_BAND_COUNT; i++) {
             const onset = createOnset();
@@ -106,6 +118,9 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.removeListener?.();
         this.removeListener = undefined;
         this.tracker = undefined;
+        this.tap?.dispose();
+        this.tap = undefined;
+        this.tappedSource = undefined;
     }
 
     // Brings the snapshot up to `now`, or to the tracker's render time without an argument. Does nothing with no
@@ -120,6 +135,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.snapshot.time = time;
 
         this.readBands(time);
+        (this.snapshot.gateBass as HubGateBass).pulse = this.readGateBassLevel();
         this.revealOnsets(time);
         if (tracker) {
             this.readBeat(tracker, time);
@@ -134,7 +150,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
             return;
         }
         for (let i = 0; i < batch.count; i++) {
-            this.pushFrame(batch.frameTimes[i], batch.bandEnergy, i * HUB_BAND_COUNT, batch.gateBass[i]);
+            this.pushFrame(batch.frameTimes[i], batch.bandEnergy, i * HUB_BAND_COUNT);
         }
         for (let i = 0; i < batch.onsetCount; i++) {
             this.pushOnset(batch.onsetBand[i], batch.onsetTime[i], batch.onsetStrength[i]);
@@ -150,7 +166,9 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.peakTime = -Infinity;
         this.pendingCount = 0;
         this.snapshot.bands.fill(0);
-        this.writeGateBass(0, 0);
+        const gateBass = this.snapshot.gateBass as HubGateBass;
+        gateBass.pulse = 0;
+        gateBass.lowEnd = 0;
         // Times from the old source are on the old AudioContext's clock, which the new one does not share: kept, they
         // would read as an onset or a change that just happened. The counts stay.
         for (const onset of this.onsetByIndex) {
@@ -163,7 +181,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.lastUpdateTime = Number.NaN;
     }
 
-    private pushFrame(time: number, energy: Float32Array, offset: number, gatePulse: number): void {
+    private pushFrame(time: number, energy: Float32Array, offset: number): void {
         // Decay by the frame time that passed, not per call, so the peak's memory does not depend on the batch size.
         const elapsed = time - this.peakTime;
         const decay = elapsed > 0 && elapsed < Infinity ? Math.pow(0.5, elapsed / HUB_PEAK_HALF_LIFE_SECONDS) : 1;
@@ -183,7 +201,6 @@ export class AudioHub implements AudioHubReader, FeatureListener {
             this.frameCount++;
         }
         this.frameTimes[slot] = time;
-        this.framePulse[slot] = finiteOrZero(gatePulse);
         this.frameLowEnd[slot] = Math.max(
             finiteOrZero(energy[offset + SUB_BAND]),
             finiteOrZero(energy[offset + KICK_BAND]),
@@ -221,12 +238,12 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     }
 
     // Copies the newest held frame at or before `time`, or the oldest one when `time` precedes all of them: its bands
-    // and its gate-input bass.
+    // and its low end.
     private readBands(time: number): void {
         const bands = this.snapshot.bands;
         if (this.frameCount === 0) {
             bands.fill(0);
-            this.writeGateBass(0, 0);
+            (this.snapshot.gateBass as HubGateBass).lowEnd = 0;
             return;
         }
         let age = this.frameCount - 1;
@@ -238,14 +255,22 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
             bands[b] = this.frameValues[base + b];
         }
-        this.writeGateBass(this.framePulse[slot], this.frameLowEnd[slot]);
+        (this.snapshot.gateBass as HubGateBass).lowEnd = this.frameLowEnd[slot];
     }
 
-    // The snapshot's gateBass is read-only to consumers; only the hub writes it, in place.
-    private writeGateBass(pulse: number, lowEnd: number): void {
-        const gateBass = this.snapshot.gateBass as HubGateBass;
-        gateBass.pulse = pulse;
-        gateBass.lowEnd = lowEnd;
+    // The gate-input bass level now, 0 with no source. A new source gets a new tap and the old one is disconnected, so
+    // the old source's audio never reaches the level; this allocates only then.
+    private readGateBassLevel(): number {
+        if (this.fixedGateBass) {
+            return finiteOrZero(this.fixedGateBass.level());
+        }
+        const source = this.tracker?.getSource();
+        if (source !== this.tappedSource) {
+            this.tap?.dispose();
+            this.tap = source ? new GateBassTap(source) : undefined;
+            this.tappedSource = source;
+        }
+        return this.tap ? finiteOrZero(this.tap.level()) : 0;
     }
 
     // Makes the pending events at or before `time` visible and removes them from the pending list, keeping the rest

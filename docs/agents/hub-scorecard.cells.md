@@ -1,10 +1,10 @@
 # Scorecard
 
-Targets version 7, revision a75d1f1, created 2026-11-19T00:55:28.758Z.
+Targets version 7, revision 13f4f34, created 2026-11-19T18:43:35.531Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 381: 297 passing, 71 failing, 13 unavailable. Blocking failures: 28.
+Applicable cells 381: 298 passing, 70 failing, 13 unavailable. Blocking failures: 27.
 
 ## ac9
 
@@ -48,52 +48,52 @@ Applicable cells 381: 297 passing, 71 failing, 13 unavailable. Blocking failures
 | Metric | Track | Class | Value | Floor | Stretch | Pre-hub | Status |
 |---|---|---|---|---|---|---|---|
 | cubes.hit.share50ms | 6-8-time.wav | tapped | - | - | 0.900 | - | n/a |
-| cubes.hit.share50ms | bassline-kick-120.wav | synthetic | 0.508 | - | 0.900 | 0.780 | fail |
+| cubes.hit.share50ms | bassline-kick-120.wav | synthetic | 0.780 | - | 0.900 | 0.780 | pass |
 | cubes.hit.share50ms | beatless.wav | beatless | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | click-120.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | click-140.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | click-174.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | click-90.wav | synthetic | - | - | 0.900 | - | n/a |
-| cubes.hit.share50ms | drifting-tempo.wav | drifting | 0.161 | - | 0.900 | 0.125 | pass |
+| cubes.hit.share50ms | drifting-tempo.wav | drifting | 0.125 | - | 0.900 | 0.125 | pass |
 | cubes.hit.share50ms | drums-100.wav | synthetic | 0.265 | - | 0.900 | 0.265 | pass |
-| cubes.hit.share50ms | drums-128.wav | synthetic | 0.286 | - | 0.900 | 0.270 | pass |
-| cubes.hit.share50ms | drums-150.wav | synthetic | 0.507 | - | 0.900 | 0.479 | pass |
-| cubes.hit.share50ms | half-time-shuffle.wav | tapped | 0.351 | - | 0.900 | 0.378 | pass |
+| cubes.hit.share50ms | drums-128.wav | synthetic | 0.270 | - | 0.900 | 0.270 | pass |
+| cubes.hit.share50ms | drums-150.wav | synthetic | 0.479 | - | 0.900 | 0.479 | pass |
+| cubes.hit.share50ms | half-time-shuffle.wav | tapped | 0.378 | - | 0.900 | 0.378 | pass |
 | cubes.hit.share50ms | high-bpm-dnb.wav | tapped | 0.000 | - | 0.900 | 0.000 | pass |
-| cubes.hit.share50ms | imyourgirl.wav | tapped | 0.605 | - | 0.900 | 0.553 | pass |
-| cubes.hit.share50ms | lonley.wav | tapped | 0.100 | - | 0.900 | 0.086 | pass |
-| cubes.hit.share50ms | low-bpm-rnb.wav | tapped | 0.143 | - | 0.900 | 0.171 | pass |
+| cubes.hit.share50ms | imyourgirl.wav | tapped | 0.553 | - | 0.900 | 0.553 | pass |
+| cubes.hit.share50ms | lonley.wav | tapped | 0.086 | - | 0.900 | 0.086 | pass |
+| cubes.hit.share50ms | low-bpm-rnb.wav | tapped | 0.171 | - | 0.900 | 0.171 | pass |
 | cubes.hit.share50ms | no-kick-124.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | pad-lead-groove-110.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | summer2000.wav | tapped | 0.034 | - | 0.900 | 0.034 | pass |
 | cubes.hit.share50ms | syncopation-no-kick.wav | tapped | - | - | 0.900 | - | n/a |
-| cubes.hit.share50ms | syncopationbass.wav | tapped | 0.196 | - | 0.900 | 0.179 | pass |
-| cubes.hit.share50ms | syncopationbass2.wav | tapped | 0.677 | - | 0.900 | 0.629 | pass |
+| cubes.hit.share50ms | syncopationbass.wav | tapped | 0.179 | - | 0.900 | 0.179 | pass |
+| cubes.hit.share50ms | syncopationbass2.wav | tapped | 0.629 | - | 0.900 | 0.629 | pass |
 | cubes.hit.share50ms | trap-2to1-double-90.wav | synthetic | 1.000 | - | 0.900 | 1.000 | pass |
 | cubes.hit.share50ms | trap-2to1-half-140.wav | synthetic | 0.507 | - | 0.900 | 0.507 | pass |
 | cubes.hit.share50ms | trap-4to3-120.wav | synthetic | 0.492 | - | 0.900 | 0.492 | pass |
 | cubes.reaction.latencyMs | 6-8-time.wav | tapped | - | - | 46.7 | - | n/a |
-| cubes.reaction.latencyMs | bassline-kick-120.wav | synthetic | 50.0 | - | 46.7 | 33.3 | pass |
+| cubes.reaction.latencyMs | bassline-kick-120.wav | synthetic | 33.3 | - | 46.7 | 33.3 | pass |
 | cubes.reaction.latencyMs | beatless.wav | beatless | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | click-120.wav | synthetic | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | click-140.wav | synthetic | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | click-174.wav | synthetic | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | click-90.wav | synthetic | - | - | 46.7 | - | n/a |
-| cubes.reaction.latencyMs | drifting-tempo.wav | drifting | 222.7 | - | 46.7 | 224.0 | pass |
+| cubes.reaction.latencyMs | drifting-tempo.wav | drifting | 224.0 | - | 46.7 | 224.0 | pass |
 | cubes.reaction.latencyMs | drums-100.wav | synthetic | 16.7 | - | 46.7 | 16.7 | pass |
 | cubes.reaction.latencyMs | drums-128.wav | synthetic | 29.2 | - | 46.7 | 29.2 | pass |
 | cubes.reaction.latencyMs | drums-150.wav | synthetic | 33.3 | - | 46.7 | 33.3 | pass |
-| cubes.reaction.latencyMs | half-time-shuffle.wav | tapped | 43.7 | - | 46.7 | 40.7 | pass |
-| cubes.reaction.latencyMs | high-bpm-dnb.wav | tapped | 102.7 | - | 46.7 | 104.7 | pass |
-| cubes.reaction.latencyMs | imyourgirl.wav | tapped | 43.3 | - | 46.7 | 46.7 | pass |
-| cubes.reaction.latencyMs | lonley.wav | tapped | 66.7 | - | 46.7 | 83.3 | pass |
-| cubes.reaction.latencyMs | low-bpm-rnb.wav | tapped | 28.0 | - | 46.7 | 16.7 | pass |
+| cubes.reaction.latencyMs | half-time-shuffle.wav | tapped | 40.7 | - | 46.7 | 40.7 | pass |
+| cubes.reaction.latencyMs | high-bpm-dnb.wav | tapped | 104.7 | - | 46.7 | 104.7 | pass |
+| cubes.reaction.latencyMs | imyourgirl.wav | tapped | 46.7 | - | 46.7 | 46.7 | pass |
+| cubes.reaction.latencyMs | lonley.wav | tapped | 83.3 | - | 46.7 | 83.3 | pass |
+| cubes.reaction.latencyMs | low-bpm-rnb.wav | tapped | 16.7 | - | 46.7 | 16.7 | pass |
 | cubes.reaction.latencyMs | no-kick-124.wav | synthetic | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | pad-lead-groove-110.wav | synthetic | - | - | 46.7 | - | n/a |
-| cubes.reaction.latencyMs | summer2000.wav | tapped | 122.0 | - | 46.7 | 119.3 | pass |
+| cubes.reaction.latencyMs | summer2000.wav | tapped | 119.3 | - | 46.7 | 119.3 | pass |
 | cubes.reaction.latencyMs | syncopation-no-kick.wav | tapped | - | - | 46.7 | - | n/a |
-| cubes.reaction.latencyMs | syncopationbass.wav | tapped | 73.3 | - | 46.7 | 74.7 | pass |
-| cubes.reaction.latencyMs | syncopationbass2.wav | tapped | 43.0 | - | 46.7 | 46.0 | pass |
+| cubes.reaction.latencyMs | syncopationbass.wav | tapped | 74.7 | - | 46.7 | 74.7 | pass |
+| cubes.reaction.latencyMs | syncopationbass2.wav | tapped | 46.0 | - | 46.7 | 46.0 | pass |
 | cubes.reaction.latencyMs | trap-2to1-double-90.wav | synthetic | 33.3 | - | 46.7 | 33.3 | pass |
 | cubes.reaction.latencyMs | trap-2to1-half-140.wav | synthetic | 14.3 | - | 46.7 | 14.3 | pass |
 | cubes.reaction.latencyMs | trap-4to3-120.wav | synthetic | 33.3 | - | 46.7 | 33.3 | pass |
@@ -128,7 +128,7 @@ Applicable cells 381: 297 passing, 71 failing, 13 unavailable. Blocking failures
 | gate.closedOnNoKick | trap-2to1-half-140.wav | synthetic | - | - | - | - | n/a |
 | gate.closedOnNoKick | trap-4to3-120.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | 6-8-time.wav | tapped | - | - | - | - | n/a |
-| gate.firstOpenSeconds | bassline-kick-120.wav | synthetic | 7.53 | - | - | 8.55 | pass (report-only) |
+| gate.firstOpenSeconds | bassline-kick-120.wav | synthetic | 8.55 | - | - | 8.55 | pass (report-only) |
 | gate.firstOpenSeconds | beatless.wav | beatless | - | - | - | - | n/a |
 | gate.firstOpenSeconds | click-120.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | click-140.wav | synthetic | - | - | - | - | n/a |
@@ -141,19 +141,19 @@ Applicable cells 381: 297 passing, 71 failing, 13 unavailable. Blocking failures
 | gate.firstOpenSeconds | half-time-shuffle.wav | tapped | 18.95 | - | - | 18.95 | pass (report-only) |
 | gate.firstOpenSeconds | high-bpm-dnb.wav | tapped | - | - | - | - | pass (report-only) |
 | gate.firstOpenSeconds | imyourgirl.wav | tapped | 7.73 | - | - | 7.73 | pass (report-only) |
-| gate.firstOpenSeconds | lonley.wav | tapped | 19.60 | - | - | 19.62 | pass (report-only) |
+| gate.firstOpenSeconds | lonley.wav | tapped | 19.62 | - | - | 19.62 | pass (report-only) |
 | gate.firstOpenSeconds | low-bpm-rnb.wav | tapped | - | - | - | - | pass (report-only) |
 | gate.firstOpenSeconds | no-kick-124.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | pad-lead-groove-110.wav | synthetic | - | - | - | - | n/a |
-| gate.firstOpenSeconds | summer2000.wav | tapped | 15.65 | - | - | 15.17 | pass (report-only) |
+| gate.firstOpenSeconds | summer2000.wav | tapped | 15.17 | - | - | 15.17 | pass (report-only) |
 | gate.firstOpenSeconds | syncopation-no-kick.wav | tapped | - | - | - | - | n/a |
-| gate.firstOpenSeconds | syncopationbass.wav | tapped | 21.28 | - | - | 21.30 | pass (report-only) |
+| gate.firstOpenSeconds | syncopationbass.wav | tapped | 21.30 | - | - | 21.30 | pass (report-only) |
 | gate.firstOpenSeconds | syncopationbass2.wav | tapped | 7.27 | - | - | 7.27 | pass (report-only) |
 | gate.firstOpenSeconds | trap-2to1-double-90.wav | synthetic | 8.87 | - | - | 8.87 | pass (report-only) |
 | gate.firstOpenSeconds | trap-2to1-half-140.wav | synthetic | 8.23 | - | - | 8.23 | pass (report-only) |
-| gate.firstOpenSeconds | trap-4to3-120.wav | synthetic | 12.53 | - | - | 12.52 | pass (report-only) |
+| gate.firstOpenSeconds | trap-4to3-120.wav | synthetic | 12.52 | - | - | 12.52 | pass (report-only) |
 | gate.secondsAfterLock | 6-8-time.wav | tapped | - | 4.00 | 2.00 | - | n/a |
-| gate.secondsAfterLock | bassline-kick-120.wav | synthetic | 4.40 | 4.00 | 2.00 | 5.42 | fail |
+| gate.secondsAfterLock | bassline-kick-120.wav | synthetic | 5.42 | 4.00 | 2.00 | 5.42 | fail |
 | gate.secondsAfterLock | beatless.wav | beatless | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | click-120.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | click-140.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
@@ -166,17 +166,17 @@ Applicable cells 381: 297 passing, 71 failing, 13 unavailable. Blocking failures
 | gate.secondsAfterLock | half-time-shuffle.wav | tapped | 7.55 | 4.00 | 2.00 | 7.55 | fail |
 | gate.secondsAfterLock | high-bpm-dnb.wav | tapped | - | 4.00 | 2.00 | - | fail |
 | gate.secondsAfterLock | imyourgirl.wav | tapped | 4.60 | 4.00 | 2.00 | 4.60 | fail |
-| gate.secondsAfterLock | lonley.wav | tapped | 11.47 | 4.00 | 2.00 | 11.48 | fail |
+| gate.secondsAfterLock | lonley.wav | tapped | 11.48 | 4.00 | 2.00 | 11.48 | fail |
 | gate.secondsAfterLock | low-bpm-rnb.wav | tapped | - | 4.00 | 2.00 | - | fail |
 | gate.secondsAfterLock | no-kick-124.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | pad-lead-groove-110.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
-| gate.secondsAfterLock | summer2000.wav | tapped | 7.52 | 4.00 | 2.00 | 7.03 | fail |
+| gate.secondsAfterLock | summer2000.wav | tapped | 7.03 | 4.00 | 2.00 | 7.03 | fail |
 | gate.secondsAfterLock | syncopation-no-kick.wav | tapped | - | 4.00 | 2.00 | - | n/a |
-| gate.secondsAfterLock | syncopationbass.wav | tapped | 18.15 | 4.00 | 2.00 | 18.17 | fail |
+| gate.secondsAfterLock | syncopationbass.wav | tapped | 18.17 | 4.00 | 2.00 | 18.17 | fail |
 | gate.secondsAfterLock | syncopationbass2.wav | tapped | 4.13 | 4.00 | 2.00 | 4.13 | fail |
 | gate.secondsAfterLock | trap-2to1-double-90.wav | synthetic | 5.73 | 4.00 | 2.00 | 5.73 | fail |
 | gate.secondsAfterLock | trap-2to1-half-140.wav | synthetic | 5.05 | 4.00 | 2.00 | 5.05 | fail |
-| gate.secondsAfterLock | trap-4to3-120.wav | synthetic | 4.40 | 4.00 | 2.00 | 4.38 | fail |
+| gate.secondsAfterLock | trap-4to3-120.wav | synthetic | 4.38 | 4.00 | 2.00 | 4.38 | fail |
 
 ## live
 

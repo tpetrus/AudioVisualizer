@@ -550,20 +550,22 @@ describe('useDancingCharacterScene', () => {
 
         it('rises above 0 when the gate-input bass jumps from a settled level', () => {
             const { renderer, hub } = mountScene({ analyser: createAnalyser() });
+            // The followers start at 0, as BassPulse's do, so a steady level needs a few seconds to settle.
             hub.setGateBass(0.05);
-            for (let t = 0; t < 40; t++) renderer.renderFrame(t * 16);
+            for (let t = 0; t < 600; t++) renderer.renderFrame(t * 16);
             hub.setGateBass(0.2);
-            renderer.renderFrame(40 * 16);
-            renderer.renderFrame(41 * 16);
+            renderer.renderFrame(600 * 16);
+            renderer.renderFrame(601 * 16);
 
             const bass = character().frames.map((frame) => frame.bass);
-            expect(Math.max(...bass.slice(0, 40))).toBeLessThan(0.01);
-            expect(bass[41]).toBeGreaterThan(0);
+            expect(Math.max(...bass.slice(560, 600))).toBeLessThan(0.01);
+            expect(bass[601]).toBeGreaterThan(0);
         });
 
         it('ignores the bands, the low end included: only the gate-input bass feeds the gate', () => {
             const { renderer, hub } = mountScene({ analyser: createAnalyser() });
-            hub.setGateBass(0.05);
+            // A silent gate-input bass under a loud low end and loud bands, which jump: the gate hears silence.
+            hub.setGateBass(0, 5);
             hub.setBands([0.3, 0.3, 0.3, 0.3, 0.3, 0.3]);
             for (let t = 0; t < 20; t++) renderer.renderFrame(t * 16);
             hub.setBands([1, 1, 1, 1, 1, 1]);

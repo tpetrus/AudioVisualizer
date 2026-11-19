@@ -3,7 +3,6 @@ import { BassBump, BUMP_GAIN, BUMP_MARGIN, hubLowEnd } from '../../../app/featur
 import type { TempoSample } from '../../../app/features/rhythm/eval/metrics';
 import { BandOnsets } from '../../../app/features/rhythm/bandOnsets';
 import { createBassGateState, stepBassGate } from '../../../app/features/rhythm/bassGate';
-import { GateBassFeature } from '../../../app/features/rhythm/gateBass';
 import { OnsetExtractor, packFrame, type FrameSink } from '../../../app/features/rhythm/onsetExtractor';
 import { RhythmAnalyzer } from '../../../app/features/rhythm/rhythmAnalyzer';
 import {
@@ -60,9 +59,12 @@ import { PrehubBass } from './prehubBass';
 //    before the hub. Only the trigger is replayed: the cube grid's own bars read a private analyser and are not part of
 //    any cell.
 //  - The dancer's gate hears the hub's gate-input bass (contract C1, S4) through its bump envelope, as the scene does.
-//    Two more gates are stepped for comparison only (S4's measurement, `npm run probe:gate-inputs`): the input before S4
-//    (the hub's normalized low end through the old dancer envelope), and BassPulse's feature from the pre-hub chain read
-//    at the end of the newest delivered frame, which the worklet's feature matches to within float rounding.
+//    The hub reads that level at the render time from its own tap of the audio graph live; here its reader is the
+//    pre-hub chain's filtered audio with the window ending at the render tick, so it is BassPulse's feature exactly as
+//    the pre-hub gate reads it. Two more gates are stepped for comparison only (S4's measurement,
+//    `npm run probe:gate-inputs`): the input before S4 (the hub's normalized low end through the old dancer envelope),
+//    and BassPulse's feature read at the end of the newest delivered frame, the read S4 first shipped and live measured
+//    10 to 20 ms late.
 
 // The render clock of the replay: one hub read and one gate step per tick.
 export const RENDER_HZ = 60;
@@ -164,7 +166,19 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
     const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
-    const hub = new AudioHub();
+    // The hub's gate-input bass reader: BassPulse's feature with its window ending at the current render tick (see the
+    // fidelity note above). It shares the pre-hub chain's filtered audio once that is prepared below.
+    const hubBass = new PrehubBass(sampleRate);
+    let renderTime = 0;
+    const hub = new AudioHub({
+        gateBass: {
+            level: () => {
+                hubBass.update(renderTime);
+                return hubBass.energy;
+            },
+            dispose: () => {},
+        },
+    });
 
     // The batch the worklet would post. Its buffers are reused: the analyzer and the hub copy what they need.
     const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
@@ -175,7 +189,6 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         frames: new Float32Array(BATCH_FRAMES * FRAME_STRIDE),
         frameTimes: new Float64Array(BATCH_FRAMES),
         bandEnergy: new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT),
-        gateBass: new Float32Array(BATCH_FRAMES),
         onsetCount: 0,
         onsetBand: new Uint8Array(onsetCapacity),
         onsetTime: new Float64Array(onsetCapacity),
@@ -199,6 +212,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     const gate = createBassGateState();
     const prehubBass = new PrehubBass(sampleRate);
     prehubBass.prepare(pcm);
+    hubBass.shareFiltered(prehubBass);
     const prehubGate = createBassGateState();
     // The frame-timed candidate: its own BassPulse envelope over the same filtered audio, read at the end sample of the
     // newest delivered frame (-1 before the first batch, which reads an all-zero window).
@@ -227,6 +241,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
     // dancer's own tempo lock.
     const renderTick = (): void => {
         const time = tick * RENDER_DT;
+        renderTime = time;
         tick++;
         let rhythm = state;
         let tempoLocked: boolean;
@@ -323,16 +338,11 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
         batch.frameTimes[batch.count] = time;
         bandOnsets.push(frame.logMagnitude, time, onOnset);
         batch.bandEnergy.set(bandOnsets.energy, batch.count * HUB_BAND_COUNT);
-        batch.gateBass[batch.count] = gateBass.levelAt(frame.endSample);
         if (++batch.count === BATCH_FRAMES) deliver(time);
     };
 
-    // As in the worklet, the gate bass filters each block before the extractor cuts frames from it.
-    const gateBass = new GateBassFeature(sampleRate);
     for (let offset = 0; offset < pcm.length; offset += blockSize) {
-        const block = pcm.subarray(offset, Math.min(pcm.length, offset + blockSize));
-        gateBass.push(block);
-        extractor.push(block, onFrame);
+        extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + blockSize)), onFrame);
     }
     // The render clock keeps running to the end of the audio.
     while (tick * RENDER_DT <= seconds) renderTick();

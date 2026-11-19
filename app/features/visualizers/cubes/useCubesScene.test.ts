@@ -235,10 +235,11 @@ describe('useCubesScene', () => {
             const { hub, frame, scene, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, bgPulse: 1 };
 
-            hub.setGateBass(0.05);
+            // A silent gate-input bass under a loud low end and loud bands, which jump: nothing flashes.
+            hub.setGateBass(0, 5);
             hub.setBands([0.3, 0.3, 0.3, 0.3, 0.3, 0.3]);
             for (let i = 1; i <= 30; i++) frame(i * 16);
-            hub.setBands([0, 0, 1, 1, 1, 1]);
+            hub.setBands([1, 1, 1, 1, 1, 1]);
             frame(31 * 16);
             frame(32 * 16);
 
@@ -500,7 +501,9 @@ describe('useCubesScene', () => {
             const [input, fast, slow, ratio, out] = readProbe(5);
             expect(input).toBe(0.25);
             expect(fast).toBeGreaterThan(0.1);
-            expect(slow).toBeGreaterThan(0.05);
+            // The slow follower starts at 0, as BassPulse's does, and is still climbing.
+            expect(slow).toBeGreaterThan(0);
+            expect(slow).toBeLessThan(fast);
             expect(ratio).toBeGreaterThan(1.15);
             expect(out).toBeGreaterThan(0);
             expect(telemetry.tick).toHaveBeenLastCalledWith(0.016);

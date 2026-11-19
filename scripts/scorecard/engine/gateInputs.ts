@@ -3,10 +3,11 @@ import { replayPcm, type ReplayResult } from './replay';
 // The offline measurements S4 needs before it freezes contract C1 (the hub's gate-input bass): how often each candidate
 // input opens the dancer's bass gate on random bass, where it should never open, and how soon it opens after the
 // dancer's lock on real kick tracks. The inputs are the ones the replay steps:
-//  - gateBass: the hub's gate-input bass through the dancer's envelope, the input the app ships since S4 (C1);
+//  - gateBass: the hub's gate-input bass through the dancer's envelope, the input the app ships since S4 (C1). The hub
+//    reads it at the render time, so offline it is the prehub input exactly;
 //  - hubLowEnd: the hub's normalized low end through the envelope tuned for it, the input from the hub until S4;
 //  - frameTimed: BassPulse's feature from the pre-hub chain, read at the end of the newest delivered worklet frame (the
-//    measurement C1 was chosen on, before the worklet computed it; it should match gateBass);
+//    measurement C1 was chosen on, and the read S4 first shipped from the worklet, which live measured late);
 //  - prehub: BassPulse read at the render time (the input before the hub, the reference);
 //  - twoGates: the hubLowEnd and gateBass gates side by side, the dancer's gate open when either is (measured, not
 //    chosen).

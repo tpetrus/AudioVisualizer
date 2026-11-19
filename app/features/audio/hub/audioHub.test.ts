@@ -8,6 +8,7 @@ import {
     type FeatureListener,
 } from '~/features/rhythm/types';
 import { AudioHub } from './audioHub';
+import { GATE_BASS_CUTOFF_HZ, GATE_BASS_WINDOW } from './gateBassTap';
 import { HUB_FRAME_CAPACITY, HUB_MIN_PEAK, HUB_PEAK_HALF_LIFE_SECONDS, HUB_PENDING_ONSET_CAPACITY } from './hubConfig';
 
 // Just the parts of RhythmTracker the hub touches.
@@ -22,8 +23,12 @@ class StubTracker {
             this.listeners.delete(listener);
         };
     });
+    source: AnalyserNode | undefined;
     renderTimeNow(): number | undefined {
         return this.now;
+    }
+    getSource(): AnalyserNode | undefined {
+        return this.source;
     }
     asTracker(): RhythmTracker {
         return this as unknown as RhythmTracker;
@@ -33,9 +38,30 @@ class StubTracker {
 interface FrameSpec {
     time: number;
     energy: number | number[];
-    // FeatureBatch.gateBass of the frame; 0 when not given.
-    gate?: number;
 }
+// A source whose context builds stub nodes: each analyser reports `level` in every sample of its window, so a tap
+// reads `level` as its RMS. `nodes` records what was built and `disconnected` what was disconnected.
+function stubSource(level: number) {
+    const nodes: Record<string, unknown>[] = [];
+    const disconnected: unknown[] = [];
+    const node = (fields: Record<string, unknown>) => {
+        const built: Record<string, unknown> = {
+            ...fields,
+            connect: vi.fn(),
+            disconnect: vi.fn(() => disconnected.push(built)),
+        };
+        nodes.push(built);
+        return built;
+    };
+    const context = {
+        createBiquadFilter: () => node({ type: 'allpass', frequency: { value: 350 }, Q: { value: 1 } }),
+        createAnalyser: () =>
+            node({ fftSize: 2048, getFloatTimeDomainData: (target: Float32Array) => target.fill(level) }),
+    };
+    const source = node({ context }) as unknown as AnalyserNode;
+    return { source, nodes, disconnected };
+}
+
 interface OnsetSpec {
     band: number;
     time: number;
@@ -45,10 +71,8 @@ interface OnsetSpec {
 function batch(frames: FrameSpec[], onsets: OnsetSpec[] = []): FeatureBatch {
     const frameTimes = new Float64Array(frames.length);
     const bandEnergy = new Float32Array(frames.length * HUB_BAND_COUNT);
-    const gateBass = new Float32Array(frames.length);
     frames.forEach((frame, i) => {
         frameTimes[i] = frame.time;
-        gateBass[i] = frame.gate ?? 0;
         for (let b = 0; b < HUB_BAND_COUNT; b++) {
             bandEnergy[i * HUB_BAND_COUNT + b] = Array.isArray(frame.energy) ? frame.energy[b] : frame.energy;
         }
@@ -60,7 +84,6 @@ function batch(frames: FrameSpec[], onsets: OnsetSpec[] = []): FeatureBatch {
         frames: new Float32Array(0),
         frameTimes,
         bandEnergy,
-        gateBass,
         onsetCount: onsets.length,
         onsetBand: Uint8Array.from(onsets.map((o) => o.band)),
         onsetTime: Float64Array.from(onsets.map((o) => o.time)),
@@ -297,42 +320,100 @@ describe('AudioHub', () => {
         const energies = (sub: number, kick: number) =>
             HUB_BANDS.map((_, b) => (b === SUB ? sub : b === KICK ? kick : 0.9));
 
-        it('reads the level and the unscaled low end of the same frame as the bands', () => {
+        it('reads the unscaled low end of the same frame as the bands', () => {
             feed([
-                { time: 1.0, energy: energies(0.3, 0.6), gate: 0.12 },
-                { time: 1.1, energy: energies(0.5, 0.2), gate: 0.04 },
+                { time: 1.0, energy: energies(0.3, 0.6) },
+                { time: 1.1, energy: energies(0.5, 0.2) },
             ]);
             const gateBass = hub.snapshot.gateBass;
             hub.update(1.05);
-            expect(gateBass.pulse).toBeCloseTo(0.12, 6);
             expect(gateBass.lowEnd).toBeCloseTo(0.6, 6);
             hub.update(1.1);
-            expect(gateBass.pulse).toBeCloseTo(0.04, 6);
             expect(gateBass.lowEnd).toBeCloseTo(0.5, 6);
             // Updated in place: consumers may hold on to the object.
             expect(hub.snapshot.gateBass).toBe(gateBass);
         });
 
-        it('is not scaled by the running peak, unlike the bands', () => {
+        it('does not scale the low end by the running peak, unlike the bands', () => {
             feed([
-                { time: 1.0, energy: energies(2, 0), gate: 0.5 },
-                { time: 1.1, energy: energies(1, 0), gate: 0.25 },
+                { time: 1.0, energy: energies(2, 0) },
+                { time: 1.1, energy: energies(1, 0) },
             ]);
             hub.update(1.1);
             expect(hub.snapshot.bands[SUB]).toBeCloseTo(0.5, 1);
             expect(hub.snapshot.gateBass.lowEnd).toBeCloseTo(1, 6);
-            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
         });
 
-        it('reads 0 before the first frame and after a reset, and treats non-finite values as silence', () => {
+        it('taps the tracker source with the gate-input bass filters and reads its level at every update', () => {
+            const { source, nodes } = stubSource(0.25);
+            tracker.source = source;
+            hub.update(1);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
+            const filters = nodes.filter((built) => built.type !== undefined);
+            expect(filters.map((filter) => filter.type)).toEqual(['lowpass', 'lowpass']);
+            for (const filter of filters) {
+                expect(filter.frequency).toEqual({ value: GATE_BASS_CUTOFF_HZ });
+                expect(filter.Q).toEqual({ value: Math.SQRT1_2 });
+            }
+            expect(nodes.find((built) => built.fftSize !== undefined)?.fftSize).toBe(GATE_BASS_WINDOW);
+            // The source feeds the first filter, the first the second, the second the analyser.
+            expect(source.connect).toHaveBeenCalledWith(filters[0]);
+            // The same source is tapped once, however many updates read it.
+            const built = nodes.length;
+            hub.update(2);
+            expect(nodes.length).toBe(built);
+        });
+
+        it('taps a new source afresh, disconnecting the old tap, and reads 0 with no source', () => {
+            const first = stubSource(0.25);
+            tracker.source = first.source;
+            hub.update(1);
+            const second = stubSource(0.5);
+            tracker.source = second.source;
+            hub.update(2);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.5, 6);
+            expect(first.source.disconnect).toHaveBeenCalled();
+            // The old filters and analyser are disconnected too.
+            expect(first.disconnected.length).toBe(4);
+            tracker.source = undefined;
+            hub.update(3);
+            expect(hub.snapshot.gateBass.pulse).toBe(0);
+            expect(second.disconnected.length).toBe(4);
+        });
+
+        it('disconnects its tap when disposed', () => {
+            const { source, disconnected } = stubSource(0.25);
+            tracker.source = source;
+            hub.update(1);
+            hub.dispose();
+            expect(disconnected.length).toBe(4);
+        });
+
+        it('reads a given level reader instead of tapping, and treats a non-finite level as silence', () => {
+            let level = 0.3;
+            const reader = { level: vi.fn(() => level), dispose: vi.fn() };
+            const fixed = new AudioHub({ gateBass: reader });
+            fixed.update(1);
+            expect(fixed.snapshot.gateBass.pulse).toBeCloseTo(0.3, 6);
+            // Read once per render time.
+            fixed.update(1);
+            expect(reader.level).toHaveBeenCalledTimes(1);
+            level = Number.NaN;
+            fixed.update(2);
+            expect(fixed.snapshot.gateBass.pulse).toBe(0);
+        });
+
+        it('reads 0 before the first update and after a reset, and a non-finite low end as silence', () => {
+            expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
             hub.update(1);
             expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
-            feed([{ time: 2, energy: energies(Number.NaN, Infinity), gate: Number.NaN }]);
+            feed([{ time: 2, energy: energies(Number.NaN, Infinity) }]);
             hub.update(2);
-            expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
-            feed([{ time: 3, energy: energies(0.4, 0.1), gate: 0.3 }]);
+            expect(hub.snapshot.gateBass.lowEnd).toBe(0);
+            tracker.source = stubSource(0.3).source;
+            feed([{ time: 3, energy: energies(0.4, 0.1) }]);
             hub.update(3);
-            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.3, 6);
+            expect(hub.snapshot.gateBass).toEqual({ pulse: expect.closeTo(0.3, 6), lowEnd: expect.closeTo(0.4, 6) });
             hub.onReset();
             expect(hub.snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
         });

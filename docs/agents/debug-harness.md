@@ -253,7 +253,7 @@ export function attachTelemetry(engine: AudioEngine, onsets?: { bandOnsets: Arra
   (the column layout changed).
 - Probe names and columns. Every probe has an `in` column (the bass value the visualizer reads) and an `out` column (the
   bass-driven value it renders); the summary relies on those two names.
-  - `cubes`: `in` (the hub's gate-input bass, `snapshot.gateBass.pulse`: BassPulse's feature from the worklet, linear
+  - `cubes`: `in` (the hub's gate-input bass, `snapshot.gateBass.pulse`: BassPulse's feature read by the hub's own tap at the render time, linear
     RMS, since hub-regressions S4; from S7 of the hub plan until then the hub's normalized low end, and before it
     BassPulse's own RMS), `fast`, `slow`, `ratio` (1 at rest), `out` (the bass flash, `cubes/cubesBass.ts`).
   - `trio-color-wave`: `in` (bass sheet frame level before balancing), `peak` (its decaying peak), `out` (bass level
@@ -343,7 +343,7 @@ accessors named below.
 | `octaveHolds` | `TempoTracker.octaveHoldCount`: estimates where an octave-away challenger was held back for low confidence; back to 0 on a reset. Recordings made before this column still load |
 | `barVetoes` | `TempoTracker.barVetoCount`: estimates where a dotted challenger was refused because bar evidence did not favor it; back to 0 on a reset. Recordings made before this column still load |
 | `lowEnd` | the hub's louder of the `sub` and `kick` bands this frame (`hubLowEnd`, normalized), 0 with no source: the gate's input until hub-regressions S4, now recorded only for comparison. Recordings made before it still load, but cannot be replayed through BassBump |
-| `gateBass` | the hub's gate-input bass this frame (`snapshot.gateBass.pulse`, contract C1: BassPulse's feature from the worklet, linear RMS), 0 with no source: what the dancer's `BassBump` is fed since S4, so `in` is its output. Last column. Recordings made before it still load |
+| `gateBass` | the hub's gate-input bass this frame (`snapshot.gateBass.pulse`, contract C1: BassPulse's feature read by the hub's own tap at the render time, linear RMS), 0 with no source: what the dancer's `BassBump` is fed since S4, so `in` is its output. Last column. Recordings made before it still load |
 
 `rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`. The three counters are read through its read-only `beat` and `tempo` fields (`beat.phaseShiftCount`, `tempo.octaveHoldCount`, `tempo.barVetoCount`), because a forwarding getter each does not fit the production JS budget.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.

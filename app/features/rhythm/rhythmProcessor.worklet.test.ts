@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BandOnsets } from './bandOnsets';
-import { GateBassFeature } from './gateBass';
 import { OnsetExtractor, packFrame } from './onsetExtractor';
 import {
     BATCH_FRAMES,
@@ -222,13 +221,9 @@ describe('rhythm processor worklet', () => {
         const packed: number[][] = [];
         const times: number[] = [];
         const energy: number[][] = [];
-        const gate: number[] = [];
         const events: { band: number; time: number }[] = [];
-        const gateBass = new GateBassFeature(SAMPLE_RATE);
         for (let offset = 0; offset < pcm.length; offset += 128) {
-            const block = pcm.subarray(offset, Math.min(pcm.length, offset + 128));
-            gateBass.push(block);
-            extractor.push(block, (frame) => {
+            extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
                 const row = new Float32Array(FRAME_STRIDE);
                 packFrame(frame, row, 0);
                 packed.push(Array.from(row));
@@ -236,13 +231,12 @@ describe('rhythm processor worklet', () => {
                 times.push(time);
                 bandOnsets.push(frame.logMagnitude, time, (band, eventTime) => events.push({ band, time: eventTime }));
                 energy.push(Array.from(bandOnsets.energy));
-                gate.push(gateBass.levelAt(frame.endSample));
             });
         }
-        return { packed, times, energy, gate, events };
+        return { packed, times, energy, events };
     }
 
-    it('posts version 3 messages whose packed frames, time0 and count are the old FrameBatch', async () => {
+    it('posts version 2 messages whose packed frames, time0 and count are the old FrameBatch', async () => {
         const harness = await loadProcessor();
         const pcm = kickTrain();
         play(harness, [pcm]);
@@ -285,24 +279,6 @@ describe('rhythm processor worklet', () => {
                 }
             }
         });
-    });
-
-    it('posts the gate-input bass of every frame, read where its window ends', async () => {
-        const harness = await loadProcessor();
-        const pcm = kickTrain();
-        play(harness, [pcm], [128, 300, 64]);
-
-        const want = expected(pcm);
-        const sent: number[] = [];
-        for (const { message } of harness.posted()) {
-            expect(message.gateBass).toHaveLength(BATCH_FRAMES);
-            sent.push(...message.gateBass);
-        }
-        expect(sent).toHaveLength(Math.floor(want.gate.length / BATCH_FRAMES) * BATCH_FRAMES);
-        sent.forEach((level, i) => expect(level).toBeCloseTo(want.gate[i], 6));
-        // The kicks are bass: they raise it well above the silence between them, which reads 0.
-        expect(Math.max(...sent)).toBeGreaterThan(0.1);
-        expect(sent[0]).toBe(0);
     });
 
     it('sends each onset event once, including those decided in a later batch than their frame', async () => {
@@ -398,13 +374,12 @@ describe('rhythm processor worklet', () => {
             message.frames.buffer,
             message.frameTimes.buffer,
             message.bandEnergy.buffer,
-            message.gateBass.buffer,
             message.onsetBand.buffer,
             message.onsetTime.buffer,
             message.onsetStrength.buffer,
         ];
         expect(first.transfer).toEqual(buffersOf(first.message));
-        expect(new Set(first.transfer).size).toBe(7);
+        expect(new Set(first.transfer).size).toBe(6);
         buffersOf(second.message).forEach((buffer, i) => expect(buffer).not.toBe(buffersOf(first.message)[i]));
     });
 });

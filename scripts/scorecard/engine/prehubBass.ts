@@ -93,7 +93,7 @@ export class PrehubBass {
     }
 
     // One animation frame whose analyser window ends at sample `end` rather than at the frame's time: the read a
-    // per-frame feature from the worklet gives, which is only as new as the last frame delivered.
+    // per-frame feature from the worklet would give, which is only as new as the last frame delivered.
     public updateAtSample(end: number): number {
         this.end = end;
         return this.pulse.update();
