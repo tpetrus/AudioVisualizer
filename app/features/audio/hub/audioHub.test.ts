@@ -304,6 +304,22 @@ describe('AudioHub', () => {
             expect(hub.snapshot.onsets.kick.count).toBe(0);
         });
 
+        it('warns once per hub in development about batches of another version, and never otherwise', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const other = { ...batch([{ time: 1, energy: 1 }]), version: 1 } as unknown as FeatureBatch;
+            vi.stubEnv('DEV', true);
+            hub.onBatch(other);
+            hub.onBatch(other);
+            expect(warn).toHaveBeenCalledTimes(1);
+            const quiet = new AudioHub();
+            vi.stubEnv('DEV', false);
+            quiet.onBatch(other);
+            quiet.onBatch(other);
+            expect(warn).toHaveBeenCalledTimes(1);
+            vi.unstubAllEnvs();
+            warn.mockRestore();
+        });
+
         it('does not move the peak clock back on a frame stamped earlier', () => {
             feed([{ time: 10, energy: 1 }]);
             feed([{ time: 5, energy: 0.1 }]);

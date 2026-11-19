@@ -69,6 +69,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     private readonly fixedGateBass: GateBassLevel | undefined;
     private tap: GateBassLevel | undefined;
     private tappedSource: AnalyserNode | undefined;
+    private warnedVersion = false;
 
     constructor(options: AudioHubOptions = {}) {
         this.fixedGateBass = options.gateBass;
@@ -145,8 +146,15 @@ export class AudioHub implements AudioHubReader, FeatureListener {
     // Called by the tracker with every worklet message, after its own analysis has used it.
     public onBatch(batch: FeatureBatch): void {
         // A message of another version may lay its arrays out differently, so reading it as this one would write
-        // garbage into the rings. The tracker keeps its own check; the hub just skips what it cannot read.
+        // garbage into the rings. The tracker does not check the version, so the hub skips what it cannot read, and
+        // warns once per hub in development so the mismatch is not silent.
         if (batch.version !== FEATURE_MESSAGE_VERSION) {
+            if (import.meta.env.DEV && !this.warnedVersion) {
+                this.warnedVersion = true;
+                console.warn(
+                    `AudioHub: ignoring feature batches of version ${String(batch.version)}, expected ${String(FEATURE_MESSAGE_VERSION)}`,
+                );
+            }
             return;
         }
         for (let i = 0; i < batch.count; i++) {
