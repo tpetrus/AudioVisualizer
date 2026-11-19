@@ -263,3 +263,34 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   envelope (`GATE_BASS_BUMP`) also starts its followers at 0 as `BassPulse` does, rather than seeding them at the first
   level, which had moved the gate by up to 0.85 s. Offline, every gate and cube cell now equals pre-hub, which retires
   the `summer2000` and `bassline-kick-120` exceptions above; the live cells decide S4.
+
+## Progress
+### S4 done (2026-11-19, PR #98, merge `4a22596` on `feat/hub-gate-bass`)
+- **Delivered:** contract C1 (`gateBass: { pulse, lowEnd }`), read once per frame from the hub's own tap of the
+  tracker's source (`GateBassTap`). The cube trigger is now a pure function (`cubesBass.ts`) that the offline scorecard
+  replays. The dancer's gate and the cubes read `gateBass`. Targets version 7 adds the offline cube cells, and the
+  version 7 baseline is committed.
+- **Acceptance:**
+  - **AC6 (as amended):** met. Offline, every kick track's gate opens exactly as pre-hub's, and false opens on random
+    bass equal pre-hub's (5 and 27 of 300). Live, the gate opens a mean 7.16 s after the lock, against 7.21 s
+    pre-hub. The 4 s floor stays with S5.
+  - **AC8, cubes:** met, 32 of 32 offline cells and 45 of 45 live.
+  - **AC8, dancer:** the hit share passes on 12 of 14 tracks. `drums-150` and `drifting-tempo` fail on runs that
+    split between two outcomes (the kick place learned or not, and the beat tracker's lock at about 3.2 or about 8.2 s).
+    Pre-hub and S3 show the same splits, and a confirmation run on those tracks passes
+    (`docs/agents/hub-scorecard.md`, "S4 findings").
+  - **AC12:** met. `scorecard:check` passes, and all repository checks and budgets pass (total JS 333.73 of 334 kB).
+- **Exceptions retired:** the `summer2000` and `bassline-kick-120` exceptions above are no longer needed, because
+  every offline gate and cube cell equals pre-hub.
+- **Fast-lane follow-ups merged** (`d2b3dc5`, `55ef3f5`):
+  - a once-only development warning when the hub ignores a worklet message of another version;
+  - direct tests for `GateBassTap`;
+  - a 1e-6 slack in the scorecard's floor comparisons;
+  - `replay:gate --input gateBass`.
+- **Not merged:** `scorecard:live --jobs` (branch `fu-s4-live-parallel`). With 2 jobs at once the cubes matched
+  one-at-a-time recording, but the dancer's lock time, clip phase and latency moved outside the serial range.
+  Recording stays one job at a time.
+- **Open, for the full workflow (they touch C1's wording):** `FU-S4-gatebass-no-source` (after a capture stops, the
+  pulse keeps its last value rather than reading 0) and `FU-S4-gatebass-sync-offset` (the pulse is not shifted by the
+  user's sync offset as `bands` are). Both are in `docs/agents/hub-scorecard.md`.
+- **Next:** S5, the gate rule for slow-engaging tracks, which now also owns AC6's 4 s floor.
