@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 7,
-    "revision": "a75d1f1",
-    "created": "2026-11-19T00:52:47.784Z",
+    "revision": "1493adf",
+    "created": "2026-11-19T20:19:13.409Z",
     "sidecarHashes": {}
   },
   "cells": [
@@ -17,8 +17,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.24174749999999995,
-      "value": 0.34720749999999995,
-      "spread": 0.04492499999999966,
+      "value": 0.41124549999999993,
+      "spread": 0.10084870000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -136,8 +136,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.059826499999999894,
-      "value": 0.083345,
-      "spread": 0.44936429999999994,
+      "value": 0.3587749999999999,
+      "spread": 0.2775859500000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -204,8 +204,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2882625,
-      "value": 0.19230500000000006,
-      "spread": 0.3664130000000001,
+      "value": 0.2521975000000001,
+      "spread": 0.482155,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -221,8 +221,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0026574999999999793,
-      "value": 0.13179049999999998,
-      "spread": 0.3689499999999999,
+      "value": 0.39209,
+      "spread": 0.27105500000000016,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -238,8 +238,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.006602500000000122,
-      "value": 0.005499999999999949,
-      "spread": 0.48623000000000016,
+      "value": 0.007525000000000004,
+      "spread": 0.4849199999999999,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -255,8 +255,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.003605000000000025,
-      "value": 0.0055752499999999205,
-      "spread": 0.49097499999999994,
+      "value": 0.005017499999999897,
+      "spread": 0.48768100000000025,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -272,11 +272,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.002102499999999896,
-      "value": 0.02724749999999998,
-      "spread": 0.44425499999999996,
+      "value": 0.10989499999999996,
+      "spread": 0.22477500000000006,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.clip.maxDeviationLoops",
@@ -323,8 +323,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.1425209999999999,
-      "value": 0.12831025000000007,
-      "spread": 0.43221849999999984,
+      "value": 0.09657649999999995,
+      "spread": 0.4246000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -340,8 +340,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.016415000000000013,
-      "value": 0.0037157500000000176,
-      "spread": 0.48397899999999994,
+      "value": 0.023777500000000007,
+      "spread": 0.46447499999999986,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -357,8 +357,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0010025000000000728,
-      "value": 0.2502467499999999,
-      "spread": 0.41440999999999983,
+      "value": 0.18191975,
+      "spread": 0.4733750000000002,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -374,11 +374,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.006527500000000019,
-      "value": 0.03524999999999995,
-      "spread": 0.4740169999999999,
+      "value": 0.0036327499999999624,
+      "spread": 0.47540949999999993,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.clip.maxDeviationLoops",
@@ -697,8 +697,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8818433818433818,
-      "value": 0.8125,
-      "spread": 0.06566604127579734,
+      "value": 0.8552631578947368,
+      "spread": 0.08317698561601006,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -714,8 +714,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5294117647058824,
-      "value": 0.27941176470588236,
-      "spread": 0.7941176470588236,
+      "value": 0.75,
+      "spread": 0.5,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -748,8 +748,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7501000400160064,
-      "value": 0.7541393916056989,
-      "spread": 0.0935672514619883,
+      "value": 0.745,
+      "spread": 0.015971606033717833,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -799,8 +799,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6524822695035462,
-      "value": 0.626453488372093,
-      "spread": 0.06141920095408471,
+      "value": 0.6444444444444445,
+      "spread": 0.036077235772357774,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -816,8 +816,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.041666666666666664,
-      "value": 1,
-      "spread": 0,
+      "value": 0.03125,
+      "spread": 0.0625,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -850,8 +850,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.3834610472541507,
-      "value": 0.39276595744680853,
-      "spread": 0.12193126022913259,
+      "value": 0.3614065180102916,
+      "spread": 0.03735849056603774,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -867,8 +867,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.6088399720475193,
-      "spread": 0.3218537414965987,
+      "value": 0.5185185185185185,
+      "spread": 1,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -901,8 +901,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7725464190981433,
-      "value": 0.8067796610169492,
-      "spread": 0.0360655737704918,
+      "value": 0.7854406130268199,
+      "spread": 0.024680344930121945,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -918,8 +918,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7916666666666666,
-      "value": 0.8088768115942029,
-      "spread": 0.13043478260869557,
+      "value": 0.7608695652173914,
+      "spread": 0.17391304347826086,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -952,8 +952,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.9354166666666667,
-      "value": 0.9393382352941176,
-      "spread": 0.06666666666666665,
+      "value": 0.8918128654970761,
+      "spread": 0.08730158730158732,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -969,9 +969,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 1,
+      "value": 0.9130434782608695,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -1003,8 +1003,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4777777777777778,
-      "value": 0.6815230961298377,
-      "spread": 0.03546099290780147,
+      "value": 0.48403311649911296,
+      "spread": 0.07355816226783968,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1020,8 +1020,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.45464480874316937,
-      "value": 0.7227401129943503,
-      "spread": 0.13559322033898302,
+      "value": 0.4957627118644068,
+      "spread": 0.16810225062517364,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1054,8 +1054,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8172541743970316,
-      "value": 0.8574999999999999,
-      "spread": 0.060749881347887946,
+      "value": 0.8160676532769556,
+      "spread": 0.07171717171717173,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1071,8 +1071,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.47435897435897434,
-      "value": 0.6580128205128206,
-      "spread": 0.125,
+      "value": 0.47435897435897434,
+      "spread": 0.06217948717948718,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1105,8 +1105,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8972746331236897,
-      "value": 0.8963675213675213,
-      "spread": 0.03140394088669951,
+      "value": 0.8992914979757085,
+      "spread": 0.022298456260720356,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1224,8 +1224,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.9569444444444445,
-      "value": 0.9766304347826087,
-      "spread": 0.02127659574468077,
+      "value": 0.9559108527131783,
+      "spread": 0.01226415094339628,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1241,8 +1241,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.963527851458886,
-      "value": 1,
-      "spread": 0.5,
+      "value": 0.6841133004926109,
+      "spread": 0.08333333333333337,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1309,8 +1309,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8043478260869565,
-      "value": 0.8477541371158392,
-      "spread": 0.01325757575757569,
+      "value": 0.7906976744186046,
+      "spread": 0.048792270531401005,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1326,8 +1326,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8947368421052632,
-      "value": 0.8947368421052632,
-      "spread": 0.21052631578947367,
+      "value": 1,
+      "spread": 0.33333333333333337,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1360,8 +1360,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.403125,
-      "value": 0.6182983682983683,
-      "spread": 0.038849868305531166,
+      "value": 0.37298387096774194,
+      "spread": 0.0713942307692308,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1377,8 +1377,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4375,
-      "value": 0.6304347826086957,
-      "spread": 0.021276595744680882,
+      "value": 0.44680851063829785,
+      "spread": 0.06382978723404259,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1411,8 +1411,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5056818181818181,
-      "value": 0.6109756097560975,
-      "spread": 0.06200828157349891,
+      "value": 0.49712643678160917,
+      "spread": 0.017651888341543576,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1428,8 +1428,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.016666666666666666,
-      "value": 0.43333333333333335,
-      "spread": 0.7586206896551724,
+      "value": 0.03333333333333333,
+      "spread": 1,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1462,8 +1462,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.04246031746031746,
-      "spread": 0.058823529411764705,
+      "value": 0,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1479,8 +1479,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.06081632653061224,
-      "spread": 0.2448979591836735,
+      "value": 0,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1513,8 +1513,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6666194188518781,
-      "value": 0.6453423120089787,
-      "spread": 0.10151036178433437,
+      "value": 0.6585365853658537,
+      "spread": 0.016561276723878415,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1530,8 +1530,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.029411764705882353,
-      "value": 0.4322638146167558,
-      "spread": 0.47058823529411764,
+      "value": 0.058823529411764705,
+      "spread": 0.029411764705882353,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1683,8 +1683,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.5997,
-      "value": 4.62015,
-      "spread": 0.869699999999999,
+      "value": 5.04415,
+      "spread": 5.002000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1700,8 +1700,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.8599499999999995,
-      "value": 7.6455,
-      "spread": 3.927999999999999,
+      "value": 5.250649999999999,
+      "spread": 0.7574000000000005,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1717,11 +1717,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 3.8907,
-      "value": 6.305149999999999,
-      "spread": 3.7489999999999997,
+      "value": 3.88,
+      "spread": 0.05069999999999997,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.gate.secondsAfterLock",
@@ -1734,8 +1734,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.52,
-      "value": 5.35595,
-      "spread": 1.6026999999999996,
+      "value": 4.843999999999999,
+      "spread": 0.8106999999999989,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1751,8 +1751,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 10.73985,
-      "value": 10.6895,
-      "spread": 0.18930000000000113,
+      "value": 10.6905,
+      "spread": 1.2109999999999985,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1768,9 +1768,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 12.811,
+      "value": 6.650600000000001,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "fail"
     },
@@ -1785,7 +1785,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.53865,
-      "value": 4.55465,
+      "value": 4.529349999999999,
       "spread": 0.05069999999999997,
       "runs": 4,
       "pass": false,
@@ -1802,8 +1802,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.6186500000000015,
-      "value": 5.6240000000000006,
-      "spread": 0.05099999999999838,
+      "value": 5.600300000000001,
+      "spread": 0.1607000000000003,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1819,8 +1819,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 20.2103,
-      "value": 14.760200000000001,
-      "spread": 4.517299999999999,
+      "value": 17.809649999999998,
+      "spread": 2.9926999999999992,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1870,8 +1870,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 7.673350000000002,
-      "value": 9.1745,
-      "spread": 5.4902999999999995,
+      "value": 7.39085,
+      "spread": 0.9439999999999991,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1904,8 +1904,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.029,
-      "value": 15.50015,
-      "spread": 2.090700000000002,
+      "value": 16.4495,
+      "spread": 3.312000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1921,8 +1921,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.0613,
-      "value": 4.08,
-      "spread": 0.17069999999999963,
+      "value": 4.0506,
+      "spread": 0.07999999999999918,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1938,8 +1938,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.8453,
-      "value": 5.85605,
-      "spread": 0.1493000000000002,
+      "value": 5.85065,
+      "spread": 0.19200000000000017,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1955,8 +1955,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.029299999999999,
-      "value": 5.039999999999999,
-      "spread": 0.03739999999999988,
+      "value": 5.02665,
+      "spread": 0.1200000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1972,7 +1972,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.320300000000001,
-      "value": 4.339,
+      "value": 4.32,
       "spread": 0.029299999999999216,
       "runs": 4,
       "pass": false,
@@ -2244,8 +2244,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.08035714285714285,
-      "value": 0.13392857142857142,
-      "spread": 0.05357142857142859,
+      "value": 0.09821428571428571,
+      "spread": 0.05357142857142856,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2261,11 +2261,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2857142857142857,
-      "value": 0.4375,
-      "spread": 0.48214285714285715,
+      "value": 0.15178571428571427,
+      "spread": 0.30357142857142855,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2312,8 +2312,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.3191489361702128,
-      "spread": 0.6938775510204082,
+      "value": 0.3617021276595745,
+      "spread": 0.723404255319149,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2346,8 +2346,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2704918032786885,
-      "value": 0.2540983606557377,
-      "spread": 0.024199843871975046,
+      "value": 0.26229508196721313,
+      "spread": 0.007546187874056698,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2363,11 +2363,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7603825136612021,
-      "value": 0,
-      "spread": 0,
+      "value": 0.7540983606557377,
+      "spread": 0.05672651574290921,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2397,11 +2397,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.47183098591549294,
-      "value": 0.4187122736418511,
-      "spread": 0.11364074860119622,
+      "value": 0.4647887323943662,
+      "spread": 0.028361952537140633,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2414,8 +2414,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7571428571428571,
-      "value": 0.2818982387475538,
-      "spread": 0.2571428571428572,
+      "value": 0.37142857142857144,
+      "spread": 0.7571428571428571,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2448,11 +2448,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.3648648648648649,
-      "value": 0.31081081081081086,
+      "value": 0.33783783783783783,
       "spread": 0.05405405405405406,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2465,8 +2465,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.13513513513513514,
-      "value": 0.12162162162162163,
-      "spread": 0.08108108108108109,
+      "value": 0.14864864864864866,
+      "spread": 0.10810810810810811,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2499,8 +2499,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.011764705882352941,
-      "value": 0.011764705882352941,
-      "spread": 0.011764705882352941,
+      "value": 0.023809523809523808,
+      "spread": 0.012044817927170867,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2516,9 +2516,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 0,
+      "value": 0.047619047619047616,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -2550,11 +2550,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.618421052631579,
-      "value": 0.375,
-      "spread": 0.026315789473684237,
+      "value": 0.631578947368421,
+      "spread": 0.06578947368421062,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2567,11 +2567,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4276315789473684,
-      "value": 0.21710526315789475,
-      "spread": 0.10526315789473684,
+      "value": 0.39473684210526316,
+      "spread": 0.14473684210526316,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2601,8 +2601,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.11428571428571428,
-      "value": 0.09285714285714286,
-      "spread": 0.04285714285714286,
+      "value": 0.11428571428571428,
+      "spread": 0.042857142857142844,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2618,11 +2618,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2928571428571428,
-      "value": 0.19285714285714287,
-      "spread": 0.07142857142857142,
+      "value": 0.2928571428571428,
+      "spread": 0.04285714285714287,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2653,7 +2653,7 @@
       "applicable": true,
       "prehub": 0.15714285714285714,
       "value": 0.15714285714285714,
-      "spread": 0.05714285714285716,
+      "spread": 0.02857142857142858,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2771,8 +2771,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03389830508474576,
-      "value": 0.01694915254237288,
-      "spread": 0.01694915254237288,
+      "value": 0.03389830508474576,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2788,8 +2788,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.01694915254237288,
-      "value": 0,
-      "spread": 0.2033898305084746,
+      "value": 0.15254237288135594,
+      "spread": 0.050847457627118633,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2856,8 +2856,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.1607142857142857,
-      "value": 0.125,
-      "spread": 0,
+      "value": 0.16071428571428573,
+      "spread": 0.0357142857142857,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2873,8 +2873,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03571428571428571,
-      "value": 0.03571428571428571,
-      "spread": 0.07142857142857142,
+      "value": 0,
+      "spread": 0.08928571428571429,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2907,11 +2907,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6290322580645161,
-      "value": 0.4065309360126917,
-      "spread": 0.04918032786885246,
+      "value": 0.6475409836065573,
+      "spread": 0.054732945531464794,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2924,11 +2924,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4308566895822316,
-      "value": 0.2786885245901639,
-      "spread": 0.020888418826017996,
+      "value": 0.42622950819672134,
+      "spread": 0.041776837652035936,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2958,11 +2958,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 1,
-      "value": 0.8214285714285714,
-      "spread": 0.14826839826839822,
+      "value": 1,
+      "spread": 0,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2975,11 +2975,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7023809523809523,
-      "value": 0.40476190476190477,
-      "spread": 0.5238095238095238,
+      "value": 0.6904761904761905,
+      "spread": 0.7142857142857143,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -3009,8 +3009,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5074626865671642,
-      "value": 0.499891845122215,
-      "spread": 0.029850746268656747,
+      "value": 0.5074626865671642,
+      "spread": 0.00021630975556996557,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3026,11 +3026,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7424242424242424,
-      "value": 0.6887351778656126,
-      "spread": 0.18181818181818188,
+      "value": 0.7424242424242424,
+      "spread": 0.0322793148880105,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -3061,7 +3061,7 @@
       "applicable": true,
       "prehub": 0.49122807017543857,
       "value": 0.49122807017543857,
-      "spread": 0.11834671424323517,
+      "spread": 0.0002973535533750127,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3077,11 +3077,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5688373476063039,
-      "value": 0.3333333333333333,
-      "spread": 0.2902170680939637,
+      "value": 0.5664160401002506,
+      "spread": 0.03657448706512045,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -3111,8 +3111,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.050700000000000855,
-      "value": 0.058699999999999974,
-      "spread": 0.16800000000000104,
+      "value": 0.04269999999999996,
+      "spread": 0.19200000000000017,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3230,11 +3230,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.008000000000000895,
-      "value": 0.021300000000000097,
-      "spread": 5.111999999999999,
+      "value": 4.991999999999999,
+      "spread": 5.090699999999999,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.lock.spreadSeconds",
@@ -3298,8 +3298,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0025999999999992696,
-      "value": 0.10940000000000083,
-      "spread": 0.20000000000000107,
+      "value": 0.08000000000000007,
+      "spread": 1.1999999999999993,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3315,11 +3315,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.03999999999999915,
-      "spread": 0.1493000000000002,
+      "value": 4.9413,
+      "spread": 4.991999999999999,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.lock.spreadSeconds",
@@ -3332,8 +3332,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.01869999999999994,
-      "spread": 0.058699999999999974,
+      "value": 0.02929999999999966,
+      "spread": 0.0692999999999997,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3349,8 +3349,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.018700000000000827,
-      "value": 0.010600000000000165,
-      "spread": 0.05059999999999931,
+      "value": 0.050700000000000855,
+      "spread": 0.17070000000000007,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3366,8 +3366,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.04269999999999996,
-      "value": 0,
-      "spread": 5.061299999999999,
+      "value": 0.010699999999999932,
+      "spread": 0.04269999999999996,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3417,8 +3417,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.021300000000000097,
-      "value": 0.05069999999999908,
-      "spread": 0.16000000000000014,
+      "value": 0.058699999999999974,
+      "spread": 0.18929999999999936,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3434,8 +3434,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.061299999999999244,
-      "value": 0.010699999999999932,
-      "spread": 0.058699999999999974,
+      "value": 0.03200000000000003,
+      "spread": 0.08270000000000088,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3452,7 +3452,7 @@
       "applicable": true,
       "prehub": 0.018700000000000827,
       "value": 0.010699999999999932,
-      "spread": 0.05069999999999908,
+      "spread": 0.03999999999999915,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3468,8 +3468,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.04269999999999996,
-      "spread": 0.1519999999999997,
+      "value": 0.0025999999999997137,
+      "spread": 0.07999999999999963,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3791,8 +3791,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 223.41666666666882,
-      "value": 224.1833333333356,
-      "spread": 15.499999999998522,
+      "value": 220.33333333333616,
+      "spread": 7.3333333333316375,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3808,11 +3808,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.166666666669215,
-      "value": 14.750000000002927,
-      "spread": 228.9999999999992,
+      "value": 124.5833333333346,
+      "spread": 226.00000000000264,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -3842,8 +3842,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 22.67500000000033,
-      "value": 34.85000000000127,
-      "spread": 19.00000000000146,
+      "value": 19.999999999999794,
+      "spread": 2.2026824808563106e-13,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3860,7 +3860,7 @@
       "applicable": true,
       "prehub": null,
       "value": 35.00000000000014,
-      "spread": 7.999999999995566,
+      "spread": 7.999999999999119,
       "runs": 2,
       "pass": false,
       "status": "unavailable"
@@ -3893,8 +3893,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 29.349999999999987,
-      "value": 41.57499999999992,
-      "spread": 3.6500000000012633,
+      "value": 28.500000000000192,
+      "spread": 3.9999999999995595,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3910,11 +3910,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 34.50000000000042,
-      "value": null,
-      "spread": 0,
-      "runs": 0,
-      "pass": false,
-      "status": "unavailable"
+      "value": 34.512499999999946,
+      "spread": 8.600000000000385,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -3944,11 +3944,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 30.8499999999996,
-      "value": 44.99999999999993,
-      "spread": 9.99999999999801,
+      "value": 28.00000000000047,
+      "spread": 2.7000000000003723,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -3961,11 +3961,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 31.00000000000236,
-      "value": 60.074999999999434,
-      "spread": 29.999999999995808,
-      "runs": 4,
+      "value": 33.350000000000875,
+      "spread": 10.699999999997267,
+      "runs": 2,
       "pass": false,
-      "status": "fail"
+      "status": "unavailable"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -3995,8 +3995,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.35000000000134,
-      "value": 53.16666666666858,
-      "spread": 9.999999999999787,
+      "value": 47.34166666666795,
+      "spread": 6.683333333334041,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4012,8 +4012,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 75.66666666667032,
-      "value": 83.83333333333631,
-      "spread": 10.666666666665492,
+      "value": 66.6666666666682,
+      "spread": 18.66666666666461,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4046,8 +4046,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 100.6666666666689,
-      "value": 113.32500000000189,
-      "spread": 7.966666666668232,
+      "value": 97.16666666666774,
+      "spread": 15.999999999998238,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4063,9 +4063,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 119.00000000000333,
-      "spread": 0,
-      "runs": 1,
+      "value": 109.5000000000006,
+      "spread": 3.0000000000001137,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -4097,11 +4097,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.00000000000038,
-      "value": 64.00000000000094,
-      "spread": 7.833333333335801,
+      "value": 48.99999999999949,
+      "spread": 2.6999999999999247,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4114,11 +4114,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.58333333333442,
-      "value": 69.50000000000145,
-      "spread": 9.333333333330529,
+      "value": 52.75000000000274,
+      "spread": 7.666666666672484,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4148,8 +4148,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 70.85000000000053,
-      "value": 62.75000000000341,
-      "spread": 7.0000000000014495,
+      "value": 62.83333333333463,
+      "spread": 20.3499999999992,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4165,8 +4165,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 53.33333333333634,
-      "value": 67.8333333333363,
-      "spread": 28.666666666666174,
+      "value": 53.33333333333634,
+      "spread": 9.99999999999801,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4199,8 +4199,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 33.3333333333341,
-      "value": 40.16666666666735,
-      "spread": 29.516666666667746,
+      "value": 27.99166666666819,
+      "spread": 13.66666666666605,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4216,9 +4216,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 166.66666666666785,
+      "value": null,
       "spread": 0,
-      "runs": 2,
+      "runs": 0,
       "pass": false,
       "status": "unavailable"
     },
@@ -4318,8 +4318,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 144.16666666666788,
-      "value": 146.75000000000082,
-      "spread": 41.16666666666548,
+      "value": 140.00000000000057,
+      "spread": 18.66666666666461,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4335,11 +4335,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 103.9999999999992,
-      "value": 198.50000000000279,
-      "spread": 210.66666666666478,
+      "value": 12.166666666668213,
+      "spread": 3.9999999999995595,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4403,11 +4403,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 69.66666666666477,
-      "value": 90.57500000000141,
-      "spread": 11.333333333325868,
+      "value": 77.7500000000001,
+      "spread": 10.699999999999932,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4420,9 +4420,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": 89.91666666666643,
-      "value": 98.6666666666629,
-      "spread": 134.66666666667138,
-      "runs": 3,
+      "value": 157.16666666666512,
+      "spread": 218.6666666666781,
+      "runs": 4,
       "pass": false,
       "status": "fail"
     },
@@ -4454,8 +4454,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 45.00000000000082,
-      "value": 59.41666666666778,
-      "spread": 2.6666666666659324,
+      "value": 44.92500000000188,
+      "spread": 10.14999999999899,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4471,8 +4471,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.24166666666929,
-      "value": 62.166666666668924,
-      "spread": 7.500000000000284,
+      "value": 49.50000000000365,
+      "spread": 0.5000000000023874,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4505,8 +4505,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 30.999999999998806,
-      "value": 44.332999999999956,
-      "spread": 5.667000000000755,
+      "value": 30.999999999998806,
+      "spread": 5.332999999999366,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4522,8 +4522,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 33.33299999999895,
-      "value": 48.99999999999949,
-      "spread": 2.3330000000001405,
+      "value": 35.667000000000115,
+      "spread": 0,
       "runs": 3,
       "pass": true,
       "status": "pass"
@@ -4556,8 +4556,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 14.606999999998926,
-      "value": 28.571000000001234,
-      "spread": 2.1434999999976334,
+      "value": 14.499999999999957,
+      "spread": 2.585999999999089,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4573,8 +4573,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 24.571499999999524,
-      "value": 37.35700000000097,
-      "spread": 8.713999999997668,
+      "value": 23.071500000000356,
+      "spread": 3.8569999999999993,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4607,8 +4607,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 29.850000000000044,
-      "value": 41.50000000000031,
-      "spread": 11.69999999999849,
+      "value": 28.00000000000047,
+      "spread": 2.9999999999992255,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4624,8 +4624,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 35.50000000000075,
-      "value": 48.99999999999949,
-      "spread": 11.499999999998067,
+      "value": 35.50000000000075,
+      "spread": 10.000000000001563,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4755,10 +4755,10 @@
       "track": "drums-100.wav",
       "visualizer": "cubes",
       "current": [
-        0.7735849056603774,
-        0.6842105263157895,
-        0.7777777777777778,
-        0.7346938775510204
+        0.7391304347826086,
+        0.75,
+        0.7551020408163265,
+        0.74
       ],
       "prehub": [
         0.7450980392156863,
@@ -4772,10 +4772,10 @@
       "track": "drums-100.wav",
       "visualizer": "cubes",
       "current": [
-        38.70000000000018,
-        39.00000000000148,
-        31.00000000000236,
-        20.000000000000018
+        19.999999999999794,
+        19.999999999999794,
+        19.999999999999794,
+        19.999999999999574
       ],
       "prehub": [
         19.999999999999574,
@@ -4789,10 +4789,10 @@
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "current": [
-        0.2459016393442623,
         0.26229508196721313,
         0.26229508196721313,
-        0.23809523809523808
+        0.26229508196721313,
+        0.2698412698412698
       ],
       "prehub": [
         0.30158730158730157,
@@ -4806,10 +4806,10 @@
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "current": [
-        0.625,
-        0.5897435897435898,
-        0.627906976744186,
-        0.6511627906976745
+        0.6444444444444445,
+        0.6097560975609756,
+        0.6444444444444445,
+        0.6458333333333334
       ],
       "prehub": [
         0.5777777777777777,
@@ -4823,10 +4823,10 @@
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "current": [
-        39.850000000000385,
-        41.349999999999554,
-        41.80000000000028,
-        43.50000000000165
+        28.00000000000047,
+        30.49999999999997,
+        28.999999999999915,
+        26.500000000000412
       ],
       "prehub": [
         28.999999999999915,
@@ -4840,10 +4840,10 @@
       "track": "drums-150.wav",
       "visualizer": "cubes",
       "current": [
-        0.38028169014084506,
-        0.45714285714285713,
-        0.352112676056338,
-        0.4657534246575342
+        0.4647887323943662,
+        0.4647887323943662,
+        0.4647887323943662,
+        0.4931506849315068
       ],
       "prehub": [
         0.4794520547945205,
@@ -4857,10 +4857,10 @@
       "track": "drums-150.wav",
       "visualizer": "cubes",
       "current": [
-        0.425531914893617,
-        0.36,
-        0.46808510638297873,
-        0.34615384615384615
+        0.37735849056603776,
+        0.37735849056603776,
+        0.34,
+        0.34545454545454546
       ],
       "prehub": [
         0.39655172413793105,
@@ -4874,10 +4874,10 @@
       "track": "drums-150.wav",
       "visualizer": "cubes",
       "current": [
-        48.99999999999949,
-        39.00000000000148,
-        48.99999999999949,
-        41.00000000000037
+        27.9999999999998,
+        28.00000000000047,
+        28.00000000000047,
+        30.700000000000173
       ],
       "prehub": [
         30.700000000000394,
@@ -4912,10 +4912,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "cubes",
       "current": [
-        0.8809523809523809,
-        0.7619047619047619,
-        0.7380952380952381,
-        0.8863636363636364
+        1,
+        1,
+        1,
+        1
       ],
       "prehub": [
         1,
@@ -4929,10 +4929,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "cubes",
       "current": [
-        0.638095238095238,
-        0.6,
-        0.6219512195121951,
-        0.5760869565217391
+        0.4880952380952381,
+        0.5,
+        0.5057471264367817,
+        0.4942528735632184
       ],
       "prehub": [
         0.5,
@@ -4946,10 +4946,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "cubes",
       "current": [
-        44.332999999999956,
-        44.332999999999956,
-        46.667000000001124,
-        41.00000000000037
+        27.99999999999958,
+        33.33299999999895,
+        30.999999999998806,
+        30.999999999998806
       ],
       "prehub": [
         27.967000000000297,
@@ -4963,9 +4963,9 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "cubes",
       "current": [
-        0.4925373134328358,
         0.5074626865671642,
-        0.47761194029850745,
+        0.5074626865671642,
+        0.5074626865671642,
         0.5072463768115942
       ],
       "prehub": [
@@ -4980,10 +4980,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "cubes",
       "current": [
-        0.05714285714285714,
         0,
-        0.058823529411764705,
-        0.027777777777777776
+        0,
+        0,
+        0
       ],
       "prehub": [
         0,
@@ -4997,10 +4997,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "cubes",
       "current": [
-        27.57100000000179,
-        27.57100000000179,
-        29.714499999999422,
-        29.57100000000068
+        16.142999999999574,
+        14.499999999999957,
+        14.499999999999957,
+        13.557000000000485
       ],
       "prehub": [
         14.286000000000243,
@@ -5017,7 +5017,7 @@
         0.49122807017543857,
         0.49122807017543857,
         0.49122807017543857,
-        0.3728813559322034
+        0.4915254237288136
       ],
       "prehub": [
         0.4915254237288136,
@@ -5031,10 +5031,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "cubes",
       "current": [
-        0.6164383561643836,
-        0.6363636363636364,
-        0.654320987654321,
-        0.717948717948718
+        0.6585365853658537,
+        0.6585365853658537,
+        0.6585365853658537,
+        0.6419753086419753
       ],
       "prehub": [
         0.6282051282051282,
@@ -5048,10 +5048,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "cubes",
       "current": [
-        39.00000000000148,
-        39.00000000000148,
-        43.99999999999915,
-        50.69999999999997
+        27.99999999999958,
+        28.00000000000047,
+        28.00000000000047,
+        30.999999999998806
       ],
       "prehub": [
         30.999999999998806,
@@ -5065,10 +5065,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "current": [
-        0.3815789473684211,
-        0.3684210526315789,
-        0.3684210526315789,
-        0.39473684210526316
+        0.6578947368421053,
+        0.5921052631578947,
+        0.6578947368421053,
+        0.6052631578947368
       ],
       "prehub": [
         0.5394736842105263,
@@ -5082,10 +5082,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "current": [
-        0.6741573033707865,
-        0.7021276595744681,
-        0.6888888888888889,
-        0.6666666666666666
+        0.4318181818181818,
+        0.4943820224719101,
+        0.47368421052631576,
+        0.5053763440860215
       ],
       "prehub": [
         0.5494505494505495,
@@ -5099,10 +5099,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "current": [
-        67.83333333333452,
-        60.33333333333424,
-        67.66666666666765,
-        59.99999999999872
+        46.666666666667744,
+        48.99999999999949,
+        49.36666666666767,
+        48.99999999999949
       ],
       "prehub": [
         50.666666666666416,
@@ -5117,9 +5117,9 @@
       "visualizer": "cubes",
       "current": [
         0.11428571428571428,
-        0.07142857142857142,
-        0.08571428571428572,
-        0.1
+        0.11428571428571428,
+        0.1,
+        0.14285714285714285
       ],
       "prehub": [
         0.11428571428571428,
@@ -5133,10 +5133,10 @@
       "track": "lonley.wav",
       "visualizer": "cubes",
       "current": [
-        0.84,
-        0.8979591836734694,
-        0.875,
-        0.8372093023255814
+        0.813953488372093,
+        0.8181818181818182,
+        0.8444444444444444,
+        0.7727272727272727
       ],
       "prehub": [
         0.8181818181818182,
@@ -5150,10 +5150,10 @@
       "track": "lonley.wav",
       "visualizer": "cubes",
       "current": [
-        57.00000000000216,
-        64.00000000000361,
-        62.83333333333729,
-        62.666666666669535
+        62.83333333333463,
+        62.83333333333463,
+        74.8333333333342,
+        54.483333333335
       ],
       "prehub": [
         70.70000000000132,
@@ -5167,10 +5167,10 @@
       "track": "summer2000.wav",
       "visualizer": "cubes",
       "current": [
-        0.01694915254237288,
         0.03389830508474576,
-        0.01694915254237288,
-        0.01694915254237288
+        0.03389830508474576,
+        0.03389830508474576,
+        0.03389830508474576
       ],
       "prehub": [
         0.03389830508474576,
@@ -5184,10 +5184,10 @@
       "track": "summer2000.wav",
       "visualizer": "cubes",
       "current": [
-        0.9787234042553191,
-        0.9574468085106383,
-        0.9782608695652174,
-        0.975
+        0.9583333333333334,
+        0.9622641509433962,
+        0.9534883720930233,
+        0.95
       ],
       "prehub": [
         0.9583333333333334,
@@ -5201,10 +5201,10 @@
       "track": "summer2000.wav",
       "visualizer": "cubes",
       "current": [
-        145.50000000000017,
-        148.00000000000148,
-        160.16666666666703,
-        119.00000000000155
+        140.00000000000057,
+        129.66666666666882,
+        148.33333333333343,
+        140.00000000000057
       ],
       "prehub": [
         148.00000000000148,
@@ -5239,10 +5239,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "cubes",
       "current": [
-        0.125,
-        0.125,
-        0.125,
-        0.125
+        0.16071428571428573,
+        0.19642857142857142,
+        0.16071428571428573,
+        0.16071428571428573
       ],
       "prehub": [
         0.17857142857142858,
@@ -5256,10 +5256,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "cubes",
       "current": [
-        0.8541666666666666,
-        0.8409090909090909,
-        0.851063829787234,
-        0.8444444444444444
+        0.8043478260869565,
+        0.7555555555555555,
+        0.7906976744186046,
+        0.7906976744186046
       ],
       "prehub": [
         0.782608695652174,
@@ -5273,10 +5273,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "cubes",
       "current": [
-        89.16666666666816,
-        88.33333333333115,
-        91.98333333333464,
-        99.66666666665702
+        68.00000000000095,
+        77.16666666666706,
+        78.33333333333314,
+        78.70000000000088
       ],
       "prehub": [
         78.70000000000088,
@@ -5290,10 +5290,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "current": [
-        0.4098360655737705,
-        0.4262295081967213,
-        0.3770491803278688,
-        0.4032258064516129
+        0.639344262295082,
+        0.6557377049180327,
+        0.6065573770491803,
+        0.6612903225806451
       ],
       "prehub": [
         0.6290322580645161,
@@ -5307,10 +5307,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "current": [
-        0.6153846153846154,
-        0.6029411764705882,
-        0.6417910447761194,
-        0.6212121212121212
+        0.3709677419354839,
+        0.375,
+        0.4307692307692308,
+        0.359375
       ],
       "prehub": [
         0.4,
@@ -5324,10 +5324,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "current": [
-        60.0000000000005,
-        58.83333333333507,
-        60.00000000000183,
-        57.3333333333359
+        42.85000000000316,
+        47.0000000000006,
+        38.85000000000139,
+        49.00000000000038
       ],
       "prehub": [
         41.33333333333411,
@@ -5341,9 +5341,9 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "cubes",
       "current": [
-        0.011764705882352941,
-        0.011764705882352941,
-        0,
+        0.023809523809523808,
+        0.023809523809523808,
+        0.023809523809523808,
         0.011764705882352941
       ],
       "prehub": [
@@ -5358,10 +5358,10 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "cubes",
       "current": [
-        0.9375,
-        0.9411764705882353,
-        1,
-        0.9333333333333333
+        0.8888888888888888,
+        0.8571428571428571,
+        0.8947368421052632,
+        0.9444444444444444
       ],
       "prehub": [
         0.9444444444444444,
@@ -5375,10 +5375,10 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "cubes",
       "current": [
-        118.63333333333514,
-        113.31666666666918,
-        113.33333333333462,
-        110.66666666666691
+        92.0000000000023,
+        97.33333333333417,
+        97.00000000000131,
+        108.00000000000054
       ],
       "prehub": [
         101.33333333333638,
@@ -5395,7 +5395,7 @@
         0.17142857142857143,
         0.14285714285714285,
         0.14285714285714285,
-        0.2
+        0.17142857142857143
       ],
       "prehub": [
         0.17142857142857143,
@@ -5409,10 +5409,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "cubes",
       "current": [
-        0.8888888888888888,
+        0.8867924528301887,
+        0.9090909090909091,
         0.9038461538461539,
-        0.9107142857142857,
-        0.8793103448275862
+        0.8947368421052632
       ],
       "prehub": [
         0.8888888888888888,
@@ -5426,10 +5426,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "cubes",
       "current": [
-        28.00000000000047,
-        57.516666666668215,
-        47.0000000000006,
-        33.3333333333341
+        39.00000000000148,
+        27.983333333334137,
+        28.000000000002245,
+        25.33333333333543
       ],
       "prehub": [
         28.00000000000047,
@@ -5464,10 +5464,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "current": [
+        0.3783783783783784,
         0.32432432432432434,
         0.32432432432432434,
-        0.2972972972972973,
-        0.2702702702702703
+        0.35135135135135137
       ],
       "prehub": [
         0.35135135135135137,
@@ -5481,10 +5481,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "current": [
-        0.8,
-        0.8,
-        0.8135593220338984,
-        0.8360655737704918
+        0.7777777777777778,
+        0.7966101694915254,
+        0.7931034482758621,
+        0.7719298245614035
       ],
       "prehub": [
         0.7796610169491526,
@@ -5498,10 +5498,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "current": [
-        57.000000000000384,
-        50.50000000000221,
-        47.0000000000006,
-        55.833333333334956
+        53.3500000000009,
+        46.666666666666856,
+        48.01666666666904,
+        46.666666666666856
       ],
       "prehub": [
         46.8333333333355,
@@ -5515,10 +5515,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "cubes",
       "current": [
-        0.125,
-        0.14285714285714285,
-        0.16071428571428573,
-        0.10714285714285714
+        0.10714285714285714,
+        0.08928571428571429,
+        0.08928571428571429,
+        0.14285714285714285
       ],
       "prehub": [
         0.14285714285714285,
@@ -5532,10 +5532,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "cubes",
       "current": [
-        0.825,
-        0.8,
-        0.7804878048780488,
-        0.8461538461538461
+        0.8421052631578947,
+        0.8780487804878049,
+        0.868421052631579,
+        0.7948717948717948
       ],
       "prehub": [
         0.8,
@@ -5549,10 +5549,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "cubes",
       "current": [
-        228.0333333333351,
-        233.1666666666683,
         220.33333333333616,
-        217.66666666666978
+        220.33333333333616,
+        220.33333333333616,
+        227.6666666666678
       ],
       "prehub": [
         222.83333333333564,
@@ -5797,10 +5797,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        7.2693,
-        9.687999999999999,
-        8.0217,
-        5.76
+        4.8506,
+        5.6080000000000005,
+        5.6,
+        4.901299999999999
       ],
       "prehub": [
         4.901299999999999,
@@ -5814,10 +5814,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.062309999999999977,
-        0.06470150000000008,
-        0.06231000000000009,
-        0.49967000000000006
+        0.06410400000000005,
+        0.06373399999999996,
+        0.06373399999999996,
+        0.49977000000000005
       ],
       "prehub": [
         0.4995839999999998,
@@ -5831,10 +5831,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2107,
-        3.2,
-        3.3093,
-        3.16
+        3.2187,
+        3.32,
+        3.32,
+        3.1707
       ],
       "prehub": [
         3.1707,
@@ -5849,9 +5849,9 @@
       "visualizer": "dancing-character",
       "current": [
         0,
-        0,
-        0.6382978723404256,
-        0.6938775510204082
+        0.723404255319149,
+        0.723404255319149,
+        0
       ],
       "prehub": [
         0,
@@ -5866,9 +5866,9 @@
       "visualizer": "dancing-character",
       "current": [
         1,
-        1,
         0,
-        0
+        0,
+        1
       ],
       "prehub": [
         1,
@@ -5883,9 +5883,9 @@
       "visualizer": "dancing-character",
       "current": [
         null,
-        null,
-        38.999999999997925,
-        31.00000000000236
+        38.9999999999997,
+        31.000000000000583,
+        null
       ],
       "prehub": [
         null,
@@ -5899,10 +5899,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        7.938299999999999,
-        4.64,
-        8.389,
-        4.672
+        3.8693,
+        3.8907,
+        3.8693,
+        3.92
       ],
       "prehub": [
         4.2213,
@@ -5916,10 +5916,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.00270999999999999,
-        0.003435000000000077,
-        0.0029449999999999754,
-        0.49927999999999995
+        0.003694999999999893,
+        0.0038199999999999346,
+        0.004969999999999919,
+        0.49939999999999984
       ],
       "prehub": [
         0.49941000000000013,
@@ -5933,10 +5933,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
+        3.2187,
+        3.208,
         3.2107,
-        3.2107,
-        3.2,
-        3.16
+        3.1707
       ],
       "prehub": [
         3.16,
@@ -5950,10 +5950,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        0,
-        0,
-        0,
-        0
+        0.7704918032786885,
+        0.7377049180327869,
+        0.7868852459016393,
+        0.7301587301587301
       ],
       "prehub": [
         0,
@@ -5967,10 +5967,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        1,
-        1,
-        1,
-        1
+        0.020833333333333332,
+        0.0625,
+        0,
+        0.041666666666666664
       ],
       "prehub": [
         1,
@@ -5984,10 +5984,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        null,
-        null,
-        null,
-        null
+        34.275000000000055,
+        37.74999999999995,
+        29.149999999999565,
+        34.74999999999984
       ],
       "prehub": [
         null,
@@ -6001,10 +6001,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        6.141299999999999,
-        6.141299999999999,
-        4.5386,
-        4.5706
+        4.4,
+        4.52,
+        5.168,
+        5.210699999999999
       ],
       "prehub": [
         3.5999999999999996,
@@ -6018,10 +6018,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.063975,
-        0.0019400000000000528,
-        0.0018300500000001385,
-        0.49087499999999995
+        0.00452499999999989,
+        0.0019449999999999745,
+        0.001354999999999995,
+        0.49088999999999994
       ],
       "prehub": [
         0.49205999999999994,
@@ -6035,10 +6035,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2187,
+        3.32,
         3.208,
         3.2107,
-        3.1707
+        3.16
       ],
       "prehub": [
         3.1707,
@@ -6052,10 +6052,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.15714285714285714,
-        0.38571428571428573,
-        0.4142857142857143,
-        0.1780821917808219
+        0.7428571428571429,
+        0.7571428571428571,
+        0,
+        0
       ],
       "prehub": [
         0,
@@ -6069,10 +6069,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.7708333333333334,
-        0.4489795918367347,
-        0.46296296296296297,
-        0.7547169811320755
+        0.037037037037037035,
+        0,
+        1,
+        1
       ],
       "prehub": [
         1,
@@ -6086,10 +6086,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        78.99999999999885,
-        49.00000000000304,
-        49.29999999999968,
-        70.8499999999992
+        28.000000000002245,
+        38.69999999999951,
+        null,
+        null
       ],
       "prehub": [
         null,
@@ -6145,10 +6145,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        5.869300000000001,
-        5.8614,
+        5.872,
         5.8507,
-        5.720000000000001
+        5.8506,
+        5.68
       ],
       "prehub": [
         5.68,
@@ -6162,10 +6162,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.00833499999999987,
-        0.01668499999999995,
-        0.008335000000000203,
-        0.49659849999999994
+        0.016144999999999965,
+        0.003774999999999973,
+        0.003775000000000084,
+        0.4966818500000001
       ],
       "prehub": [
         0.49850287000000004,
@@ -6179,9 +6179,9 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
+        3.328,
+        3.3493,
         3.3387,
-        3.3493,
-        3.3493,
         3.1707
       ],
       "prehub": [
@@ -6196,9 +6196,9 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.40476190476190477,
-        0.40476190476190477,
-        0.5238095238095238,
+        0.6904761904761905,
+        0.6904761904761905,
+        0.7142857142857143,
         0
       ],
       "prehub": [
@@ -6213,9 +6213,9 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.43333333333333335,
-        0.43333333333333335,
-        0.2413793103448276,
+        0.03333333333333333,
+        0.03333333333333333,
+        0,
         1
       ],
       "prehub": [
@@ -6230,9 +6230,9 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        48.99999999999949,
-        48.99999999999949,
-        46.66699999999935,
+        35.667000000000115,
+        35.667000000000115,
+        35.667000000000115,
         null
       ],
       "prehub": [
@@ -6247,10 +6247,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
+        4.92,
         5.04,
-        5.039999999999999,
         5.0213,
-        5.0587
+        5.032
       ],
       "prehub": [
         5.039999999999999,
@@ -6264,10 +6264,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.005594999999999906,
-        0.005732249999999994,
-        0.004055000000000142,
-        0.49616499999999997
+        0.006390499999999966,
+        0.003855000000000164,
+        0.004955000000000265,
+        0.49866999999999995
       ],
       "prehub": [
         0.49477839999999995,
@@ -6281,10 +6281,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
+        3.3093,
         3.2,
         3.208,
-        3.2187,
-        3.1813
+        3.1893
       ],
       "prehub": [
         3.1813,
@@ -6298,10 +6298,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.5454545454545454,
-        0.7272727272727273,
-        0.6818181818181818,
-        0.6956521739130435
+        0.7424242424242424,
+        0.7424242424242424,
+        0.7424242424242424,
+        0.7101449275362319
       ],
       "prehub": [
         0.7101449275362319,
@@ -6315,10 +6315,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2653061224489796,
-        0.02040816326530612,
-        0.08163265306122448,
-        0.04
+        0,
+        0,
+        0,
+        0
       ],
       "prehub": [
         0,
@@ -6332,10 +6332,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        44.71399999999903,
-        37.14300000000037,
-        37.571000000001575,
-        36.000000000001364
+        21.85700000000068,
+        25.71400000000068,
+        22.28600000000114,
+        23.856999999999573
       ],
       "prehub": [
         23.856999999999573,
@@ -6349,9 +6349,9 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        4.339,
         4.32,
-        4.339,
+        4.32,
+        4.32,
         4.3492999999999995
       ],
       "prehub": [
@@ -6366,10 +6366,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.0031200000000000117,
-        0.003354499999999927,
-        0.002475000000000005,
-        0.4728450000000002
+        0.0017899999999999583,
+        0.003530000000000033,
+        0.12332100000000001,
+        0.47277000000000013
       ],
       "prehub": [
         0.4712479999999999,
@@ -6383,9 +6383,9 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
         8.208,
         8.2,
+        8.208,
         8.1707
       ],
       "prehub": [
@@ -6400,10 +6400,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.3157894736842105,
         0.5614035087719298,
-        0.3508771929824561,
-        0.2711864406779661
+        0.5789473684210527,
+        0.5714285714285714,
+        0.5423728813559322
       ],
       "prehub": [
         0.576271186440678,
@@ -6417,10 +6417,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.47058823529411764,
         0.058823529411764705,
-        0.3939393939393939,
-        0.5294117647058824
+        0.029411764705882353,
+        0.058823529411764705,
+        0.058823529411764705
       ],
       "prehub": [
         0,
@@ -6434,10 +6434,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        48.99999999999949,
-        39.50000000000031,
-        48.99999999999949,
-        50.99999999999838
+        39.00000000000148,
+        28.999999999999915,
+        39.00000000000148,
+        32.00000000000003
       ],
       "prehub": [
         32.00000000000003,
@@ -6451,10 +6451,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        4.56,
-        4.5493,
-        4.5413,
-        4.592
+        4.52,
+        4.5386999999999995,
+        4.52,
+        4.5706999999999995
       ],
       "prehub": [
         4.5706999999999995,
@@ -6468,10 +6468,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.003833999999999893,
-        0.006469999999999976,
-        0.004529999999999923,
-        0.49006400000000006
+        0.006805000000000061,
+        0.007449999999999957,
+        0.007600000000000051,
+        0.49172499999999997
       ],
       "prehub": [
         0.490409,
@@ -6485,9 +6485,9 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2,
-        3.2107,
         3.2187,
+        3.2,
+        3.2293,
         3.16
       ],
       "prehub": [
@@ -6502,10 +6502,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2631578947368421,
-        0.2236842105263158,
-        0.21052631578947367,
-        0.15789473684210525
+        0.4342105263157895,
+        0.39473684210526316,
+        0.39473684210526316,
+        0.2894736842105263
       ],
       "prehub": [
         0.27631578947368424,
@@ -6519,10 +6519,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.6610169491525424,
-        0.7166666666666667,
-        0.7288135593220338,
-        0.7966101694915254
+        0.45901639344262296,
+        0.5,
+        0.4915254237288136,
+        0.6271186440677966
       ],
       "prehub": [
         0.6440677966101694,
@@ -6536,10 +6536,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        70.66666666666777,
-        68.33333333333513,
-        70.83333333333286,
-        61.50000000000233
+        49.66666666666342,
+        57.3333333333359,
+        53.50000000000321,
+        52.00000000000227
       ],
       "prehub": [
         55.833333333330515,
@@ -6553,10 +6553,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        5.6187000000000005,
-        5.629300000000001,
-        5.618300000000001,
-        5.6693
+        5.490300000000001,
+        5.600300000000001,
+        5.600300000000001,
+        5.651000000000002
       ],
       "prehub": [
         5.672000000000001,
@@ -6570,10 +6570,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.006005499999999886,
-        0.0046800000000000175,
-        0.005144999999999955,
-        0.49565499999999996
+        0.005549999999999944,
+        0.003829999999999778,
+        0.00448499999999985,
+        0.49151100000000003
       ],
       "prehub": [
         0.4968619999999999,
@@ -6587,10 +6587,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2213,
-        8.2107,
-        8.2107,
-        8.1707
+        8.3387,
+        8.2187,
+        8.2187,
+        8.168
       ],
       "prehub": [
         8.16,
@@ -6604,10 +6604,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2,
-        0.18571428571428572,
-        0.24285714285714285,
-        0.17142857142857143
+        0.2857142857142857,
+        0.3,
+        0.2857142857142857,
+        0.32857142857142857
       ],
       "prehub": [
         0.21428571428571427,
@@ -6621,10 +6621,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.6410256410256411,
-        0.675,
-        0.575,
-        0.7
+        0.48717948717948717,
+        0.46153846153846156,
+        0.48717948717948717,
+        0.425
       ],
       "prehub": [
         0.625,
@@ -6638,10 +6638,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        68.00000000000495,
-        67.66666666666765,
-        60.333333333336014,
-        89.00000000000219
+        57.00000000000216,
+        49.66666666667052,
+        57.00000000000216,
+        47.00000000000415
       ],
       "prehub": [
         60.000000000002274,
@@ -6655,10 +6655,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        9.709,
-        8.64,
-        12.4103,
-        6.92
+        7.290700000000001,
+        6.968300000000001,
+        7.9123,
+        7.491
       ],
       "prehub": [
         8.789000000000001,
@@ -6672,10 +6672,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.13376100000000002,
-        0.06494650000000002,
-        0.12285950000000012,
-        0.49716499999999986
+        0.1263479999999999,
+        0.066805,
+        0.06298000000000004,
+        0.4875800000000001
       ],
       "prehub": [
         0.48362000000000005,
@@ -6689,9 +6689,9 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.32,
-        8.2,
+        8.3493,
         8.2107,
+        8.2187,
         8.16
       ],
       "prehub": [
@@ -6706,10 +6706,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2033898305084746,
-        0,
-        0,
-        0
+        0.15254237288135594,
+        0.1694915254237288,
+        0.15254237288135594,
+        0.11864406779661017
       ],
       "prehub": [
         0.01694915254237288,
@@ -6723,10 +6723,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.5,
-        1,
-        1,
-        1
+        0.6896551724137931,
+        0.6666666666666666,
+        0.6785714285714286,
+        0.75
       ],
       "prehub": [
         0.9615384615384616,
@@ -6740,10 +6740,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        19.666666666669386,
-        198.3333333333377,
-        230.33333333333417,
-        198.66666666666788
+        9.666666666667822,
+        13.666666666667382,
+        13.666666666667382,
+        10.666666666669045
       ],
       "prehub": [
         9.333333333334082,
@@ -6757,10 +6757,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        6.640000000000001,
-        6.640000000000001,
-        4.520300000000001,
-        6.699000000000002
+        4.4902999999999995,
+        6.218299999999999,
+        4.479699999999999,
+        4.541
       ],
       "prehub": [
         4.5489999999999995,
@@ -6774,10 +6774,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.003595000000000015,
-        0.003190000000000026,
-        0.0038365000000000204,
-        0.48716899999999996
+        0.01538000000000006,
+        0.03102999999999989,
+        0.016525000000000123,
+        0.4798549999999999
       ],
       "prehub": [
         0.49519500000000005,
@@ -6791,10 +6791,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
-        8.2,
-        8.2107,
-        8.152
+        8.2187,
+        8.2507,
+        8.2293,
+        8.168
       ],
       "prehub": [
         8.16,
@@ -6808,10 +6808,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.28125,
-        0.3125,
-        0.015625,
-        0.296875
+        0.25,
+        0.21875,
+        0.15625,
+        0.15625
       ],
       "prehub": [
         0.109375,
@@ -6825,10 +6825,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.5,
-        0.4444444444444444,
-        0.975609756097561,
-        0.4594594594594595
+        0.6097560975609756,
+        0.5945945945945946,
+        0.7560975609756098,
+        0.7380952380952381
       ],
       "prehub": [
         0.8095238095238095,
@@ -6842,10 +6842,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        17.166666666668107,
-        9.666666666671375,
-        137.00000000000045,
-        49.00000000000304
+        73.33333333333591,
+        68.33333333333513,
+        108.00000000000054,
+        87.0000000000033
       ],
       "prehub": [
         115.99999999999966,
@@ -6859,10 +6859,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        15.04,
-        15.9603,
-        15.0293,
-        17.12
+        16.451,
+        16.448,
+        14.6983,
+        18.0103
       ],
       "prehub": [
         16.501,
@@ -6876,10 +6876,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.07767000000000002,
-        0.07801000000000002,
-        0.4224834999999998,
-        0.49207999999999985
+        0.015844999999999998,
+        0.014764999999999917,
+        0.3479945,
+        0.48814000000000013
       ],
       "prehub": [
         0.49143000000000003,
@@ -6893,10 +6893,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
+        8.208,
         8.2,
         8.2107,
-        8.2107,
-        8.16
+        8.1707
       ],
       "prehub": [
         8.16,
@@ -6910,10 +6910,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.07142857142857142,
         0,
-        0.07142857142857142,
-        0
+        0,
+        0,
+        0.08928571428571429
       ],
       "prehub": [
         0,
@@ -6927,10 +6927,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.7894736842105263,
         1,
-        0.7894736842105263,
-        1
+        1,
+        1,
+        0.6666666666666666
       ],
       "prehub": [
         1,
@@ -6944,10 +6944,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        98.6666666666629,
-        null,
-        93.33333333333371,
-        228.0000000000051
+        228.00000000000153,
+        217.33333333332894,
+        97.00000000000131,
+        9.333333333323424
       ],
       "prehub": [
         220.00000000000242,
@@ -6961,9 +6961,9 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        4.0693,
-        3.9493000000000005,
-        4.0907,
+        4.0506,
+        4.0506,
+        4.040000000000001,
         4.12
       ],
       "prehub": [
@@ -6978,10 +6978,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.004850000000000021,
-        0.06296000000000002,
-        0.00753999999999988,
-        0.47886699999999993
+        0.0037205000000000155,
+        0.002535000000000065,
+        0.0035449999999999093,
+        0.4779445
       ],
       "prehub": [
         0.48456600000000005,
@@ -6995,10 +6995,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2107,
-        3.32,
-        3.2,
-        3.168
+        3.2187,
+        3.2187,
+        3.2213,
+        3.1413
       ],
       "prehub": [
         3.16,
@@ -7012,10 +7012,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2786885245901639,
-        0.29508196721311475,
-        0.2786885245901639,
-        0.27419354838709675
+        0.4098360655737705,
+        0.4098360655737705,
+        0.4426229508196721,
+        0.45161290322580644
       ],
       "prehub": [
         0.43548387096774194,
@@ -7029,10 +7029,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.6382978723404256,
-        0.6170212765957447,
-        0.6304347826086957,
-        0.6304347826086957
+        0.46808510638297873,
+        0.46808510638297873,
+        0.425531914893617,
+        0.40425531914893614
       ],
       "prehub": [
         0.41304347826086957,
@@ -7046,10 +7046,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        60.166666666669144,
-        60.333333333336014,
-        64.00000000000183,
-        67.66666666666943
+        49.66666666667052,
+        49.66666666667052,
+        49.33333333333678,
+        49.166666666668135
       ],
       "prehub": [
         49.1500000000018,
@@ -7063,8 +7063,8 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        12.811,
-        null,
+        6.650600000000001,
+        6.650600000000001,
         null,
         null
       ],
@@ -7080,10 +7080,10 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.005414999999999948,
-        0.258166,
-        0.005225000000000035,
-        0.3741749999999999
+        0.48982000000000003,
+        0.48234999999999995,
+        0.21876499999999988,
+        0.30183000000000004
       ],
       "prehub": [
         0.3739299999999999,
@@ -7097,9 +7097,9 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
-        8.3093,
-        8.2,
+        3.2187,
+        3.2187,
+        8.2107,
         8.16
       ],
       "prehub": [
@@ -7114,8 +7114,8 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        0,
-        null,
+        0.047619047619047616,
+        0.047619047619047616,
         null,
         null
       ],
@@ -7131,8 +7131,8 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        1,
-        null,
+        0.9130434782608695,
+        0.9130434782608695,
         null,
         null
       ],
@@ -7148,8 +7148,8 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        119.00000000000333,
-        null,
+        111.00000000000065,
+        108.00000000000054,
         null,
         null
       ],
@@ -7165,10 +7165,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        12.8107,
-        16.7097,
-        12.8107,
-        17.328
+        17.819,
+        17.258300000000002,
+        17.8003,
+        20.251
       ],
       "prehub": [
         17.301000000000002,
@@ -7182,10 +7182,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.02721499999999999,
-        0.47146999999999994,
-        0.02727999999999997,
-        0.02721499999999999
+        0.33353,
+        0.11103499999999977,
+        0.10875499999999994,
+        0.10875500000000016
       ],
       "prehub": [
         0.09177999999999997,
@@ -7199,10 +7199,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2213,
-        8.2213,
-        8.2213,
-        3.16
+        3.2,
+        3.2107,
+        3.2107,
+        3.168
       ],
       "prehub": [
         3.168,
@@ -7250,9 +7250,9 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        166.66666666666785,
         null,
-        166.66666666666785,
+        null,
+        null,
         null
       ],
       "prehub": [
@@ -7284,10 +7284,10 @@
       "track": "6-8-time.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.3612199999999999,
-        0.33545,
-        0.3162950000000002,
-        0.35896499999999987
+        0.37821630000000006,
+        0.42857499999999993,
+        0.39391599999999993,
+        0.4790650000000001
       ],
       "prehub": [
         0.35914999999999986,
@@ -7301,10 +7301,10 @@
       "track": "6-8-time.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.32,
         8.2107,
-        8.2,
-        8.152
+        8.208,
+        8.36,
+        8.168
       ],
       "prehub": [
         8.168,
@@ -7369,10 +7369,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        10.739,
-        10.738700000000001,
-        10.6403,
-        10.5497
+        10.7307,
+        10.7413,
+        10.650300000000001,
+        9.530300000000002
       ],
       "prehub": [
         10.741000000000001,
@@ -7386,10 +7386,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.1327750000000001,
-        0.25183500000000003,
-        0.11858499999999994,
-        0.48499800000000004
+        0.4896750000000001,
+        0.011074999999999946,
+        0.014720000000000066,
+        0.49322999999999995
       ],
       "prehub": [
         0.489155,
@@ -7403,10 +7403,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.232,
-        8.2213,
-        8.3307,
-        8.4213
+        8.2293,
+        8.2187,
+        8.2987,
+        9.4187
       ],
       "prehub": [
         8.208,
@@ -7420,10 +7420,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.10810810810810811,
-        0.05405405405405406,
         0.13513513513513514,
-        0.13513513513513514
+        0.16216216216216217,
+        0.1891891891891892,
+        0.08108108108108109
       ],
       "prehub": [
         0.13513513513513514,
@@ -7437,10 +7437,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.8260869565217391,
-        0.9130434782608695,
         0.782608695652174,
-        0.7916666666666666
+        0.7391304347826086,
+        0.6956521739130435,
+        0.8695652173913043
       ],
       "prehub": [
         0.7916666666666666,
@@ -7454,10 +7454,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        89.00000000000219,
-        89.33333333333238,
-        78.66666666666688,
-        78.66666666667044
+        65.66666666666876,
+        67.66666666666765,
+        57.66666666666964,
+        76.33333333333425
       ],
       "prehub": [
         75.66666666667032,
@@ -7471,10 +7471,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        4.618300000000001,
-        4.6213,
-        4.619,
-        5.488
+        4.6083,
+        9.6103,
+        4.6083,
+        5.4799999999999995
       ],
       "prehub": [
         5.4907,
@@ -7488,10 +7488,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.04963000000000006,
-        0.11192000000000002,
-        0.054769999999999985,
-        0.4989943
+        0.220765,
+        0.4966849999999998,
+        0.22086499999999998,
+        0.49835095000000007
       ],
       "prehub": [
         0.49831500000000006,
@@ -7506,8 +7506,8 @@
       "visualizer": "dancing-character",
       "current": [
         8.2907,
-        8.2987,
-        8.312,
+        3.2987,
+        8.2907,
         3.2
       ],
       "prehub": [
@@ -7522,9 +7522,9 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.42857142857142855,
-        0.44642857142857145,
-        0.48214285714285715,
+        0.30357142857142855,
+        0,
+        0.30357142857142855,
         0
       ],
       "prehub": [
@@ -7539,9 +7539,9 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.29411764705882354,
-        0.2647058823529412,
-        0.20588235294117646,
+        0.5,
+        1,
+        0.5,
         1
       ],
       "prehub": [
@@ -7556,10 +7556,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        9.666666666671375,
-        9.666666666671375,
-        19.83333333333448,
-        238.66666666667058
+        17.000000000001236,
+        243.0000000000021,
+        16.99999999999946,
+        232.16666666666796
       ],
       "prehub": [
         238.66666666667058,

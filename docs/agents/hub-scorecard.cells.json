@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 7,
-    "revision": "13f4f34",
-    "created": "2026-11-19T18:43:35.531Z",
+    "revision": "1493adf",
+    "created": "2026-11-19T20:20:48.086Z",
     "sidecarHashes": {
       "6-8-time.wav": "9ce3c12d1ee614a1b947adb52e32663ed07716c6d45effd67ff04167b3b61ed8",
       "click-120.wav": "c1da26467ef8490858e599dc3647e25f32b69234b1f2fe2b24b420830e309cb7",
@@ -2624,8 +2624,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.24174749999999995,
-      "value": 0.34720749999999995,
-      "spread": 0.04492499999999966,
+      "value": 0.41124549999999993,
+      "spread": 0.10084870000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2743,8 +2743,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.059826499999999894,
-      "value": 0.083345,
-      "spread": 0.44936429999999994,
+      "value": 0.3587749999999999,
+      "spread": 0.2775859500000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2811,8 +2811,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2882625,
-      "value": 0.19230500000000006,
-      "spread": 0.3664130000000001,
+      "value": 0.2521975000000001,
+      "spread": 0.482155,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2828,8 +2828,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0026574999999999793,
-      "value": 0.13179049999999998,
-      "spread": 0.3689499999999999,
+      "value": 0.39209,
+      "spread": 0.27105500000000016,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2845,8 +2845,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.006602500000000122,
-      "value": 0.005499999999999949,
-      "spread": 0.48623000000000016,
+      "value": 0.007525000000000004,
+      "spread": 0.4849199999999999,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2862,8 +2862,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.003605000000000025,
-      "value": 0.0055752499999999205,
-      "spread": 0.49097499999999994,
+      "value": 0.005017499999999897,
+      "spread": 0.48768100000000025,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2879,11 +2879,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.002102499999999896,
-      "value": 0.02724749999999998,
-      "spread": 0.44425499999999996,
+      "value": 0.10989499999999996,
+      "spread": 0.22477500000000006,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.clip.maxDeviationLoops",
@@ -2930,8 +2930,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.1425209999999999,
-      "value": 0.12831025000000007,
-      "spread": 0.43221849999999984,
+      "value": 0.09657649999999995,
+      "spread": 0.4246000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2947,8 +2947,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.016415000000000013,
-      "value": 0.0037157500000000176,
-      "spread": 0.48397899999999994,
+      "value": 0.023777500000000007,
+      "spread": 0.46447499999999986,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2964,8 +2964,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0010025000000000728,
-      "value": 0.2502467499999999,
-      "spread": 0.41440999999999983,
+      "value": 0.18191975,
+      "spread": 0.4733750000000002,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -2981,11 +2981,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.006527500000000019,
-      "value": 0.03524999999999995,
-      "spread": 0.4740169999999999,
+      "value": 0.0036327499999999624,
+      "spread": 0.47540949999999993,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.clip.maxDeviationLoops",
@@ -3304,8 +3304,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8818433818433818,
-      "value": 0.8125,
-      "spread": 0.06566604127579734,
+      "value": 0.8552631578947368,
+      "spread": 0.08317698561601006,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3321,8 +3321,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5294117647058824,
-      "value": 0.27941176470588236,
-      "spread": 0.7941176470588236,
+      "value": 0.75,
+      "spread": 0.5,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3355,8 +3355,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7501000400160064,
-      "value": 0.7541393916056989,
-      "spread": 0.0935672514619883,
+      "value": 0.745,
+      "spread": 0.015971606033717833,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3406,8 +3406,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6524822695035462,
-      "value": 0.626453488372093,
-      "spread": 0.06141920095408471,
+      "value": 0.6444444444444445,
+      "spread": 0.036077235772357774,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3423,8 +3423,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.041666666666666664,
-      "value": 1,
-      "spread": 0,
+      "value": 0.03125,
+      "spread": 0.0625,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3457,8 +3457,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.3834610472541507,
-      "value": 0.39276595744680853,
-      "spread": 0.12193126022913259,
+      "value": 0.3614065180102916,
+      "spread": 0.03735849056603774,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3474,8 +3474,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.6088399720475193,
-      "spread": 0.3218537414965987,
+      "value": 0.5185185185185185,
+      "spread": 1,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3508,8 +3508,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7725464190981433,
-      "value": 0.8067796610169492,
-      "spread": 0.0360655737704918,
+      "value": 0.7854406130268199,
+      "spread": 0.024680344930121945,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3525,8 +3525,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7916666666666666,
-      "value": 0.8088768115942029,
-      "spread": 0.13043478260869557,
+      "value": 0.7608695652173914,
+      "spread": 0.17391304347826086,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3559,8 +3559,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.9354166666666667,
-      "value": 0.9393382352941176,
-      "spread": 0.06666666666666665,
+      "value": 0.8918128654970761,
+      "spread": 0.08730158730158732,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3576,9 +3576,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 1,
+      "value": 0.9130434782608695,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -3610,8 +3610,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4777777777777778,
-      "value": 0.6815230961298377,
-      "spread": 0.03546099290780147,
+      "value": 0.48403311649911296,
+      "spread": 0.07355816226783968,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3627,8 +3627,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.45464480874316937,
-      "value": 0.7227401129943503,
-      "spread": 0.13559322033898302,
+      "value": 0.4957627118644068,
+      "spread": 0.16810225062517364,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3661,8 +3661,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8172541743970316,
-      "value": 0.8574999999999999,
-      "spread": 0.060749881347887946,
+      "value": 0.8160676532769556,
+      "spread": 0.07171717171717173,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3678,8 +3678,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.47435897435897434,
-      "value": 0.6580128205128206,
-      "spread": 0.125,
+      "value": 0.47435897435897434,
+      "spread": 0.06217948717948718,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3712,8 +3712,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8972746331236897,
-      "value": 0.8963675213675213,
-      "spread": 0.03140394088669951,
+      "value": 0.8992914979757085,
+      "spread": 0.022298456260720356,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3831,8 +3831,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.9569444444444445,
-      "value": 0.9766304347826087,
-      "spread": 0.02127659574468077,
+      "value": 0.9559108527131783,
+      "spread": 0.01226415094339628,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3848,8 +3848,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.963527851458886,
-      "value": 1,
-      "spread": 0.5,
+      "value": 0.6841133004926109,
+      "spread": 0.08333333333333337,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3916,8 +3916,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8043478260869565,
-      "value": 0.8477541371158392,
-      "spread": 0.01325757575757569,
+      "value": 0.7906976744186046,
+      "spread": 0.048792270531401005,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3933,8 +3933,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8947368421052632,
-      "value": 0.8947368421052632,
-      "spread": 0.21052631578947367,
+      "value": 1,
+      "spread": 0.33333333333333337,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3967,8 +3967,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.403125,
-      "value": 0.6182983682983683,
-      "spread": 0.038849868305531166,
+      "value": 0.37298387096774194,
+      "spread": 0.0713942307692308,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3984,8 +3984,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4375,
-      "value": 0.6304347826086957,
-      "spread": 0.021276595744680882,
+      "value": 0.44680851063829785,
+      "spread": 0.06382978723404259,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4018,8 +4018,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5056818181818181,
-      "value": 0.6109756097560975,
-      "spread": 0.06200828157349891,
+      "value": 0.49712643678160917,
+      "spread": 0.017651888341543576,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4035,8 +4035,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.016666666666666666,
-      "value": 0.43333333333333335,
-      "spread": 0.7586206896551724,
+      "value": 0.03333333333333333,
+      "spread": 1,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4069,8 +4069,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.04246031746031746,
-      "spread": 0.058823529411764705,
+      "value": 0,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4086,8 +4086,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.06081632653061224,
-      "spread": 0.2448979591836735,
+      "value": 0,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4120,8 +4120,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6666194188518781,
-      "value": 0.6453423120089787,
-      "spread": 0.10151036178433437,
+      "value": 0.6585365853658537,
+      "spread": 0.016561276723878415,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4137,8 +4137,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.029411764705882353,
-      "value": 0.4322638146167558,
-      "spread": 0.47058823529411764,
+      "value": 0.058823529411764705,
+      "spread": 0.029411764705882353,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4290,8 +4290,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.5997,
-      "value": 4.62015,
-      "spread": 0.869699999999999,
+      "value": 5.04415,
+      "spread": 5.002000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4307,8 +4307,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.8599499999999995,
-      "value": 7.6455,
-      "spread": 3.927999999999999,
+      "value": 5.250649999999999,
+      "spread": 0.7574000000000005,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4324,11 +4324,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 3.8907,
-      "value": 6.305149999999999,
-      "spread": 3.7489999999999997,
+      "value": 3.88,
+      "spread": 0.05069999999999997,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.gate.secondsAfterLock",
@@ -4341,8 +4341,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.52,
-      "value": 5.35595,
-      "spread": 1.6026999999999996,
+      "value": 4.843999999999999,
+      "spread": 0.8106999999999989,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4358,8 +4358,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 10.73985,
-      "value": 10.6895,
-      "spread": 0.18930000000000113,
+      "value": 10.6905,
+      "spread": 1.2109999999999985,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4375,9 +4375,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 12.811,
+      "value": 6.650600000000001,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "fail"
     },
@@ -4392,7 +4392,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.53865,
-      "value": 4.55465,
+      "value": 4.529349999999999,
       "spread": 0.05069999999999997,
       "runs": 4,
       "pass": false,
@@ -4409,8 +4409,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.6186500000000015,
-      "value": 5.6240000000000006,
-      "spread": 0.05099999999999838,
+      "value": 5.600300000000001,
+      "spread": 0.1607000000000003,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4426,8 +4426,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 20.2103,
-      "value": 14.760200000000001,
-      "spread": 4.517299999999999,
+      "value": 17.809649999999998,
+      "spread": 2.9926999999999992,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4477,8 +4477,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 7.673350000000002,
-      "value": 9.1745,
-      "spread": 5.4902999999999995,
+      "value": 7.39085,
+      "spread": 0.9439999999999991,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4511,8 +4511,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.029,
-      "value": 15.50015,
-      "spread": 2.090700000000002,
+      "value": 16.4495,
+      "spread": 3.312000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4528,8 +4528,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.0613,
-      "value": 4.08,
-      "spread": 0.17069999999999963,
+      "value": 4.0506,
+      "spread": 0.07999999999999918,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4545,8 +4545,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.8453,
-      "value": 5.85605,
-      "spread": 0.1493000000000002,
+      "value": 5.85065,
+      "spread": 0.19200000000000017,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4562,8 +4562,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.029299999999999,
-      "value": 5.039999999999999,
-      "spread": 0.03739999999999988,
+      "value": 5.02665,
+      "spread": 0.1200000000000001,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4579,7 +4579,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.320300000000001,
-      "value": 4.339,
+      "value": 4.32,
       "spread": 0.029299999999999216,
       "runs": 4,
       "pass": false,
@@ -4851,8 +4851,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.08035714285714285,
-      "value": 0.13392857142857142,
-      "spread": 0.05357142857142859,
+      "value": 0.09821428571428571,
+      "spread": 0.05357142857142856,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4868,11 +4868,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2857142857142857,
-      "value": 0.4375,
-      "spread": 0.48214285714285715,
+      "value": 0.15178571428571427,
+      "spread": 0.30357142857142855,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.hit.share50ms",
@@ -4919,8 +4919,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.3191489361702128,
-      "spread": 0.6938775510204082,
+      "value": 0.3617021276595745,
+      "spread": 0.723404255319149,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4953,8 +4953,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2704918032786885,
-      "value": 0.2540983606557377,
-      "spread": 0.024199843871975046,
+      "value": 0.26229508196721313,
+      "spread": 0.007546187874056698,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4970,11 +4970,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7603825136612021,
-      "value": 0,
-      "spread": 0,
+      "value": 0.7540983606557377,
+      "spread": 0.05672651574290921,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5004,11 +5004,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.47183098591549294,
-      "value": 0.4187122736418511,
-      "spread": 0.11364074860119622,
+      "value": 0.4647887323943662,
+      "spread": 0.028361952537140633,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5021,8 +5021,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7571428571428571,
-      "value": 0.2818982387475538,
-      "spread": 0.2571428571428572,
+      "value": 0.37142857142857144,
+      "spread": 0.7571428571428571,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -5055,11 +5055,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.3648648648648649,
-      "value": 0.31081081081081086,
+      "value": 0.33783783783783783,
       "spread": 0.05405405405405406,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5072,8 +5072,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.13513513513513514,
-      "value": 0.12162162162162163,
-      "spread": 0.08108108108108109,
+      "value": 0.14864864864864866,
+      "spread": 0.10810810810810811,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5106,8 +5106,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.011764705882352941,
-      "value": 0.011764705882352941,
-      "spread": 0.011764705882352941,
+      "value": 0.023809523809523808,
+      "spread": 0.012044817927170867,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5123,9 +5123,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 0,
+      "value": 0.047619047619047616,
       "spread": 0,
-      "runs": 1,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -5157,11 +5157,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.618421052631579,
-      "value": 0.375,
-      "spread": 0.026315789473684237,
+      "value": 0.631578947368421,
+      "spread": 0.06578947368421062,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5174,11 +5174,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4276315789473684,
-      "value": 0.21710526315789475,
-      "spread": 0.10526315789473684,
+      "value": 0.39473684210526316,
+      "spread": 0.14473684210526316,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5208,8 +5208,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.11428571428571428,
-      "value": 0.09285714285714286,
-      "spread": 0.04285714285714286,
+      "value": 0.11428571428571428,
+      "spread": 0.042857142857142844,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5225,11 +5225,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2928571428571428,
-      "value": 0.19285714285714287,
-      "spread": 0.07142857142857142,
+      "value": 0.2928571428571428,
+      "spread": 0.04285714285714287,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5260,7 +5260,7 @@
       "applicable": true,
       "prehub": 0.15714285714285714,
       "value": 0.15714285714285714,
-      "spread": 0.05714285714285716,
+      "spread": 0.02857142857142858,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5378,8 +5378,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03389830508474576,
-      "value": 0.01694915254237288,
-      "spread": 0.01694915254237288,
+      "value": 0.03389830508474576,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5395,8 +5395,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.01694915254237288,
-      "value": 0,
-      "spread": 0.2033898305084746,
+      "value": 0.15254237288135594,
+      "spread": 0.050847457627118633,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5463,8 +5463,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.1607142857142857,
-      "value": 0.125,
-      "spread": 0,
+      "value": 0.16071428571428573,
+      "spread": 0.0357142857142857,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5480,8 +5480,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03571428571428571,
-      "value": 0.03571428571428571,
-      "spread": 0.07142857142857142,
+      "value": 0,
+      "spread": 0.08928571428571429,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5514,11 +5514,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6290322580645161,
-      "value": 0.4065309360126917,
-      "spread": 0.04918032786885246,
+      "value": 0.6475409836065573,
+      "spread": 0.054732945531464794,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5531,11 +5531,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4308566895822316,
-      "value": 0.2786885245901639,
-      "spread": 0.020888418826017996,
+      "value": 0.42622950819672134,
+      "spread": 0.041776837652035936,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5565,11 +5565,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 1,
-      "value": 0.8214285714285714,
-      "spread": 0.14826839826839822,
+      "value": 1,
+      "spread": 0,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5582,11 +5582,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7023809523809523,
-      "value": 0.40476190476190477,
-      "spread": 0.5238095238095238,
+      "value": 0.6904761904761905,
+      "spread": 0.7142857142857143,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5616,8 +5616,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5074626865671642,
-      "value": 0.499891845122215,
-      "spread": 0.029850746268656747,
+      "value": 0.5074626865671642,
+      "spread": 0.00021630975556996557,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5633,11 +5633,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7424242424242424,
-      "value": 0.6887351778656126,
-      "spread": 0.18181818181818188,
+      "value": 0.7424242424242424,
+      "spread": 0.0322793148880105,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5668,7 +5668,7 @@
       "applicable": true,
       "prehub": 0.49122807017543857,
       "value": 0.49122807017543857,
-      "spread": 0.11834671424323517,
+      "spread": 0.0002973535533750127,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5684,11 +5684,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5688373476063039,
-      "value": 0.3333333333333333,
-      "spread": 0.2902170680939637,
+      "value": 0.5664160401002506,
+      "spread": 0.03657448706512045,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -5718,8 +5718,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.050700000000000855,
-      "value": 0.058699999999999974,
-      "spread": 0.16800000000000104,
+      "value": 0.04269999999999996,
+      "spread": 0.19200000000000017,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5837,11 +5837,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.008000000000000895,
-      "value": 0.021300000000000097,
-      "spread": 5.111999999999999,
+      "value": 4.991999999999999,
+      "spread": 5.090699999999999,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.lock.spreadSeconds",
@@ -5905,8 +5905,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0025999999999992696,
-      "value": 0.10940000000000083,
-      "spread": 0.20000000000000107,
+      "value": 0.08000000000000007,
+      "spread": 1.1999999999999993,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5922,11 +5922,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.03999999999999915,
-      "spread": 0.1493000000000002,
+      "value": 4.9413,
+      "spread": 4.991999999999999,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.lock.spreadSeconds",
@@ -5939,8 +5939,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.01869999999999994,
-      "spread": 0.058699999999999974,
+      "value": 0.02929999999999966,
+      "spread": 0.0692999999999997,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5956,8 +5956,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.018700000000000827,
-      "value": 0.010600000000000165,
-      "spread": 0.05059999999999931,
+      "value": 0.050700000000000855,
+      "spread": 0.17070000000000007,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5973,8 +5973,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.04269999999999996,
-      "value": 0,
-      "spread": 5.061299999999999,
+      "value": 0.010699999999999932,
+      "spread": 0.04269999999999996,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6024,8 +6024,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.021300000000000097,
-      "value": 0.05069999999999908,
-      "spread": 0.16000000000000014,
+      "value": 0.058699999999999974,
+      "spread": 0.18929999999999936,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6041,8 +6041,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.061299999999999244,
-      "value": 0.010699999999999932,
-      "spread": 0.058699999999999974,
+      "value": 0.03200000000000003,
+      "spread": 0.08270000000000088,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6059,7 +6059,7 @@
       "applicable": true,
       "prehub": 0.018700000000000827,
       "value": 0.010699999999999932,
-      "spread": 0.05069999999999908,
+      "spread": 0.03999999999999915,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6075,8 +6075,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.04269999999999996,
-      "spread": 0.1519999999999997,
+      "value": 0.0025999999999997137,
+      "spread": 0.07999999999999963,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6398,8 +6398,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 223.41666666666882,
-      "value": 224.1833333333356,
-      "spread": 15.499999999998522,
+      "value": 220.33333333333616,
+      "spread": 7.3333333333316375,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6415,11 +6415,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.166666666669215,
-      "value": 14.750000000002927,
-      "spread": 228.9999999999992,
+      "value": 124.5833333333346,
+      "spread": 226.00000000000264,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6449,8 +6449,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 22.67500000000033,
-      "value": 34.85000000000127,
-      "spread": 19.00000000000146,
+      "value": 19.999999999999794,
+      "spread": 2.2026824808563106e-13,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6467,7 +6467,7 @@
       "applicable": true,
       "prehub": null,
       "value": 35.00000000000014,
-      "spread": 7.999999999995566,
+      "spread": 7.999999999999119,
       "runs": 2,
       "pass": false,
       "status": "unavailable"
@@ -6500,8 +6500,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 29.349999999999987,
-      "value": 41.57499999999992,
-      "spread": 3.6500000000012633,
+      "value": 28.500000000000192,
+      "spread": 3.9999999999995595,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6517,11 +6517,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 34.50000000000042,
-      "value": null,
-      "spread": 0,
-      "runs": 0,
-      "pass": false,
-      "status": "unavailable"
+      "value": 34.512499999999946,
+      "spread": 8.600000000000385,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6551,11 +6551,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 30.8499999999996,
-      "value": 44.99999999999993,
-      "spread": 9.99999999999801,
+      "value": 28.00000000000047,
+      "spread": 2.7000000000003723,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6568,11 +6568,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 31.00000000000236,
-      "value": 60.074999999999434,
-      "spread": 29.999999999995808,
-      "runs": 4,
+      "value": 33.350000000000875,
+      "spread": 10.699999999997267,
+      "runs": 2,
       "pass": false,
-      "status": "fail"
+      "status": "unavailable"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6602,8 +6602,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.35000000000134,
-      "value": 53.16666666666858,
-      "spread": 9.999999999999787,
+      "value": 47.34166666666795,
+      "spread": 6.683333333334041,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6619,8 +6619,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 75.66666666667032,
-      "value": 83.83333333333631,
-      "spread": 10.666666666665492,
+      "value": 66.6666666666682,
+      "spread": 18.66666666666461,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6653,8 +6653,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 100.6666666666689,
-      "value": 113.32500000000189,
-      "spread": 7.966666666668232,
+      "value": 97.16666666666774,
+      "spread": 15.999999999998238,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6670,9 +6670,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 119.00000000000333,
-      "spread": 0,
-      "runs": 1,
+      "value": 109.5000000000006,
+      "spread": 3.0000000000001137,
+      "runs": 2,
       "pass": false,
       "status": "unavailable"
     },
@@ -6704,11 +6704,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.00000000000038,
-      "value": 64.00000000000094,
-      "spread": 7.833333333335801,
+      "value": 48.99999999999949,
+      "spread": 2.6999999999999247,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6721,11 +6721,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.58333333333442,
-      "value": 69.50000000000145,
-      "spread": 9.333333333330529,
+      "value": 52.75000000000274,
+      "spread": 7.666666666672484,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -6755,8 +6755,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 70.85000000000053,
-      "value": 62.75000000000341,
-      "spread": 7.0000000000014495,
+      "value": 62.83333333333463,
+      "spread": 20.3499999999992,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6772,8 +6772,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 53.33333333333634,
-      "value": 67.8333333333363,
-      "spread": 28.666666666666174,
+      "value": 53.33333333333634,
+      "spread": 9.99999999999801,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6806,8 +6806,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 33.3333333333341,
-      "value": 40.16666666666735,
-      "spread": 29.516666666667746,
+      "value": 27.99166666666819,
+      "spread": 13.66666666666605,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6823,9 +6823,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 166.66666666666785,
+      "value": null,
       "spread": 0,
-      "runs": 2,
+      "runs": 0,
       "pass": false,
       "status": "unavailable"
     },
@@ -6925,8 +6925,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 144.16666666666788,
-      "value": 146.75000000000082,
-      "spread": 41.16666666666548,
+      "value": 140.00000000000057,
+      "spread": 18.66666666666461,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -6942,11 +6942,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 103.9999999999992,
-      "value": 198.50000000000279,
-      "spread": 210.66666666666478,
+      "value": 12.166666666668213,
+      "spread": 3.9999999999995595,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -7010,11 +7010,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 69.66666666666477,
-      "value": 90.57500000000141,
-      "spread": 11.333333333325868,
+      "value": 77.7500000000001,
+      "spread": 10.699999999999932,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -7027,9 +7027,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": 89.91666666666643,
-      "value": 98.6666666666629,
-      "spread": 134.66666666667138,
-      "runs": 3,
+      "value": 157.16666666666512,
+      "spread": 218.6666666666781,
+      "runs": 4,
       "pass": false,
       "status": "fail"
     },
@@ -7061,8 +7061,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 45.00000000000082,
-      "value": 59.41666666666778,
-      "spread": 2.6666666666659324,
+      "value": 44.92500000000188,
+      "spread": 10.14999999999899,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7078,8 +7078,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.24166666666929,
-      "value": 62.166666666668924,
-      "spread": 7.500000000000284,
+      "value": 49.50000000000365,
+      "spread": 0.5000000000023874,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7112,8 +7112,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 30.999999999998806,
-      "value": 44.332999999999956,
-      "spread": 5.667000000000755,
+      "value": 30.999999999998806,
+      "spread": 5.332999999999366,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7129,8 +7129,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 33.33299999999895,
-      "value": 48.99999999999949,
-      "spread": 2.3330000000001405,
+      "value": 35.667000000000115,
+      "spread": 0,
       "runs": 3,
       "pass": true,
       "status": "pass"
@@ -7163,8 +7163,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 14.606999999998926,
-      "value": 28.571000000001234,
-      "spread": 2.1434999999976334,
+      "value": 14.499999999999957,
+      "spread": 2.585999999999089,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7180,8 +7180,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 24.571499999999524,
-      "value": 37.35700000000097,
-      "spread": 8.713999999997668,
+      "value": 23.071500000000356,
+      "spread": 3.8569999999999993,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7214,8 +7214,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 29.850000000000044,
-      "value": 41.50000000000031,
-      "spread": 11.69999999999849,
+      "value": 28.00000000000047,
+      "spread": 2.9999999999992255,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7231,8 +7231,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 35.50000000000075,
-      "value": 48.99999999999949,
-      "spread": 11.499999999998067,
+      "value": 35.50000000000075,
+      "spread": 10.000000000001563,
       "runs": 4,
       "pass": true,
       "status": "pass"
