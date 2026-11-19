@@ -44,6 +44,11 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   hub-regressions S4 the gate hears the hub's gate-input bass (`gateBass` column) through `DANCER_BUMP`, so the flags
   replay the input before S4. The output gains an `input:` line naming which input was used. A recording without a
   `lowEnd` column is an error with that flag.
+  `--input gateBass` (`--input lowEnd` is the default and today's behavior) replays the recording's `gateBass` column
+  through a fresh `BassBump` with the shipped `GATE_BASS_BUMP` settings (margin and gain from
+  `app/features/audio/hub/bassBump.ts`), which is the input the gate hears since S4; `--bump-margin` and `--bump-gain`
+  still override margin and gain. The `input:` line then names `gateBass`. A recording without a `gateBass` column is
+  an error with that option.
 - The telemetry CSV writes `NaN`, `Infinity` and `-Infinity` each under its own name, and the scripts read all three back
   (`scripts/debug-visualizer/csv.ts`).
 - `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` (`scripts/rhythm-ablate.ts`) runs the real `OnsetExtractor` and
