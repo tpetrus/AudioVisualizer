@@ -51,7 +51,23 @@ export interface BassBumpOptions {
     margin?: number;
     // How steeply the pulse's target rises with the ratio above the margin.
     gain?: number;
+    // The slow level below which the input counts as near silence, in the input's own units.
+    nearSilence?: number;
+    // Whether both followers start at the first audible level (true, the default) or at 0, as BassPulse's do.
+    seed?: boolean;
 }
+
+// The envelope over the hub's gate-input bass (`snapshot.gateBass.pulse`, contract C1), a linear RMS level rather than a
+// normalized log band: BassPulse's own margin, gain and near-silence level, which the dancer's gate was tuned on before
+// the hub, and its unseeded start, so at 60 fps the envelope is BassPulse's frame for frame from the first frame. From 0
+// the slow follower takes a second or two to reach the level, and the ratio reads as bumps meanwhile; the gate learns
+// from those bumps before the lock, so seeding would move where it opens (S4: up to 0.85 s on the drum tracks).
+export const GATE_BASS_BUMP: Readonly<Required<BassBumpOptions>> = {
+    margin: 1.15,
+    gain: 1.5,
+    nearSilence: 0.005,
+    seed: false,
+};
 
 // State is public only so DEV telemetry can read it; nothing outside `step` writes it. Allocates nothing.
 export class BassBump {
@@ -60,21 +76,24 @@ export class BassBump {
     public slow = 0;
     public ratio = 1;
     public pulse = 0;
-    // False until the first level above near-silence has seeded the followers.
-    private seeded = false;
+    // False until the first level above near-silence has seeded the followers; true from the start without seeding.
+    private seeded: boolean;
     private readonly margin: number;
     private readonly gain: number;
+    private readonly nearSilence: number;
 
     public constructor(options: BassBumpOptions = {}) {
         this.margin = options.margin ?? BUMP_MARGIN;
         this.gain = options.gain ?? BUMP_GAIN;
+        this.nearSilence = options.nearSilence ?? NEAR_SILENCE;
+        this.seeded = options.seed === false;
     }
 
     // Advances the envelope by `deltaSeconds` with the latest low-end level (0..1) and returns the pulse (0..1).
     public step(input: number, deltaSeconds: number): number {
         // Both followers start at the first audible level, not at 0: from 0 the slow one would need seconds to catch up
         // with a sustained level and the ratio would read as a huge bump the whole time. A later jump still bumps.
-        if (!this.seeded && input > NEAR_SILENCE) {
+        if (!this.seeded && input > this.nearSilence) {
             this.seeded = true;
             this.fast = input;
             this.slow = input;
@@ -85,7 +104,7 @@ export class BassBump {
         this.fast += (input - this.fast) * closing(input > this.fast ? FAST_RISE_LN : FAST_FALL_LN, frames);
         this.slow += (input - this.slow) * closing(SLOW_LN, frames);
 
-        const ratio = this.slow > NEAR_SILENCE ? this.fast / this.slow : 1;
+        const ratio = this.slow > this.nearSilence ? this.fast / this.slow : 1;
         this.input = input;
         this.ratio = ratio;
         const target = Math.min(1, Math.max(0, (ratio - this.margin) * this.gain));

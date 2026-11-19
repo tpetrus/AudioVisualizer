@@ -219,3 +219,78 @@ Passes: 1. Verdict: sound with fixes
 ## Hand-off
 
 A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first is embedded in plan.json under `handoff.verified_diamond` (plan hash `0688af7a6cc53ab3`).
+
+## Amendments after hand-off (Trevor, 2026-11-18, at the start of S4)
+`plan.json` is hash-locked at revision 1 and is not edited; these decisions override it where they differ.
+- **AC6's 4 s floor moves to S5.** No gate input alone opens the dancer's gate within 4 s of the lock except on
+  `drums-128` (`docs/agents/hub-scorecard.md`, "C1: a third gate input"), so S4's gate acceptance is: on every kick
+  track, the gate opens no later after the lock than the pre-hub reference (offline, with the live median reported).
+  S4 still owns the hit share and latency floors of AC8 for `cubes` and `dancing-character`. S5 owns the 4 s floor and
+  the 2 s stretch of AC6.
+- **C1's shape** is `gateBass: { pulse, lowEnd }`, not `{ sub, kick, lowEnd }`: `pulse` is the linear RMS of the 120 Hz,
+  24 dB/octave lowpass over the last 2048 samples (BassPulse's feature) at each worklet frame, read on frame time; `lowEnd`
+  is the louder of the hub's `sub` and `kick` band energies before peak scaling. S4 first measures the two-gate input's
+  false-open rate offline and picks two gates if its false opens on random bass stay within the current gate specs'
+  bounds (6 of 300 patterns at 120 beats, 16 of 300 at 400 beats), otherwise the `BassPulse` feature alone.
+- **S4's scope** also covers the worklet message (contract C3, `FeatureBatch` version 3, which carries the per-frame
+  feature), `app/features/rhythm/rhythmProcessor.worklet.ts` and a new feature module beside it, and
+  `scripts/scorecard/` (the false-open probe, the replay of the new input and the offline cube cells).
+- **C1 picked (Trevor, 2026-11-18): the `BassPulse` feature alone**, read at worklet frame times. Measured with
+  `npm run probe:gate-inputs` (300 random-bass patterns, beat clock locked): false opens at 120 and 400 beats were
+  hub 2 and 19, `BassPulse` at frame times 5 and 23, pre-hub 5 and 27, two gates 6 and 37. The 400-beat bound of 16
+  comes from level-domain specs and every input exceeds it on rendered audio, pre-hub included, so the comparison is
+  against pre-hub: two gates opened 1.4 times as often as pre-hub, and the `BassPulse` feature less often. Seconds from
+  the dancer's lock to the first opening, summed over the 16 kick tracks: hub 148.2, `BassPulse` at frame times 139.6,
+  pre-hub 139.1, two gates 121.9.
+- **`summer2000` is a recorded exception to S4's gate acceptance, owned by S5.** The frame-timed feature opens the gate
+  7.52 s after the lock against pre-hub's 7.03 s (one kick missed through a read at most a batch older than the render
+  time); S4 does not have to beat it. Every other kick track must open no later than pre-hub, within one render tick.
+- **`bassline-kick-120`'s offline cube hit share is a second recorded exception to S4, owned by S5** (Trevor,
+  2026-11-18). The cubes hit 0.51 of its beats within 50 ms against pre-hub's 0.78, because every hit shows one render
+  tick (16.7 ms) later: the hub reads the feature at the end of the newest delivered worklet frame, which is up to one
+  batch (2 frames, 21 ms) older than pre-hub's read at the render time. On a perfectly periodic track that tick moves
+  most hits just past the window; its latency (50 ms against 33 ms) still passes, and the other 15 tracks' cube cells
+  all pass. It is the same lag as S3's live finding that `cubes` reacts 8 to 12 ms later through the hub. Batches of one
+  frame (`BATCH_FRAMES = 1`) fix it offline (0.95) but open `syncopationbass`'s gate 1.6 s later than pre-hub (19.78
+  against 18.17 s after the lock) and double the worklet message rate, so S5, which owns the gate's pace, decides the
+  batch size with both numbers.
+- **C1's level is read at the render time, not carried in the frames** (Trevor chose option A, 2026-11-19, after S4's
+  first live run). Live, the per-frame worklet feature was later than offline predicted: the cubes' latency averaged
+  72.7 ms against 62.9 pre-hub (S3 60.5), the dancer's hit share 0.24 against 0.37 (`drums-128` 0, the gate learned a
+  kick place 135 ms before the beat), and the gate opened 0.5 to 2.4 s later than pre-hub on the three drum tracks. The
+  hub now reads `gateBass.pulse` from its own tap of the tracker's source (`GateBassTap`, `BassPulse`'s two filters and
+  analyser), so the gate input is pre-hub's by construction; the worklet and `FeatureBatch` are back to version 2. The
+  envelope (`GATE_BASS_BUMP`) also starts its followers at 0 as `BassPulse` does, rather than seeding them at the first
+  level, which had moved the gate by up to 0.85 s. Offline, every gate and cube cell now equals pre-hub, which retires
+  the `summer2000` and `bassline-kick-120` exceptions above; the live cells decide S4.
+
+## Progress
+### S4 done (2026-11-19, PR #98, merge `4a22596` on `feat/hub-gate-bass`)
+- **Delivered:** contract C1 (`gateBass: { pulse, lowEnd }`), read once per frame from the hub's own tap of the
+  tracker's source (`GateBassTap`). The cube trigger is now a pure function (`cubesBass.ts`) that the offline scorecard
+  replays. The dancer's gate and the cubes read `gateBass`. Targets version 7 adds the offline cube cells, and the
+  version 7 baseline is committed.
+- **Acceptance:**
+  - **AC6 (as amended):** met. Offline, every kick track's gate opens exactly as pre-hub's, and false opens on random
+    bass equal pre-hub's (5 and 27 of 300). Live, the gate opens a mean 7.16 s after the lock, against 7.21 s
+    pre-hub. The 4 s floor stays with S5.
+  - **AC8, cubes:** met, 32 of 32 offline cells and 45 of 45 live.
+  - **AC8, dancer:** the hit share passes on 12 of 14 tracks. `drums-150` and `drifting-tempo` fail on runs that
+    split between two outcomes (the kick place learned or not, and the beat tracker's lock at about 3.2 or about 8.2 s).
+    Pre-hub and S3 show the same splits, and a confirmation run on those tracks passes
+    (`docs/agents/hub-scorecard.md`, "S4 findings").
+  - **AC12:** met. `scorecard:check` passes, and all repository checks and budgets pass (total JS 333.73 of 334 kB).
+- **Exceptions retired:** the `summer2000` and `bassline-kick-120` exceptions above are no longer needed, because
+  every offline gate and cube cell equals pre-hub.
+- **Fast-lane follow-ups merged** (`d2b3dc5`, `55ef3f5`):
+  - a once-only development warning when the hub ignores a worklet message of another version;
+  - direct tests for `GateBassTap`;
+  - a 1e-6 slack in the scorecard's floor comparisons;
+  - `replay:gate --input gateBass`.
+- **Not merged:** `scorecard:live --jobs` (branch `fu-s4-live-parallel`). With 2 jobs at once the cubes matched
+  one-at-a-time recording, but the dancer's lock time, clip phase and latency moved outside the serial range.
+  Recording stays one job at a time.
+- **Open, for the full workflow (they touch C1's wording):** `FU-S4-gatebass-no-source` (after a capture stops, the
+  pulse keeps its last value rather than reading 0) and `FU-S4-gatebass-sync-offset` (the pulse is not shifted by the
+  user's sync offset as `bands` are). Both are in `docs/agents/hub-scorecard.md`.
+- **Next:** S5, the gate rule for slow-engaging tracks, which now also owns AC6's 4 s floor.

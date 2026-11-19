@@ -1,4 +1,4 @@
-import { BassBump } from '../../app/features/audio/hub/bassBump';
+import { BassBump, GATE_BASS_BUMP } from '../../app/features/audio/hub/bassBump';
 import type { TelemetryTable } from '../../app/features/audio/devTelemetrySummary';
 import { createBassGateState, stepBassGate, type BassGateState } from '../../app/features/rhythm/bassGate';
 import type { RhythmState } from '../../app/features/rhythm/types';
@@ -61,6 +61,8 @@ export interface GateColumns {
     gateOpen: number;
     // The hub's low end before the bump envelope; -1 in recordings made before the column existed.
     lowEnd: number;
+    // The hub's gate-input bass (what the gate hears since S4); -1 in recordings made before the column existed.
+    gateBass: number;
 }
 
 // The probe prefix is whatever precedes ".in", so any probe's recording replays.
@@ -84,22 +86,35 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         songChanges: at(`${prefix}songChanges`, true),
         gateOpen: at(`${prefix}gateOpen`, false),
         lowEnd: at(`${prefix}lowEnd`, false),
+        gateBass: at(`${prefix}gateBass`, false),
     };
 }
+
+// Which recorded column feeds the BassBump: the low end before S4 (the default), or the gate-input bass since S4.
+export type BumpInput = 'lowEnd' | 'gateBass';
 
 export interface BumpOptions {
     margin: number;
     gain: number;
+    input?: BumpInput;
 }
 
-// With `bump`, the gate's input is the recorded low end stepped through a fresh BassBump instead of the recorded `in`.
+// The BassBump the replay steps: the shipped GATE_BASS_BUMP settings for gateBass, else a plain margin and gain.
+function createEnvelope(bump: BumpOptions): BassBump {
+    if (bump.input === 'gateBass') return new BassBump({ ...GATE_BASS_BUMP, margin: bump.margin, gain: bump.gain });
+    return new BassBump({ margin: bump.margin, gain: bump.gain });
+}
+
+// With `bump`, the gate's input is the chosen recorded column stepped through a fresh BassBump instead of the recorded `in`.
 export function replayGate(table: TelemetryTable, rule: GateRule, bump?: BumpOptions): GateReplay {
     const c = findGateColumns(table.columns);
-    if (bump !== undefined && c.lowEnd < 0) {
+    const source = bump?.input === 'gateBass' ? 'gateBass' : 'lowEnd';
+    const column = c[source];
+    if (bump !== undefined && column < 0) {
         const prefix = table.columns[c.input].slice(0, -'in'.length);
-        throw new Error(`Missing column "${prefix}lowEnd": record with a newer build to replay through BassBump`);
+        throw new Error(`Missing column "${prefix}${source}": record with a newer build to replay through BassBump`);
     }
-    const envelope = bump === undefined ? undefined : new BassBump(bump);
+    const envelope = bump === undefined ? undefined : createEnvelope(bump);
     const state = createBassGateState();
     // Only these three fields are read by the gate.
     const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0 };
@@ -119,7 +134,7 @@ export function replayGate(table: TelemetryTable, rule: GateRule, bump?: BumpOpt
         const dt = c.dt >= 0 ? row[c.dt] : row[c.t] - previousT;
         previousT = row[c.t];
         const step = Number.isFinite(dt) ? dt : 0;
-        const input = envelope === undefined ? row[c.input] : envelope.step(row[c.lowEnd], step);
+        const input = envelope === undefined ? row[c.input] : envelope.step(row[column], step);
         rule.step(input, rhythm as RhythmState, locked, state, step);
         if (state.open && firstOpen === undefined) firstOpen = row[c.t];
         if (firstOpen !== undefined) {
@@ -151,12 +166,12 @@ export function formatGateReplay(
     replay: GateReplay,
     recorded: number | undefined,
     probe: string,
-    bump?: { margin: number; gain: number },
+    bump?: BumpOptions,
 ): string[] {
     const input =
         bump === undefined
             ? `input: ${probe}.in as recorded`
-            : `input: ${probe}.lowEnd through BassBump margin ${bump.margin} gain ${bump.gain}`;
+            : `input: ${probe}.${bump.input ?? 'lowEnd'} through BassBump margin ${bump.margin} gain ${bump.gain}`;
     return [
         `rule ${rule}`,
         input,

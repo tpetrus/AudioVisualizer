@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
+import { createCubesBassEnvelope, stepCubesBass } from './cubesBass';
 import type { CubesControlValues } from './cubesControls';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
-import { BassBump, hubLowEnd } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
@@ -81,7 +81,7 @@ export function useCubesScene(
         let spectrum = new Uint8Array(0);
         let bins: BinRange[] = [];
         let levels = new Float32Array(grid.bandCount);
-        const bass = new BassBump();
+        const bass = createCubesBassEnvelope();
         const restingColor = new THREE.Color();
         const raisedColor = new THREE.Color();
 
@@ -138,7 +138,7 @@ export function useCubesScene(
                 }
 
                 hub.update();
-                const { beat, bands } = snapshot;
+                const { beat } = snapshot;
                 if (beat.downbeatCount !== seenDownbeats) {
                     seenDownbeats = beat.downbeatCount;
                     // Only a meter the tracker is sure about gets an accent; a guessed bar would pulse on the wrong beat.
@@ -148,8 +148,7 @@ export function useCubesScene(
                 }
                 downbeatAccent *= DOWNBEAT_ACCENT_DECAY;
 
-                const bump = bass.step(hubLowEnd(bands), delta / 1000);
-                const pulse = values.bassBump ? bump * values.bgPulse : 0;
+                const pulse = stepCubesBass(bass, snapshot.gateBass, delta / 1000, values);
                 backgroundColor.copy(restingColor).multiplyScalar((pulse * MAX_BACKGROUND_FLASH) ** DISPLAY_GAMMA);
 
                 grid.update(levels, {

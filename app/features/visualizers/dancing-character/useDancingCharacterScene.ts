@@ -4,7 +4,7 @@ import { BassBump, hubLowEnd } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, findCharacter, type CharacterEntry } from './characterRegistry';
-import { DANCER_BUMP_GAIN, DANCER_BUMP_MARGIN, MAX_FRAME_DT } from './dancingCharacterConfig';
+import { DANCER_BUMP, MAX_FRAME_DT } from './dancingCharacterConfig';
 import type { DancingCharacterSettings } from './dancingCharacterControls';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
 import { useLatestRef } from '~/hooks/useLatestRef';
@@ -166,12 +166,13 @@ export function useDancingCharacterScene(
         // revisited). Catch up first so the first frame does not read an old low end.
         hub.update();
         let boundAnalyser: AnalyserNode | undefined;
-        // The bass envelope over the hub's low end. A new source gets a fresh one so the old source's levels are not
-        // carried over; it is replaced only then, never per frame.
-        const newBump = () => new BassBump({ margin: DANCER_BUMP_MARGIN, gain: DANCER_BUMP_GAIN });
+        // The bass envelope over the hub's gate-input bass. A new source gets a fresh one so the old source's levels are
+        // not carried over; it is replaced only then, never per frame.
+        const newBump = () => new BassBump(DANCER_BUMP);
         let bump = newBump();
-        // The hub's low end this frame, before the envelope: DEV telemetry records it so a recording can be replayed
-        // through other margins and gains.
+        // This frame's gate-input bass before the envelope, and the hub's normalized low end (the input before S4): DEV
+        // telemetry records both so a recording can be replayed through other envelopes.
+        let gateLevel = 0;
         let lowEnd = 0;
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
@@ -183,8 +184,8 @@ export function useDancingCharacterScene(
             danceSelection: valuesRef.current.dance,
         };
 
-        // DEV only: the gate's input is the frame's bass (the hub's low end through the bump envelope); the rest is
-        // read from the scene after its update.
+        // DEV only: the gate's input is the frame's bass (the hub's gate-input bass through the bump envelope); the rest
+        // is read from the scene after its update.
         let unregisterProbe: (() => void) | undefined;
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
@@ -219,6 +220,7 @@ export function useDancingCharacterScene(
                     'octaveHolds',
                     'barVetoes',
                     'lowEnd',
+                    'gateBass',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -253,6 +255,7 @@ export function useDancingCharacterScene(
                     out[26] = analysis?.tempo.octaveHoldCount ?? 0;
                     out[27] = analysis?.tempo.barVetoCount ?? 0;
                     out[28] = lowEnd;
+                    out[29] = gateLevel;
                 },
             );
         }
@@ -285,7 +288,8 @@ export function useDancingCharacterScene(
                 frame.rhythm = rhythm.state;
                 // With no source the hub has nothing to read, so the gate sees silence.
                 lowEnd = source ? hubLowEnd(hub.snapshot.bands) : 0;
-                frame.bass = source ? bump.step(lowEnd, frame.dt) : 0;
+                gateLevel = source ? hub.snapshot.gateBass.pulse : 0;
+                frame.bass = source ? bump.step(gateLevel, frame.dt) : 0;
                 frame.settings = valuesRef.current;
                 frame.danceSelection = valuesRef.current.dance;
                 frame.cameraLocked = cameraLockedRef.current;

@@ -548,24 +548,27 @@ describe('useDancingCharacterScene', () => {
             expect(hub.update).toHaveBeenCalledTimes(3);
         });
 
-        it('rises above 0 when the low band jumps from a settled level', () => {
+        it('rises above 0 when the gate-input bass jumps from a settled level', () => {
             const { renderer, hub } = mountScene({ analyser: createAnalyser() });
-            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
-            for (let t = 0; t < 40; t++) renderer.renderFrame(t * 16);
-            hub.setBands([1, 0.3, 0, 0, 0, 0]);
-            renderer.renderFrame(40 * 16);
-            renderer.renderFrame(41 * 16);
+            // The followers start at 0, as BassPulse's do, so a steady level needs a few seconds to settle.
+            hub.setGateBass(0.05);
+            for (let t = 0; t < 600; t++) renderer.renderFrame(t * 16);
+            hub.setGateBass(0.2);
+            renderer.renderFrame(600 * 16);
+            renderer.renderFrame(601 * 16);
 
             const bass = character().frames.map((frame) => frame.bass);
-            expect(Math.max(...bass.slice(0, 40))).toBeLessThan(0.01);
-            expect(bass[41]).toBeGreaterThan(0);
+            expect(Math.max(...bass.slice(560, 600))).toBeLessThan(0.01);
+            expect(bass[601]).toBeGreaterThan(0);
         });
 
-        it('ignores the bands above the low end', () => {
+        it('ignores the bands, the low end included: only the gate-input bass feeds the gate', () => {
             const { renderer, hub } = mountScene({ analyser: createAnalyser() });
-            hub.setBands([0, 0, 0.3, 0.3, 0.3, 0.3]);
+            // A silent gate-input bass under a loud low end and loud bands, which jump: the gate hears silence.
+            hub.setGateBass(0, 5);
+            hub.setBands([0.3, 0.3, 0.3, 0.3, 0.3, 0.3]);
             for (let t = 0; t < 20; t++) renderer.renderFrame(t * 16);
-            hub.setBands([0, 0, 1, 1, 1, 1]);
+            hub.setBands([1, 1, 1, 1, 1, 1]);
             renderer.renderFrame(20 * 16);
 
             expect(character().frames[20].bass).toBe(0);
@@ -582,6 +585,7 @@ describe('useDancingCharacterScene', () => {
         it('stays 0 with no source even when the hub is loud', () => {
             const { renderer, hub } = mountScene();
             hub.setBands([1, 1, 1, 1, 1, 1]);
+            hub.setGateBass(0.5);
             renderer.renderFrame(0);
             renderer.renderFrame(16);
 
@@ -590,14 +594,14 @@ describe('useDancingCharacterScene', () => {
 
         it('starts the envelope afresh for a new source and drops to 0 when the source goes away', () => {
             const { renderer, hub, rerender } = mountScene({ analyser: createAnalyser() });
-            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            hub.setGateBass(0.05);
             for (let t = 0; t < 10; t++) renderer.renderFrame(t * 16);
-            hub.setBands([1, 0.3, 0, 0, 0, 0]);
+            hub.setGateBass(0.2);
             renderer.renderFrame(160);
             renderer.renderFrame(176);
             expect(character().frames[11].bass).toBeGreaterThan(0);
 
-            // A fresh envelope seeds from the first audible level, so the loud band is not a bump.
+            // A fresh envelope seeds from the first audible level, so the loud bass is not a bump.
             rerender({ analyser: createAnalyser(), cameraLocked: true });
             renderer.renderFrame(192);
             expect(character().frames[12].bass).toBe(0);
@@ -689,6 +693,7 @@ describe('useDancingCharacterScene', () => {
                 'octaveHolds',
                 'barVetoes',
                 'lowEnd',
+                'gateBass',
             ]);
         });
 
@@ -790,12 +795,31 @@ describe('useDancingCharacterScene', () => {
             expect(readProbe(29)[28]).toBe(0);
         });
 
-        it('still gives bass above 0 after a jump in the low end', () => {
+        it('records the gate-input bass before the envelope as the column after it, and 0 with no source', () => {
             const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
             const { renderer, hub } = mountScene({ analyser });
-            hub.setBands([0.3, 0.3, 0, 0, 0, 0]);
+            renderer.renderFrame(0);
+            const live = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            live.bassGate = { open: false, score: 0, weight: 0 };
+            hub.setGateBass(0.125);
+            renderer.renderFrame(16);
+
+            expect(readProbe(30)[29]).toBe(0.125);
+
+            const silent = mountScene();
+            silent.renderer.renderFrame(16);
+            const quiet = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            quiet.bassGate = { open: false, score: 0, weight: 0 };
+
+            expect(readProbe(30)[29]).toBe(0);
+        });
+
+        it('still gives bass above 0 after a jump in the gate-input bass', () => {
+            const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+            const { renderer, hub } = mountScene({ analyser });
+            hub.setGateBass(0.05);
             for (let i = 0; i < 30; i++) renderer.renderFrame(i * 16);
-            hub.setBands([1, 1, 0, 0, 0, 0]);
+            hub.setGateBass(0.2);
             renderer.renderFrame(31 * 16);
             renderer.renderFrame(32 * 16);
 

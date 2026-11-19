@@ -1,8 +1,10 @@
 import { ONSET_BANDS, type BeatSidecar, type OnsetBand } from '../../../app/features/rhythm/eval/evalTypes';
 import { scoreOnsets, type TempoSample } from '../../../app/features/rhythm/eval/metrics';
+import { hitShare, reactionLatencyMs } from '../live/measures';
+import { LIVE_REACTION_COLUMN } from '../targets';
 import type { TrackMeasures, TrackClass } from '../types';
 import { scorecardBeatErrorMs, trackerOctave } from './beatError';
-import { replayPcm } from './replay';
+import { RENDER_HZ, replayPcm } from './replay';
 import { countUnexplainedChanges, findSilences, recordSongChanges } from './songChanges';
 import { SCORECARD_TEMPO_TOLERANCE, constantTruth, driftingTruth, foldedError, type TempoTruth } from './tempoTruth';
 
@@ -92,6 +94,15 @@ function onsetF50(sidecar: BeatSidecar, detected: Record<OnsetBand, number[]>): 
 // share and the largest error are taken over every reading from there to the end, so a later drift shows up. They are
 // null when there is no such run. Song changes are counted without those raised in or just after digital silence (see
 // songChanges.ts).
+// The cubes' reaction to the labeled beats (AC8), offline: the replayed pulse at every render tick, scored with the live
+// cells' own fire-to-beat rule and latency search, so an offline and a live cube cell mean the same thing.
+function cubesReaction(pulse: Float32Array, beats: readonly number[] | undefined) {
+    if (beats === undefined || beats.length === 0) return { hitShare: null, latencyMs: null };
+    const rows = Array.from(pulse, (value, tick) => [tick / RENDER_HZ, value]);
+    const table = { columns: ['t', LIVE_REACTION_COLUMN.cubes], rows };
+    return { hitShare: hitShare(table, 'cubes', beats), latencyMs: reactionLatencyMs(table, 'cubes', beats) };
+}
+
 export function measureTrack(input: MeasureTrackInput): TrackMeasures {
     const { result: replay, events } = recordSongChanges(() => replayPcm(input.pcm, input.sampleRate));
     const { sidecar } = input;
@@ -106,10 +117,19 @@ export function measureTrack(input: MeasureTrackInput): TrackMeasures {
         prehubGateFirstOpenSeconds: replay.prehubGate.firstOpenSeconds,
         prehubGateOpenShare: replay.prehubGate.openShare,
     };
+    const cubes = cubesReaction(replay.cubes.pulse, sidecar?.beats);
+    const prehubCubes = cubesReaction(replay.cubes.prehubPulse, sidecar?.beats);
+    const reactions = {
+        cubesHitShare: cubes.hitShare,
+        cubesLatencyMs: cubes.latencyMs,
+        prehubCubesHitShare: prehubCubes.hitShare,
+        prehubCubesLatencyMs: prehubCubes.latencyMs,
+    };
 
     if (input.class === 'beatless') {
         return {
             ...base,
+            ...reactions,
             everLocked: replay.everReportedLock,
             lockSeconds: null,
             tempoWithinShareAfterLock: null,
@@ -141,6 +161,7 @@ export function measureTrack(input: MeasureTrackInput): TrackMeasures {
 
     return {
         ...base,
+        ...reactions,
         ...figures,
         beatErrorMedianMs,
         onsetF50: sidecar ? onsetF50(sidecar, replay.onsets) : null,

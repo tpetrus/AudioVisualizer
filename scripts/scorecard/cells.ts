@@ -6,7 +6,9 @@ import {
     SCENARIO_TARGETS,
     TARGETS_VERSION,
     effectiveFloor,
+    offlineEffectiveFloor,
     floorFor,
+    meetsFloor,
     type MetricDirection,
     type MetricTarget,
     type ScenarioTarget,
@@ -37,19 +39,14 @@ function offlineCell(
     return { ...base, applicable, prehub, value, spread: 0, runs: 1, source: 'offline', pass, status };
 }
 
-function meetsFloor(direction: MetricDirection, value: number, floor: number | null): boolean {
-    if (floor === null) return true;
-    return direction === 'lower' ? value <= floor : value >= floor;
-}
-
 function scoredCell(
     base: CellBase,
     direction: MetricDirection,
     value: number,
     prehub: number | null = null,
-): ScorecardCell {
     // The effective floor folds in the pre-hub value, so a gate must open within its floor and no later than before.
-    const floor = effectiveFloor(direction, base.floor, prehub);
+    floor: number | null = effectiveFloor(direction, base.floor, prehub),
+): ScorecardCell {
     const pass = meetsFloor(direction, value, floor);
     return offlineCell(base, true, value, pass ? 'pass' : 'fail', pass, prehub);
 }
@@ -81,12 +78,13 @@ function trackCell(
     // not a missing measurement. Unavailable is kept for missing inputs only, as contract C2 defines it.
     const value = metric.value(measures);
     const prehub = metric.prehubValue?.(measures) ?? null;
+    const floor = offlineEffectiveFloor(metric, base.floor, prehub);
     if (value === null) {
         // A report-only metric has no floor to miss, so a missing value is not a failure; it shows as a dash.
-        if (base.floor === null) return offlineCell(base, true, null, 'pass', true, prehub);
+        if (floor === null) return offlineCell(base, true, null, 'pass', true, prehub);
         return offlineCell(base, true, null, 'fail', false, prehub);
     }
-    return scoredCell(base, metric.direction, value, prehub);
+    return scoredCell(base, metric.direction, value, prehub, floor);
 }
 
 function scenarioCell(target: ScenarioTarget, measures: ScenarioMeasures | undefined): ScorecardCell {

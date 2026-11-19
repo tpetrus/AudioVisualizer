@@ -1,17 +1,10 @@
-// The bass is isolated by its own steep low-pass filter chain feeding a separate analyser, so mids and drums
-// don't leak in the way they do into the coarse low FFT bins.
-const BASS_CUTOFF_HZ = 120;
-// ~43 ms at 48 kHz: long enough to hold a full cycle of the lowest bass notes.
-const BASS_FFT_SIZE = 2048;
+import { GateBassTap } from '~/features/audio/hub/gateBassTap';
 
 // 0..1 bass envelope that bumps when the bass (and only the bass) gets louder than it has recently been.
-// Comparing against its own recent level means it works at any volume, and a busy mix doesn't trigger it.
+// Comparing against its own recent level means it works at any volume, and a busy mix doesn't trigger it. Its feature
+// is the hub's gate-input bass (GateBassTap): the same filters and window, from its own tap of the source.
 export class BassPulse {
-    private readonly source: AnalyserNode;
-    private readonly filters: BiquadFilterNode[];
-    private readonly analyser: AnalyserNode;
-    // Backed by a plain ArrayBuffer, which the Web Audio API requires (not a SharedArrayBuffer).
-    private readonly samples: Float32Array<ArrayBuffer>;
+    private readonly tap: GateBassTap;
     // Fast and slow followers of the bass energy; a bump is the fast one rising above the slow one.
     // Public only so DEV telemetry can read them; nothing outside this class writes them.
     public fast = 0;
@@ -22,32 +15,12 @@ export class BassPulse {
 
     // Taps the source's output through two cascaded low-pass filters (24 dB/octave) into a bass-only analyser.
     constructor(source: AnalyserNode) {
-        this.source = source;
-        const context = source.context;
-        this.filters = [0, 1].map(() => {
-            const filter = context.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.value = BASS_CUTOFF_HZ;
-            filter.Q.value = Math.SQRT1_2;
-            return filter;
-        });
-        this.analyser = context.createAnalyser();
-        this.analyser.fftSize = BASS_FFT_SIZE;
-        this.samples = new Float32Array(this.analyser.fftSize);
-
-        source.connect(this.filters[0]);
-        this.filters[0].connect(this.filters[1]);
-        this.filters[1].connect(this.analyser);
+        this.tap = new GateBassTap(source);
     }
 
     // Advances the envelope by one frame and returns it.
     public update(): number {
-        this.analyser.getFloatTimeDomainData(this.samples);
-        let sum = 0;
-        for (const sample of this.samples) {
-            sum += sample * sample;
-        }
-        const energy = Math.sqrt(sum / this.samples.length);
+        const energy = this.tap.level();
 
         this.fast += (energy - this.fast) * (energy > this.fast ? 0.5 : 0.2);
         // ~1.5 s memory, so each new bass note or hit stands out against what came before.
@@ -65,12 +38,6 @@ export class BassPulse {
     }
 
     public dispose(): void {
-        try {
-            this.source.disconnect(this.filters[0]);
-        } catch {
-            // Already disconnected: the source's audio context was closed when the capture stopped.
-        }
-        this.filters.forEach((filter) => filter.disconnect());
-        this.analyser.disconnect();
+        this.tap.dispose();
     }
 }
