@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { BassBump } from '../../app/features/audio/hub/bassBump';
+import { BassBump, GATE_BASS_BUMP } from '../../app/features/audio/hub/bassBump';
 import { parseCsv } from '../debug-visualizer/csv';
 import { findGateColumns, findGateRule, formatGateReplay, recordedOpening, replayGate } from './gateReplay';
 
@@ -144,5 +144,58 @@ describe('replay through BassBump', () => {
             'input: x.lowEnd through BassBump margin 2 gain 3',
         );
         expect(findGateColumns(build(true).columns).probe).toBe('x');
+    });
+
+    describe('--input gateBass', () => {
+        const gateColumns = [...columns, 'x.gateBass'];
+        // The gateBass column holds the pre-envelope bass; `in` is its GATE_BASS_BUMP output.
+        function buildGateBass(withColumn: boolean) {
+            const bump = new BassBump(GATE_BASS_BUMP);
+            const rows: number[][] = [];
+            for (let i = 0; i < 60 * 30; i++) {
+                const t = i * dt;
+                const beat = t * 2;
+                const bass = beat % 1 < 0.1 ? 1 : 0.3;
+                const row = [t, dt, bump.step(bass, dt), beat % 1, 1, Math.floor(beat), 0, 0.5, bass];
+                rows.push(withColumn ? row : row.slice(0, -1));
+            }
+            return { columns: withColumn ? gateColumns : gateColumns.slice(0, -1), rows };
+        }
+        const shipped = { margin: GATE_BASS_BUMP.margin, gain: GATE_BASS_BUMP.gain, input: 'gateBass' as const };
+
+        it('reproduces the recorded opening with the shipped settings and reads the gateBass column', () => {
+            const table = buildGateBass(true);
+            const recorded = replayGate(table, findGateRule('current'));
+            const replayed = replayGate(table, findGateRule('current'), shipped);
+            expect(recorded.firstOpen).toBeDefined();
+            expect(replayed).toEqual(recorded);
+            expect(findGateColumns(gateColumns).gateBass).toBe(8);
+        });
+
+        it('lets margin and gain override the shipped settings', () => {
+            const flat = replayGate(buildGateBass(true), findGateRule('current'), {
+                margin: 5,
+                gain: 0.1,
+                input: 'gateBass',
+            });
+            expect(flat.firstOpen).toBeUndefined();
+        });
+
+        it('keeps lowEnd as the default input', () => {
+            const table = buildGateBass(true);
+            const viaDefault = replayGate(table, findGateRule('current'), { margin: 1.02, gain: 6 });
+            const viaLowEnd = replayGate(table, findGateRule('current'), { margin: 1.02, gain: 6, input: 'lowEnd' });
+            expect(viaDefault).toEqual(viaLowEnd);
+        });
+
+        it('refuses a recording without a gateBass column and names the input in the output', () => {
+            expect(() => replayGate(buildGateBass(false), findGateRule('current'), shipped)).toThrow(
+                'Missing column "x.gateBass": record with a newer build to replay through BassBump',
+            );
+            const replay = replayGate(buildGateBass(true), findGateRule('current'));
+            expect(formatGateReplay('current', replay, undefined, 'x', shipped)[1]).toBe(
+                'input: x.gateBass through BassBump margin 1.15 gain 1.5',
+            );
+        });
     });
 });

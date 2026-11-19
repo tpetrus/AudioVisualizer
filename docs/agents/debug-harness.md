@@ -40,9 +40,15 @@ npm run debug:viz -- --dir "C:/Music/samples" --track song.mp3 --viz cubes --sec
   `scripts/fixtures/rhythm/gate/` and replayed by `scripts/rhythm-tools/gateReplay.test.ts`.
   `--bump-margin N` and `--bump-gain N` (either one turns it on; the other defaults to the shipped `BUMP_MARGIN` /
   `BUMP_GAIN`) replay the recording's `lowEnd` column through a fresh `BassBump` with those values and feed the result
-  to the gate instead of the recorded `in`, to choose the dancer's `DANCER_BUMP_MARGIN` and `DANCER_BUMP_GAIN`. The
-  output gains an `input:` line naming which input was used. A recording without a `lowEnd` column is an error with
-  that flag.
+  to the gate instead of the recorded `in`. That was how the dancer's envelope over the hub's low end was chosen; since
+  hub-regressions S4 the gate hears the hub's gate-input bass (`gateBass` column) through `DANCER_BUMP`, so the flags
+  replay the input before S4. The output gains an `input:` line naming which input was used. A recording without a
+  `lowEnd` column is an error with that flag.
+  `--input gateBass` (`--input lowEnd` is the default and today's behavior) replays the recording's `gateBass` column
+  through a fresh `BassBump` with the shipped `GATE_BASS_BUMP` settings (margin and gain from
+  `app/features/audio/hub/bassBump.ts`), which is the input the gate hears since S4; `--bump-margin` and `--bump-gain`
+  still override margin and gain. The `input:` line then names `gateBass`. A recording without a `gateBass` column is
+  an error with that option.
 - The telemetry CSV writes `NaN`, `Infinity` and `-Infinity` each under its own name, and the scripts read all three back
   (`scripts/debug-visualizer/csv.ts`).
 - `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` (`scripts/rhythm-ablate.ts`) runs the real `OnsetExtractor` and
@@ -252,8 +258,9 @@ export function attachTelemetry(engine: AudioEngine, onsets?: { bandOnsets: Arra
   (the column layout changed).
 - Probe names and columns. Every probe has an `in` column (the bass value the visualizer reads) and an `out` column (the
   bass-driven value it renders); the summary relies on those two names.
-  - `cubes`: `in` (the audio hub's low end below 130 Hz, the louder of `sub` and `kick`, 0..1 normalized; before S7 it
-    was BassPulse's bass RMS), `fast`, `slow`, `ratio` (1 at rest), `out` (the bass flash, `cubes/bassBump.ts`).
+  - `cubes`: `in` (the hub's gate-input bass, `snapshot.gateBass.pulse`: BassPulse's feature read by the hub's own tap at the render time, linear
+    RMS, since hub-regressions S4; from S7 of the hub plan until then the hub's normalized low end, and before it
+    BassPulse's own RMS), `fast`, `slow`, `ratio` (1 at rest), `out` (the bass flash, `cubes/cubesBass.ts`).
   - `trio-color-wave`: `in` (bass sheet frame level before balancing), `peak` (its decaying peak), `out` (bass level
     after balancing).
   - `dancing-character`: `in` (bass input to the gate), `out` (gate output), `gateOpen`, `gateScore`, `gateWeight`,
@@ -340,7 +347,8 @@ accessors named below.
 | `gridMoves` | `BeatTracker.phaseShiftCount`: times the phase check moved the beat grid; back to 0 on a reset. Recordings made before this column still load |
 | `octaveHolds` | `TempoTracker.octaveHoldCount`: estimates where an octave-away challenger was held back for low confidence; back to 0 on a reset. Recordings made before this column still load |
 | `barVetoes` | `TempoTracker.barVetoCount`: estimates where a dotted challenger was refused because bar evidence did not favor it; back to 0 on a reset. Recordings made before this column still load |
-| `lowEnd` | the hub's louder of the `sub` and `kick` bands this frame (`hubLowEnd`), 0 with no source: what `BassBump` is fed, so `in` is its output. Last column. Recordings made before it still load, but cannot be replayed through BassBump |
+| `lowEnd` | the hub's louder of the `sub` and `kick` bands this frame (`hubLowEnd`, normalized), 0 with no source: the gate's input until hub-regressions S4, now recorded only for comparison. Recordings made before it still load, but cannot be replayed through BassBump |
+| `gateBass` | the hub's gate-input bass this frame (`snapshot.gateBass.pulse`, contract C1: BassPulse's feature read by the hub's own tap at the render time, linear RMS), 0 with no source: what the dancer's `BassBump` is fed since S4, so `in` is its output. Last column. Recordings made before it still load |
 
 `rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`. The three counters are read through its read-only `beat` and `tempo` fields (`beat.phaseShiftCount`, `tempo.octaveHoldCount`, `tempo.barVetoCount`), because a forwarding getter each does not fit the production JS budget.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.

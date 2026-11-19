@@ -65,6 +65,9 @@ export class RhythmTracker {
     // Snapshot getters for useSyncExternalStore: arrow properties, stable primitives.
     public getBeatsPerBar = (): BeatsPerBar | undefined => this.beatsPerBar;
     public getSongChangeCount = (): number => this.songChangeCount;
+    // The analyser the tracker hears, the music's tap in the audio graph; undefined with no source. The audio hub taps it
+    // too, for the gate-input bass it reads at the render time.
+    public getSource = (): AnalyserNode | undefined => this.boundAnalyser;
 
     // Starts following `engine`. Safe to call again (it restarts), and undone by `dispose()`.
     public start(engine: AudioEngine): void {
