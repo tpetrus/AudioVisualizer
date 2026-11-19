@@ -399,6 +399,18 @@ describe('cubes reaction cells (version 7)', () => {
         expect(latency(47)).toMatchObject({ status: 'fail', pass: false });
     });
 
+    it('absorbs float noise at the one-frame bound but not a real overshoot', () => {
+        const latency = (value: number) =>
+            cubesCell('cubes.reaction.latencyMs', { cubesLatencyMs: value, prehubCubesLatencyMs: 33.33333333333499 });
+        expect(latency(50.00000000000071).status).toBe('pass');
+        expect(latency(33.33333333333499 + 1000 / 60 + 1e-9).status).toBe('pass');
+        expect(latency(33.33333333333499 + 1000 / 60 + 1e-3).status).toBe('fail');
+        const share = (value: number) =>
+            cubesCell('cubes.hit.share50ms', { cubesHitShare: value, prehubCubesHitShare: 0.8 });
+        expect(share(0.75 - 1e-9).status).toBe('pass');
+        expect(share(0.75 - 1e-3).status).toBe('fail');
+    });
+
     it('fails a cubes cell with no reaction when pre-hub had one, and passes it when neither had one', () => {
         expect(cubesCell('cubes.hit.share50ms', { cubesHitShare: null, prehubCubesHitShare: 0.5 })).toMatchObject({
             status: 'fail',

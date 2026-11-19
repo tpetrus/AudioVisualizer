@@ -424,6 +424,17 @@ export function liveEffectiveFloor(metric: LiveMetricTarget, prehub: number | nu
     return metric.direction === 'lower' ? Math.min(metric.floor, bound) : Math.max(metric.floor, bound);
 }
 
+// Slack, in the metric's own unit, when a value is compared to a floor. A pre-hub bound such as prehub + 1000/60 is
+// computed in floating point, so a value that sits exactly one tolerance away can land about 1e-12 past it. 1e-6 is
+// far below any real measurement step (milliseconds, shares, seconds), so it only absorbs that noise.
+export const FLOOR_EPSILON = 1e-6;
+
+// Whether a value meets a floor, for both directions; a null floor is report-only and always met.
+export function meetsFloor(direction: MetricDirection, value: number, floor: number | null): boolean {
+    if (floor === null) return true;
+    return direction === 'lower' ? value <= floor + FLOOR_EPSILON : value >= floor - FLOOR_EPSILON;
+}
+
 export function floorFor(metric: MetricTarget, trackClass: TrackClass): number | null {
     return metric.floorByClass?.[trackClass] ?? metric.floor;
 }
