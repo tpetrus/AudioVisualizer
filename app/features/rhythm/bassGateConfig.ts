@@ -40,7 +40,7 @@ export const BASS_GATE_BAR_WINDOW = 0.1;
 // kick used to fail the kick that repeats it a bar later as well, and the gate opened 10 s after the tempo locked on
 // five live recordings; with this it opens after 5.5 s on the same five.
 // The radius is a whole beat because random bass with a note on every beat always has one nearer than that (half a
-// beat let random bass through: 4 of 205 patterns against 0).
+// beat let random bass through under the old rule: 4 of 205 patterns against 0).
 export const BASS_GATE_EMPTY_RADIUS = 1;
 // Evidence while closed is a running sum. Each kick adds the log of how much likelier its outcome (repeated an earlier
 // bar or not) is for a real bassline, which repeats at least at the repeat rate, than for chance. The chance is the
@@ -48,11 +48,12 @@ export const BASS_GATE_EMPTY_RADIUS = 1;
 // because a kick is only seen once per rendered frame, and never below the minimum so no single repeat decides.
 // The sum never goes below 0 and the gate opens at the open score. Counting repeats without the chance (six of the
 // last eight, the latest three in a row) opened on 52 of 100 random patterns with two notes per beat over 120 beats,
-// because busy bass repeats by chance; this opens on 2, and on 0 of 205 with one note per beat over 40 beats. Once
+// because busy bass repeats by chance (an old rule; the shipped one is bounded in bassGate.test.ts). Once
 // open, each kick at the learned place adds 1 up to the maximum, and the gate closes at the close score.
 // Retuned with the kicks placed from before the lock (hub-regressions S5, `npm run sweep:gate`): a repeat rate of 0.8,
 // a margin of 1.6 and an open score of 5.5 opened the dancer's gate within 4 s of the lock on 12 of 16 kick tracks
-// (1 before), and on fewer random-bass patterns than before (3 and 15 of 300 at 120 and 400 beats, against 5 and 27).
+// (1 before), and on fewer random-bass patterns than before (hub replay, `npm run sweep:gate`: 3 and 15 of 300 at 120 and
+// 400 beats, against 5 and 27; the level-domain spec in bassGate.test.ts measures 2 and 8).
 export const BASS_GATE_REPEAT_RATE = 0.8;
 export const BASS_GATE_DENSITY_BEATS = 8;
 export const BASS_GATE_CHANCE_MARGIN = 1.6;
