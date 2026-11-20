@@ -79,7 +79,7 @@ describe('detectFromPcm', () => {
         for (let offset = 0; offset < track.pcm.length; offset += 4096) {
             extractor.push(track.pcm.subarray(offset, Math.min(track.pcm.length, offset + 4096)), (frame) => {
                 const time = (frame.endSample - FFT_SIZE / 2) / TEST_SAMPLE_RATE;
-                bandOnsets.push(frame.logMagnitude, time, (band, eventTime) => {
+                bandOnsets.push(frame, time, (band, eventTime) => {
                     direct[FEATURE_ONSET_BANDS[band]].push(eventTime);
                 });
             });

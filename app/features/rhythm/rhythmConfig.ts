@@ -323,3 +323,29 @@ export const LOW_ONSET_KICK_MAX_SETTLED = 0.8;
 // up, rises just as much from two frames back. Three or more frames smear the onset's time and the classifier's
 // baseline too far; two cleared the pad while keeping the drum onsets within the 50 ms the evaluation allows.
 export const LOW_ONSET_LAG_FRAMES = 2;
+
+// A bass note struck again on the pitch still sounding barely changes the low end's level (a rise of 0.1 to 0.16, no
+// more than the ripple of the held tone), but it restarts the note's phase. The low end's phase detection function
+// measures that: per low-end bin, how far the phase moved from where a steady tone would have taken it (its angle from
+// the previous two frames, 0 to pi), weighted by the smaller of the bin's level now and a frame ago, so that only a tone
+// that was already sounding and still sounds counts, and averaged over the bins. A steady note or silence reads about 0,
+// a re-struck note 0.8 to 1.5 on the synthetic tracks, and everything else on them stays under 0.3, except a chord in
+// the low end swelling in, whose partials beat in the shared bins (up to 0.57). It only adds events where the
+// level-rise detector stayed quiet (LOW_PHASE_QUIET_FRAMES): a fresh note or an audible kick is the level detector's
+// to find, and a phase onset is a bass note unless the kick's range rose with it (LOW_PHASE_KICK_RISE).
+// The floor, the fraction of its recent loudest value and the multiple of its running mean play the same roles as
+// BAND_ONSET_MIN_FLUX, BAND_ONSET_RELATIVE_THRESHOLD and BAND_ONSET_NOISE_FACTOR for the level detectors. The floor sits
+// between the swelling chord and the weakest re-struck note (0.8); every value from 0.5 to 0.75 scored the same in
+// `npm run sweep:onsets`.
+export const LOW_PHASE_MIN = 0.65;
+export const LOW_PHASE_RELATIVE_THRESHOLD = 0.25;
+export const LOW_PHASE_NOISE_FACTOR = 3;
+// The level-rise detector must be below its threshold for this many frames on either side of a phase onset, or the
+// phase onset is the same hit as a level one (a fresh note moves both) and is dropped.
+export const LOW_PHASE_QUIET_FRAMES = 2;
+// A phase onset is a kick, not a bass note, when the kick's own range of the low end (the bins below the bass band)
+// rises by at least this much in log level at it (the mean over those bins of the largest rise in the look-ahead). A
+// note struck again on its pitch leaves the level where it was; a kick struck over a loud bass note, whose level rise
+// the note's running mean hides from the level detector, still lifts its range by about 1 (bassline-kick-120's kick on
+// the downbeat, under a G2 note). Every value from 0.2 to 0.7 scored the same in `npm run sweep:onsets`.
+export const LOW_PHASE_KICK_RISE = 0.5;
