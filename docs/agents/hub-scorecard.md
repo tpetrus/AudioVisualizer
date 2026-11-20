@@ -472,6 +472,10 @@ plus the three synthetic cells), and S6 adds none.
   That is a design for a later plan, not a retune.
 
 ## Follow-ups outside the fast lane
+- **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
+  its value over the phase function's own decaying peak, while a level onset's is over its band's peak, so `hub.onsets`
+  mixes two scales on `kick` and `bass`. Phase events are also not counted anywhere live. Decide the scale and add a DEV
+  counter recorded by `debug:viz` before S9 moves visualizers onto `hub.onsets`.
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
   (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
   `RhythmAnalyzer` prototype methods for the duration of a replay. It works and its specs fail on a rename, but the
