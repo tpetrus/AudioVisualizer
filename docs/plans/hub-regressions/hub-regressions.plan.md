@@ -338,3 +338,24 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   phase function's own decaying peak, a different scale from the level events. There is also no count of phase events
   in the dancer's telemetry. Decide the scale and add the counter before S9 moves the visualizers onto `hub.onsets`.
 - **Next:** S7, the tempo follow-ups.
+
+### S7 done (2026-11-20, branch `s7-tempo`)
+- **Delivered:** when the tracker halves its tempo, it keeps whichever of the two sets of every-second beats carries
+  more onset energy, rather than the set after the latest declared beat (`BeatTracker.changeOctave`). That set was the
+  off-beat on `syncopationbass`. Every other S7 cell was traced to a cause that a retune cannot reach
+  (`docs/agents/hub-scorecard.md`, "S7 findings").
+- **Acceptance:**
+  - **AC4:** `syncopationbass` 53.5 to 35.7 ms. `low-bpm-rnb` (a syncopated kick captures the beat loop) and
+    `summer2000` (its taps drift by 80 ms rms) are deferred under D11.
+  - **AC3:** `drifting-tempo` (its 8-beat tapped truth strays up to 2.0% by itself) and `beatless` (a real 140 bpm
+    periodicity at confidence 1.0) are deferred under D11. False song changes stay 0.
+  - **AC9:** stays deferred (S3 review).
+  - **AC6 hand-ons from S5:** `half-time-shuffle` and `low-bpm-rnb` gates are deferred with their tracker causes.
+  - **AC12:** `scorecard:check` passes offline (blocking failures 15 to 14, none from pass to fail), and the baseline
+    is regenerated. Live, 3 `high-bpm-dnb` dancer cells are worse than S6 beyond the spread (gate, hit share,
+    latency), and the base build splits the same way on the same day. They are recorded as an exception to confirm at
+    review. All repository checks and budgets pass.
+- **Deferrals:** decided by the orchestrator under Trevor's instruction of 2026-11-20 ("if any decisions are needed,
+  go with your recommendation"); confirm them at the PR review.
+- **Follow-ups outside the fast lane:** `FU-S7-drifting-truth` (targets), `FU-S7-retap-summer2000` (Trevor).
+- **Next:** S8, the dance clip-phase stability.

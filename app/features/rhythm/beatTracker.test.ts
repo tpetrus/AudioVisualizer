@@ -145,6 +145,45 @@ describe('BeatTracker', () => {
         expect(tracker.gridEpoch).toBe(epoch);
     });
 
+    // Double time with every second pulse strong: the strong pulses are the beat. Returns, for a halving after `seconds`,
+    // whether the latest beat before it fell on a strong pulse and on which pulses the kept beats land.
+    function halveOverAccents(seconds: number): { lastWasStrong: boolean; keptStrong: number; keptWeak: number } {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const period = 60 / 196;
+        const strength = (time: number): number => {
+            const pulse = Math.round(time / period);
+            const near = Math.abs(time - pulse * period) < 0.5 / FRAME_RATE;
+            if (!near) return 0.05;
+            return pulse % 2 === 0 ? 1 : 0.5;
+        };
+        const isStrong = (time: number): boolean => Math.round(time / period) % 2 === 0;
+        tracker.setTempo(196);
+        let i = 0;
+        for (; i < seconds * FRAME_RATE; i++) tracker.push(i / FRAME_RATE, strength(i / FRAME_RATE));
+        const lastWasStrong = isStrong(tracker.lastBeatTime);
+        tracker.setTempo(98);
+        let keptStrong = 0;
+        let keptWeak = 0;
+        for (const end = i + 8 * FRAME_RATE; i < end; i++) {
+            if (tracker.push(i / FRAME_RATE, strength(i / FRAME_RATE))) {
+                if (isStrong(tracker.lastBeatTime)) keptStrong++;
+                else keptWeak++;
+            }
+        }
+        return { lastWasStrong, keptStrong, keptWeak };
+    }
+
+    it('keeps the stronger of the two beats when the tempo halves, whichever was declared last', () => {
+        // Half an old period apart, so one run halves right after a strong beat and the other right after a weak one.
+        const afterStrong = halveOverAccents(15);
+        const afterWeak = halveOverAccents(15 + 60 / 196);
+        expect(afterStrong.lastWasStrong).not.toBe(afterWeak.lastWasStrong);
+        for (const run of [afterStrong, afterWeak]) {
+            expect(run.keptStrong).toBeGreaterThan(10);
+            expect(run.keptWeak).toBe(0);
+        }
+    });
+
     it('keeps the grid across a doubled tempo and adds a beat between the old ones', () => {
         const tracker = new BeatTracker(FRAME_RATE);
         drive(tracker, 98, 15);

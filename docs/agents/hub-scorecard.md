@@ -471,7 +471,90 @@ plus the three synthetic cells), and S6 adds none.
   as a longer FFT of a decimated low band or a constant-Q filterbank, at the cost of time resolution or worklet CPU.
   That is a design for a later plan, not a retune.
 
+## S7 findings (targets version 7, measured on `8a881c6` plus the change)
+S7 owned the tracker's failing cells: the beat error of `low-bpm-rnb` (169 ms), `summer2000` (129 ms) and
+`syncopationbass` (54 ms), the tempo error of `drifting-tempo` (0.028), `beatless` locking, and the gate on
+`half-time-shuffle` and `low-bpm-rnb` that S5 handed on. Each was traced with the scorecard (10 s a run), the alignment
+report (`eval:rhythm -- .debug-in --alignment`) and scratch probes that fold each flux band over the tapped beats and
+over the tracker's own beats, and that log the phase check beat by beat. `syncopation-no-kick`'s wrong lock in the plan
+was already fixed: it holds 135 bpm (ratio 0.999), and its beat error passes (30 ms).
+
+### Causes
+- **`syncopationbass` (54 ms): halving the tempo kept the off-beats.** The tracker first locks at double time
+  (195.7 bpm), where its grid alternates between the beat and the off-beat, and halves to 98 bpm at about 5 s. A halving
+  kept every second beat starting after the latest declared one, whichever that was, and here that was the off-beat.
+  The grid stayed half a beat off until the phase check moved it at 10 s. Lowering the mid band's weight in the onset
+  envelope (`ONSET_BAND_WEIGHTS`, any value from 0.4 to 0.9) also passed the cell, only because it moved the halving by
+  one beat. It doubled the white-noise meter spec's total (17 to 35), moved the tracker's crossfade spec to its edge and
+  changed the meter's beat feature, so it was dropped for the real cause.
+- **`low-bpm-rnb` (169 ms): a syncopated kick a quarter beat early captures the beat loop.** The tracker first locks at
+  162 bpm, halves to 81 at 9 s on the wrong beat (the cause above; the fix moves that to the right one), and the phase check then moves it onto the tapped beat at 16 s, as it
+  should. From there the beat-by-beat correction, which pulls each beat to the strongest onset within 0.2 of a beat,
+  keeps finding the kick that lands a sixteenth before the beat (1.88 kick onsets per beat). The period shrinks to
+  0.729 s against the true 0.737 and the grid slides back onto the kick within 5 s. The phase check cannot see a slide,
+  because its evidence turns with the grid. Nothing tried moved it: band weights, the phase check's ratio and minimum
+  shift, a narrower window, a distance-weighted peak, lower phase or period gains, and following the tempo estimate
+  fully. Holding a beat against a strong syncopated onset needs a tracker that keeps more than one phase hypothesis.
+- **`summer2000` (129 ms): mostly the tapped truth.** Fitted with one tempo, the taps stray by 80 ms rms and up to
+  188 ms, wandering slowly (from -188 ms at 2 s to +142 ms at 15 s). The tracker's grid is steady, and the kick folds
+  sharply on it but is smeared on the taps. Tap jitter alone breaks the 40 ms floor.
+- **`drifting-tempo` (0.028): tap jitter plus the tracker's lag.** The tapped tempo ramps from 112 to 117 bpm, and the
+  tracker trails it by about 1 bpm, because the autocorrelation looks at the last 8 s. The truth is the tempo of each
+  8-beat window of taps, and those windows alone stray up to 2.0% from a smooth fit of the same taps. A 6 s history
+  barely changes it (0.027) and breaks four passing cells; faster smoothing gives 0.026.
+- **`beatless` locks at 3.0 s, with tempo confidence 1.0.** Its onset envelope has a real periodicity near 140 bpm
+  (autocorrelation peaks of 0.39 at one period and 0.25 at two), its low band peaks as sharply as the real songs'
+  (99th percentile 24 times the median), and its tempo holds within 1% for the first 8 s before it wanders between 139
+  and 153 bpm. No tempo or confidence rule can tell it from a beat at the first lock. That needs a model of whether a
+  beat is present, such as how sharp the onsets are.
+- **Gate on `half-time-shuffle` and `low-bpm-rnb`:** unchanged causes. `half-time-shuffle` still locks at 169 bpm,
+  where its bassline repeats every 3 beats (S5's finding), and `low-bpm-rnb`'s beat sits on the early kick above.
+
+### The change
+- **A halving keeps the stronger of its two choices** (`BeatTracker.changeOctave`). It sums the envelope's strongest
+  frame within 3 frames of each beat of both choices, back over the stored 6 s, and keeps the stronger choice. A tie
+  keeps the beat after the latest declared one, as before. A new spec halves double-time pulses with every second one
+  stronger, once right after a strong beat and once right after a weak one. Both keep only the strong pulses, and
+  without the change the run that halves after a weak beat keeps the weak ones. No other spec or bound changed, and the
+  white-noise meter total is 17, as before.
+
+### Result
+- Offline, `scorecard:check` passes against the version 7 baseline, and the baseline is regenerated. Blocking failures
+  go from 15 to 14: `syncopationbass` beat error 53.5 to 35.7 ms (pass). No other cell changes, except `low-bpm-rnb`'s
+  beat error at 183.4 ms (169.1), a cell that already failed and is deferred below.
+- All repository checks and budgets pass.
+- **Live** (`dancing-character`, 4 runs per track, headless, one at a time, 49 min): 63 of 86 applicable cells pass.
+  Now passing: clip deviation on `drifting-tempo` (0.25 to 0.004), `lonley` (0.050 to 0.004) and `syncopationbass2`
+  (0.097 to 0.004), `drifting-tempo`'s lock spread (4.99 to 0.02 s), and `low-bpm-rnb`'s latency (50 to 46 ms).
+  - **`half-time-shuffle` clip deviation** goes from pass to fail (0.017 to 0.30). That is about pre-hub's 0.29 and
+    inside its own spread (0.34), so it is not a regression under AC12. It is the re-select and 3-beat-bar cell S3 gave
+    to S8.
+  - **`summer2000`** hit share and false fires show as unavailable, because only 2 of 4 runs fired. On a
+    confirmation run all 4 fire and both pass (0.017 and 0.97, as in S6).
+  - **`high-bpm-dnb` is worse than the S6 baseline beyond the spread:** the gate opens 5.30 s after the lock
+    (baseline 2.17 s), hit share is 0.006 (0.065) and latency 115 ms (102). Its offline replay is unchanged by S7. On
+    the same day, 4 runs of the base build (`8a881c6`) split the same way: the gate opens at 6.67 s on 3 of 4 runs
+    (spread 10.9 s), with hit share 0.018 and latency 100 ms. So the baseline's 2.17 s was a lucky recording, not what
+    S7 changed. Recorded as an exception to confirm at review.
+
+### Deferred (under D11; decided by the orchestrator under Trevor's standing instruction of 2026-11-20 to go with the recommendation, to confirm at review)
+- **`low-bpm-rnb` beat error and gate:** needs a beat tracker that keeps several phase hypotheses (see Causes).
+- **`summer2000` beat error:** its taps drift past the floor. Re-tap it (`npm run tap:beats -- --dir .debug-in --track
+  summer2000.wav --force`, twice, keeping the run with less drift), which changes its `.beats.json` hash and the
+  baseline.
+- **`drifting-tempo` tempo error:** the 8-beat local truth is noise-bound. Score drifting tracks against a smooth fit
+  of the taps, or a 16-beat window (`FU-S7-drifting-truth`, which changes the targets).
+- **`beatless` lock:** needs a model of whether a beat is present.
+- **`half-time-shuffle` gate:** needs the tracker to count the shuffle's beat (83 bpm), not its 169 bpm subdivision,
+  or a gate that searches bar lengths. Both are redesigns.
+
 ## Follow-ups outside the fast lane
+- **`FU-S7-drifting-truth`** (R2, it changes the targets; from S7): `tempo.maxErrorAfterLock` on `drifting-tempo`
+  compares with the tempo of each 8-beat window of taps, which strays up to 2.0% from a smooth fit of the same taps, so
+  a 2% floor measures tap jitter. Score drifting tracks against a quadratic fit of the tapped beat times (or a 16-beat
+  window), and bump the targets version.
+- **`FU-S7-retap-summer2000`** (Trevor; needs ears): re-tap `summer2000` twice with the calibration and keep the run
+  with less drift against one tempo (today 80 ms rms, up to 188 ms), then regenerate the baseline.
 - **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
   its value over the phase function's own decaying peak, while a level onset's is over its band's peak, so `hub.onsets`
   mixes two scales on `kick` and `bass`. Phase events are also not counted anywhere live. Decide the scale and add a DEV
