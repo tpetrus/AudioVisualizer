@@ -140,7 +140,7 @@ and `BassPulse`. Seconds from the dancer's lock to the first opening, offline, o
 | Metric | Tracks | Owner |
 |---|---|---|
 | `beat.errorMedianMs` | `low-bpm-rnb` 169, `summer2000` 129, `syncopationbass` 54 ms; `6-8-time` never locks | S7 (cause not isolated in S3); `6-8-time` deferred (D11) |
-| `onset.f50` | `no-kick-124` bass 0.67, `bassline-kick-120` bass 0.77 and kick 0.68 (0.76 before the replay applied the gain) | S6 |
+| `onset.f50` | `no-kick-124` bass 0.67, `bassline-kick-120` bass 0.77 and kick 0.68 (0.76 before the replay applied the gain) | S6: `no-kick-124` fixed (1.00); `bassline-kick-120` kick 0.81 and bass 0.77 deferred (D11, see "S6 findings") |
 | `tempo.maxErrorAfterLock` | `drifting-tempo` 0.028; `6-8-time` never locks | S7; `6-8-time` deferred (D11) |
 | `tempo.falseSongChanges` | `6-8-time` 1 | deferred (D11) |
 | `tempo.beatlessNeverLocks` | `beatless` locks at 3.1 s (and the dancer's lock holds, so both gates open) | S7 |
@@ -418,6 +418,58 @@ visualizers' live cells are S4's (S5 changes only the gate, which only the dance
 - **`low-bpm-rnb` (never opens in any build), deferred to S7**; cause not isolated.
 - **`lonley`** opens 5.30 s after the lock live (10.83 offline, where S3 found its replay unrepresentative).
 - **`summer2000`** opens 6.06 s after the lock live (6.10 offline).
+
+## S6 findings (targets version 7, measured on `054283e`)
+S6 changed the per-band onset detector (`app/features/rhythm/bandOnsets.ts`). Nothing in the app reacts to the hub's
+onset events yet (only dev telemetry reads them, and the tracker does not), so it moves only the offline onset cells.
+Tuned offline with `npm run sweep:onsets -- --dir .debug-in --no-kick syncopation-no-kick` (6 s per point). Its checks
+on the tapped tracks failed 7 times before S6 (`imyourgirl` snare 2.20, `syncopation-no-kick` kick, snare and lift,
+plus the three synthetic cells), and S6 adds none.
+
+### Causes (traced frame by frame)
+- **`no-kick-124` bass (0.67): a note struck again on the pitch still sounding.** The notes on beats 0 and 2 start as
+  the previous 110 Hz note starts its release. The low end's level rises by 0.12 to 0.16, no more than the held tone's
+  ripple, against a running-mean floor of about 0.2. No threshold retune helps: lowering the low end's noise factor never
+  lifts the cell and costs `bassline-kick-120`'s kick. The phase restarts, though.
+- **`bassline-kick-120` kick on the downbeat (14 of 15 missed):** it lands on a loud G2 note. Its level rise (0.28)
+  stays under a noise floor of 0.36 to 0.49 that the bassline keeps up.
+- **`bassline-kick-120` F2 step on 2.75 taken for a kick (14):** its harmonics beat against D2's inside the 43 Hz bins,
+  so two frames on the rise above the kick's range has dipped (0.35 of the onset's, true kicks keep 0.49 to 0.65).
+  That reads as a drum's decay. A frame later is no better (0.35).
+- **`bassline-kick-120` bass from nothing 100 ms after the kick on beat 1 (15):** the kick (about 47 Hz) and the B1
+  note (62 Hz) beat to a null in bins 1 and 2, and the recovery reads as an attack two frames on. Measuring the rise
+  against the highest of the last frames fixes it, but then the kick on beat 2 and the B1 step fail and
+  `pad-lead-groove-110`'s kick drops below 0.9, so it was not kept.
+
+### The change
+- **A phase detection function for the low end:** per low bin, the angle between the complex spectrum and a steady
+  tone's prediction from the previous two frames, weighted by the bin's level now and a frame ago. Every one of
+  `no-kick-124`'s 61 bass labels scores at least 0.80, and nothing else on the synthetic tracks scores above 0.3, except
+  a low chord swelling in (up to 0.57). The floor is 0.65 (`LOW_PHASE_MIN`); 0.5 to 0.75 scored the same.
+- It adds an event only where the level detector stayed quiet, and not within the level detector's 80 ms refractory
+  span after a low-end event (a kick over a sounding note turns its phase while the kick's pitch falls: 18 false bass
+  events on `drums-150` without that rule).
+- **Kick or bass:** a phase event is a kick when the kick's range (below 130 Hz) rose by at least 0.5 in log level with
+  it (`LOW_PHASE_KICK_RISE`; 0.2 to 0.7 scored the same). That is the downbeat kick under the G2 note, which rises by
+  about 1 there. A note struck again leaves the level where it was. Running the level detector's own kick/bass
+  classifier on phase events instead made 19 of `no-kick-124`'s re-struck notes kicks.
+- `OnsetFrame` carries the complex spectrum (`real`, `imag`), and `BandOnsets.push` takes the frame. The worklet
+  message (C3) and the hub snapshot (C1) are unchanged. The worklet bundle is 5.76 of 5.8 kB.
+
+### Result
+- Offline cells that changed (2 of 625): `onset.f50.bass` `no-kick-124` 0.67 to 1.00 (pass), and `onset.f50.kick`
+  `bassline-kick-120` 0.68 to 0.81 (recall 1.00, precision 0.80). `bassline-kick-120` bass stays at 0.77. Blocking
+  failures go from 16 to 15, and `scorecard:check` passes against the version 7 baseline, which is regenerated here.
+- F at 20 ms on `no-kick-124` bass is 0.89: the phase events land a frame or two after the strike, inside 50 ms.
+- On the tapped tracks the bass events per beat move by at most 0.12 (`summer2000` 0.78 to 0.90, `imyourgirl` 0.31 to
+  0.35); kick, snare and highs are unchanged.
+
+### Deferred (signed off, Trevor, 2026-11-20, under D11)
+- **`bassline-kick-120` kick (0.81) and bass (0.77).** The 14 F2 steps taken for kicks keep the kick under 0.9 even
+  with every kick found, and the same steps plus the 15 events from the beating null keep the bass under it. Both come
+  from two low tones sharing a 43 Hz bin of the 1024-point FFT. Telling them apart needs a finer low-end spectrum, such
+  as a longer FFT of a decimated low band or a constant-Q filterbank, at the cost of time resolution or worklet CPU.
+  That is a design for a later plan, not a retune.
 
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
