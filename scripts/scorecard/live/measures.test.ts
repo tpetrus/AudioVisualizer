@@ -95,53 +95,91 @@ describe('clipMaxDeviations', () => {
         'dancing-character.tempoLocked',
         'dancing-character.meterLocked',
         'dancing-character.clipPhase',
+        'dancing-character.beatsPerLoop',
     ];
-    // A run that locks at `lock` and then loops once per second, shifted by `offset` loops.
-    const run = (lock: number, offset: number, meter = true): TelemetryTable =>
+    // A run that locks at `lock` and then loops once per second over a clip of `beats`, shifted by `offset` loops.
+    const run = (lock: number, offset: number, meter = true, beats = 8): TelemetryTable =>
         table(
             columns,
-            times(10).map((t) => [t, t >= lock ? 1 : 0, meter && t >= lock ? 1 : 0, (((t + offset) % 1) + 1) % 1]),
+            times(10).map((t) => [
+                t,
+                t >= lock ? 1 : 0,
+                meter && t >= lock ? 1 : 0,
+                (((t + offset) % 1) + 1) % 1,
+                beats,
+            ]),
         );
+    const allZero = (values: (number | null)[]) => values.every((value) => value !== null && value < 1e-6);
 
-    it('is 0 for runs on the same loop and reads the largest distance of a shifted one', () => {
-        const values = clipMaxDeviations([run(2, 0), run(3, 0), run(2, 0), run(2, 0.1)]);
+    it('is 0 for runs on the same loop and reads the largest distance of a shifted one, in beats', () => {
+        const values = clipMaxDeviations([run(2, 0), run(3, 0), run(2, 0), run(2, 0.01)]);
         expect(values[0]).toBeCloseTo(0);
-        expect(values[3]).toBeCloseTo(0.1);
+        expect(values[3]).toBeCloseTo(0.08);
+    });
+
+    it('compares the place within the bar once every run is meter-locked, so another bar of the loop is no error', () => {
+        // Half a loop of an 8-beat clip is one bar: the dance is on the same place in its bar.
+        expect(allZero(clipMaxDeviations([run(2, 0), run(2, 0.5), run(2, 0)]))).toBe(true);
+        // A quarter loop is two beats, half a bar, the largest distance within a bar.
+        expect(clipMaxDeviations([run(2, 0), run(2, 0.25), run(2, 0)])[1]).toBeCloseTo(2);
+    });
+
+    it('compares the place within the beat while a run is not meter-locked', () => {
+        // A whole beat off (an eighth of the loop) is no error before the meter locks; three eighths of a beat more is.
+        expect(allZero(clipMaxDeviations([run(2, 0, false), run(2, 0.125, false), run(2, 0, false)]))).toBe(true);
+        const off = clipMaxDeviations([run(2, 0, false), run(2, 0.125 + 0.375 / 8, false), run(2, 0, false)]);
+        expect(off[1]).toBeCloseTo(0.375);
+        // One run unlocked at a sample puts every run on the beat there.
+        expect(allZero(clipMaxDeviations([run(2, 0), run(2, 0.125, false), run(2, 0)]))).toBe(true);
+    });
+
+    it("scales by each run's own beats per loop", () => {
+        // A 4-beat clip a quarter loop on is one beat on: the same place in the beat as an 8-beat clip on time.
+        expect(allZero(clipMaxDeviations([run(2, 0, false), run(2, 0.25, false, 4), run(2, 0, false)]))).toBe(true);
     });
 
     it('samples from the latest meter lock, so an unlocked early stretch is not counted', () => {
         // The odd run is wildly off before 4 s, but they agree from the latest meter lock on.
         const wild = table(
             columns,
-            times(10).map((t) => [t, 1, t >= 4 ? 1 : 0, t >= 4 ? t % 1 : (t * 7) % 1]),
+            times(10).map((t) => [t, 1, t >= 4 ? 1 : 0, t >= 4 ? t % 1 : (t * 7.3) % 1, 8]),
         );
-        const values = clipMaxDeviations([run(2, 0), wild, run(2, 0)]);
-        expect(values.every((value) => value !== null && value < 1e-6)).toBe(true);
+        expect(allZero(clipMaxDeviations([run(2, 0), wild, run(2, 0)]))).toBe(true);
     });
 
     it('falls back to the tempo lock when no run meter-locks', () => {
-        const values = clipMaxDeviations([run(2, 0, false), run(2, 0.2, false)]);
-        // Two runs have the midpoint of their arc as median, so each is half the gap away.
+        const values = clipMaxDeviations([run(2, 0, false), run(2, 0.025, false)]);
+        // Two runs have the midpoint of their arc as median, so each is half the gap (0.2 beat) away.
         expect(values[0]).toBeCloseTo(0.1);
         expect(values[1]).toBeCloseTo(0.1);
     });
 
-    it('is null for every run with no lock, no column or no overlap', () => {
+    it('is null for every run with no lock, no column or no rows', () => {
         expect(clipMaxDeviations([run(20, 0), run(20, 0)])).toEqual([null, null]);
         expect(clipMaxDeviations([table(['t'], [[0]]), run(2, 0)])).toEqual([null, null]);
-        const short = table(['t', 'dancing-character.tempoLocked', 'dancing-character.clipPhase'], [[1, 1, 0.5]]);
-        expect(clipMaxDeviations([run(2, 0), short])).toEqual([null, null]);
+        // A recording from before targets version 8 has no beatsPerLoop column.
+        const old = table(
+            columns.slice(0, 4),
+            times(10).map((t) => [t, 1, 1, t % 1]),
+        );
+        expect(clipMaxDeviations([run(2, 0), old])).toEqual([null, null]);
+        expect(clipMaxDeviations([run(2, 0), table(columns, [])])).toEqual([null, null]);
     });
 
-    it('skips a sample where a phase is not a number', () => {
+    it('skips a sample where a phase or the loop length is not usable', () => {
         const broken = table(
             columns,
-            times(10).map((t) => [t, 1, 1, NaN]),
+            times(10).map((t) => [t, 1, 1, NaN, 8]),
         );
         const values = clipMaxDeviations([run(2, 0), broken]);
         expect(values[0]).toBe(0);
         expect(values[1]).toBe(0);
         expect(clipMaxDeviations([broken, broken])).toEqual([null, null]);
+        const noLength = table(
+            columns,
+            times(10).map((t) => [t, 1, 1, t % 1, 0]),
+        );
+        expect(clipMaxDeviations([noLength, noLength])).toEqual([null, null]);
     });
 });
 

@@ -694,7 +694,18 @@ describe('useDancingCharacterScene', () => {
                 'barVetoes',
                 'lowEnd',
                 'gateBass',
+                'beatsPerLoop',
             ]);
+        });
+
+        it('reads the beats one loop of the clip spans from the timing', () => {
+            const { renderer } = mountScene();
+            renderer.renderFrame(0);
+            const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+            scene.timing = { timeScale: 1, phaseNudge: 0, beatsPerLoop: 16 };
+            scene.timingState = { meterLocked: false };
+            scene.bassGate = { open: false, score: 0, weight: 0, bumpCount: 0, kickOffset: 0 };
+            expect(readProbe(31)[30]).toBe(16);
         });
 
         it('reads the tempo columns, with zeros for the analyzer values when there is no analyzer', () => {

@@ -31,7 +31,7 @@ export function measureRuns(viz: LiveVisualizer, runs: readonly MeasuredRun[]): 
         });
     const measures: Record<string, () => RunValue[]> = {
         'live.gate.secondsAfterLock': () => perRun((run) => gateSecondsAfterLock(run.table), false),
-        'live.clip.maxDeviationLoops': () => clipMaxDeviations(runs.map((run) => run.table)),
+        'live.clip.maxDeviationBeats': () => clipMaxDeviations(runs.map((run) => run.table)),
         'live.lock.spreadSeconds': () => perRun((run) => lockSeconds(run.table), false),
         'live.hit.share50ms': () => perRun((run, beats) => hitShare(run.table, viz, beats), true),
         'live.falseFire.share': () => perRun((run, beats) => falseFireShare(run.table, viz, beats), true),

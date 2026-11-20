@@ -151,6 +151,21 @@ describe('computeDanceTiming with an eight-beat clip', () => {
         expect(loopSeconds).toBeCloseTo((EIGHT * 60) / bpm / multiple, 1);
     });
 
+    it.each([
+        [120, 8],
+        [150, 16],
+    ])('reports the beats of the music one loop spans at %s BPM: %s', (bpm, beats) => {
+        const { out } = simulate({ bpm, seconds: 2, clipBeats: EIGHT });
+        expect(out.beatsPerLoop).toBe(beats);
+    });
+
+    it('reports the clip beats as the loop span while unlocked', () => {
+        const out = createDanceTimingResult();
+        expect(out.beatsPerLoop).toBe(0);
+        step(makeRhythm({ beatPhase: undefined }), createDanceTimingState(), out, { clipBeats: EIGHT });
+        expect(out.beatsPerLoop).toBe(EIGHT);
+    });
+
     it('keeps the loop-fraction nudge per second limited as for four beats', () => {
         const out = createDanceTimingResult();
         step(makeRhythm({ barPhase: 0.5 }), createDanceTimingState(), out, { dt: 0.1, clipBeats: EIGHT });

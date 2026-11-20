@@ -47,7 +47,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(7);
+        expect(TARGETS_VERSION).toBe(8);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
@@ -257,7 +257,7 @@ describe('live metrics', () => {
         expect(liveEffectiveFloor(live('live.reaction.latencyMs'), 28)).toBeCloseTo(28 + 1000 / 60);
         // False fires and clip phase show pre-hub without being bounded by it.
         expect(liveEffectiveFloor(live('live.falseFire.share'), 0.3)).toBeNull();
-        expect(liveEffectiveFloor(live('live.clip.maxDeviationLoops'), 0.01)).toBe(0.05);
+        expect(liveEffectiveFloor(live('live.clip.maxDeviationBeats'), 0.01)).toBe(0.2);
     });
 
     it('apply AC7 to real tracks only and AC8 to kick tracks with a beat', () => {
