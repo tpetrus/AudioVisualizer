@@ -18,21 +18,21 @@ import { GROUND_TRUTH_SAMPLE_RATE, GROUND_TRUTH_TRACKS, renderGroundTruthTrack }
 //   drums-100 1.000 / 3.0 s / 1.6 ms (the octave prior folds its 200 BPM pulse down to 100)
 //   trap-2to1-double-90 1.000 / 3.0 s / 2.2 ms (its 180 BPM kick pulse is just under the octave prior's break-even)
 // Onset F at 50 ms, from the per-band detector the worklet runs (BandOnsets): every labelled band scores 1.00 except
-// the low end of two tracks, and F at 20 ms is the same to two decimals:
-//   no-kick-124 bass: precision 1.00, recall 0.51. The running-mean floor that keeps real music down to one or two events
-//     per beat is lifted by the repeated bass notes themselves, so every other one falls under it.
-//   bassline-kick-120 kick / bass: precision 0.75 / 0.82, recall 0.76 / 0.84. With a kick on the beat and a pitched
-//     bassline between, the kick/bass classifier mixes the two up; its cue does not transfer to real music either, so
-//     it is a known weakness to solve with labelled real-music data, not by tuning against these tracks.
+// the low end of one track. F at 20 ms is the same to two decimals except no-kick-124's bass (0.89): the bass notes
+// struck again on the pitch still sounding, which only the low end's phase detector finds (LOW_PHASE_MIN), are placed
+// a frame or two after the strike.
+//   bassline-kick-120 kick / bass: precision 0.80 / 0.82, recall 1.00 / 0.84. The 43 Hz bins cannot tell two low
+//     notes beating in one bin from a drum's decay: the F2 step on 2.75 is taken for a kick, and the null where the kick
+//     and the B1 note beat is taken for a bass note when it recovers. A finer low-end spectrum is a later plan's work
+//     (hub-regressions S6, deferred under D11).
 
 // Tracks whose tempo the pipeline holds at the wrong octave or ratio at the end of the run. None today.
 const TEMPO_MISSES = new Set<string>();
 // Tracks where some band with labelled onsets scores below 0.9 at 50 ms.
-const ONSET_MISSES = new Set(['no-kick-124', 'bassline-kick-120']);
+const ONSET_MISSES = new Set(['bassline-kick-120']);
 // The recall each band of those tracks holds today, a little under the measured value, so a regression still shows.
 const RECALL_TODAY: Record<string, Partial<Record<(typeof ONSET_BANDS)[number], number>>> = {
-    'no-kick-124': { bass: 0.45 },
-    'bassline-kick-120': { kick: 0.7, bass: 0.75 },
+    'bassline-kick-120': { kick: 0.95, bass: 0.8 },
 };
 
 interface Run {

@@ -75,7 +75,7 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
         packFrame(frame, packed, 0);
         analyzer.pushFrame(time, packed, 0);
         analyzer.updatePhase(time);
-        bandOnsets.push(frame.logMagnitude, time, onOnset);
+        bandOnsets.push(frame, time, onOnset);
         tempo.push({ time, bpm: state.bpm });
         if (state.beatCount > lastBeatCount) {
             lastBeatCount = state.beatCount;

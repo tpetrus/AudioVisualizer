@@ -535,7 +535,8 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
   - the gate opens more than 4 s after lock on `lonley`, `summer2000` and `syncopationbass`
   - `low-bpm-rnb` never opens
   - `beatless` opens on a weak pulse
-  - the two onset misses (`no-kick-124`, `bassline-kick-120`) in `scripts/ground-truth/alignment.test.ts`
+  - the onset miss on `bassline-kick-120` in `scripts/ground-truth/alignment.test.ts` (`no-kick-124`'s was fixed in
+    hub-regressions S6; see "S6 findings" in `hub-scorecard.md`)
 
 ### Rhythm specs and dev tools (small, fast lane)
 - **`FU-pin-state-bpm`**: add analyzer specs pinning `state.bpm` to the held tempo when the grid is locked, and the

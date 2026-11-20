@@ -1,10 +1,10 @@
 # Scorecard
 
-Targets version 7, revision 5edc8b0, created 2026-11-20T03:12:10.031Z.
+Targets version 7, revision 054283e, created 2026-11-20T04:56:01.924Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 381: 336 passing, 34 failing, 11 unavailable. Blocking failures: 16.
+Applicable cells 381: 337 passing, 33 failing, 11 unavailable. Blocking failures: 15.
 
 ## ac9
 
@@ -478,7 +478,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | onset.f50.bass | imyourgirl.wav | tapped | - | 0.900 | - | - | n/a |
 | onset.f50.bass | lonley.wav | tapped | - | 0.900 | - | - | n/a |
 | onset.f50.bass | low-bpm-rnb.wav | tapped | - | 0.900 | - | - | n/a |
-| onset.f50.bass | no-kick-124.wav | synthetic | 0.674 | 0.900 | - | - | fail |
+| onset.f50.bass | no-kick-124.wav | synthetic | 1.000 | 0.900 | - | - | pass |
 | onset.f50.bass | pad-lead-groove-110.wav | synthetic | - | 0.900 | - | - | n/a |
 | onset.f50.bass | summer2000.wav | tapped | - | 0.900 | - | - | n/a |
 | onset.f50.bass | syncopation-no-kick.wav | tapped | - | 0.900 | - | - | n/a |
@@ -513,7 +513,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | onset.f50.highs | trap-2to1-half-140.wav | synthetic | 1.000 | 0.900 | - | - | pass |
 | onset.f50.highs | trap-4to3-120.wav | synthetic | - | 0.900 | - | - | n/a |
 | onset.f50.kick | 6-8-time.wav | tapped | - | 0.900 | - | - | n/a |
-| onset.f50.kick | bassline-kick-120.wav | synthetic | 0.682 | 0.900 | - | - | fail |
+| onset.f50.kick | bassline-kick-120.wav | synthetic | 0.808 | 0.900 | - | - | fail |
 | onset.f50.kick | beatless.wav | beatless | - | 0.900 | - | - | n/a |
 | onset.f50.kick | click-120.wav | synthetic | - | 0.900 | - | - | n/a |
 | onset.f50.kick | click-140.wav | synthetic | - | 0.900 | - | - | n/a |
