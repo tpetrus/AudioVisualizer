@@ -316,3 +316,25 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
 - **Fast-lane follow-ups recorded:** `FU-S5-sweep-entry-guard`, `FU-S5-gate-lock-edges`, `FU-S5-prelock-false-open-pin`,
   `FU-S5-placed-kicks-telemetry` (from the R2 review; none blocking).
 - **Next:** S6, the per-band onset retune.
+
+### S6 done (2026-11-20, PR #100, branch `s6-onset-phase`)
+- **Delivered:** the per-band onset detector gains a phase detection function for the low end. It finds a bass note
+  struck again on the pitch still sounding, which the level cannot show, and a kick hidden under a loud bass note,
+  told apart by the kick's range rising with it. `OnsetFrame` carries the complex spectrum; contracts C1 and C3 are
+  unchanged. Grids over the existing constants could not do it (`docs/agents/hub-scorecard.md`, "S6 findings"), so the
+  slice became a detector change, split into S6a (the phase path) and S6b (`bassline-kick-120`, three measured
+  attempts) at Trevor's direction (2026-11-20).
+- **Acceptance:**
+  - **AC5:** `no-kick-124` bass 0.67 to 1.00. `bassline-kick-120` kick 0.68 to 0.81 and bass 0.77 (unchanged) are
+    deferred under D11 (signed off, Trevor, 2026-11-20). Two low tones in one 43 Hz bin cannot be told from a drum's
+    decay, so a finer low-end spectrum is a later plan's design. Every other labelled band passes.
+  - **AC12:** `scorecard:check` passes against the version 7 baseline (2 of 625 cells changed, both better; blocking
+    failures 16 to 15), and the baseline is regenerated. `sweep:onsets` adds no failure on the tapped tracks. All
+    repository checks and budgets pass (total JS 334.65 of 335 kB, worklet 5.76 of 5.8 kB; the next worklet change will
+    likely need its budget raised).
+- **Fast-lane follow-ups merged** (`e2c5e6c`, from the R2 review): specs pinning the phase detector's reset, its
+  recovery after non-finite input and the ring size; two comment fixes.
+- **Open, for the full workflow:** `FU-S6-phase-strength-telemetry`. A phase event's strength is its value over the
+  phase function's own decaying peak, a different scale from the level events. There is also no count of phase events
+  in the dancer's telemetry. Decide the scale and add the counter before S9 moves the visualizers onto `hub.onsets`.
+- **Next:** S7, the tempo follow-ups.

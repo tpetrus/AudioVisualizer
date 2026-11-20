@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 7,
-    "revision": "5edc8b0",
-    "created": "2026-11-20T03:12:10.031Z",
+    "revision": "054283e",
+    "created": "2026-11-20T04:56:01.924Z",
     "sidecarHashes": {
       "6-8-time.wav": "9ce3c12d1ee614a1b947adb52e32663ed07716c6d45effd67ff04167b3b61ed8",
       "click-120.wav": "c1da26467ef8490858e599dc3647e25f32b69234b1f2fe2b24b420830e309cb7",
@@ -7536,12 +7536,12 @@
       "blocking": true,
       "applicable": true,
       "prehub": null,
-      "value": 0.673913043478261,
+      "value": 1,
       "spread": 0,
       "runs": 1,
       "source": "offline",
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "onset.f50.bass",
@@ -8131,7 +8131,7 @@
       "blocking": true,
       "applicable": true,
       "prehub": null,
-      "value": 0.6818181818181819,
+      "value": 0.8082191780821918,
       "spread": 0,
       "runs": 1,
       "source": "offline",

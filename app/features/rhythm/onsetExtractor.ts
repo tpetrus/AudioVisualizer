@@ -30,6 +30,11 @@ export interface OnsetFrame {
     // log(1 + MAGNITUDE_LOG_GAIN * magnitude) per FFT bin, index 0 (DC) always 0. The band energies and fluxes above are
     // reductions of this, so a detector that wants a finer view than three bands reads it here. Read-only to sinks.
     logMagnitude: Float32Array;
+    // The complex spectrum of the windowed frame, as the FFT left it (unscaled), indexed like logMagnitude. Only the
+    // phase is read from it: BandOnsets looks for a note struck again on the pitch still sounding, which changes the
+    // phase of the low bins but hardly their level. Read-only to sinks.
+    real: Float32Array;
+    imag: Float32Array;
     // Total samples consumed when the frame's window ended. The window is centred FFT_SIZE / 2 samples earlier.
     endSample: number;
 }
@@ -81,6 +86,8 @@ export class OnsetExtractor {
         rms: 0,
         chroma: new Float32Array(CHROMA_BINS),
         logMagnitude: this.logMagnitude,
+        real: this.re,
+        imag: this.im,
         endSample: 0,
     };
 
