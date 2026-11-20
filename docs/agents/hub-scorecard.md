@@ -438,3 +438,13 @@ visualizers' live cells are S4's (S5 changes only the gate, which only the dance
   the user's sync offset as `bands`, `lowEnd` and `beat` are. That is pre-hub's behavior, but the hub's class comment,
   `types.ts` and C1 say every field is read at one render time. Reword them, or shift the pulse, which would change the
   cubes and the dancer for users with an offset.
+- **`FU-S5-gate-lock-edges`** (gate timing, needs a live run; from S5's review): on the lock tick a gate that opens from
+  kicks placed before the lock can start a spurious bump (`lastPhase` is stale across an unlock), and the unplaced kicks
+  are timed on the clamped `dt` clock, so frames longer than 0.1 s compress their spacing and the placement silently stops
+  helping. Fix both and add specs for them and for a long unlock, bpm 0 and more than 32 kicks before the lock.
+- **`FU-S5-placed-kicks-telemetry`** (the dancer's telemetry columns; from S5's review): a DEV counter of kicks placed
+  from before the lock, recorded by `debug:viz`, so live recordings show the placement.
+- **`FU-S5-sparse-false-opens`** (the gate rule; found pinning S5's specs): one random note every two beats over 40
+  beats opens the gate on 26 of 300 patterns in the level-domain spec (bound 40 pins today's rate), against 2 of 300 for
+  one note per beat. Measure it through the hub replay and decide whether the chance minimum or the open score should
+  account for sparse bass.
