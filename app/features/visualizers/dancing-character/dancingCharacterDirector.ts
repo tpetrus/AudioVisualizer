@@ -22,6 +22,11 @@ export interface DanceDirectorOutput<Id extends string> {
 export interface DanceDirector<Id extends string> {
     update(input: Readonly<DanceDirectorInput>, out: DanceDirectorOutput<Id>): void;
     reset(): void;
+    /**
+     * Starts over for a new source: `reset`, and in Auto (as of the last update) the rotation goes back to `initial`,
+     * so the next track dances as it would after a fresh load. A manually chosen dance stays.
+     */
+    restart(out: DanceDirectorOutput<Id>, initial: Id): void;
 }
 
 export function createDanceDirectorOutput<Id extends string>(initial: Id): DanceDirectorOutput<Id> {
@@ -71,6 +76,15 @@ export function createDanceDirector<Id extends string>(
 
     function reset(): void {
         state.started = false;
+    }
+
+    function restart(out: DanceDirectorOutput<Id>, initial: Id): void {
+        reset();
+        // Without this the rotation would carry on from wherever the last track left it, so a re-selected source would
+        // dance a different clip (often with another loop length) than a fresh load of the same track.
+        if (state.wasAuto) out.active = initial;
+        out.next = null;
+        out.switchNow = false;
     }
 
     function update(input: Readonly<DanceDirectorInput>, out: DanceDirectorOutput<Id>): void {
@@ -147,5 +161,5 @@ export function createDanceDirector<Id extends string>(
         out.next = target;
     }
 
-    return { update, reset };
+    return { update, reset, restart };
 }
