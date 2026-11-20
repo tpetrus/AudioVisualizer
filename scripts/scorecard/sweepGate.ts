@@ -14,10 +14,10 @@ import { applyOverrides, parseOverride, type Override } from '../rhythm-tools/ab
 import { loadWithOverrides } from '../rhythm-tools/ablatePlugin';
 import { expandGrid, splitGridValues, type GridAxis } from '../rhythm-tools/onsetSweep';
 import { RANDOM_BASS_BPM, RANDOM_BASS_SAMPLE_RATE, randomBassPcm } from './engine/gateInputs';
-import { GateTrace, firstOpenSeconds, type GateStepper } from './engine/gateTrace';
+import { GateTrace, bumpTimes, bumpsOnBeat, firstOpenSeconds, type GateStepper } from './engine/gateTrace';
 import { replayPcm } from './engine/replay';
 import { DEFAULT_DIR, loadTracks } from './inputs';
-import { METRICS, meetsFloor } from './targets';
+import { METRICS, liveFireHitsBeat, meetsFloor } from './targets';
 import { resolveTrack } from './tracks';
 
 const GATE_SOURCE = 'app/features/rhythm/bassGate.ts';
@@ -35,7 +35,8 @@ Per row: false opens of the gate on N seeded random-bass patterns (default 300) 
 gate column of probe:gate-inputs; on kick tracks of <folder> (default ${DEFAULT_DIR}) how many open within 4 s and 2 s of the
 dancer's lock and the sum and max of the seconds after it (the rest of the track if the gate never opens); on no-kick tracks
 the names whose gate opened. --lock-at S hides the random bass's beat clock for its first S seconds (default 0), so the
-false opens include what the gate does before a lock. --detail adds the seconds after the lock of every track per row; --json writes everything.`;
+false opens include what the gate does before a lock. on-beat: kick tracks whose bumps mostly hit a labelled beat (the live hit window on the bump starts; tracks with a
+.beats.json). --detail adds per track the seconds after the lock and where the bumps land; --json writes everything.`;
 
 export interface SweepArgs {
     dir: string;
@@ -202,6 +203,8 @@ export interface TrackOutcome {
     // never locks.
     secondsAfterLock: number | null;
     opened: boolean;
+    // Where the gate's bumps land against the track's labelled beats; null without bumps or a .beats.json.
+    onBeat?: { share: number; medianMs: number } | null;
 }
 
 export interface RowResult {
@@ -234,17 +237,24 @@ export interface Summary {
     within2: number;
     sum: number;
     max: number;
+    // Kick tracks whose bumps hit a labelled beat at least half the time, of those with bumps and beats.
+    onBeat: number;
+    onBeatMeasured: number;
 }
 
 // The floor and stretch of gate.secondsAfterLock are the 4 s and 2 s of the contract, read from the target table.
 export function summarizeKickTracks(outcomes: readonly TrackOutcome[]): Summary {
     const target = metric('gate.secondsAfterLock');
-    const summary: Summary = { locked: 0, within4: 0, within2: 0, sum: 0, max: 0 };
+    const summary: Summary = { locked: 0, within4: 0, within2: 0, sum: 0, max: 0, onBeat: 0, onBeatMeasured: 0 };
     for (const outcome of outcomes) {
         if (outcome.secondsAfterLock === null) continue;
         summary.locked++;
         summary.sum += outcome.secondsAfterLock;
         summary.max = Math.max(summary.max, outcome.secondsAfterLock);
+        if (outcome.onBeat) {
+            summary.onBeatMeasured++;
+            if (outcome.onBeat.share >= 0.5) summary.onBeat++;
+        }
         if (!outcome.opened) continue;
         if (meetsFloor('lower', outcome.secondsAfterLock, target.floor)) summary.within4++;
         if (meetsFloor('lower', outcome.secondsAfterLock, target.stretch)) summary.within2++;
@@ -314,6 +324,11 @@ export async function runSweep(
                 results[index].kickTracks[source.name] = {
                     secondsAfterLock: lock === null ? null : (opening ?? seconds) - lock,
                     opened: opening !== null,
+                    onBeat: bumpsOnBeat(
+                        bumpTimes(trace, steppers[index]),
+                        source.sidecar?.beats ?? [],
+                        liveFireHitsBeat,
+                    ),
                 };
             } else if (opening !== null) {
                 results[index].noKickOpened.push(source.name);
@@ -329,7 +344,7 @@ const pad = (text: string, width: number): string => text.padStart(width);
 
 export function formatSweep(result: SweepResult, detail: boolean): string[] {
     const lines: string[] = [];
-    const headers = [...result.beats.map((beats) => `fo@${beats}`), '<=4s', '<=2s', 'sum', 'max'];
+    const headers = [...result.beats.map((beats) => `fo@${beats}`), '<=4s', '<=2s', 'sum', 'max', 'on-beat'];
     const labelWidth = Math.max(5, ...result.rows.map((row) => row.label.length));
     lines.push(
         `fo@N: false opens of ${result.patterns} random-bass patterns of N beats${result.lockAt > 0 ? ` (beat clock hidden for ${result.lockAt} s)` : ''}. <=4s and <=2s: kick tracks within that many seconds of the dancer lock.`,
@@ -343,6 +358,7 @@ export function formatSweep(result: SweepResult, detail: boolean): string[] {
             `${summary.within2}/${summary.locked}`,
             summary.sum.toFixed(1),
             summary.max.toFixed(2),
+            `${summary.onBeat}/${summary.onBeatMeasured}`,
         ];
         const opened = row.noKickOpened.length === 0 ? 'none' : row.noKickOpened.join(', ');
         lines.push([row.label.padEnd(labelWidth), ...cells.map((text) => pad(text, 8)), `  ${opened}`].join(' '));
@@ -370,6 +386,15 @@ export function formatSweep(result: SweepResult, detail: boolean): string[] {
             });
             lines.push([name.padEnd(26), pad(lock === null ? 'never' : lock.toFixed(2), 8), ...cells].join(' '));
         }
+        lines.push('', 'Bumps that hit a labelled beat per track, and their median distance to the nearest beat in ms');
+        lines.push(['track'.padEnd(26), pad('', 8), ...columns].join(' '));
+        for (const name of Object.keys(result.rows[0].kickTracks)) {
+            const cells = result.rows.map((row) => {
+                const onBeat = row.kickTracks[name].onBeat;
+                return pad(onBeat ? `${onBeat.share.toFixed(2)} ${onBeat.medianMs.toFixed(0)}` : '-', 9);
+            });
+            lines.push([name.padEnd(26), pad('', 8), ...cells].join(' '));
+        }
     }
     return lines;
 }
@@ -389,6 +414,9 @@ export function sweepJson(result: SweepResult): unknown {
             // track and is also listed in neverOpened.
             secondsAfterLock: Object.fromEntries(
                 Object.entries(row.kickTracks).map(([name, outcome]) => [name, outcome.secondsAfterLock]),
+            ),
+            onBeat: Object.fromEntries(
+                Object.entries(row.kickTracks).map(([name, outcome]) => [name, outcome.onBeat ?? null]),
             ),
             neverOpened: Object.entries(row.kickTracks)
                 .filter(([, outcome]) => !outcome.opened)

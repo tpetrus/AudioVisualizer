@@ -12,6 +12,7 @@ import {
     BASS_GATE_LOCK_GRACE_SECONDS,
     BASS_GATE_MIN_INTERVAL,
     BASS_GATE_OPEN_SCORE,
+    BASS_GATE_PHASE_WINDOW,
     BASS_GATE_PRELOCK_SECONDS,
     BASS_GATE_REPEAT_RATE,
     BASS_GATE_SCORE_DECAY,
@@ -404,6 +405,61 @@ describe('stepBassGate before the lock', () => {
         expect(state.open).toBe(true);
         expect([...state.kickTimes]).toEqual(kicks);
         expect(state.unplacedTimes.every((time) => Number.isNaN(time))).toBe(true);
+    });
+});
+
+describe('stepBassGate learning the place to pulse at', () => {
+    // A closed gate one step short of opening, whose history holds a kick at each of `places` (beat phases) in every
+    // beat from `from` to beat 108, with the latest kick's place as its place (as a closed gate keeps it). One more kick
+    // at beat 108 + `opener`, a bar after one of them, then opens it; returns the place it opened with.
+    function placeOnOpening(places: readonly number[], opener: number, from = 100): number {
+        const state = createBassGateState();
+        let head = 0;
+        for (let beat = from; beat < 108; beat++) {
+            for (const place of places) state.kickTimes[head++ % BASS_GATE_KICK_HISTORY] = beat + place;
+        }
+        state.kickHead = head % BASS_GATE_KICK_HISTORY;
+        state.kickPhase = places[places.length - 1];
+        state.phaseKnown = true;
+        state.score = BASS_GATE_OPEN_SCORE - 1e-6;
+        drive(1, () => 0.8, { state, start: Math.round((108 + opener) * FRAMES_PER_BEAT) });
+        expect(state.open).toBe(true);
+        return state.kickPhase;
+    }
+
+    const near = (place: number, target: number) => Math.abs(place - target) < BASS_GATE_PHASE_WINDOW;
+
+    it('opens on the kick on the beat when the kick that opens it is an off-beat accent', () => {
+        // The latest kick is the accent at 0.66; the gate used to keep that place, and every bump landed 155 ms early.
+        expect(near(placeOnOpening([0.06, 0.66], 0.66), 0.06)).toBe(true);
+    });
+
+    it('opens on the kick on the beat even when off-beat accents are heard more often', () => {
+        // Two accents per beat (0.55 and 0.6, close enough to count as one place) against one kick on the beat.
+        expect(near(placeOnOpening([0.1, 0.55, 0.6], 0.6), 0.1)).toBe(true);
+    });
+
+    it('keeps a bassline whose kicks are all off the beat at their own place', () => {
+        expect(near(placeOnOpening([0.5], 0.5), 0.5)).toBe(true);
+    });
+
+    it('opens where the most kicks land when none is on the beat', () => {
+        expect(near(placeOnOpening([0.45, 0.62, 0.7], 0.45), 0.66)).toBe(true);
+    });
+
+    it('weighs only the last two bars, so kicks of a bassline that moved do not pull the place back', () => {
+        const state = createBassGateState();
+        let head = 0;
+        // Old kicks on the beat (beats 90 to 97), then the moved bassline half a beat later (100 to 107).
+        for (let beat = 90; beat < 98; beat++) state.kickTimes[head++] = beat + 0.02;
+        for (let beat = 100; beat < 108; beat++) state.kickTimes[head++] = beat + 0.5;
+        state.kickHead = head;
+        state.kickPhase = 0.5;
+        state.phaseKnown = true;
+        state.score = BASS_GATE_OPEN_SCORE - 1e-6;
+        drive(1, () => 0.8, { state, start: Math.round(108.5 * FRAMES_PER_BEAT) });
+        expect(state.open).toBe(true);
+        expect(near(state.kickPhase, 0.5)).toBe(true);
     });
 });
 

@@ -20,6 +20,12 @@ export const BASS_GATE_STRENGTH_ADAPT = 0.15;
 // bass pulse reports each kick 0.11 to 0.21 beats after the tracker's beat (its filters and envelope lag the audio),
 // and a fixed window around the beat threw out half of a perfectly steady bassline.
 export const BASS_GATE_PHASE_WINDOW = 0.1;
+// When the gate opens it keeps the place most kicks land at, preferring one on the beat: within this radius (in beats)
+// of this center, which covers the 0.11 to 0.21 beats the bass pulse lags the tracker's beat by and a kick a little
+// early. Off-beat accents (an extra kick before the beat, a syncopated bass note) repeat as well as the kick on the beat
+// and are sometimes heard more often, and a bump on them lands 90 to 300 ms before the beat.
+export const BASS_GATE_ON_BEAT_CENTER = 0.1;
+export const BASS_GATE_ON_BEAT_RADIUS = 0.2;
 // How far each in-rhythm kick pulls the learned place toward itself, so it follows slow drift without jumping.
 export const BASS_GATE_PHASE_ADAPT = 0.1;
 // A bassline repeats every bar and scattered bass does not, so a kick is in rhythm when a kick landed at the same
@@ -58,10 +64,9 @@ export const BASS_GATE_CLOSE_SCORE = 1;
 // The tracker reports no beat until it locks, about 3 to 11 s into a track, so kicks heard before then had no place in
 // the beat and the first bar after the lock had nothing to repeat: the gate could not open before the second bar. Kicks
 // heard within this many seconds before the lock (0: none) are kept by time and placed on the beat at the lock, from the
-// tracker's tempo, as the bars the first kicks after the lock repeat. With the score switch on (1) they are also weighed
-// as evidence among themselves, as if they had been heard on the beat.
+// tracker's tempo, as the bars the first kicks after the lock repeat, and weighed as evidence among themselves. Keeping
+// them only as history (not weighed) put 9 or 10 of 16 kick tracks within 4 s of the lock instead of 12.
 export const BASS_GATE_PRELOCK_SECONDS = 3;
-export const BASS_GATE_PRELOCK_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about
 // six bars, and its new place is then learned. The same wearing down applies to the evidence gathered while closed.

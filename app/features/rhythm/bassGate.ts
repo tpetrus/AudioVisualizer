@@ -15,11 +15,12 @@ import {
     BASS_GATE_MIN_INTERVAL,
     BASS_GATE_MIN_LEVEL,
     BASS_GATE_MIN_STRENGTH,
+    BASS_GATE_ON_BEAT_CENTER,
+    BASS_GATE_ON_BEAT_RADIUS,
     BASS_GATE_ONSET_RISE,
     BASS_GATE_OPEN_SCORE,
     BASS_GATE_PHASE_ADAPT,
     BASS_GATE_PHASE_WINDOW,
-    BASS_GATE_PRELOCK_SCORE,
     BASS_GATE_PRELOCK_SECONDS,
     BASS_GATE_REARM_FALL,
     BASS_GATE_REPEAT_RATE,
@@ -219,8 +220,7 @@ export function stepBassGate(
         const repeat = state.open ? NO_EARLIER_BAR : repeatsEarlierBar(state, position);
         const matched = state.open ? atPlace : repeat === REPEATED;
         const chance = state.open ? 0 : chanceOfRepeat(state, position);
-        state.kickTimes[state.kickHead] = position;
-        state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
+        rememberKick(state, position);
         if (atPlace) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
         } else if (!state.open) {
@@ -249,6 +249,7 @@ export function stepBassGate(
         state.open = true;
         // Opened evidence starts at the top, so a bassline that has just been found is held through its first breaks.
         state.score = BASS_GATE_SCORE_MAX;
+        state.kickPhase = bestSupportedPlace(state);
     }
 
     // While open, the bump comes from the beat clock: every time it passes the learned kick place, whether or not
@@ -283,6 +284,43 @@ export function stepBassGate(
     return shown < 1e-3 ? 0 : Math.min(shown, 1);
 }
 
+// The place in the beat where most of the remembered kicks land, within BASS_GATE_PHASE_WINDOW, centered on them; the
+// latest kick's place breaks a tie. Until the gate opens the place follows the latest kick, and once open it only moves
+// toward kicks near it, so the place it opens with is the one it keeps. A bassline with kicks at two places in the beat
+// (on the beat and an off-beat accent) used to open on whichever came last; opening a few bars sooner (kicks placed from
+// before the lock, S5) made that the off-beat one on four tracks, and every bump then landed 90 to 300 ms off the beat.
+// Only the kicks of the last two bars count, the span the repeats that opened the gate look back over, so a bassline
+// that moved is not pulled back to its old place by kicks still in the history. Allocates nothing.
+function bestSupportedPlace(state: BassGateState): number {
+    const times = state.kickTimes;
+    const since =
+        times[(state.kickHead + BASS_GATE_KICK_HISTORY - 1) % BASS_GATE_KICK_HISTORY] - 2 * BASS_GATE_BAR_BEATS;
+    let bestRank = 0;
+    let bestPlace = state.kickPhase;
+    for (const candidate of times) {
+        if (!(candidate >= since)) continue;
+        let count = 0;
+        let offsets = 0;
+        for (const other of times) {
+            const offset = wrapSigned(other - candidate);
+            if (other >= since && Math.abs(offset) <= BASS_GATE_PHASE_WINDOW) {
+                count++;
+                offsets += offset;
+            }
+        }
+        const place = wrapUnit(candidate + offsets / count);
+        // A repeated place on the beat (allowing the bass pulse's lag) beats any place off it, and on a tie the latest
+        // kick's place wins (the position term is far below 1).
+        const onBeat = count > 1 && Math.abs(wrapSigned(place - BASS_GATE_ON_BEAT_CENTER)) <= BASS_GATE_ON_BEAT_RADIUS;
+        const rank = count + (onBeat ? BASS_GATE_KICK_HISTORY : 0) + candidate * 1e-9;
+        if (rank > bestRank) {
+            bestRank = rank;
+            bestPlace = place;
+        }
+    }
+    return bestPlace;
+}
+
 // Moves the closed gate's evidence by the log of how much likelier this outcome is for a real bassline than for chance.
 // Bass so busy that chance alone repeats at least as often as a real bassline would tells nothing: the log would turn
 // negative for a repeat and positive for a miss, so the kick is neutral there instead. With the current constants the
@@ -295,8 +333,9 @@ function weighRepeat(state: BassGateState, matched: boolean, chance: number): vo
 }
 
 // Places the kicks heard without a beat, within BASS_GATE_PRELOCK_SECONDS, at the beat positions the tracker's tempo puts
-// them at, counting back from the position now, so the first kicks on the beat have earlier bars to repeat. A gate that
-// is still open (a short dropout) keeps its bassline and does not need them.
+// them at, counting back from the position now, and weighs them as evidence as if they had been heard on the beat, so
+// the first kicks on the beat have earlier bars to repeat. A gate that is still open (a short dropout) keeps its
+// bassline and does not need them.
 function placeUnplacedKicks(state: BassGateState, now: number, bpm: number): void {
     const times = state.unplacedTimes;
     if (!state.open && bpm > 0) {
@@ -306,19 +345,19 @@ function placeUnplacedKicks(state: BassGateState, now: number, bpm: number): voi
             const ago = state.clock - time;
             if (!(ago <= BASS_GATE_PRELOCK_SECONDS)) continue;
             const position = now - (ago * bpm) / 60;
-            if (BASS_GATE_PRELOCK_SCORE > 0) {
-                const repeat = repeatsEarlierBar(state, position);
-                if (repeat !== NO_EARLIER_BAR) {
-                    weighRepeat(state, repeat === REPEATED, chanceOfRepeat(state, position));
-                }
-            }
-            state.kickTimes[state.kickHead] = position;
-            state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
+            const repeat = repeatsEarlierBar(state, position);
+            if (repeat !== NO_EARLIER_BAR) weighRepeat(state, repeat === REPEATED, chanceOfRepeat(state, position));
+            rememberKick(state, position);
             state.kickPhase = wrapUnit(position);
             state.phaseKnown = true;
         }
     }
     times.fill(NaN);
+}
+
+function rememberKick(state: BassGateState, position: number): void {
+    state.kickTimes[state.kickHead] = position;
+    state.kickHead = (state.kickHead + 1) % BASS_GATE_KICK_HISTORY;
 }
 
 // Whether a remembered kick landed one bar before this beat position, within the bar window. When nothing at all

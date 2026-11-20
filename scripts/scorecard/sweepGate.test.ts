@@ -126,7 +126,11 @@ describe('loadGateStepper', () => {
 });
 
 describe('the report', () => {
-    const outcome = (secondsAfterLock: number | null, opened = true) => ({ secondsAfterLock, opened });
+    const outcome = (
+        secondsAfterLock: number | null,
+        opened = true,
+        onBeat: { share: number; medianMs: number } | null = null,
+    ) => ({ secondsAfterLock, opened, onBeat });
     const result: SweepResult = {
         patterns: 3,
         beats: [120],
@@ -137,7 +141,11 @@ describe('the report', () => {
                 label: 'base',
                 overrides: [],
                 falseOpens: { '120': 1 },
-                kickTracks: { 'a.wav': outcome(1.5), 'b.wav': outcome(30, false), 'c.wav': outcome(null, false) },
+                kickTracks: {
+                    'a.wav': outcome(1.5, true, { share: 0.9, medianMs: 30 }),
+                    'b.wav': outcome(30, false, { share: 0.1, medianMs: -150 }),
+                    'c.wav': outcome(null, false),
+                },
                 noKickOpened: [],
             },
             {
@@ -157,6 +165,8 @@ describe('the report', () => {
             within2: 1,
             sum: 31.5,
             max: 30,
+            onBeat: 1,
+            onBeatMeasured: 2,
         });
         expect(summarizeKickTracks(Object.values(result.rows[1].kickTracks))).toMatchObject({ within4: 2, within2: 0 });
     });
@@ -164,8 +174,9 @@ describe('the report', () => {
     it('prints a row per override set, the never-locked tracks and, with --detail, the per-track table', () => {
         const text = formatSweep(result, true).join('\n');
         expect(text).toContain('c.wav');
-        expect(text).toMatch(/base\s+1\s+1\/2\s+1\/2\s+31\.5\s+30\.00\s+none/);
-        expect(text).toMatch(/X=1\s+2\s+2\/2\s+0\/2\s+7\.4\s+3\.90\s+n\.wav/);
+        expect(text).toMatch(/base\s+1\s+1\/2\s+1\/2\s+31\.5\s+30\.00\s+1\/2\s+none/);
+        expect(text).toMatch(/X=1\s+2\s+2\/2\s+0\/2\s+7\.4\s+3\.90\s+0\/0\s+n\.wav/);
+        expect(text).toMatch(/a\.wav\s+0\.90 30\s+-/);
         expect(text).toMatch(/b\.wav\s+6\.00\s+30\.00\*\s+3\.90/);
         expect(formatSweep(result, false).join('\n')).not.toContain('Seconds after the dancer lock per track');
     });

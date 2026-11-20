@@ -82,6 +82,48 @@ export class GateTrace implements GateTraceSink {
     }
 }
 
+// Steps a gate over the whole trace and returns the render times at which it started a bump (bumpCount rose): where in
+// the beat the dancer's bass pulse lands, which the opening time alone does not show.
+export function bumpTimes(trace: GateTrace, stepper: GateStepper): number[] {
+    const state = stepper.createBassGateState();
+    const rhythm = createRhythmState();
+    const dt = 1 / RENDER_HZ;
+    const times: number[] = [];
+    let bumps = 0;
+    for (let i = 0; i < trace.length; i++) {
+        const phase = trace.beatPhase[i];
+        rhythm.beatPhase = Number.isNaN(phase) ? undefined : phase;
+        rhythm.beatCount = trace.beatCount[i];
+        rhythm.songChangeCount = trace.songChangeCount[i];
+        rhythm.bpm = trace.bpm[i];
+        stepper.stepBassGate(trace.bass[i], rhythm, trace.tempoLocked[i] === 1, state, dt);
+        if (state.bumpCount > bumps) times.push(i * dt);
+        bumps = state.bumpCount;
+    }
+    return times;
+}
+
+// Where bumps land against the labelled beats: the share that hits a beat by the live hit-share window (liveFireHitsBeat
+// in targets.ts, applied to the bump's start rather than a reaction crossing, so it reads a few ms early) and the median
+// signed distance to the nearest beat in ms. Null without bumps or beats.
+export function bumpsOnBeat(
+    bumps: readonly number[],
+    beats: readonly number[],
+    hits: (fire: number, beat: number) => boolean,
+): { share: number; medianMs: number } | null {
+    if (bumps.length === 0 || beats.length === 0) return null;
+    let hit = 0;
+    const offsets: number[] = [];
+    let j = 0;
+    for (const bump of bumps) {
+        while (j + 1 < beats.length && Math.abs(beats[j + 1] - bump) <= Math.abs(beats[j] - bump)) j++;
+        offsets.push((bump - beats[j]) * 1000);
+        if (hits(bump, beats[j]) || (j + 1 < beats.length && hits(bump, beats[j + 1]))) hit++;
+    }
+    offsets.sort((a, b) => a - b);
+    return { share: hit / bumps.length, medianMs: offsets[Math.floor(offsets.length / 2)] };
+}
+
 // Steps a gate over the trace the way the replay stepped it, and returns the time of the first render tick at which it is
 // open (the replay's `gate.firstOpenSeconds`), or null if it never opens. It stops at the first opening because that is
 // all the replay reports.
