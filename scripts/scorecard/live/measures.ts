@@ -20,6 +20,11 @@ const CLIP_COLUMN = 'dancing-character.clipPhase';
 const LOOP_BEATS_COLUMN = 'dancing-character.beatsPerLoop';
 // The dancer's meter lock only exists on a bar of four (dancingCharacterSync.ts).
 const BEATS_PER_BAR = 4;
+// How long AC7 leaves the dancer after a meter lock: at MAX_PHASE_NUDGE_PER_SECOND (0.06 loop a second) an 8-beat clip
+// closes half a bar, the largest distance within a bar, in about 4 s (Trevor, S8).
+export const CLIP_SETTLE_SECONDS = 4;
+// The least time the AC7 samples must cover for the cell to have a value.
+export const CLIP_MIN_SAMPLED_SECONDS = 4;
 // compareRuns (scripts/debug-visualizer/repeatReport.ts) samples the dance loop at this step too.
 const CLIP_SAMPLE_STEP_SECONDS = 0.25;
 // A flag column is 0 or 1; anything above half is set.
@@ -111,8 +116,11 @@ export function circularMedian(values: readonly number[]): number {
 // in that unit: the place within the bar at a sample where every run is meter-locked, within the beat otherwise. A run's
 // place is its clip phase times its beats per loop (the beatsPerLoop column), and its row at a sample is its last at or
 // before it. Sampling starts at the latest run's first meterLocked, or the latest first tempoLocked when no run
-// meter-locks, and ends where the shortest run ends. null for every run when no run locks, a column is missing (a
-// recording from before version 8 has no beatsPerLoop) or the span is empty.
+// meter-locks, and ends where the shortest run ends. A sample within CLIP_SETTLE_SECONDS after any run's meter lock
+// (each time it locks) is skipped: the dancer then slides into the bar at its capped correction rate rather than
+// jumping, which is how it is meant to move, not a disagreement between runs. null for every run when no run locks, a
+// column is missing (a recording from before version 8 has no beatsPerLoop) or the samples left cover less than
+// CLIP_MIN_SAMPLED_SECONDS, so a late lock near the end of the recording cannot pass on a moment.
 export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | null)[] {
     const none = tables.map(() => null);
     const meterLocks = tables.map((table) => firstSetSeconds(table, METER_LOCK_COLUMN)).filter((time) => time !== null);
@@ -141,17 +149,25 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
     let samples = 0;
     // Each run's index of its last row at or before the sample; samples only move forward, so it only moves forward.
     const at = runs.map(() => -1);
+    // Each run's latest meter lock (a row where meterLocked turns on) at or before the sample.
+    const lockedAt = runs.map(() => -Infinity);
     const places = runs.map(() => NaN);
     for (let k = 0; start + k * CLIP_SAMPLE_STEP_SECONDS <= end + 1e-9; k++) {
         const sampleT = start + k * CLIP_SAMPLE_STEP_SECONDS;
         let allMeter = true;
+        let settling = false;
         runs.forEach((s, run) => {
-            while (at[run] + 1 < s.t.length && s.t[at[run] + 1] <= sampleT) at[run]++;
+            while (at[run] + 1 < s.t.length && s.t[at[run] + 1] <= sampleT) {
+                at[run]++;
+                if (s.meter[at[run]] && (at[run] === 0 || !s.meter[at[run] - 1])) lockedAt[run] = s.t[at[run]];
+            }
             const row = at[run];
+            if (row >= 0 && s.meter[row] && sampleT - lockedAt[run] < CLIP_SETTLE_SECONDS) settling = true;
             const usable = row >= 0 && Number.isFinite(s.phase[row]) && s.beats[row] > 0;
             places[run] = usable ? s.phase[row] * s.beats[row] : NaN;
             if (usable && !s.meter[row]) allMeter = false;
         });
+        if (settling) continue;
         const unitBeats = allMeter ? BEATS_PER_BAR : 1;
         const fractions = places.map((place) => place / unitBeats);
         const usable = fractions.filter((fraction) => Number.isFinite(fraction));
@@ -164,7 +180,7 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
             }
         });
     }
-    return samples === 0 ? none : worst;
+    return samples * CLIP_SAMPLE_STEP_SECONDS < CLIP_MIN_SAMPLED_SECONDS - 1e-9 ? none : worst;
 }
 
 // One run's columns for clipMaxDeviations.

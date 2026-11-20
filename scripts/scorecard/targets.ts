@@ -338,7 +338,8 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     },
     {
         // AC7: per run, the largest distance (in beats) between the run's place in the dance and the median of all runs at
-        // the same track time, sampled every 0.25 s from the latest run's meter lock (clipMaxDeviations). The place is
+        // the same track time, sampled every 0.25 s from the latest run's meter lock, leaving each run 4 s after each of
+        // its meter locks to slide into the bar (clipMaxDeviations, CLIP_SETTLE_SECONDS). The place is
         // compared within the bar where every run is meter-locked and within the beat otherwise, the alignment the
         // dancer keeps; which bar of a longer loop it is on is left free by design (Trevor, S8, targets version 8). The
         // floor, 0.2 beat, is the old 0.05 loop of a 4-beat clip (0.4 beat of an 8-beat one).
