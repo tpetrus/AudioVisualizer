@@ -16,8 +16,21 @@ import {
     LOW_ONSET_KICK_MIN_SKIRT,
     LOW_ONSET_LAG_FRAMES,
     LOW_ONSET_WEAK_FRACTION,
+    LOW_PHASE_KICK_RISE,
+    LOW_PHASE_MIN,
+    LOW_PHASE_NOISE_FACTOR,
+    LOW_PHASE_QUIET_FRAMES,
+    LOW_PHASE_RELATIVE_THRESHOLD,
     ONSET_LOOKAHEAD_FRAMES,
 } from './rhythmConfig';
+
+// What BandOnsets reads of a frame: the log magnitude spectrum (index 0 is DC) and the complex spectrum it came from,
+// indexed the same way. OnsetFrame provides both.
+export interface BandOnsetsFrame {
+    readonly logMagnitude: ArrayLike<number>;
+    readonly real: ArrayLike<number>;
+    readonly imag: ArrayLike<number>;
+}
 
 // Receives one onset: the index into FEATURE_ONSET_BANDS, the centre time of the onset frame in the caller's time unit
 // and the strength, 0..1.
@@ -49,9 +62,9 @@ const HIGHS_DETECTOR = 2;
 // level just before the hit), rounded up to a power of two for cheap wrapping. The size is derived from the tuning
 // constants because the ablation and sweep tools override them: a ring that is too small would not fail, it would
 // silently read slots that newer frames had already overwritten. The deepest reach back is the larger of the low-end
-// lag, the local-maximum window and the one frame the activity check looks at; forward it is the look-ahead (and at
-// least the one frame the activity check looks at). The newest frame and the candidate itself add one slot. The floor
-// of 8 keeps the default layout.
+// lag, the local-maximum window and the one frame the activity check looks at (the caller folds the phase detector's
+// quiet span into the first argument); forward it is the look-ahead (and at least the one frame the activity check
+// looks at). The newest frame and the candidate itself add one slot. The floor of 8 keeps the default layout.
 export function ringSizeFor(lowLagFrames: number, pastFrames: number, lookaheadFrames: number): number {
     const needed = Math.max(lowLagFrames, pastFrames, 1) + Math.max(lookaheadFrames, 1) + 1;
     let size = 8;
@@ -61,7 +74,11 @@ export function ringSizeFor(lowLagFrames: number, pastFrames: number, lookaheadF
     return size;
 }
 
-const RING = ringSizeFor(LOW_ONSET_LAG_FRAMES, BAND_ONSET_PAST_FRAMES, ONSET_LOOKAHEAD_FRAMES);
+const RING = ringSizeFor(
+    Math.max(LOW_ONSET_LAG_FRAMES, LOW_PHASE_QUIET_FRAMES),
+    BAND_ONSET_PAST_FRAMES,
+    ONSET_LOOKAHEAD_FRAMES,
+);
 const RING_MASK = RING - 1;
 
 // Decides, frame by frame and without a tempo lock, where the kick, bass, snare and hi-hat onsets are. Pure (no Web
@@ -76,6 +93,11 @@ const RING_MASK = RING - 1;
 // the range's recent loudest hit and a multiple of its running mean) and not a ripple of the range's previous hit. The
 // decision is therefore made
 // ONSET_LOOKAHEAD_FRAMES frames after the onset frame, and the event carries the time of the onset frame itself.
+//
+// A fourth detection function, the low end's phase deviation (LOW_PHASE_MIN in rhythmConfig.ts), finds the one onset
+// the level cannot show: a bass note struck again on the pitch still sounding (or a kick hidden under a loud note,
+// told apart by the kick's range rising with it). It is decided at the same frame by the same kind of floor, and it only
+// adds an event where the low end's level detector stayed quiet.
 export class BandOnsets {
     // Energy per hub band of the newest frame: the mean of the log magnitude over the band's bins.
     readonly energy = new Float32Array(HUB_BAND_COUNT);
@@ -107,6 +129,15 @@ export class BandOnsets {
     // The frame and detection value of the last event of each range, for the refractory rule.
     private readonly lastFrame = new Float64Array(DETECTOR_COUNT).fill(-Infinity);
     private readonly lastValue = new Float32Array(DETECTOR_COUNT);
+    // The low end's phase detection value of the last RING frames, its decaying loudest value and its running mean.
+    private readonly phaseValues = new Float32Array(RING);
+    private phasePeak = 0;
+    private phaseMean = 0;
+    // The complex spectrum of the low-end bins one frame back and two frames back, for the phase prediction.
+    private readonly lowReal1: Float32Array;
+    private readonly lowImag1: Float32Array;
+    private readonly lowReal2: Float32Array;
+    private readonly lowImag2: Float32Array;
 
     constructor(sampleRate: number, frameRate: number) {
         this.binHz = sampleRate / FFT_SIZE;
@@ -127,6 +158,10 @@ export class BandOnsets {
         this.lowBinCount = this.bandEnd[LOW_LAST_BAND] - this.lowFirstBin;
         this.upperFirstIndex = Math.min(this.lowBinCount - 1, this.bandStart[LOW_LAST_BAND] - this.lowFirstBin);
         this.lowLevels = new Float32Array(RING * this.lowBinCount);
+        this.lowReal1 = new Float32Array(this.lowBinCount);
+        this.lowImag1 = new Float32Array(this.lowBinCount);
+        this.lowReal2 = new Float32Array(this.lowBinCount);
+        this.lowImag2 = new Float32Array(this.lowBinCount);
         this.peakDecay = Math.pow(0.5, 1 / (BAND_ONSET_PEAK_HALF_LIFE_SECONDS * frameRate));
         this.meanSmoothing = 1 - Math.exp(-1 / (BAND_ONSET_MEAN_SECONDS * frameRate));
     }
@@ -146,12 +181,20 @@ export class BandOnsets {
         this.frames = 0;
         this.lastFrame.fill(-Infinity);
         this.lastValue.fill(0);
+        this.phaseValues.fill(0);
+        this.phasePeak = 0;
+        this.phaseMean = 0;
+        this.lowReal1.fill(0);
+        this.lowImag1.fill(0);
+        this.lowReal2.fill(0);
+        this.lowImag2.fill(0);
     }
 
-    // Takes the log magnitude spectrum of the newest frame (index 0 is DC) and the time of the frame's window centre,
-    // updates `energy` and calls `sink` for each onset decided now, in time order. The newest ONSET_LOOKAHEAD_FRAMES
-    // frames are still candidates that are never decided if the input ends or reset() is called (there is no flush).
-    push(logMagnitude: ArrayLike<number>, time: number, sink: OnsetSink): void {
+    // Takes the spectrum of the newest frame and the time of the frame's window centre, updates `energy` and calls
+    // `sink` for each onset decided now, in time order. The newest ONSET_LOOKAHEAD_FRAMES frames are still candidates
+    // that are never decided if the input ends or reset() is called (there is no flush).
+    push(frame: BandOnsetsFrame, time: number, sink: OnsetSink): void {
+        const logMagnitude = frame.logMagnitude;
         const slot = this.frames & RING_MASK;
         const comparable = this.frames > 0;
         let lowRise = 0;
@@ -201,7 +244,14 @@ export class BandOnsets {
             }
         }
 
+        // It reads the previous frame's levels (slot frames - 1), which this push does not overwrite; it only has to run
+        // before this frame's own slot of the levels ring is written below.
+        const phase = this.lowPhaseDeviation(frame, lowBins);
+
         this.times[slot] = time;
+        this.phaseValues[slot] = phase;
+        this.phasePeak = Math.max(this.phasePeak * this.peakDecay, phase);
+        this.phaseMean += this.meanSmoothing * (phase - this.phaseMean);
         const base = slot * DETECTOR_COUNT;
         this.values[base + LOW_DETECTOR] = lowRise / lowBins;
         this.values[base + SNARE_DETECTOR] = snareRise / snareBins;
@@ -244,6 +294,111 @@ export class BandOnsets {
             const band = d === LOW_DETECTOR ? this.lowBand(candidate) : d === SNARE_DETECTOR ? SNARE : HIGHS;
             this.emit(band, time, value, sink);
         }
+        if (this.isPhaseOnset(candidate)) {
+            const value = this.phaseValues[candidate & RING_MASK];
+            const band = this.kickRangeRise(candidate) >= LOW_PHASE_KICK_RISE ? KICK : BASS;
+            sink(band, this.times[candidate & RING_MASK], Math.min(1, value / this.phasePeak));
+        }
+    }
+
+    // The low end's phase detection value of the newest frame (see LOW_PHASE_MIN), and the newest frame's low-end
+    // spectrum moved into the history. A steady tone turns by the same angle every frame, so the turn from two frames
+    // back to one frame back, applied once more, predicts where the phase is now; the angle between the prediction and
+    // the actual phase, 0 to pi, is how far the phase jumped. Bins without a level in any of the three frames say
+    // nothing about a phase and are skipped, as are non-finite levels.
+    private lowPhaseDeviation(frame: BandOnsetsFrame, lowBins: number): number {
+        const previousLevels = ((this.frames - 1) & RING_MASK) * this.lowBinCount;
+        let deviation = 0;
+        for (let i = 0; i < this.lowBinCount; i++) {
+            const k = this.lowFirstBin + i;
+            const real = frame.real[k];
+            const imag = frame.imag[k];
+            const real1 = this.lowReal1[i];
+            const imag1 = this.lowImag1[i];
+            const real2 = this.lowReal2[i];
+            const imag2 = this.lowImag2[i];
+            this.lowReal2[i] = real1;
+            this.lowImag2[i] = imag1;
+            this.lowReal1[i] = real;
+            this.lowImag1[i] = imag;
+            const magnitude = Math.hypot(real, imag);
+            const magnitude1 = Math.hypot(real1, imag1);
+            const magnitude2 = Math.hypot(real2, imag2);
+            const weight = this.frames > 0 ? Math.min(frame.logMagnitude[k], this.lowLevels[previousLevels + i]) : 0;
+            if (!(magnitude > 0 && magnitude1 > 0 && magnitude2 > 0 && weight > 0 && Number.isFinite(weight))) {
+                continue;
+            }
+            // The turn from two frames back to one frame back as a unit complex number, applied to the previous frame:
+            // the predicted spectrum now, of magnitude magnitude1.
+            const turnReal = (real1 * real2 + imag1 * imag2) / (magnitude1 * magnitude2);
+            const turnImag = (imag1 * real2 - real1 * imag2) / (magnitude1 * magnitude2);
+            const predictedReal = real1 * turnReal - imag1 * turnImag;
+            const predictedImag = real1 * turnImag + imag1 * turnReal;
+            const cosine = (real * predictedReal + imag * predictedImag) / (magnitude * magnitude1);
+            const angle = Math.acos(Math.max(-1, Math.min(1, cosine)));
+            if (Number.isFinite(angle)) {
+                deviation += weight * angle;
+            }
+        }
+        return deviation / lowBins;
+    }
+
+    // How much the kick's own range of the low end (the bins below the bass band) rose at `candidate` or in the
+    // look-ahead after it, against LOW_ONSET_LAG_FRAMES frames before it: the mean over those bins of the largest rise.
+    private kickRangeRise(candidate: number): number {
+        const before = ((candidate - LOW_ONSET_LAG_FRAMES) & RING_MASK) * this.lowBinCount;
+        let sum = 0;
+        for (let i = 0; i < this.upperFirstIndex; i++) {
+            let rise = 0;
+            for (let j = 0; j <= ONSET_LOOKAHEAD_FRAMES; j++) {
+                const delta =
+                    this.lowLevels[((candidate + j) & RING_MASK) * this.lowBinCount + i] - this.lowLevels[before + i];
+                if (delta > rise && Number.isFinite(delta)) {
+                    rise = delta;
+                }
+            }
+            sum += rise;
+        }
+        return this.upperFirstIndex > 0 ? sum / this.upperFirstIndex : 0;
+    }
+
+    // Whether the frame `candidate` holds a phase onset: a note struck again (or a kick) while the low end sounds. It must
+    // clear the phase function's floor and be a peak of it like the level onsets, and the low end's level detector must
+    // be quiet around it, so that a hit the level detector hears is not counted twice.
+    private isPhaseOnset(candidate: number): boolean {
+        // A kick struck over a sounding note keeps turning the note's phase while its own pitch falls, for as long as the
+        // level detector's refractory span says a drum's body keeps moving; that is the same hit, not a new note.
+        if (candidate - this.lastFrame[LOW_DETECTOR] <= BAND_ONSET_REFRACTORY_FRAMES[LOW_DETECTOR]) {
+            return false;
+        }
+        const value = this.phaseValues[candidate & RING_MASK];
+        const threshold = Math.max(
+            LOW_PHASE_MIN,
+            LOW_PHASE_RELATIVE_THRESHOLD * this.phasePeak,
+            LOW_PHASE_NOISE_FACTOR * this.phaseMean,
+        );
+        if (!(value >= threshold)) {
+            return false;
+        }
+        for (let j = 1; j <= BAND_ONSET_PAST_FRAMES && candidate - j >= 0; j++) {
+            if (this.phaseValues[(candidate - j) & RING_MASK] >= value) {
+                return false;
+            }
+        }
+        for (let j = 1; j <= ONSET_LOOKAHEAD_FRAMES; j++) {
+            if (this.phaseValues[(candidate + j) & RING_MASK] > value) {
+                return false;
+            }
+        }
+        const levelThreshold = this.threshold(LOW_DETECTOR);
+        const forward = Math.min(LOW_PHASE_QUIET_FRAMES, ONSET_LOOKAHEAD_FRAMES);
+        for (let j = -LOW_PHASE_QUIET_FRAMES; j <= forward; j++) {
+            const level = this.values[((candidate + j) & RING_MASK) * DETECTOR_COUNT + LOW_DETECTOR];
+            if (candidate + j >= 0 && level >= levelThreshold) {
+                return false;
+            }
+        }
+        return true;
     }
 
     // Whether the frame `candidate` (a count of frames since reset) holds an onset of detector `d`.

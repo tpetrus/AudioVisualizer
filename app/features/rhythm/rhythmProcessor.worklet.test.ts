@@ -229,7 +229,7 @@ describe('rhythm processor worklet', () => {
                 packed.push(Array.from(row));
                 const time = (frame.endSample - FFT_SIZE / 2) / SAMPLE_RATE;
                 times.push(time);
-                bandOnsets.push(frame.logMagnitude, time, (band, eventTime) => events.push({ band, time: eventTime }));
+                bandOnsets.push(frame, time, (band, eventTime) => events.push({ band, time: eventTime }));
                 energy.push(Array.from(bandOnsets.energy));
             });
         }

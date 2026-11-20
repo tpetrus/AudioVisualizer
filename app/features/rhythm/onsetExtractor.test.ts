@@ -234,6 +234,8 @@ describe('packFrame', () => {
             rms: 7,
             chroma: Float32Array.from({ length: CHROMA_BINS }, (_, i) => 10 + i),
             logMagnitude: new Float32Array(FFT_SIZE / 2),
+            real: new Float32Array(FFT_SIZE),
+            imag: new Float32Array(FFT_SIZE),
             endSample: 0,
         };
         const out = new Float32Array(FRAME_STRIDE * 2);
