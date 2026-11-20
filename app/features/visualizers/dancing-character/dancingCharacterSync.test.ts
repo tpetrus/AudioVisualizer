@@ -118,12 +118,55 @@ function simulate(options: {
     return { state, out, clipPhase, time, maxNudgeRatio, rhythm, advanced };
 }
 
+// The tracker's beat and bar phases run at its raw tempo, which the dance tempo can be an octave from: 165 BPM is danced
+// at 82.5, so one dance beat spans two tracker beats. The clip's place is counted in tracker beats, so it can hold one
+// offset to the tracker's beat, and every start ends on the same place in the beat (or bar) whatever it started from.
+describe('computeDanceTiming with the tracker an octave from the dance', () => {
+    const frac = (value: number) => value - Math.floor(value);
+
+    it.each([0.1, 0.37, 0.8])(
+        'keeps to the tracker beat at 165 BPM danced at half time, from clip phase %s',
+        (start) => {
+            const { out, clipPhase, time } = simulate({
+                bpm: 165,
+                seconds: 40,
+                startClipPhase: start,
+                clipBeats: 8,
+                rhythm: { barPhase: undefined },
+            });
+            expect(out.normalizedBpm).toBeCloseTo(82.5, 6);
+            expect(out.beatsPerLoop).toBe(16);
+            const beatPhase = frac(time * (165 / 60));
+            expect(Math.abs(wrapSigned(beatPhase - frac(clipPhase * out.beatsPerLoop)))).toBeLessThan(0.02);
+        },
+    );
+
+    it.each([0.1, 0.37, 0.8])(
+        'keeps to the tracker bar at 165 BPM with the meter locked, from clip phase %s',
+        (start) => {
+            const { out, clipPhase, time } = simulate({ bpm: 165, seconds: 60, startClipPhase: start, clipBeats: 8 });
+            expect(out.barLocked).toBe(true);
+            const barPhase = frac((time * (165 / 60)) / 4);
+            expect(Math.abs(wrapSigned(barPhase - frac((clipPhase * out.beatsPerLoop) / 4)))).toBeLessThan(0.02);
+        },
+    );
+
+    it('keeps a loop shorter than a tracker bar to the beat even with the meter locked', () => {
+        // 70 BPM is danced at 140, so a 4-beat clip spans 2 tracker beats, half a bar.
+        const { out, clipPhase, time } = simulate({ bpm: 70, seconds: 40, startClipPhase: 0.3, clipBeats: 4 });
+        expect(out.barLocked).toBe(true);
+        expect(out.beatsPerLoop).toBe(2);
+        const beatPhase = frac(time * (70 / 60));
+        expect(Math.abs(wrapSigned(beatPhase - frac(clipPhase * out.beatsPerLoop)))).toBeLessThan(0.02);
+    });
+});
+
 // The eight-beat dances (lambada, twist) run on the same timing as the four-beat ones: the clip is two bars long, so the
 // bar position is compared modulo a bar and one loop takes twice as long.
 describe('computeDanceTiming with an eight-beat clip', () => {
     const EIGHT = 8;
 
-    // (160 BPM folds to 80 and runs at half time, where the real bars cannot hold a loop on one position, as the 174 BPM case above.)
+    // (160 BPM folds to 80, a loop of 16 tracker beats; the tracker-octave cases above check that its bar holds.)
     it.each([80, 100, 120, 140, 150])('converges the loop start to the bar line at %s BPM', (bpm) => {
         const { out, clipPhase, time, maxNudgeRatio } = simulate({
             bpm,
@@ -213,8 +256,7 @@ describe('computeDanceTiming', () => {
         const normalized = out.normalizedBpm ?? 0;
         // 174 folds to 87; the others are already in 80..160.
         expect(normalized).toBeCloseTo(bpm >= 160 ? bpm / 2 : bpm, 6);
-        // One loop of the clip takes its native duration divided by the settled time scale. (The beat nudge is left
-        // out: at 174 the folded clip runs at half time, so the real beats cannot hold it on one slot.)
+        // One loop of the clip takes its native duration divided by the settled time scale, the nudge aside.
         const loopSeconds = DANCE_CLIP_DURATION / out.timeScale;
         expect(loopSeconds).toBeCloseTo((CLIP_BEATS * 60) / normalized, 1);
     });
