@@ -7,9 +7,7 @@
 // nothing in the replay pipeline except the gate imports bassGateConfig.ts (the replay imports stepBassGate itself), so
 // a recording made with the shipped constants is the recording the pipeline would make with any override.
 
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { applyOverrides, parseOverride, type Override } from '../rhythm-tools/ablate';
 import { loadWithOverrides } from '../rhythm-tools/ablatePlugin';
 import { expandGrid, splitGridValues, type GridAxis } from '../rhythm-tools/onsetSweep';
@@ -21,10 +19,10 @@ import { METRICS, liveFireHitsBeat, meetsFloor } from './targets';
 import { resolveTrack } from './tracks';
 
 const GATE_SOURCE = 'app/features/rhythm/bassGate.ts';
-const GATE_CONFIG = 'app/features/rhythm/bassGateConfig.ts';
+export const GATE_CONFIG = 'app/features/rhythm/bassGateConfig.ts';
 const GATE_CONFIG_NAME = 'bassGateConfig.ts';
 
-const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]...
+export const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]...
                             [--grid NAME=v1,v2,...]... [--lock-at S] [--detail] [--json <file>]
 
 Replays every track and random pattern once with the shipped code, then steps only the dancer's bass gate (bassGate.ts) per
@@ -424,37 +422,4 @@ export function sweepJson(result: SweepResult): unknown {
             noKickOpened: row.noKickOpened,
         })),
     };
-}
-
-async function main(): Promise<void> {
-    const args = parseSweepGateArgs(process.argv.slice(2));
-    if (args.help) {
-        console.log(USAGE);
-        return;
-    }
-    const rows = expandRows(args.set, args.grid);
-    validateRows(rows, readFileSync(resolve(GATE_CONFIG), 'utf8'));
-    const started = Date.now();
-    const result = await runSweep(
-        args,
-        rows,
-        (text) => console.log(text),
-        (text) => console.error(text),
-    );
-    console.log('');
-    for (const line of formatSweep(result, args.detail)) console.log(line);
-    if (args.json !== undefined) {
-        writeFileSync(args.json, `${JSON.stringify(sweepJson(result), null, 2)}\n`);
-        console.log(`Wrote ${args.json}`);
-    }
-    console.log(`Total time ${((Date.now() - started) / 1000).toFixed(1)} s`);
-}
-
-// Runs only as the entry point, so the tests can import the pure parts. The real path is compared because the bundle
-// lives under node_modules, which can be a link, and import.meta.url is already resolved.
-if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-    main().catch((error: unknown) => {
-        console.error(error instanceof Error ? error.message : error);
-        process.exit(1);
-    });
 }
