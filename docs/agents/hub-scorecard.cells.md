@@ -1,10 +1,10 @@
 # Scorecard
 
-Targets version 7, revision 054283e, created 2026-11-20T04:56:01.924Z.
+Targets version 7, revision 3d6612c, created 2026-11-20T17:34:55.524Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 381: 337 passing, 33 failing, 11 unavailable. Blocking failures: 15.
+Applicable cells 381: 340 passing, 28 failing, 13 unavailable. Blocking failures: 14.
 
 ## ac9
 
@@ -32,12 +32,12 @@ Applicable cells 381: 337 passing, 33 failing, 11 unavailable. Blocking failures
 | beat.errorMedianMs | high-bpm-dnb.wav | tapped | 21.5 | 40.0 | - | - | pass |
 | beat.errorMedianMs | imyourgirl.wav | tapped | 23.8 | 40.0 | - | - | pass |
 | beat.errorMedianMs | lonley.wav | tapped | 33.3 | 40.0 | - | - | pass |
-| beat.errorMedianMs | low-bpm-rnb.wav | tapped | 169.1 | 40.0 | - | - | fail |
+| beat.errorMedianMs | low-bpm-rnb.wav | tapped | 183.4 | 40.0 | - | - | fail |
 | beat.errorMedianMs | no-kick-124.wav | synthetic | 1.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | pad-lead-groove-110.wav | synthetic | 1.6 | 20.0 | - | - | pass |
 | beat.errorMedianMs | summer2000.wav | tapped | 129.3 | 40.0 | - | - | fail |
 | beat.errorMedianMs | syncopation-no-kick.wav | tapped | 29.9 | 40.0 | - | - | pass |
-| beat.errorMedianMs | syncopationbass.wav | tapped | 53.5 | 40.0 | - | - | fail |
+| beat.errorMedianMs | syncopationbass.wav | tapped | 35.7 | 40.0 | - | - | pass |
 | beat.errorMedianMs | syncopationbass2.wav | tapped | 18.7 | 40.0 | - | - | pass |
 | beat.errorMedianMs | trap-2to1-double-90.wav | synthetic | 2.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | trap-2to1-half-140.wav | synthetic | 3.6 | 20.0 | - | - | pass |
@@ -184,28 +184,28 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 
 | Metric | Track | Visualizer | Class | Median | Spread | Runs | Floor | Stretch | Pre-hub | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
-| live.clip.maxDeviationLoops | 6-8-time.wav | dancing-character | tapped | 0.338 | 0.122 | 4 | 0.050 | - | 0.242 | fail (advisory) |
+| live.clip.maxDeviationLoops | 6-8-time.wav | dancing-character | tapped | 0.447 | 0.066 | 4 | 0.050 | - | 0.242 | fail (advisory) |
 | live.clip.maxDeviationLoops | bassline-kick-120.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | beatless.wav | dancing-character | beatless | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | click-120.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | click-140.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | click-174.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | click-90.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
-| live.clip.maxDeviationLoops | drifting-tempo.wav | dancing-character | drifting | 0.247 | 0.236 | 4 | 0.050 | - | 0.060 | fail (advisory) |
+| live.clip.maxDeviationLoops | drifting-tempo.wav | dancing-character | drifting | 0.004 | 0.495 | 4 | 0.050 | - | 0.060 | pass (advisory) |
 | live.clip.maxDeviationLoops | drums-100.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | drums-128.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | drums-150.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
-| live.clip.maxDeviationLoops | half-time-shuffle.wav | dancing-character | tapped | 0.017 | 0.479 | 4 | 0.050 | - | 0.288 | pass (advisory) |
-| live.clip.maxDeviationLoops | high-bpm-dnb.wav | dancing-character | tapped | 0.188 | 0.452 | 4 | 0.050 | - | 0.003 | fail (advisory) |
-| live.clip.maxDeviationLoops | imyourgirl.wav | dancing-character | tapped | 0.011 | 0.481 | 4 | 0.050 | - | 0.007 | pass (advisory) |
-| live.clip.maxDeviationLoops | lonley.wav | dancing-character | tapped | 0.050 | 0.486 | 4 | 0.050 | - | 0.004 | fail (advisory) |
-| live.clip.maxDeviationLoops | low-bpm-rnb.wav | dancing-character | tapped | 0.198 | 0.098 | 4 | 0.050 | - | 0.002 | fail (advisory) |
+| live.clip.maxDeviationLoops | half-time-shuffle.wav | dancing-character | tapped | 0.301 | 0.338 | 4 | 0.050 | - | 0.288 | fail (advisory) |
+| live.clip.maxDeviationLoops | high-bpm-dnb.wav | dancing-character | tapped | 0.309 | 0.315 | 4 | 0.050 | - | 0.003 | fail (advisory) |
+| live.clip.maxDeviationLoops | imyourgirl.wav | dancing-character | tapped | 0.004 | 0.486 | 4 | 0.050 | - | 0.007 | pass (advisory) |
+| live.clip.maxDeviationLoops | lonley.wav | dancing-character | tapped | 0.004 | 0.491 | 4 | 0.050 | - | 0.004 | pass (advisory) |
+| live.clip.maxDeviationLoops | low-bpm-rnb.wav | dancing-character | tapped | 0.066 | 0.093 | 4 | 0.050 | - | 0.002 | fail (advisory) |
 | live.clip.maxDeviationLoops | no-kick-124.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
-| live.clip.maxDeviationLoops | summer2000.wav | dancing-character | tapped | 0.147 | 0.397 | 4 | 0.050 | - | 0.143 | fail (advisory) |
-| live.clip.maxDeviationLoops | syncopation-no-kick.wav | dancing-character | tapped | 0.024 | 0.479 | 4 | 0.050 | - | 0.016 | pass (advisory) |
-| live.clip.maxDeviationLoops | syncopationbass.wav | dancing-character | tapped | 0.348 | 0.332 | 4 | 0.050 | - | 0.001 | fail (advisory) |
-| live.clip.maxDeviationLoops | syncopationbass2.wav | dancing-character | tapped | 0.097 | 0.410 | 4 | 0.050 | - | 0.007 | fail (advisory) |
+| live.clip.maxDeviationLoops | summer2000.wav | dancing-character | tapped | 0.142 | 0.402 | 4 | 0.050 | - | 0.143 | fail (advisory) |
+| live.clip.maxDeviationLoops | syncopation-no-kick.wav | dancing-character | tapped | 0.024 | 0.476 | 4 | 0.050 | - | 0.016 | pass (advisory) |
+| live.clip.maxDeviationLoops | syncopationbass.wav | dancing-character | tapped | 0.195 | 0.459 | 4 | 0.050 | - | 0.001 | fail (advisory) |
+| live.clip.maxDeviationLoops | syncopationbass2.wav | dancing-character | tapped | 0.004 | 0.483 | 4 | 0.050 | - | 0.007 | pass (advisory) |
 | live.clip.maxDeviationLoops | trap-2to1-double-90.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | trap-2to1-half-140.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
 | live.clip.maxDeviationLoops | trap-4to3-120.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.050 | - | - | n/a |
@@ -225,46 +225,46 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.falseFire.share | click-90.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | click-90.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | drifting-tempo.wav | cubes | drifting | 0.855 | 0.083 | 4 | - | 0.100 | 0.882 | pass (advisory) |
-| live.falseFire.share | drifting-tempo.wav | dancing-character | drifting | 0.493 | 0.255 | 4 | - | 0.100 | 0.529 | pass (advisory) |
+| live.falseFire.share | drifting-tempo.wav | dancing-character | drifting | 0.526 | 0.311 | 4 | - | 0.100 | 0.529 | pass (advisory) |
 | live.falseFire.share | drifting-tempo.wav | trio-color-wave | drifting | 0.656 | 0.052 | 4 | - | 0.100 | 0.667 | pass (advisory) |
 | live.falseFire.share | drums-100.wav | cubes | synthetic | 0.745 | 0.016 | 4 | - | 0.100 | 0.750 | pass (advisory) |
 | live.falseFire.share | drums-100.wav | dancing-character | synthetic | 0.000 | 0.000 | 4 | - | 0.100 | 1.000 | pass (advisory) |
 | live.falseFire.share | drums-100.wav | trio-color-wave | synthetic | 0.735 | 0.000 | 4 | - | 0.100 | 0.735 | pass (advisory) |
 | live.falseFire.share | drums-128.wav | cubes | synthetic | 0.644 | 0.036 | 4 | - | 0.100 | 0.652 | pass (advisory) |
-| live.falseFire.share | drums-128.wav | dancing-character | synthetic | 0.010 | 0.020 | 4 | - | 0.100 | 0.042 | pass (advisory) |
+| live.falseFire.share | drums-128.wav | dancing-character | synthetic | 0.020 | 0.021 | 4 | - | 0.100 | 0.042 | pass (advisory) |
 | live.falseFire.share | drums-128.wav | trio-color-wave | synthetic | 0.638 | 0.028 | 4 | - | 0.100 | 0.653 | pass (advisory) |
 | live.falseFire.share | drums-150.wav | cubes | synthetic | 0.361 | 0.037 | 4 | - | 0.100 | 0.383 | pass (advisory) |
-| live.falseFire.share | drums-150.wav | dancing-character | synthetic | 0.017 | 0.036 | 4 | - | 0.100 | 0.000 | pass (advisory) |
+| live.falseFire.share | drums-150.wav | dancing-character | synthetic | 0.000 | 0.018 | 4 | - | 0.100 | 0.000 | pass (advisory) |
 | live.falseFire.share | drums-150.wav | trio-color-wave | synthetic | 0.486 | 0.014 | 4 | - | 0.100 | 0.493 | pass (advisory) |
 | live.falseFire.share | half-time-shuffle.wav | cubes | tapped | 0.785 | 0.025 | 4 | - | 0.100 | 0.773 | pass (advisory) |
-| live.falseFire.share | half-time-shuffle.wav | dancing-character | tapped | 0.797 | 0.113 | 4 | - | 0.100 | 0.792 | pass (advisory) |
+| live.falseFire.share | half-time-shuffle.wav | dancing-character | tapped | 0.739 | 0.045 | 4 | - | 0.100 | 0.792 | pass (advisory) |
 | live.falseFire.share | half-time-shuffle.wav | trio-color-wave | tapped | 0.738 | 0.045 | 4 | - | 0.100 | 0.722 | pass (advisory) |
 | live.falseFire.share | high-bpm-dnb.wav | cubes | tapped | 0.892 | 0.087 | 4 | - | 0.100 | 0.935 | pass (advisory) |
-| live.falseFire.share | high-bpm-dnb.wav | dancing-character | tapped | 0.867 | 0.011 | 2 | - | 0.100 | - | unavailable (advisory) |
+| live.falseFire.share | high-bpm-dnb.wav | dancing-character | tapped | 0.485 | 0.971 | 2 | - | 0.100 | - | unavailable (advisory) |
 | live.falseFire.share | high-bpm-dnb.wav | trio-color-wave | tapped | 0.830 | 0.095 | 4 | - | 0.100 | 0.850 | pass (advisory) |
 | live.falseFire.share | imyourgirl.wav | cubes | tapped | 0.484 | 0.074 | 4 | - | 0.100 | 0.478 | pass (advisory) |
-| live.falseFire.share | imyourgirl.wav | dancing-character | tapped | 0.490 | 0.247 | 4 | - | 0.100 | 0.455 | pass (advisory) |
+| live.falseFire.share | imyourgirl.wav | dancing-character | tapped | 0.465 | 0.084 | 4 | - | 0.100 | 0.455 | pass (advisory) |
 | live.falseFire.share | imyourgirl.wav | trio-color-wave | tapped | 0.233 | 0.061 | 4 | - | 0.100 | 0.258 | pass (advisory) |
 | live.falseFire.share | lonley.wav | cubes | tapped | 0.816 | 0.072 | 4 | - | 0.100 | 0.817 | pass (advisory) |
 | live.falseFire.share | lonley.wav | dancing-character | tapped | 1.000 | 0.000 | 4 | - | 0.100 | 0.474 | pass (advisory) |
 | live.falseFire.share | lonley.wav | trio-color-wave | tapped | 0.624 | 0.126 | 4 | - | 0.100 | 0.641 | pass (advisory) |
 | live.falseFire.share | low-bpm-rnb.wav | cubes | tapped | 0.899 | 0.022 | 4 | - | 0.100 | 0.897 | pass (advisory) |
-| live.falseFire.share | low-bpm-rnb.wav | dancing-character | tapped | 0.286 | 0.429 | 3 | - | 0.100 | 1.000 | pass (advisory) |
+| live.falseFire.share | low-bpm-rnb.wav | dancing-character | tapped | 0.364 | 0.150 | 3 | - | 0.100 | 1.000 | pass (advisory) |
 | live.falseFire.share | low-bpm-rnb.wav | trio-color-wave | tapped | 0.882 | 0.014 | 4 | - | 0.100 | 0.852 | pass (advisory) |
 | live.falseFire.share | no-kick-124.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | no-kick-124.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | pad-lead-groove-110.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | summer2000.wav | cubes | tapped | 0.956 | 0.012 | 4 | - | 0.100 | 0.957 | pass (advisory) |
-| live.falseFire.share | summer2000.wav | dancing-character | tapped | 0.969 | 0.053 | 4 | - | 0.100 | 0.964 | pass (advisory) |
+| live.falseFire.share | summer2000.wav | dancing-character | tapped | 0.851 | 0.235 | 2 | - | 0.100 | 0.964 | unavailable (advisory) |
 | live.falseFire.share | summer2000.wav | trio-color-wave | tapped | 0.861 | 0.107 | 4 | - | 0.100 | 0.815 | pass (advisory) |
 | live.falseFire.share | syncopation-no-kick.wav | cubes | tapped | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | syncopation-no-kick.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | syncopationbass.wav | cubes | tapped | 0.791 | 0.049 | 4 | - | 0.100 | 0.804 | pass (advisory) |
-| live.falseFire.share | syncopationbass.wav | dancing-character | tapped | 0.756 | 0.146 | 4 | - | 0.100 | 0.895 | pass (advisory) |
+| live.falseFire.share | syncopationbass.wav | dancing-character | tapped | 0.780 | 0.098 | 4 | - | 0.100 | 0.895 | pass (advisory) |
 | live.falseFire.share | syncopationbass.wav | trio-color-wave | tapped | 0.815 | 0.031 | 4 | - | 0.100 | 0.783 | pass (advisory) |
 | live.falseFire.share | syncopationbass2.wav | cubes | tapped | 0.373 | 0.071 | 4 | - | 0.100 | 0.403 | pass (advisory) |
-| live.falseFire.share | syncopationbass2.wav | dancing-character | tapped | 0.427 | 0.144 | 4 | - | 0.100 | 0.438 | pass (advisory) |
+| live.falseFire.share | syncopationbass2.wav | dancing-character | tapped | 0.396 | 0.049 | 4 | - | 0.100 | 0.438 | pass (advisory) |
 | live.falseFire.share | syncopationbass2.wav | trio-color-wave | tapped | 0.945 | 0.040 | 4 | - | 0.100 | 0.935 | pass (advisory) |
 | live.falseFire.share | trap-2to1-double-90.wav | cubes | synthetic | 0.497 | 0.018 | 4 | - | 0.100 | 0.506 | pass (advisory) |
 | live.falseFire.share | trap-2to1-double-90.wav | dancing-character | synthetic | 0.000 | 0.000 | 4 | - | 0.100 | 0.017 | pass (advisory) |
@@ -273,7 +273,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.falseFire.share | trap-2to1-half-140.wav | dancing-character | synthetic | 0.000 | 0.017 | 4 | - | 0.100 | 0.000 | pass (advisory) |
 | live.falseFire.share | trap-2to1-half-140.wav | trio-color-wave | synthetic | 0.000 | 0.000 | 4 | - | 0.100 | 0.000 | pass (advisory) |
 | live.falseFire.share | trap-4to3-120.wav | cubes | synthetic | 0.659 | 0.017 | 4 | - | 0.100 | 0.667 | pass (advisory) |
-| live.falseFire.share | trap-4to3-120.wav | dancing-character | synthetic | 0.012 | 0.098 | 4 | - | 0.100 | 0.029 | pass (advisory) |
+| live.falseFire.share | trap-4to3-120.wav | dancing-character | synthetic | 0.000 | 0.024 | 4 | - | 0.100 | 0.029 | pass (advisory) |
 | live.falseFire.share | trap-4to3-120.wav | trio-color-wave | synthetic | 0.603 | 0.000 | 4 | - | 0.100 | 0.603 | pass (advisory) |
 | live.gate.secondsAfterLock | 6-8-time.wav | dancing-character | tapped | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
 | live.gate.secondsAfterLock | bassline-kick-120.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | unavailable (advisory) |
@@ -282,24 +282,24 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.gate.secondsAfterLock | click-140.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
 | live.gate.secondsAfterLock | click-174.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
 | live.gate.secondsAfterLock | click-90.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
-| live.gate.secondsAfterLock | drifting-tempo.wav | dancing-character | drifting | 2.94 | 10.39 | 4 | 4.00 | 2.00 | 4.60 | pass (advisory) |
-| live.gate.secondsAfterLock | drums-100.wav | dancing-character | synthetic | 2.90 | 1.30 | 4 | 4.00 | 2.00 | 4.86 | pass (advisory) |
-| live.gate.secondsAfterLock | drums-128.wav | dancing-character | synthetic | 2.77 | 1.16 | 4 | 4.00 | 2.00 | 3.89 | pass (advisory) |
-| live.gate.secondsAfterLock | drums-150.wav | dancing-character | synthetic | 2.92 | 1.64 | 4 | 4.00 | 2.00 | 4.52 | pass (advisory) |
-| live.gate.secondsAfterLock | half-time-shuffle.wav | dancing-character | tapped | 10.36 | 0.02 | 4 | 4.00 | 2.00 | 10.74 | fail (advisory) |
-| live.gate.secondsAfterLock | high-bpm-dnb.wav | dancing-character | tapped | 2.17 | 0.65 | 2 | 4.00 | 2.00 | - | fail (advisory) |
-| live.gate.secondsAfterLock | imyourgirl.wav | dancing-character | tapped | 2.30 | 2.63 | 4 | 4.00 | 2.00 | 4.54 | pass (advisory) |
-| live.gate.secondsAfterLock | lonley.wav | dancing-character | tapped | 5.30 | 0.18 | 4 | 4.00 | 2.00 | 5.62 | fail (advisory) |
-| live.gate.secondsAfterLock | low-bpm-rnb.wav | dancing-character | tapped | 18.49 | 6.70 | 4 | 4.00 | 2.00 | 20.21 | fail (advisory) |
+| live.gate.secondsAfterLock | drifting-tempo.wav | dancing-character | drifting | 2.51 | 0.91 | 4 | 4.00 | 2.00 | 4.60 | pass (advisory) |
+| live.gate.secondsAfterLock | drums-100.wav | dancing-character | synthetic | 3.51 | 1.21 | 4 | 4.00 | 2.00 | 4.86 | pass (advisory) |
+| live.gate.secondsAfterLock | drums-128.wav | dancing-character | synthetic | 2.77 | 1.06 | 4 | 4.00 | 2.00 | 3.89 | pass (advisory) |
+| live.gate.secondsAfterLock | drums-150.wav | dancing-character | synthetic | 2.80 | 3.12 | 4 | 4.00 | 2.00 | 4.52 | pass (advisory) |
+| live.gate.secondsAfterLock | half-time-shuffle.wav | dancing-character | tapped | 10.36 | 0.03 | 4 | 4.00 | 2.00 | 10.74 | fail (advisory) |
+| live.gate.secondsAfterLock | high-bpm-dnb.wav | dancing-character | tapped | 5.30 | 0.00 | 1 | 4.00 | 2.00 | - | fail (advisory) |
+| live.gate.secondsAfterLock | imyourgirl.wav | dancing-character | tapped | 2.52 | 1.29 | 4 | 4.00 | 2.00 | 4.54 | pass (advisory) |
+| live.gate.secondsAfterLock | lonley.wav | dancing-character | tapped | 5.30 | 0.04 | 4 | 4.00 | 2.00 | 5.62 | fail (advisory) |
+| live.gate.secondsAfterLock | low-bpm-rnb.wav | dancing-character | tapped | 15.76 | 2.25 | 3 | 4.00 | 2.00 | 20.21 | fail (advisory) |
 | live.gate.secondsAfterLock | no-kick-124.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
 | live.gate.secondsAfterLock | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
-| live.gate.secondsAfterLock | summer2000.wav | dancing-character | tapped | 6.06 | 5.55 | 4 | 4.00 | 2.00 | 7.67 | fail (advisory) |
+| live.gate.secondsAfterLock | summer2000.wav | dancing-character | tapped | 6.47 | 0.87 | 2 | 4.00 | 2.00 | 7.67 | fail (advisory) |
 | live.gate.secondsAfterLock | syncopation-no-kick.wav | dancing-character | tapped | - | 0.00 | 0 | 4.00 | 2.00 | - | n/a |
-| live.gate.secondsAfterLock | syncopationbass.wav | dancing-character | tapped | 1.58 | 3.16 | 4 | 4.00 | 2.00 | 15.03 | pass (advisory) |
-| live.gate.secondsAfterLock | syncopationbass2.wav | dancing-character | tapped | 3.58 | 1.82 | 4 | 4.00 | 2.00 | 4.06 | pass (advisory) |
-| live.gate.secondsAfterLock | trap-2to1-double-90.wav | dancing-character | synthetic | 2.95 | 0.69 | 4 | 4.00 | 2.00 | 5.85 | pass (advisory) |
-| live.gate.secondsAfterLock | trap-2to1-half-140.wav | dancing-character | synthetic | 1.53 | 0.83 | 4 | 4.00 | 2.00 | 5.03 | pass (advisory) |
-| live.gate.secondsAfterLock | trap-4to3-120.wav | dancing-character | synthetic | 0.70 | 0.05 | 4 | 4.00 | 2.00 | 4.32 | pass (advisory) |
+| live.gate.secondsAfterLock | syncopationbass.wav | dancing-character | tapped | 1.58 | 0.05 | 4 | 4.00 | 2.00 | 15.03 | pass (advisory) |
+| live.gate.secondsAfterLock | syncopationbass2.wav | dancing-character | tapped | 3.54 | 1.82 | 4 | 4.00 | 2.00 | 4.06 | pass (advisory) |
+| live.gate.secondsAfterLock | trap-2to1-double-90.wav | dancing-character | synthetic | 3.52 | 0.48 | 4 | 4.00 | 2.00 | 5.85 | pass (advisory) |
+| live.gate.secondsAfterLock | trap-2to1-half-140.wav | dancing-character | synthetic | 1.55 | 1.69 | 4 | 4.00 | 2.00 | 5.03 | pass (advisory) |
+| live.gate.secondsAfterLock | trap-4to3-120.wav | dancing-character | synthetic | 0.69 | 0.08 | 4 | 4.00 | 2.00 | 4.32 | pass (advisory) |
 | live.hit.share50ms | 6-8-time.wav | cubes | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | 6-8-time.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | bassline-kick-120.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.900 | - | unavailable (advisory) |
@@ -316,78 +316,78 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | click-90.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | click-90.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | drifting-tempo.wav | cubes | drifting | 0.098 | 0.054 | 4 | - | 0.900 | 0.080 | pass (advisory) |
-| live.hit.share50ms | drifting-tempo.wav | dancing-character | drifting | 0.366 | 0.268 | 4 | - | 0.900 | 0.286 | pass (advisory) |
+| live.hit.share50ms | drifting-tempo.wav | dancing-character | drifting | 0.324 | 0.286 | 4 | - | 0.900 | 0.286 | pass (advisory) |
 | live.hit.share50ms | drifting-tempo.wav | trio-color-wave | drifting | 0.366 | 0.107 | 4 | - | 0.900 | 0.366 | pass (advisory) |
 | live.hit.share50ms | drums-100.wav | cubes | synthetic | 0.255 | 0.010 | 4 | - | 0.900 | 0.255 | pass (advisory) |
-| live.hit.share50ms | drums-100.wav | dancing-character | synthetic | 0.809 | 0.054 | 4 | - | 0.900 | 0.000 | pass (advisory) |
+| live.hit.share50ms | drums-100.wav | dancing-character | synthetic | 0.787 | 0.054 | 4 | - | 0.900 | 0.000 | pass (advisory) |
 | live.hit.share50ms | drums-100.wav | trio-color-wave | synthetic | 0.265 | 0.000 | 4 | - | 0.900 | 0.265 | pass (advisory) |
 | live.hit.share50ms | drums-128.wav | cubes | synthetic | 0.262 | 0.008 | 4 | - | 0.900 | 0.270 | pass (advisory) |
-| live.hit.share50ms | drums-128.wav | dancing-character | synthetic | 0.798 | 0.033 | 4 | - | 0.900 | 0.760 | pass (advisory) |
+| live.hit.share50ms | drums-128.wav | dancing-character | synthetic | 0.798 | 0.049 | 4 | - | 0.900 | 0.760 | pass (advisory) |
 | live.hit.share50ms | drums-128.wav | trio-color-wave | synthetic | 0.270 | 0.000 | 4 | - | 0.900 | 0.270 | pass (advisory) |
 | live.hit.share50ms | drums-150.wav | cubes | synthetic | 0.465 | 0.028 | 4 | - | 0.900 | 0.472 | pass (advisory) |
-| live.hit.share50ms | drums-150.wav | dancing-character | synthetic | 0.807 | 0.117 | 4 | - | 0.900 | 0.757 | pass (advisory) |
+| live.hit.share50ms | drums-150.wav | dancing-character | synthetic | 0.805 | 0.114 | 4 | - | 0.900 | 0.757 | pass (advisory) |
 | live.hit.share50ms | drums-150.wav | trio-color-wave | synthetic | 0.260 | 0.000 | 4 | - | 0.900 | 0.260 | pass (advisory) |
 | live.hit.share50ms | half-time-shuffle.wav | cubes | tapped | 0.338 | 0.054 | 4 | - | 0.900 | 0.365 | pass (advisory) |
-| live.hit.share50ms | half-time-shuffle.wav | dancing-character | tapped | 0.135 | 0.081 | 4 | - | 0.900 | 0.135 | pass (advisory) |
+| live.hit.share50ms | half-time-shuffle.wav | dancing-character | tapped | 0.162 | 0.027 | 4 | - | 0.900 | 0.135 | pass (advisory) |
 | live.hit.share50ms | half-time-shuffle.wav | trio-color-wave | tapped | 0.405 | 0.081 | 4 | - | 0.900 | 0.405 | pass (advisory) |
 | live.hit.share50ms | high-bpm-dnb.wav | cubes | tapped | 0.024 | 0.012 | 4 | - | 0.900 | 0.012 | pass (advisory) |
-| live.hit.share50ms | high-bpm-dnb.wav | dancing-character | tapped | 0.065 | 0.036 | 2 | - | 0.900 | - | unavailable (advisory) |
+| live.hit.share50ms | high-bpm-dnb.wav | dancing-character | tapped | 0.006 | 0.012 | 2 | - | 0.900 | - | unavailable (advisory) |
 | live.hit.share50ms | high-bpm-dnb.wav | trio-color-wave | tapped | 0.041 | 0.024 | 4 | - | 0.900 | 0.035 | pass (advisory) |
 | live.hit.share50ms | imyourgirl.wav | cubes | tapped | 0.632 | 0.066 | 4 | - | 0.900 | 0.618 | pass (advisory) |
-| live.hit.share50ms | imyourgirl.wav | dancing-character | tapped | 0.447 | 0.237 | 4 | - | 0.900 | 0.428 | pass (advisory) |
+| live.hit.share50ms | imyourgirl.wav | dancing-character | tapped | 0.447 | 0.072 | 4 | - | 0.900 | 0.428 | pass (advisory) |
 | live.hit.share50ms | imyourgirl.wav | trio-color-wave | tapped | 0.809 | 0.079 | 4 | - | 0.900 | 0.809 | pass (advisory) |
 | live.hit.share50ms | lonley.wav | cubes | tapped | 0.114 | 0.043 | 4 | - | 0.900 | 0.114 | pass (advisory) |
 | live.hit.share50ms | lonley.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.293 | fail (advisory) |
 | live.hit.share50ms | lonley.wav | trio-color-wave | tapped | 0.186 | 0.057 | 4 | - | 0.900 | 0.171 | pass (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | cubes | tapped | 0.157 | 0.029 | 4 | - | 0.900 | 0.157 | pass (advisory) |
-| live.hit.share50ms | low-bpm-rnb.wav | dancing-character | tapped | 0.114 | 0.143 | 3 | - | 0.900 | 0.000 | pass (advisory) |
+| live.hit.share50ms | low-bpm-rnb.wav | dancing-character | tapped | 0.176 | 0.029 | 3 | - | 0.900 | 0.000 | pass (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | trio-color-wave | tapped | 0.157 | 0.029 | 4 | - | 0.900 | 0.200 | fail (advisory) |
 | live.hit.share50ms | no-kick-124.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | no-kick-124.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | pad-lead-groove-110.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | summer2000.wav | cubes | tapped | 0.034 | 0.000 | 4 | - | 0.900 | 0.034 | pass (advisory) |
-| live.hit.share50ms | summer2000.wav | dancing-character | tapped | 0.017 | 0.017 | 4 | - | 0.900 | 0.017 | pass (advisory) |
+| live.hit.share50ms | summer2000.wav | dancing-character | tapped | 0.076 | 0.119 | 2 | - | 0.900 | 0.017 | unavailable (advisory) |
 | live.hit.share50ms | summer2000.wav | trio-color-wave | tapped | 0.085 | 0.051 | 4 | - | 0.900 | 0.119 | pass (advisory) |
 | live.hit.share50ms | syncopation-no-kick.wav | cubes | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopation-no-kick.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopationbass.wav | cubes | tapped | 0.161 | 0.036 | 4 | - | 0.900 | 0.161 | pass (advisory) |
-| live.hit.share50ms | syncopationbass.wav | dancing-character | tapped | 0.179 | 0.125 | 4 | - | 0.900 | 0.036 | pass (advisory) |
+| live.hit.share50ms | syncopationbass.wav | dancing-character | tapped | 0.161 | 0.071 | 4 | - | 0.900 | 0.036 | pass (advisory) |
 | live.hit.share50ms | syncopationbass.wav | trio-color-wave | tapped | 0.089 | 0.018 | 4 | - | 0.900 | 0.107 | pass (advisory) |
 | live.hit.share50ms | syncopationbass2.wav | cubes | tapped | 0.648 | 0.055 | 4 | - | 0.900 | 0.629 | pass (advisory) |
-| live.hit.share50ms | syncopationbass2.wav | dancing-character | tapped | 0.451 | 0.139 | 4 | - | 0.900 | 0.431 | pass (advisory) |
+| live.hit.share50ms | syncopationbass2.wav | dancing-character | tapped | 0.492 | 0.057 | 4 | - | 0.900 | 0.431 | pass (advisory) |
 | live.hit.share50ms | syncopationbass2.wav | trio-color-wave | tapped | 0.032 | 0.032 | 4 | - | 0.900 | 0.032 | pass (advisory) |
 | live.hit.share50ms | trap-2to1-double-90.wav | cubes | synthetic | 1.000 | 0.000 | 4 | - | 0.900 | 1.000 | pass (advisory) |
-| live.hit.share50ms | trap-2to1-double-90.wav | dancing-character | synthetic | 0.798 | 0.037 | 4 | - | 0.900 | 0.702 | pass (advisory) |
+| live.hit.share50ms | trap-2to1-double-90.wav | dancing-character | synthetic | 0.786 | 0.013 | 4 | - | 0.900 | 0.702 | pass (advisory) |
 | live.hit.share50ms | trap-2to1-double-90.wav | trio-color-wave | synthetic | 1.000 | 0.000 | 4 | - | 0.900 | 1.000 | pass (advisory) |
 | live.hit.share50ms | trap-2to1-half-140.wav | cubes | synthetic | 0.507 | 0.000 | 4 | - | 0.900 | 0.507 | pass (advisory) |
-| live.hit.share50ms | trap-2to1-half-140.wav | dancing-character | synthetic | 0.864 | 0.038 | 4 | - | 0.900 | 0.742 | pass (advisory) |
+| live.hit.share50ms | trap-2to1-half-140.wav | dancing-character | synthetic | 0.852 | 0.045 | 4 | - | 0.900 | 0.742 | pass (advisory) |
 | live.hit.share50ms | trap-2to1-half-140.wav | trio-color-wave | synthetic | 0.507 | 0.000 | 4 | - | 0.900 | 0.507 | pass (advisory) |
 | live.hit.share50ms | trap-4to3-120.wav | cubes | synthetic | 0.491 | 0.000 | 4 | - | 0.900 | 0.491 | pass (advisory) |
-| live.hit.share50ms | trap-4to3-120.wav | dancing-character | synthetic | 0.698 | 0.070 | 4 | - | 0.900 | 0.569 | pass (advisory) |
+| live.hit.share50ms | trap-4to3-120.wav | dancing-character | synthetic | 0.719 | 0.054 | 4 | - | 0.900 | 0.569 | pass (advisory) |
 | live.hit.share50ms | trap-4to3-120.wav | trio-color-wave | synthetic | 0.492 | 0.000 | 4 | - | 0.900 | 0.492 | pass (advisory) |
-| live.lock.spreadSeconds | 6-8-time.wav | dancing-character | tapped | 0.04 | 0.17 | 4 | 2.00 | - | 0.05 | pass (advisory) |
+| live.lock.spreadSeconds | 6-8-time.wav | dancing-character | tapped | 0.06 | 0.26 | 4 | 2.00 | - | 0.05 | pass (advisory) |
 | live.lock.spreadSeconds | bassline-kick-120.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | beatless.wav | dancing-character | beatless | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | click-120.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | click-140.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | click-174.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | click-90.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
-| live.lock.spreadSeconds | drifting-tempo.wav | dancing-character | drifting | 4.99 | 5.12 | 4 | 2.00 | - | 0.01 | fail (advisory) |
+| live.lock.spreadSeconds | drifting-tempo.wav | dancing-character | drifting | 0.02 | 5.13 | 4 | 2.00 | - | 0.01 | pass (advisory) |
 | live.lock.spreadSeconds | drums-100.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | drums-128.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | drums-150.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
-| live.lock.spreadSeconds | half-time-shuffle.wav | dancing-character | tapped | 0.01 | 0.01 | 4 | 2.00 | - | 0.00 | pass (advisory) |
+| live.lock.spreadSeconds | half-time-shuffle.wav | dancing-character | tapped | 0.00 | 0.02 | 4 | 2.00 | - | 0.00 | pass (advisory) |
 | live.lock.spreadSeconds | high-bpm-dnb.wav | dancing-character | tapped | 0.05 | 5.00 | 4 | 2.00 | - | 0.01 | pass (advisory) |
 | live.lock.spreadSeconds | imyourgirl.wav | dancing-character | tapped | 0.02 | 0.06 | 4 | 2.00 | - | 0.01 | pass (advisory) |
-| live.lock.spreadSeconds | lonley.wav | dancing-character | tapped | 0.06 | 0.19 | 4 | 2.00 | - | 0.02 | pass (advisory) |
+| live.lock.spreadSeconds | lonley.wav | dancing-character | tapped | 0.01 | 0.04 | 4 | 2.00 | - | 0.02 | pass (advisory) |
 | live.lock.spreadSeconds | low-bpm-rnb.wav | dancing-character | tapped | 0.06 | 5.05 | 4 | 2.00 | - | 0.04 | pass (advisory) |
 | live.lock.spreadSeconds | no-kick-124.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
-| live.lock.spreadSeconds | summer2000.wav | dancing-character | tapped | 0.02 | 0.07 | 4 | 2.00 | - | 0.02 | pass (advisory) |
-| live.lock.spreadSeconds | syncopation-no-kick.wav | dancing-character | tapped | 0.02 | 0.05 | 4 | 2.00 | - | 0.06 | pass (advisory) |
-| live.lock.spreadSeconds | syncopationbass.wav | dancing-character | tapped | 0.16 | 5.00 | 4 | 2.00 | - | 0.02 | pass (advisory) |
-| live.lock.spreadSeconds | syncopationbass2.wav | dancing-character | tapped | 0.02 | 0.06 | 4 | 2.00 | - | 0.00 | pass (advisory) |
+| live.lock.spreadSeconds | summer2000.wav | dancing-character | tapped | 0.01 | 0.05 | 4 | 2.00 | - | 0.02 | pass (advisory) |
+| live.lock.spreadSeconds | syncopation-no-kick.wav | dancing-character | tapped | 0.00 | 0.05 | 4 | 2.00 | - | 0.06 | pass (advisory) |
+| live.lock.spreadSeconds | syncopationbass.wav | dancing-character | tapped | 0.01 | 0.05 | 4 | 2.00 | - | 0.02 | pass (advisory) |
+| live.lock.spreadSeconds | syncopationbass2.wav | dancing-character | tapped | 0.05 | 0.14 | 4 | 2.00 | - | 0.00 | pass (advisory) |
 | live.lock.spreadSeconds | trap-2to1-double-90.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | trap-2to1-half-140.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
 | live.lock.spreadSeconds | trap-4to3-120.wav | dancing-character | synthetic | - | 0.00 | 0 | 2.00 | - | - | n/a |
@@ -407,52 +407,52 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.reaction.latencyMs | click-90.wav | cubes | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | click-90.wav | dancing-character | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | drifting-tempo.wav | cubes | drifting | 220.3 | 7.3 | 4 | - | 46.7 | 223.4 | pass (advisory) |
-| live.reaction.latencyMs | drifting-tempo.wav | dancing-character | drifting | 13.3 | 10.5 | 4 | - | 46.7 | 15.2 | pass (advisory) |
+| live.reaction.latencyMs | drifting-tempo.wav | dancing-character | drifting | 9.4 | 4.3 | 4 | - | 46.7 | 15.2 | pass (advisory) |
 | live.reaction.latencyMs | drifting-tempo.wav | trio-color-wave | drifting | 83.3 | 11.0 | 4 | - | 46.7 | 87.3 | pass (advisory) |
 | live.reaction.latencyMs | drums-100.wav | cubes | synthetic | 20.0 | 0.0 | 4 | - | 46.7 | 22.7 | pass (advisory) |
-| live.reaction.latencyMs | drums-100.wav | dancing-character | synthetic | 25.5 | 18.7 | 4 | - | 46.7 | - | pass (advisory) |
+| live.reaction.latencyMs | drums-100.wav | dancing-character | synthetic | 31.0 | 11.0 | 4 | - | 46.7 | - | pass (advisory) |
 | live.reaction.latencyMs | drums-100.wav | trio-color-wave | synthetic | 9.3 | 10.7 | 4 | - | 46.7 | 10.7 | pass (advisory) |
 | live.reaction.latencyMs | drums-128.wav | cubes | synthetic | 28.5 | 4.0 | 4 | - | 46.7 | 29.3 | pass (advisory) |
-| live.reaction.latencyMs | drums-128.wav | dancing-character | synthetic | 34.6 | 4.5 | 4 | - | 46.7 | 34.5 | pass (advisory) |
+| live.reaction.latencyMs | drums-128.wav | dancing-character | synthetic | 36.2 | 4.9 | 4 | - | 46.7 | 34.5 | pass (advisory) |
 | live.reaction.latencyMs | drums-128.wav | trio-color-wave | synthetic | 15.0 | 3.3 | 4 | - | 46.7 | 14.5 | pass (advisory) |
 | live.reaction.latencyMs | drums-150.wav | cubes | synthetic | 28.0 | 2.7 | 4 | - | 46.7 | 30.8 | pass (advisory) |
-| live.reaction.latencyMs | drums-150.wav | dancing-character | synthetic | 38.8 | 8.0 | 4 | - | 46.7 | 31.0 | pass (advisory) |
+| live.reaction.latencyMs | drums-150.wav | dancing-character | synthetic | 34.8 | 10.7 | 4 | - | 46.7 | 31.0 | pass (advisory) |
 | live.reaction.latencyMs | drums-150.wav | trio-color-wave | synthetic | 10.7 | 10.7 | 4 | - | 46.7 | 9.3 | pass (advisory) |
 | live.reaction.latencyMs | half-time-shuffle.wav | cubes | tapped | 47.3 | 6.7 | 4 | - | 46.7 | 49.4 | pass (advisory) |
-| live.reaction.latencyMs | half-time-shuffle.wav | dancing-character | tapped | 71.8 | 6.7 | 4 | - | 46.7 | 75.7 | pass (advisory) |
+| live.reaction.latencyMs | half-time-shuffle.wav | dancing-character | tapped | 60.1 | 10.7 | 4 | - | 46.7 | 75.7 | pass (advisory) |
 | live.reaction.latencyMs | half-time-shuffle.wav | trio-color-wave | tapped | 38.7 | 2.7 | 4 | - | 46.7 | 42.7 | pass (advisory) |
 | live.reaction.latencyMs | high-bpm-dnb.wav | cubes | tapped | 97.2 | 16.0 | 4 | - | 46.7 | 100.7 | pass (advisory) |
-| live.reaction.latencyMs | high-bpm-dnb.wav | dancing-character | tapped | 102.3 | 10.7 | 2 | - | 46.7 | - | unavailable (advisory) |
+| live.reaction.latencyMs | high-bpm-dnb.wav | dancing-character | tapped | 114.7 | 0.0 | 1 | - | 46.7 | - | unavailable (advisory) |
 | live.reaction.latencyMs | high-bpm-dnb.wav | trio-color-wave | tapped | 68.3 | 6.5 | 4 | - | 46.7 | 66.5 | pass (advisory) |
 | live.reaction.latencyMs | imyourgirl.wav | cubes | tapped | 49.0 | 2.7 | 4 | - | 46.7 | 49.0 | pass (advisory) |
-| live.reaction.latencyMs | imyourgirl.wav | dancing-character | tapped | 50.7 | 10.8 | 4 | - | 46.7 | 49.6 | pass (advisory) |
+| live.reaction.latencyMs | imyourgirl.wav | dancing-character | tapped | 49.7 | 2.7 | 4 | - | 46.7 | 49.6 | pass (advisory) |
 | live.reaction.latencyMs | imyourgirl.wav | trio-color-wave | tapped | 27.3 | 8.0 | 4 | - | 46.7 | 25.5 | pass (advisory) |
 | live.reaction.latencyMs | lonley.wav | cubes | tapped | 62.8 | 20.3 | 4 | - | 46.7 | 70.9 | pass (advisory) |
-| live.reaction.latencyMs | lonley.wav | dancing-character | tapped | 230.3 | 25.3 | 4 | - | 46.7 | 53.3 | fail (advisory) |
+| live.reaction.latencyMs | lonley.wav | dancing-character | tapped | 239.0 | 62.8 | 4 | - | 46.7 | 53.3 | fail (advisory) |
 | live.reaction.latencyMs | lonley.wav | trio-color-wave | tapped | 38.8 | 16.0 | 4 | - | 46.7 | 38.8 | pass (advisory) |
 | live.reaction.latencyMs | low-bpm-rnb.wav | cubes | tapped | 28.0 | 13.7 | 4 | - | 46.7 | 33.3 | pass (advisory) |
-| live.reaction.latencyMs | low-bpm-rnb.wav | dancing-character | tapped | 49.8 | 7.0 | 2 | - | 46.7 | - | unavailable (advisory) |
+| live.reaction.latencyMs | low-bpm-rnb.wav | dancing-character | tapped | 46.3 | 6.8 | 3 | - | 46.7 | - | pass (advisory) |
 | live.reaction.latencyMs | low-bpm-rnb.wav | trio-color-wave | tapped | 65.1 | 10.1 | 4 | - | 46.7 | 69.2 | pass (advisory) |
 | live.reaction.latencyMs | no-kick-124.wav | cubes | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | no-kick-124.wav | dancing-character | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | pad-lead-groove-110.wav | cubes | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | summer2000.wav | cubes | tapped | 140.0 | 18.7 | 4 | - | 46.7 | 144.2 | pass (advisory) |
-| live.reaction.latencyMs | summer2000.wav | dancing-character | tapped | 159.9 | 174.7 | 4 | - | 46.7 | 104.0 | fail (advisory) |
+| live.reaction.latencyMs | summer2000.wav | dancing-character | tapped | 101.5 | 176.0 | 2 | - | 46.7 | 104.0 | unavailable (advisory) |
 | live.reaction.latencyMs | summer2000.wav | trio-color-wave | tapped | 86.7 | 21.2 | 4 | - | 46.7 | 90.5 | pass (advisory) |
 | live.reaction.latencyMs | syncopation-no-kick.wav | cubes | tapped | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | syncopation-no-kick.wav | dancing-character | tapped | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | syncopationbass.wav | cubes | tapped | 77.8 | 10.7 | 4 | - | 46.7 | 69.7 | pass (advisory) |
-| live.reaction.latencyMs | syncopationbass.wav | dancing-character | tapped | 82.8 | 8.7 | 4 | - | 46.7 | 89.9 | pass (advisory) |
+| live.reaction.latencyMs | syncopationbass.wav | dancing-character | tapped | 81.0 | 9.3 | 4 | - | 46.7 | 89.9 | pass (advisory) |
 | live.reaction.latencyMs | syncopationbass.wav | trio-color-wave | tapped | 64.0 | 8.0 | 4 | - | 46.7 | 68.0 | pass (advisory) |
 | live.reaction.latencyMs | syncopationbass2.wav | cubes | tapped | 44.9 | 10.1 | 4 | - | 46.7 | 45.0 | pass (advisory) |
-| live.reaction.latencyMs | syncopationbass2.wav | dancing-character | tapped | 49.4 | 0.7 | 4 | - | 46.7 | 49.2 | pass (advisory) |
+| live.reaction.latencyMs | syncopationbass2.wav | dancing-character | tapped | 49.0 | 0.3 | 4 | - | 46.7 | 49.2 | pass (advisory) |
 | live.reaction.latencyMs | syncopationbass2.wav | trio-color-wave | tapped | 68.3 | 1.2 | 4 | - | 46.7 | 68.2 | pass (advisory) |
 | live.reaction.latencyMs | trap-2to1-double-90.wav | cubes | synthetic | 31.0 | 5.3 | 4 | - | 46.7 | 31.0 | pass (advisory) |
 | live.reaction.latencyMs | trap-2to1-double-90.wav | dancing-character | synthetic | 33.3 | 2.3 | 4 | - | 46.7 | 33.3 | pass (advisory) |
 | live.reaction.latencyMs | trap-2to1-double-90.wav | trio-color-wave | synthetic | 35.7 | 3.0 | 4 | - | 46.7 | 35.8 | pass (advisory) |
 | live.reaction.latencyMs | trap-2to1-half-140.wav | cubes | synthetic | 14.5 | 2.6 | 4 | - | 46.7 | 14.6 | pass (advisory) |
-| live.reaction.latencyMs | trap-2to1-half-140.wav | dancing-character | synthetic | 25.5 | 1.4 | 4 | - | 46.7 | 24.6 | pass (advisory) |
+| live.reaction.latencyMs | trap-2to1-half-140.wav | dancing-character | synthetic | 25.7 | 4.1 | 4 | - | 46.7 | 24.6 | pass (advisory) |
 | live.reaction.latencyMs | trap-2to1-half-140.wav | trio-color-wave | synthetic | 14.5 | 0.9 | 4 | - | 46.7 | 14.3 | pass (advisory) |
 | live.reaction.latencyMs | trap-4to3-120.wav | cubes | synthetic | 28.0 | 3.0 | 4 | - | 46.7 | 29.9 | pass (advisory) |
 | live.reaction.latencyMs | trap-4to3-120.wav | dancing-character | synthetic | 31.5 | 10.0 | 4 | - | 46.7 | 35.5 | pass (advisory) |
