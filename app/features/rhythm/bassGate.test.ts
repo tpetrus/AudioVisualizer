@@ -560,36 +560,44 @@ describe('stepBassGate evidence while closed', () => {
 
     // Two random notes per beat. The generator is a linear congruential one done with Math.imul, so every product wraps
     // exactly in 32 bits and the sequence is the same on every machine (a plain product would pass 2^53 and round).
-    function opensOnRandomNotes(start: number, beats: number): boolean {
+    // `notesPerBeat` random notes per `beatsPerNote` beats (a beat without notes stays silent), with the beat clock
+    // hidden (`locked: false`) for the first `hiddenSeconds`, so the kicks heard before the lock take the pre-lock path.
+    function opensOnRandomNotes(
+        start: number,
+        beats: number,
+        { notesPerBeat = 2, beatsPerNote = 1, hiddenSeconds = 0 } = {},
+    ): boolean {
         let seed = start;
         const random = () => {
             seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
             return seed / 4294967296;
         };
-        const notes = Array.from({ length: beats }, () => [
-            Math.floor(random() * FRAMES_PER_BEAT),
-            Math.floor(random() * FRAMES_PER_BEAT),
-        ]);
+        const notes = Array.from({ length: beats }, (_, beat) =>
+            beat % beatsPerNote === 0
+                ? Array.from({ length: notesPerBeat }, () => Math.floor(random() * FRAMES_PER_BEAT))
+                : [],
+        );
+        const hiddenFrames = Math.ceil(hiddenSeconds / DT);
         const state = createBassGateState();
         for (let frame = 0; frame < FRAMES_PER_BEAT * beats; frame++) {
             const at = frame % FRAMES_PER_BEAT;
             const hit = notes[Math.floor(frame / FRAMES_PER_BEAT)].some((note) => at >= note && at < note + 4);
-            drive(1, () => (hit ? 0.9 : 0), { state, start: frame });
+            drive(1, () => (hit ? 0.9 : 0), { state, start: frame, locked: frame >= hiddenFrames });
             if (state.open) return true;
         }
         return false;
     }
 
-    function openingPatterns(beats: number): number {
+    function openingPatterns(beats: number, options?: Parameters<typeof opensOnRandomNotes>[2]): number {
         let opened = 0;
-        for (let seed = 1; seed <= 300; seed++) if (opensOnRandomNotes(seed, beats)) opened++;
+        for (let seed = 1; seed <= 300; seed++) if (opensOnRandomNotes(seed, beats, options)) opened++;
         return opened;
     }
 
     // Random bass can open the gate by chance, and the more of it there is the likelier, so the specs bound how many of
-    // 300 patterns open rather than naming seeds that happen not to. Measured with this rule: 2 of 300 at 120
-    // beats (bound 6) and 8 of 300 at 400 beats (bound 16); false opens grow with length. With the chance fixed at 0.2 instead of following the density, far
-    // more open (checked by editing bassGate.ts and reverting it), so these guard the density rule: busy random bass
+    // 300 patterns open rather than naming seeds that happen not to. Measured with this rule (level-domain spec, clock
+    // locked from frame 0): 2 of 300 at 120 beats (bound 6) and 8 of 300 at 400 beats (bound 16); false opens grow with
+    // length. With the chance fixed at 0.2 instead of following the density, far more open (checked by editing bassGate.ts and reverting it), so these guard the density rule: busy random bass
     // repeats a bar by chance far more often than 0.2 and must be weighed against that.
     it('opens on at most 6 of 300 patterns of two random notes per beat over 120 beats', () => {
         expect(openingPatterns(120)).toBeLessThanOrEqual(6);
@@ -597,6 +605,28 @@ describe('stepBassGate evidence while closed', () => {
 
     it('opens on at most 16 of 300 patterns of two random notes per beat over 400 beats', () => {
         expect(openingPatterns(400)).toBeLessThanOrEqual(16);
+    });
+
+    // The same patterns with the beat clock hidden for the first 3 s (BASS_GATE_PRELOCK_SECONDS), so the gate places the
+    // kicks heard before the lock onto the beat at the lock and weighs them as evidence. Measured (level-domain spec):
+    // 2 of 300 at 120 beats and 8 of 300 at 400 beats, as with the clock locked from frame 0, so bounds 6 and 16.
+    it('opens on at most 6 of 300 patterns over 120 beats with the clock hidden for the first 3 s', () => {
+        expect(openingPatterns(120, { hiddenSeconds: 3 })).toBeLessThanOrEqual(6);
+    });
+
+    it('opens on at most 16 of 300 patterns over 400 beats with the clock hidden for the first 3 s', () => {
+        expect(openingPatterns(400, { hiddenSeconds: 3 })).toBeLessThanOrEqual(16);
+    });
+
+    // Sparse random bass, 300 seeds over 40 beats (level-domain spec). One note per beat measured 2 of 300 (bound 6). One
+    // note per two beats measured 26 of 300 (bound 40): with so few kicks the chance of a repeat by luck is high, so this
+    // pins today's rate rather than claiming it is low.
+    it('opens on at most 6 of 300 patterns of one random note per beat over 40 beats', () => {
+        expect(openingPatterns(40, { notesPerBeat: 1 })).toBeLessThanOrEqual(6);
+    });
+
+    it('opens on at most 40 of 300 patterns of one random note per two beats over 40 beats', () => {
+        expect(openingPatterns(40, { notesPerBeat: 1, beatsPerNote: 2 })).toBeLessThanOrEqual(40);
     });
 
     // The ring holds BASS_GATE_KICK_HISTORY kicks, so the chance can never pass about 0.72, below the repeat rate: on the
