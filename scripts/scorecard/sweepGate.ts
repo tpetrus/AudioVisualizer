@@ -25,7 +25,7 @@ const GATE_CONFIG = 'app/features/rhythm/bassGateConfig.ts';
 const GATE_CONFIG_NAME = 'bassGateConfig.ts';
 
 const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]...
-                            [--grid NAME=v1,v2,...]... [--detail] [--json <file>]
+                            [--grid NAME=v1,v2,...]... [--lock-at S] [--detail] [--json <file>]
 
 Replays every track and random pattern once with the shipped code, then steps only the dancer's bass gate (bassGate.ts) per
 row, with constants of ${GATE_CONFIG_NAME} overridden. Rows: base (no overrides), then every combination of the --grid values,
@@ -34,12 +34,14 @@ each with every --set applied. NAME must be an exported constant of ${GATE_CONFI
 Per row: false opens of the gate on N seeded random-bass patterns (default 300) for each beat count (default 120,400), the
 gate column of probe:gate-inputs; on kick tracks of <folder> (default ${DEFAULT_DIR}) how many open within 4 s and 2 s of the
 dancer's lock and the sum and max of the seconds after it (the rest of the track if the gate never opens); on no-kick tracks
-the names whose gate opened. --detail adds the seconds after the lock of every track per row; --json writes everything.`;
+the names whose gate opened. --lock-at S hides the random bass's beat clock for its first S seconds (default 0), so the
+false opens include what the gate does before a lock. --detail adds the seconds after the lock of every track per row; --json writes everything.`;
 
 export interface SweepArgs {
     dir: string;
     patterns: number;
     beats: number[];
+    lockAt: number;
     set: Override[];
     grid: GridAxis[];
     detail: boolean;
@@ -58,6 +60,7 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
         dir: DEFAULT_DIR,
         patterns: 300,
         beats: [120, 400],
+        lockAt: 0,
         set: [],
         grid: [],
         detail: false,
@@ -93,6 +96,14 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
                     .split(',')
                     .map((part) => positiveInteger(flag, part));
                 break;
+            case '--lock-at': {
+                const text = value();
+                const seconds = Number(text);
+                if (!Number.isFinite(seconds) || seconds < 0)
+                    throw new Error(`${flag} needs seconds of 0 or more, got ${text}`);
+                args.lockAt = seconds;
+                break;
+            }
             case '--set':
                 args.set.push(parseOverride(value()));
                 break;
@@ -204,6 +215,8 @@ export interface RowResult {
 export interface SweepResult {
     patterns: number;
     beats: number[];
+    // Seconds of the random bass's beat clock hidden from the gate (--lock-at).
+    lockAt: number;
     rows: RowResult[];
     // The dancer's lock time per scored track (kick and no-kick), null where it never locks.
     dancerLockSeconds: Record<string, number | null>;
@@ -242,11 +255,12 @@ export function summarizeKickTracks(outcomes: readonly TrackOutcome[]): Summary 
 type Log = (text: string) => void;
 
 export async function runSweep(
-    args: Pick<SweepArgs, 'dir' | 'patterns' | 'beats'>,
+    args: Pick<SweepArgs, 'dir' | 'patterns' | 'beats'> & Partial<Pick<SweepArgs, 'lockAt'>>,
     rows: readonly Row[],
     log: Log,
     progress: Log = () => {},
 ): Promise<SweepResult> {
+    const lockAt = args.lockAt ?? 0;
     let phase = Date.now();
     const lap = (name: string): void => {
         log(`${name}: ${((Date.now() - phase) / 1000).toFixed(1)} s`);
@@ -271,8 +285,9 @@ export async function runSweep(
         for (let seed = 1; seed <= args.patterns; seed++) {
             const { trace, shipped } = record(randomBassPcm(seed, beats), RANDOM_BASS_SAMPLE_RATE, RANDOM_BASS_BPM);
             rows.forEach((row, index) => {
-                const opening = firstOpenSeconds(trace, steppers[index]);
-                checkBase(`${beats} beats, seed ${seed}`, row, opening, shipped);
+                const opening = firstOpenSeconds(trace, steppers[index], lockAt);
+                // A hidden lock is not what the replay's own gate saw, so there is nothing to check the base row against.
+                if (lockAt === 0) checkBase(`${beats} beats, seed ${seed}`, row, opening, shipped);
                 if (opening !== null) results[index].falseOpens[String(beats)]++;
             });
             if (seed % 50 === 0) progress(`  ${beats} beats: ${seed} of ${args.patterns}`);
@@ -307,7 +322,7 @@ export async function runSweep(
         progress(`  ${source.name}`);
     }
     lap('Tracks');
-    return { patterns: args.patterns, beats: [...args.beats], rows: results, dancerLockSeconds };
+    return { patterns: args.patterns, beats: [...args.beats], lockAt, rows: results, dancerLockSeconds };
 }
 
 const pad = (text: string, width: number): string => text.padStart(width);
@@ -317,7 +332,7 @@ export function formatSweep(result: SweepResult, detail: boolean): string[] {
     const headers = [...result.beats.map((beats) => `fo@${beats}`), '<=4s', '<=2s', 'sum', 'max'];
     const labelWidth = Math.max(5, ...result.rows.map((row) => row.label.length));
     lines.push(
-        `fo@N: false opens of ${result.patterns} random-bass patterns of N beats. <=4s and <=2s: kick tracks within that many seconds of the dancer lock.`,
+        `fo@N: false opens of ${result.patterns} random-bass patterns of N beats${result.lockAt > 0 ? ` (beat clock hidden for ${result.lockAt} s)` : ''}. <=4s and <=2s: kick tracks within that many seconds of the dancer lock.`,
     );
     lines.push(['row'.padEnd(labelWidth), ...headers.map((text) => pad(text, 8)), '  no-kick opened'].join(' '));
     for (const row of result.rows) {
@@ -364,6 +379,7 @@ export function sweepJson(result: SweepResult): unknown {
     return {
         patterns: result.patterns,
         beats: result.beats,
+        lockAt: result.lockAt,
         dancerLockSeconds: result.dancerLockSeconds,
         rows: result.rows.map((row) => ({
             label: row.label,

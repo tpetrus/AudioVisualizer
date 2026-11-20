@@ -9,7 +9,7 @@ const shipped = { createBassGateState, stepBassGate };
 describe('GateTrace', () => {
     it('stores what it is given, with NaN for an undefined phase, and grows past its capacity', () => {
         const trace = new GateTrace(2);
-        for (let i = 0; i < 5; i++) trace.tick(i / 10, i === 1 ? undefined : i / 4, i, 7, i % 2 === 0);
+        for (let i = 0; i < 5; i++) trace.tick(i / 10, i === 1 ? undefined : i / 4, i, 7, i % 2 === 0, 120 + i);
         expect(trace.length).toBe(5);
         expect(trace.bass[3]).toBe(0.3);
         expect(Number.isNaN(trace.beatPhase[1])).toBe(true);
@@ -17,6 +17,7 @@ describe('GateTrace', () => {
         expect([trace.beatCount[4], trace.songChangeCount[4], trace.tempoLocked[4], trace.tempoLocked[3]]).toEqual([
             4, 7, 1, 0,
         ]);
+        expect(trace.bpm[4]).toBe(124);
     });
 });
 
@@ -33,10 +34,21 @@ describe('firstOpenSeconds', () => {
         expect(firstOpenSeconds(trace, shipped)).toBe(replay.gate.firstOpenSeconds);
     });
 
+    it('opens no earlier than a hidden lock, and the same as an unhidden trace when the lock comes first', () => {
+        const trace = new GateTrace();
+        replayPcm(pcm, RANDOM_BASS_SAMPLE_RATE, { lockedTempo: RANDOM_BASS_BPM, gateTrace: trace });
+        const opening = firstOpenSeconds(trace, shipped)!;
+        expect(firstOpenSeconds(trace, shipped, 0)).toBe(opening);
+        // Hidden past the natural opening, so the gate can only open once the clock shows.
+        const lockAt = opening + 1;
+        const hidden = firstOpenSeconds(trace, shipped, lockAt)!;
+        expect(hidden).toBeGreaterThanOrEqual(lockAt);
+    });
+
     it('is null for a gate that never opens', () => {
         const trace = new GateTrace();
-        trace.tick(0, 0.5, 0, 0, true);
-        trace.tick(0, 0.6, 0, 0, true);
+        trace.tick(0, 0.5, 0, 0, true, 120);
+        trace.tick(0, 0.6, 0, 0, true, 120);
         expect(firstOpenSeconds(trace, shipped)).toBeNull();
     });
 });

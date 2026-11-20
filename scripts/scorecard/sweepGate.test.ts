@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { BASS_GATE_OPEN_SCORE } from '../../app/features/rhythm/bassGateConfig';
 import { GateTrace, firstOpenSeconds } from './engine/gateTrace';
 import { RANDOM_BASS_BPM, RANDOM_BASS_SAMPLE_RATE, onBeatBassPcm } from './engine/gateInputs';
 import { replayPcm } from './engine/replay';
@@ -23,6 +24,7 @@ describe('parseSweepGateArgs', () => {
             dir: '.debug-in',
             patterns: 300,
             beats: [120, 400],
+            lockAt: 0,
             set: [],
             grid: [],
             detail: false,
@@ -36,9 +38,16 @@ describe('parseSweepGateArgs', () => {
             ...['--dir', 'x', '--patterns', '5', '--beats', '8,16'],
             ...['--set', 'BASS_GATE_CLOSE_SCORE=2'],
             ...['--grid', 'BASS_GATE_OPEN_SCORE=4,6', '--grid', 'BASS_GATE_OPEN_SCORE=5'],
-            ...['--detail', '--json', 'out.json'],
+            ...['--detail', '--json', 'out.json', '--lock-at', '3.5'],
         ]);
-        expect(args).toMatchObject({ dir: 'x', patterns: 5, beats: [8, 16], detail: true, json: 'out.json' });
+        expect(args).toMatchObject({
+            dir: 'x',
+            patterns: 5,
+            beats: [8, 16],
+            lockAt: 3.5,
+            detail: true,
+            json: 'out.json',
+        });
         expect(args.set).toEqual([{ name: 'BASS_GATE_CLOSE_SCORE', value: '2' }]);
         expect(args.grid).toEqual([{ name: 'BASS_GATE_OPEN_SCORE', values: ['4', '6', '5'] }]);
     });
@@ -49,6 +58,7 @@ describe('parseSweepGateArgs', () => {
         [['--grid', 'BASS_GATE_OPEN_SCORE'], /--grid needs/],
         [['--set', 'lower=1'], /NAME=VALUE/],
         [['--dir'], /needs a value/],
+        [['--lock-at', '-1'], /0 or more/],
         [['--set', 'A=1', '--grid', 'A=1,2'], /given twice/],
     ])('rejects %j', (argv, message) => {
         expect(() => parseSweepGateArgs(argv)).toThrow(message);
@@ -110,7 +120,7 @@ describe('loadGateStepper', () => {
     });
 
     it('treats the shipped open score as no override', async () => {
-        const same = await loadGateStepper([{ name: 'BASS_GATE_OPEN_SCORE', value: '6' }]);
+        const same = await loadGateStepper([{ name: 'BASS_GATE_OPEN_SCORE', value: String(BASS_GATE_OPEN_SCORE) }]);
         expect(firstOpenSeconds(trace, same)).toBe(replay.gate.firstOpenSeconds);
     });
 });
@@ -120,6 +130,7 @@ describe('the report', () => {
     const result: SweepResult = {
         patterns: 3,
         beats: [120],
+        lockAt: 0,
         dancerLockSeconds: { 'a.wav': 5, 'b.wav': 6, 'c.wav': null, 'n.wav': 4 },
         rows: [
             {

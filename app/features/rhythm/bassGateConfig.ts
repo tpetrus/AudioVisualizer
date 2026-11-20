@@ -44,14 +44,24 @@ export const BASS_GATE_EMPTY_RADIUS = 1;
 // last eight, the latest three in a row) opened on 52 of 100 random patterns with two notes per beat over 120 beats,
 // because busy bass repeats by chance; this opens on 2, and on 0 of 205 with one note per beat over 40 beats. Once
 // open, each kick at the learned place adds 1 up to the maximum, and the gate closes at the close score.
-export const BASS_GATE_REPEAT_RATE = 0.6;
+// Retuned with the kicks placed from before the lock (hub-regressions S5, `npm run sweep:gate`): a repeat rate of 0.8,
+// a margin of 1.6 and an open score of 5.5 opened the dancer's gate within 4 s of the lock on 12 of 16 kick tracks
+// (1 before), and on fewer random-bass patterns than before (3 and 15 of 300 at 120 and 400 beats, against 5 and 27).
+export const BASS_GATE_REPEAT_RATE = 0.8;
 export const BASS_GATE_DENSITY_BEATS = 8;
-export const BASS_GATE_CHANCE_MARGIN = 1.3;
+export const BASS_GATE_CHANCE_MARGIN = 1.6;
 export const BASS_GATE_CHANCE_MIN = 0.05;
 export const BASS_GATE_KICK_HISTORY = 32;
 export const BASS_GATE_SCORE_MAX = 8;
-export const BASS_GATE_OPEN_SCORE = 6;
+export const BASS_GATE_OPEN_SCORE = 5.5;
 export const BASS_GATE_CLOSE_SCORE = 1;
+// The tracker reports no beat until it locks, about 3 to 11 s into a track, so kicks heard before then had no place in
+// the beat and the first bar after the lock had nothing to repeat: the gate could not open before the second bar. Kicks
+// heard within this many seconds before the lock (0: none) are kept by time and placed on the beat at the lock, from the
+// tracker's tempo, as the bars the first kicks after the lock repeat. With the score switch on (1) they are also weighed
+// as evidence among themselves, as if they had been heard on the beat.
+export const BASS_GATE_PRELOCK_SECONDS = 3;
+export const BASS_GATE_PRELOCK_SCORE = 1;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about
 // six bars, and its new place is then learned. The same wearing down applies to the evidence gathered while closed.

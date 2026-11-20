@@ -274,7 +274,7 @@ function run(
             tempoLocked = true;
         }
         const bass = bump.step(hub.snapshot.gateBass.pulse, RENDER_DT);
-        gateTrace?.tick(bass, rhythm.beatPhase, rhythm.beatCount, rhythm.songChangeCount, tempoLocked);
+        gateTrace?.tick(bass, rhythm.beatPhase, rhythm.beatCount, rhythm.songChangeCount, tempoLocked, rhythm.bpm);
         stepBassGate(bass, rhythm, tempoLocked, gate, RENDER_DT);
         hubTally.tick(gate.open, time);
         if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;

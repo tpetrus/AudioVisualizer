@@ -5,8 +5,8 @@ import { RENDER_HZ } from './replay';
 // What the dancer's bass gate reads, recorded once per render tick of a replay, so the gate rule alone can be stepped
 // again (with other constants) without replaying the tracker, the hub and the bump envelope. The gate (bassGate.ts,
 // stepBassGate) reads exactly these: the bass value it is passed (the hub's gateBass pulse after the bump envelope),
-// rhythm.beatPhase (which may be undefined), rhythm.beatCount, rhythm.songChangeCount, tempoLocked, and dt, which is
-// always the render tick. Nothing else of the rhythm state reaches it.
+// rhythm.beatPhase (which may be undefined), rhythm.beatCount, rhythm.songChangeCount, rhythm.bpm, tempoLocked, and dt,
+// which is always the render tick. Nothing else of the rhythm state reaches it.
 
 // Receives one call per render tick from replayPcm, for the shipped gateBass gate.
 export interface GateTraceSink {
@@ -16,6 +16,7 @@ export interface GateTraceSink {
         beatCount: number,
         songChangeCount: number,
         tempoLocked: boolean,
+        bpm: number,
     ): void;
 }
 
@@ -42,6 +43,7 @@ export class GateTrace implements GateTraceSink {
     public beatCount = new Int32Array(0);
     public songChangeCount = new Int32Array(0);
     public tempoLocked = new Uint8Array(0);
+    public bpm = new Float64Array(0);
 
     public constructor(capacity = 1024) {
         this.grow(capacity);
@@ -53,6 +55,7 @@ export class GateTrace implements GateTraceSink {
         beatCount: number,
         songChangeCount: number,
         tempoLocked: boolean,
+        bpm: number,
     ): void {
         if (this.length === this.bass.length) this.grow(Math.max(1024, this.length * 2));
         const i = this.length++;
@@ -61,6 +64,7 @@ export class GateTrace implements GateTraceSink {
         this.beatCount[i] = beatCount;
         this.songChangeCount[i] = songChangeCount;
         this.tempoLocked[i] = tempoLocked ? 1 : 0;
+        this.bpm[i] = bpm;
     }
 
     private grow(capacity: number): void {
@@ -74,22 +78,28 @@ export class GateTrace implements GateTraceSink {
         this.beatCount = widen(this.beatCount);
         this.songChangeCount = widen(this.songChangeCount);
         this.tempoLocked = widen(this.tempoLocked);
+        this.bpm = widen(this.bpm);
     }
 }
 
 // Steps a gate over the trace the way the replay stepped it, and returns the time of the first render tick at which it is
 // open (the replay's `gate.firstOpenSeconds`), or null if it never opens. It stops at the first opening because that is
 // all the replay reports.
-export function firstOpenSeconds(trace: GateTrace, stepper: GateStepper): number | null {
+// `lockAtSeconds` hides the beat clock before that time (no phase, not locked), as if the tracker locked only then. The
+// random bass is replayed on a clock locked from the start, which never exercises what the gate does before a lock;
+// this is how a sweep measures that on the same patterns.
+export function firstOpenSeconds(trace: GateTrace, stepper: GateStepper, lockAtSeconds = 0): number | null {
     const state = stepper.createBassGateState();
     const rhythm = createRhythmState();
     const dt = 1 / RENDER_HZ;
     for (let i = 0; i < trace.length; i++) {
         const phase = trace.beatPhase[i];
-        rhythm.beatPhase = Number.isNaN(phase) ? undefined : phase;
+        const hidden = i * dt < lockAtSeconds;
+        rhythm.beatPhase = hidden || Number.isNaN(phase) ? undefined : phase;
+        rhythm.bpm = trace.bpm[i];
         rhythm.beatCount = trace.beatCount[i];
         rhythm.songChangeCount = trace.songChangeCount[i];
-        stepper.stepBassGate(trace.bass[i], rhythm, trace.tempoLocked[i] === 1, state, dt);
+        stepper.stepBassGate(trace.bass[i], rhythm, !hidden && trace.tempoLocked[i] === 1, state, dt);
         // The same expression as the replay's render time, so the two agree to the last bit.
         if (state.open) return i * dt;
     }
