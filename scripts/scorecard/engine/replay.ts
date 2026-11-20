@@ -23,6 +23,7 @@ import { createCubesBassEnvelope, stepCubesBass } from '../../../app/features/vi
 import { DANCER_BUMP } from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
 import { applyAgc } from './agc';
 import { countSoftBoundaries } from './boundaryProbe';
+import type { GateTraceSink } from './gateTrace';
 import { PrehubBass } from './prehubBass';
 
 // The offline replay: the app's own pipeline over decoded PCM, with no browser. Nothing here is DSP of its own. It wires
@@ -129,11 +130,16 @@ export interface ReplayOptions {
     // gate inputs do from what the tracker does, as the gate specs drive the gate; `tempo` and `beats` are then empty,
     // there are no song changes and `dancerLockSeconds` is 0.
     lockedTempo?: number;
+    // Receives, at every render tick, what the shipped gateBass gate was stepped with (see gateTrace.ts). It only
+    // observes: the replay and its result are the same with or without it.
+    gateTrace?: GateTraceSink;
 }
 
 export function replayPcm(pcm: Float32Array, sampleRate: number, options: ReplayOptions = {}): ReplayResult {
     const audio = options.agc === false ? pcm : applyAgc(pcm, sampleRate);
-    const { result, softBoundaries } = countSoftBoundaries(() => run(audio, sampleRate, options.lockedTempo));
+    const { result, softBoundaries } = countSoftBoundaries(() =>
+        run(audio, sampleRate, options.lockedTempo, options.gateTrace),
+    );
     return { ...result, softBoundaries };
 }
 
@@ -159,7 +165,12 @@ class GateTally {
     }
 }
 
-function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<ReplayResult, 'softBoundaries'> {
+function run(
+    pcm: Float32Array,
+    sampleRate: number,
+    lockedTempo?: number,
+    gateTrace?: GateTraceSink,
+): Omit<ReplayResult, 'softBoundaries'> {
     const seconds = pcm.length / sampleRate;
     const blockSize = 128;
     const extractor = new OnsetExtractor(sampleRate);
@@ -263,6 +274,7 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number): Omit<
             tempoLocked = true;
         }
         const bass = bump.step(hub.snapshot.gateBass.pulse, RENDER_DT);
+        gateTrace?.tick(bass, rhythm.beatPhase, rhythm.beatCount, rhythm.songChangeCount, tempoLocked, rhythm.bpm);
         stepBassGate(bass, rhythm, tempoLocked, gate, RENDER_DT);
         hubTally.tick(gate.open, time);
         if (tempoLocked && dancerLockSeconds === null) dancerLockSeconds = time;

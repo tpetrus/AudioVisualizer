@@ -188,3 +188,35 @@ describe('runAblation and formatAblation', () => {
         expect(text).toContain('First lock: never');
     });
 });
+
+describe('a target config other than rhythmConfig.ts', () => {
+    const GATE_CONFIG = resolve('app/features/rhythm/bassGateConfig.ts');
+    const entry = {
+        stdin: {
+            contents: `export { BASS_GATE_OPEN_SCORE } from ${JSON.stringify(GATE_CONFIG.replace(/\\/g, '/'))};`,
+            resolveDir: resolve('.'),
+            loader: 'ts' as const,
+        },
+    };
+    const setOpenScore = (value: string, target?: string) =>
+        loadWithOverrides(entry, [{ name: 'BASS_GATE_OPEN_SCORE', value }], target);
+
+    it('overrides that file, and names it in the unknown-constant message', async () => {
+        const overridden = (await setOpenScore('9', 'bassGateConfig.ts')) as { BASS_GATE_OPEN_SCORE: number };
+        expect(overridden.BASS_GATE_OPEN_SCORE).toBe(9);
+        await expect(loadWithOverrides(entry, [{ name: 'NOPE', value: '1' }], 'bassGateConfig.ts')).rejects.toThrow(
+            /Unknown constant NOPE. bassGateConfig.ts exports: .*BASS_GATE_OPEN_SCORE/,
+        );
+    });
+
+    it('rejects a bundle that never loads the target, naming it', async () => {
+        const noConfig = { stdin: { contents: 'export const a = 1;', resolveDir: resolve('.') } };
+        await expect(
+            loadWithOverrides(noConfig, [{ name: 'BASS_GATE_OPEN_SCORE', value: '1' }], 'bassGateConfig.ts'),
+        ).rejects.toThrow(/bassGateConfig.ts was never loaded/);
+    });
+
+    it('applies the default target to rhythmConfig.ts only', async () => {
+        await expect(setOpenScore('9')).rejects.toThrow(/rhythmConfig.ts was never loaded/);
+    });
+});

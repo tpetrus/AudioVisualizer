@@ -294,3 +294,25 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   pulse keeps its last value rather than reading 0) and `FU-S4-gatebass-sync-offset` (the pulse is not shifted by the
   user's sync offset as `bands` are). Both are in `docs/agents/hub-scorecard.md`.
 - **Next:** S5, the gate rule for slow-engaging tracks, which now also owns AC6's 4 s floor.
+
+### S5 done (2026-11-20, branch `s5-gate-rule`)
+- **Delivered:** the bass gate places the kicks heard in the 3 s before the tracker's lock on the beat at the lock and
+  weighs them as evidence, so the first bar after the lock counts; it is retuned (repeat rate 0.8, chance margin 1.6,
+  open score 5.5) and, when it opens, learns the place in the beat where most kicks of the last two bars land,
+  preferring one on the beat. `npm run sweep:gate` tunes the rule offline: false opens (also with the lock hidden),
+  seconds after the lock, and where the bumps land against the tapped beats. `replay:gate` feeds the gate the tempo.
+  The total JS budget is 335 kB (Trevor, 2026-11-20).
+- **Acceptance:**
+  - **AC6 (4 s floor, 2 s stretch):** offline 12 of 16 kick tracks within 4 s (1 before) and 6 within 2 s; live 11 of
+    15 within 4 s (S4: 1) and 3 within 2 s. False opens on random bass fell from 5 and 27 to 3 and 15 of 300.
+    `syncopationbass` opens 1.6 s after the lock live (S4 16.5). Signed-off deferrals (Trevor, 2026-11-19):
+    `half-time-shuffle` (its bassline repeats every 3 beats of the tracker's 169 bpm grid; S7) and `low-bpm-rnb`
+    (never opens offline in any build; S7); `lonley` (5.3 s live) and `summer2000` (6.1 s live) stay over 4 s.
+  - **AC12:** `scorecard:check` passes against the version 7 baseline offline (11 gate cells from fail to pass, none
+    from pass to fail; blocking failures 27 to 16). Live, 8 dancer cells are worse than S4 beyond the spread; all are
+    signed-off exceptions (Trevor, 2026-11-20): `lonley` and `summer2000` hit share, latency and false fires (owners S8
+    and S7), and the lock spread of `low-bpm-rnb` and `syncopationbass` (the tracker's, untouched by S5). The baseline
+    is regenerated with S5's cells. All repository checks and budgets pass.
+- **Fast-lane follow-ups recorded:** `FU-S5-sweep-entry-guard`, `FU-S5-gate-lock-edges`, `FU-S5-prelock-false-open-pin`,
+  `FU-S5-placed-kicks-telemetry` (from the R2 review; none blocking).
+- **Next:** S6, the per-band onset retune.
