@@ -24,7 +24,9 @@ declare function registerProcessor(name: string, processor: new () => AudioWorkl
 // sizes are handled by growing it.
 const RENDER_QUANTUM = 128;
 
-// Each frame decides at most one event per onset band, so a batch holds at most this many events.
+// Each frame decides at most one event per onset band, so a batch holds at most this many events. This still holds with
+// the low-end phase detector: a phase event needs the low end's level detector to be quiet around that frame, so the
+// two never both fire in one frame.
 const ONSET_CAPACITY = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
 
 // A thin shell around OnsetExtractor and BandOnsets: it runs on the audio thread, turns the incoming audio into

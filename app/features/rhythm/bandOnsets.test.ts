@@ -449,6 +449,105 @@ describe('BandOnsets low-end phase', () => {
         expect(run(restruckNotes(), TEST_SAMPLE_RATE, onsets).events).toEqual(first.events);
     });
 
+    // Hand-made frames: a tone over the low bins at one level whose phase turns by a fixed angle per frame plus an
+    // optional jump. Level and complex spectrum are built together so the phase detector sees a real tone.
+    function toneFrames(): (level: number, jump?: number, turn?: number, at?: number) => BandOnsetsFrame {
+        let phase = 0;
+        return (level, jump = 0, turn = 0.7, at) => {
+            phase = at ?? phase + turn + jump;
+            const logMagnitude = new Float32Array(FFT_SIZE / 2);
+            const real = new Float32Array(FFT_SIZE);
+            const imag = new Float32Array(FFT_SIZE);
+            for (let k = 1; k < 12; k++) {
+                logMagnitude[k] = level;
+                real[k] = level * Math.cos(phase);
+                imag[k] = level * Math.sin(phase);
+            }
+            return { logMagnitude, real, imag };
+        };
+    }
+
+    // Steady tone from frame 0 with one phase jump at `jumpAt`, pushed into `onsets`; returns the events.
+    function steadyThenJump(onsets: BandOnsets, jumpAt: number): { band: number; time: number; strength: number }[] {
+        const events: { band: number; time: number; strength: number }[] = [];
+        const sink = (band: number, time: number, strength: number): void => {
+            events.push({ band, time, strength });
+        };
+        const tone = toneFrames();
+        for (let i = 0; i < jumpAt + 30; i++) {
+            // The first frame starts at 0.3 rad, not at one turn step, because a stale real-only history would otherwise
+            // predict that very phase by coincidence. The first frames are loud so that a stale spectrum history would give them a large weighted deviation
+            // (weight is the level), which a fresh start has none of.
+            onsets.push(
+                tone(i < 3 ? 4 : 1, i === jumpAt ? Math.PI : 0, 0.7, i === 0 ? 0.3 : undefined),
+                (i + 1) * 0.01,
+                sink,
+            );
+        }
+        return events;
+    }
+
+    it('starts a new run exactly like a fresh instance after reset', () => {
+        // The busy run ends mid-jump with a loud tone, so a stale peak, mean or spectrum history would change the
+        // threshold, the strength or the events of the steady run that follows.
+        const used = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const busy = toneFrames();
+        for (let i = 0; i < 80; i++) {
+            used.push(busy(i % 3 === 0 ? 5 : 2, i % 2 === 0 ? 2.5 : 0, 0.3 + (i % 5) * 0.4), (i + 1) * 0.01, () => {});
+        }
+        // Park the last frame at 45 degrees so that its real and imaginary parts are both well away from zero.
+        used.push(busy(2, 0, 0, Math.PI / 4), 0.81, () => {});
+        used.reset();
+        const expected = steadyThenJump(new BandOnsets(TEST_SAMPLE_RATE, 100), 12);
+        expect(expected).toHaveLength(1);
+        expect(steadyThenJump(used, 12)).toEqual(expected);
+    });
+
+    it('still finds a re-struck note after non-finite complex frames', () => {
+        // The non-finite frames must leave no NaN or Infinity in the phase peak or mean; a poisoned peak would raise
+        // the floor to infinity and the detector would never fire again.
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: { band: number; strength: number }[] = [];
+        const sink = (band: number, _time: number, strength: number): void => {
+            events.push({ band, strength });
+        };
+        const tone = toneFrames();
+        let t = 0;
+        const poisoned = (value: number): BandOnsetsFrame => ({
+            logMagnitude: new Float32Array(FFT_SIZE / 2).fill(1),
+            real: new Float32Array(FFT_SIZE).fill(value),
+            imag: new Float32Array(FFT_SIZE).fill(value),
+        });
+        for (let i = 0; i < 10; i++) onsets.push(tone(1), (t += 0.01), sink);
+        for (const value of [Infinity, NaN, -Infinity]) onsets.push(poisoned(value), (t += 0.01), sink);
+        // Non-finite levels as well, as a broken analyser would give.
+        // A few clean frames first so the spectrum history is finite again, then non-finite levels twice in a row,
+        // because a weight is the smaller of this and the previous frame's level.
+        for (let i = 0; i < 3; i++) onsets.push(tone(1), (t += 0.01), sink);
+        for (let i = 0; i < 2; i++) {
+            const infiniteLevels = tone(1);
+            (infiniteLevels.logMagnitude as Float32Array).fill(Infinity);
+            onsets.push(infiniteLevels, (t += 0.01), sink);
+        }
+        for (let i = 0; i < 20; i++) onsets.push(tone(1), (t += 0.01), sink);
+        events.length = 0;
+        onsets.push(tone(1, Math.PI), (t += 0.01), sink);
+        for (let i = 0; i < 30; i++) onsets.push(tone(1), (t += 0.01), sink);
+        expect(events).toHaveLength(1);
+        expect(events[0].band).toBe(BASS);
+        expect(Number.isFinite(events[0].strength)).toBe(true);
+    });
+
+    it('sizes the ring with the phase detector quiet span folded into the first argument', () => {
+        // BandOnsets passes max(LOW_ONSET_LAG_FRAMES, LOW_PHASE_QUIET_FRAMES) as the first argument because the quiet
+        // check reaches back that many frames. A reach of 6 with a 2-frame window and look-ahead needs 6 + 2 + 1 = 9
+        // slots, so 16; had the quiet span been left out (a reach of 2), the ring would stay at 8 and the check would
+        // read slots already overwritten. The real expression runs at module load from the default constants, so this
+        // pins the function's contract for it rather than the call site.
+        expect(ringSizeFor(6, 2, 2)).toBe(16);
+        expect(ringSizeFor(2, 2, 2)).toBe(8);
+    });
+
     it('counts a phase jump just before a level onset as that onset, not as a second event', () => {
         // A steady tone in the low bins (level 1, phase turning by a fixed angle per frame), its phase jumping by half a
         // turn one frame before its level steps up: one hit that both detectors see, so one event.

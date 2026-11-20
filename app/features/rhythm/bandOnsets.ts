@@ -244,7 +244,8 @@ export class BandOnsets {
             }
         }
 
-        // Read before this frame's levels overwrite the oldest slot of the ring.
+        // It reads the previous frame's levels (slot frames - 1), which this push does not overwrite; it only has to run
+        // before this frame's own slot of the levels ring is written below.
         const phase = this.lowPhaseDeviation(frame, lowBins);
 
         this.times[slot] = time;
