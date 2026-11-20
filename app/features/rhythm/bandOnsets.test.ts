@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BandOnsets, ringSizeFor } from './bandOnsets';
+import { BandOnsets, ringSizeFor, type BandOnsetsFrame } from './bandOnsets';
 import { OnsetExtractor } from './onsetExtractor';
 import {
     FEATURE_ONSET_BANDS,
@@ -32,6 +32,15 @@ interface Run {
     frameTimes: number[];
 }
 
+// A frame of hand-made levels with no complex spectrum: the phase detector skips bins without a magnitude, so only the
+// level detectors see it.
+const NO_SPECTRUM = new Float32Array(FFT_SIZE);
+const levelsOnly = (logMagnitude: Float32Array): BandOnsetsFrame => ({
+    logMagnitude,
+    real: NO_SPECTRUM,
+    imag: NO_SPECTRUM,
+});
+
 // Feeds PCM through the real extractor and detector the way the worklet does.
 function run(pcm: Float32Array, sampleRate = TEST_SAMPLE_RATE, detector?: BandOnsets): Run {
     const extractor = new OnsetExtractor(sampleRate);
@@ -44,7 +53,7 @@ function run(pcm: Float32Array, sampleRate = TEST_SAMPLE_RATE, detector?: BandOn
     for (let offset = 0; offset < pcm.length; offset += 128) {
         extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
             now = (frame.endSample - FFT_SIZE / 2) / sampleRate;
-            onsets.push(frame.logMagnitude, now, sink);
+            onsets.push(frame, now, sink);
             result.energy.push(Array.from(onsets.energy));
             result.frameTimes.push(now);
         });
@@ -274,7 +283,7 @@ describe('BandOnsets events', () => {
         // The run before the reset is busy (a flickering floor that raises the running mean, loud hits that raise the
         // peak and set the refractory state at a late frame). The run after it is quiet, with a hit at an earlier
         // frame than the last event of the first run. Any stale state would hide or change that hit.
-        const frameOf = (level: number): Float32Array => new Float32Array(FFT_SIZE / 2).fill(level);
+        const frameOf = (level: number): BandOnsetsFrame => levelsOnly(new Float32Array(FFT_SIZE / 2).fill(level));
         const feed = (onsets: BandOnsets, levels: number[]): Array<[number, number, number]> => {
             const events: Array<[number, number, number]> = [];
             levels.forEach((level, i) =>
@@ -311,7 +320,7 @@ describe('BandOnsets events', () => {
         const sink = (band: number, time: number, strength: number): void => {
             events.push({ band, time, strength, decidedAt: 0 });
         };
-        const frame = (level: number): Float32Array => new Float32Array(FFT_SIZE / 2).fill(level);
+        const frame = (level: number): BandOnsetsFrame => levelsOnly(new Float32Array(FFT_SIZE / 2).fill(level));
         let t = 0;
         const push = (level: number): void => onsets.push(frame(level), (t += 0.01), sink);
         for (let i = 0; i < 5; i++) push(0);
@@ -333,10 +342,10 @@ describe('BandOnsets events', () => {
         const sink = (band: number, time: number, strength: number): void => {
             events.push({ band, time, strength, decidedAt: 0 });
         };
-        const frame = (level: number, lowLevel = level): Float32Array => {
+        const frame = (level: number, lowLevel = level): BandOnsetsFrame => {
             const bins = new Float32Array(FFT_SIZE / 2).fill(level);
             bins.fill(lowLevel, 1, 12);
-            return bins;
+            return levelsOnly(bins);
         };
         let t = 0;
         expect(() => {
@@ -367,7 +376,7 @@ describe('BandOnsets events', () => {
         expect(() => {
             for (let offset = 0; offset < pcm.length; offset += 128) {
                 extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + 128)), (frame) => {
-                    onsets.push(frame.logMagnitude, frames++ / extractor.frameRate, () => {});
+                    onsets.push(frame, frames++ / extractor.frameRate, () => {});
                     for (let b = 0; b < HUB_BAND_COUNT; b++) {
                         expect(Number.isFinite(onsets.energy[b])).toBe(true);
                     }
@@ -391,5 +400,138 @@ describe('ringSizeFor', () => {
         expect(ringSizeFor(2, 2, 12)).toBe(16);
         expect(ringSizeFor(10, 10, 10)).toBe(32);
         expect(ringSizeFor(0, 0, 0)).toBe(8);
+    });
+});
+
+describe('BandOnsets low-end phase', () => {
+    // Bass notes on one pitch, each struck as the one before it starts its release: the level hardly moves, the phase
+    // restarts. The first note follows silence and is the level detector's; the others only the phase can find.
+    const restruck = [0.5, 0.74, 0.98, 1.22];
+    function restruckNotes(): Float32Array {
+        const pcm = silence(2);
+        for (const t of restruck) {
+            addBass(pcm, t);
+        }
+        return pcm;
+    }
+
+    it('hears a bass note struck again on the pitch still sounding', () => {
+        const low = run(restruckNotes()).events.filter((event) => event.band === KICK || event.band === BASS);
+        expect(bandsOf(low)).toEqual([BASS, BASS, BASS, BASS]);
+        low.forEach((event, i) => expect(Math.abs(event.time - restruck[i])).toBeLessThan(0.03));
+        for (const event of low) {
+            expect(event.strength).toBeGreaterThan(0);
+            expect(event.strength).toBeLessThanOrEqual(1);
+        }
+    });
+
+    it('hears a held note once, not again while it sounds', () => {
+        const pcm = silence(3);
+        addHit(pcm, 0.5, 2, (t) => 0.35 * Math.min(1, t / 0.005, (2 - t) / 0.06) * Math.sin(2 * Math.PI * 110 * t));
+        expect(bandsOf(run(pcm).events)).toEqual([BASS]);
+    });
+
+    it('does not take the phase a kick turns in a sounding note for a new note', () => {
+        // A kick struck over a bass note keeps moving the note's phase while its own pitch falls. Which of kick and bass
+        // the level detector calls the hit is the classifier's business; the phase must add no third event after it.
+        const pcm = silence(2);
+        addBass(pcm, 0.5);
+        addKick(pcm, 0.62);
+        const { events } = run(pcm);
+        expect(events.map((event) => event.time)).toEqual([expect.closeTo(0.5, 1), expect.closeTo(0.62, 1)]);
+    });
+
+    it('forgets the phase history on reset', () => {
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
+        const first = run(restruckNotes(), TEST_SAMPLE_RATE, onsets);
+        onsets.reset();
+        expect(run(restruckNotes(), TEST_SAMPLE_RATE, onsets).events).toEqual(first.events);
+    });
+
+    it('counts a phase jump just before a level onset as that onset, not as a second event', () => {
+        // A steady tone in the low bins (level 1, phase turning by a fixed angle per frame), its phase jumping by half a
+        // turn one frame before its level steps up: one hit that both detectors see, so one event.
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: number[] = [];
+        let phase = 0;
+        const tone = (level: number, jump = 0): BandOnsetsFrame => {
+            phase += 0.7 + jump;
+            const logMagnitude = new Float32Array(FFT_SIZE / 2);
+            const real = new Float32Array(FFT_SIZE);
+            const imag = new Float32Array(FFT_SIZE);
+            for (let k = 1; k < 12; k++) {
+                logMagnitude[k] = level;
+                real[k] = level * Math.cos(phase);
+                imag[k] = level * Math.sin(phase);
+            }
+            return { logMagnitude, real, imag };
+        };
+        let t = 0;
+        for (let i = 0; i < 60; i++) onsets.push(tone(1), (t += 0.01), (band) => events.push(band));
+        events.length = 0;
+        onsets.push(tone(1, Math.PI), (t += 0.01), (band) => events.push(band));
+        for (let i = 0; i < 30; i++) onsets.push(tone(3), (t += 0.01), (band) => events.push(band));
+        expect(events).toHaveLength(1);
+    });
+
+    it.each([
+        ['a kick when the kick range rises with it', 2, KICK],
+        ['a bass note when only the phase moved', 1, BASS],
+    ])('calls a phase onset %s', (_, kickRangeLevel, band) => {
+        // A steady tone over the whole low end after a loud hit that keeps the level detector's floor up, then a phase
+        // jump with the kick range (the low end's bins below the bass band) stepping up or not. Under that floor the
+        // level detector stays quiet either way, so the event is the phase detector's: a kick masked by the note it
+        // was struck over, or the note struck again.
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: number[] = [];
+        let phase = 0;
+        const tone = (level: number, kickRange = level, jump = 0): BandOnsetsFrame => {
+            phase += 0.7 + jump;
+            const logMagnitude = new Float32Array(FFT_SIZE / 2);
+            const real = new Float32Array(FFT_SIZE);
+            const imag = new Float32Array(FFT_SIZE);
+            for (let k = 1; k < 12; k++) {
+                logMagnitude[k] = k < 3 ? kickRange : level;
+                real[k] = Math.cos(phase);
+                imag[k] = Math.sin(phase);
+            }
+            return { logMagnitude, real, imag };
+        };
+        let t = 0;
+        const sink = (eventBand: number): number => events.push(eventBand);
+        for (let i = 0; i < 30; i++) onsets.push(tone(1), (t += 0.01), sink);
+        for (let i = 0; i < 3; i++) onsets.push(tone(7), (t += 0.01), sink);
+        for (let i = 0; i < 40; i++) onsets.push(tone(1), (t += 0.01), sink);
+        events.length = 0;
+        onsets.push(tone(1, kickRangeLevel, Math.PI), (t += 0.01), sink);
+        for (let i = 0; i < 30; i++) onsets.push(tone(1, kickRangeLevel), (t += 0.01), sink);
+        expect(events).toEqual([band]);
+    });
+
+    it('ignores a non-finite complex spectrum instead of going deaf', () => {
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, 100);
+        const events: Event[] = [];
+        const sink = (band: number, time: number, strength: number): void => {
+            events.push({ band, time, strength, decidedAt: 0 });
+        };
+        const levels = new Float32Array(FFT_SIZE / 2).fill(1);
+        const spectrum = (value: number): BandOnsetsFrame => ({
+            logMagnitude: levels,
+            real: new Float32Array(FFT_SIZE).fill(value),
+            imag: new Float32Array(FFT_SIZE).fill(value),
+        });
+        let t = 0;
+        expect(() => {
+            for (const value of [1, 1, Infinity, NaN, 1, -Infinity, 1, 1])
+                onsets.push(spectrum(value), (t += 0.01), sink);
+            for (let i = 0; i < 20; i++) onsets.push(levelsOnly(new Float32Array(FFT_SIZE / 2)), (t += 0.01), sink);
+            onsets.push(levelsOnly(new Float32Array(FFT_SIZE / 2).fill(3)), (t += 0.01), sink);
+            for (let i = 0; i < 20; i++) onsets.push(levelsOnly(new Float32Array(FFT_SIZE / 2)), (t += 0.01), sink);
+        }).not.toThrow();
+        expect(events.length).toBeGreaterThan(0);
+        for (const event of events) {
+            expect(Number.isFinite(event.strength)).toBe(true);
+        }
     });
 });

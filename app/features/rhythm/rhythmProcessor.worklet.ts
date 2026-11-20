@@ -70,7 +70,7 @@ class RhythmProcessor extends AudioWorkletProcessor {
         }
         packFrame(frame, this.batch, this.batchCount * FRAME_STRIDE);
         this.frameTimes[this.batchCount] = time;
-        this.bandOnsets.push(frame.logMagnitude, time, this.onOnset);
+        this.bandOnsets.push(frame, time, this.onOnset);
         this.bandEnergy.set(this.bandOnsets.energy, this.batchCount * HUB_BAND_COUNT);
         if (++this.batchCount === BATCH_FRAMES) {
             this.post();

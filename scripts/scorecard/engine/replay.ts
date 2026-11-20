@@ -348,7 +348,7 @@ function run(
         if (batch.count === 0) batch.time0 = time;
         packFrame(frame, batch.frames, batch.count * FRAME_STRIDE);
         batch.frameTimes[batch.count] = time;
-        bandOnsets.push(frame.logMagnitude, time, onOnset);
+        bandOnsets.push(frame, time, onOnset);
         batch.bandEnergy.set(bandOnsets.energy, batch.count * HUB_BAND_COUNT);
         if (++batch.count === BATCH_FRAMES) deliver(time);
     };

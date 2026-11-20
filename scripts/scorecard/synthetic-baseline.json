@@ -45,6 +45,81 @@
     "visualizer": "rhythm"
   },
   {
+    "metric": "cubes.hit.share50ms",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.hit.share50ms",
+    "track": "drums-100.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.hit.share50ms",
+    "track": "drums-128.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.hit.share50ms",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.hit.share50ms",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.reaction.latencyMs",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.reaction.latencyMs",
+    "track": "drums-100.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.reaction.latencyMs",
+    "track": "drums-128.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.reaction.latencyMs",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "cubes.reaction.latencyMs",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "cubes"
+  },
+  {
+    "metric": "gate.secondsAfterLock",
+    "track": "bassline-kick-120.wav",
+    "visualizer": "dancing-character"
+  },
+  {
+    "metric": "gate.secondsAfterLock",
+    "track": "drums-100.wav",
+    "visualizer": "dancing-character"
+  },
+  {
+    "metric": "gate.secondsAfterLock",
+    "track": "drums-128.wav",
+    "visualizer": "dancing-character"
+  },
+  {
+    "metric": "gate.secondsAfterLock",
+    "track": "trap-2to1-half-140.wav",
+    "visualizer": "dancing-character"
+  },
+  {
+    "metric": "gate.secondsAfterLock",
+    "track": "trap-4to3-120.wav",
+    "visualizer": "dancing-character"
+  },
+  {
     "metric": "onset.f50.bass",
     "track": "drums-100.wav",
     "visualizer": "rhythm"
@@ -52,6 +127,11 @@
   {
     "metric": "onset.f50.bass",
     "track": "drums-128.wav",
+    "visualizer": "rhythm"
+  },
+  {
+    "metric": "onset.f50.bass",
+    "track": "no-kick-124.wav",
     "visualizer": "rhythm"
   },
   {
