@@ -1,2 +1,5 @@
 # Prettier and CI (Linux) use LF; this stops Windows autocrlf checkouts from failing `format:check`.
 * text=auto eol=lf
+# The tapped sidecars are checked byte for byte (the scorecard baseline stores each .beats.json's SHA-256), so git never
+# converts them.
+.debug-in/** -text

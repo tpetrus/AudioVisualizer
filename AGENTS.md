@@ -25,9 +25,10 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Compare two or more recordings of one track on track time | `npm run debug:repeat -- <a.csv> <b.csv> [...] [--bpm N]` |
 | Measure every WAV in a folder offline through the app's rhythm and hub pipeline and write the acceptance scorecard (`.json` and `.md`); `--write-baseline` also writes the baseline the check compares against. Dev only: the audio is never committed | `npm run scorecard -- [--dir <folder>] [--out <basename>] [--write-baseline]` (defaults `.debug-in`, `docs/agents/hub-scorecard.cells`; `--help` prints usage) |
 | Compare the current scorecard with the baseline and exit 1 when a blocking cell that passed got worse, a `.beats.json` hash changed, or the baseline is missing | `npm run scorecard:check -- [--current <file.json>] [--baseline <file.json>]` |
-| Record the live scorecard cells of one visualizer (4 `debug:viz` runs per applicable track, one at a time; run it from a real checkout, not a worktree whose `node_modules` is a link), or `--ingest` existing run folders, with `--prehub` for runs of the pre-hub build; writes `docs/agents/hub-scorecard.live.json`, which `npm run scorecard` merges. Dev only | `npm run scorecard:live -- --viz <name> [--dir <folder>] [--tracks a.wav,b.wav] [--runs N] [--seconds S] [--headless] [--ingest <folder> ...] [--prehub] [--out <file.json>]` (`--help` prints usage) |
+| Record the live scorecard cells of one visualizer (4 `debug:viz` runs per applicable track, one at a time; run it from the main checkout), or `--ingest` existing run folders, with `--prehub` for runs of the pre-hub build; writes `docs/agents/hub-scorecard.live.json`, which `npm run scorecard` merges. Dev only | `npm run scorecard:live -- --viz <name> [--dir <folder>] [--tracks a.wav,b.wav] [--runs N] [--seconds S] [--headless] [--ingest <folder> ...] [--prehub] [--out <file.json>]` (`--help` prints usage) |
 | Measure the candidate inputs of the dancer's bass gate offline (hub low end, `BassPulse` at worklet frame times, pre-hub, both as two gates): false opens on seeded random bass against the gate specs' bounds, and seconds from the dancer's lock to the first opening on every kick track of a folder. Dev only | `npm run probe:gate-inputs -- [--patterns N] [--beats 120,400] [--dir <folder>]` (defaults 300, `120,400`, `.debug-in`; `--help` prints usage) |
 | Tune the dancer's bass gate rule offline: replays every track and random-bass pattern once, then re-steps only the gate per row of `bassGateConfig` overrides (base first, then the `--grid` product with every `--set`) and prints false opens, seconds from the dancer's lock to the first opening on kick tracks (within 4 s and 2 s, sum, max) and the no-kick tracks that opened. Dev only | `npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]... [--grid NAME=v1,v2,...]... [--detail] [--json <file>]` (defaults `.debug-in`, 300, `120,400`; `--help` prints usage) |
+| Remove a git worktree safely: refuses while anything inside it is a symbolic link or junction (`git worktree remove` deletes through a junction on Windows), or with `--unlink` removes the links themselves first; never the main checkout | `npm run worktree:remove -- <worktree path> [--unlink]` (`--help` prints usage) |
 | Replay a recording's bass-gate inputs through a named gate rule (dev only, see `docs/agents/debug-harness.md`) | `npm run replay:gate -- <telemetry.csv> --rule NAME [--bump-margin N] [--bump-gain N]` |
 | Run the rhythm pipeline over a WAV with `rhythmConfig` constants overridden (no app change) | `npm run ablate:rhythm -- <wav> --set NAME=VALUE [--set ...]` |
 | Check the band onset detector against its bounds on the synthetic tracks and a folder of tapped WAVs, once per grid point of `rhythmConfig` overrides | `npm run sweep:onsets -- [--dir <folder>] [--grid NAME=v1,v2] [--set NAME=VALUE] [--no-kick <name>]` (`--help` prints usage) |
@@ -141,6 +142,19 @@ implementations; new code should look like them.
   controls, and watch the console for errors and "Too many active WebGL contexts" warnings.
 - Deploy-affecting changes: `npm run preview`, then load `/`, `/cubes` and `/trio-color-wave` directly by URL; the PR's
   Cloudflare preview URL (posted on the PR) is the same check against the real host.
+
+## Worktrees and local test data
+- **Never link shared folders into a worktree.** No junction or symlink to the main checkout's `node_modules`,
+  `.debug-in` or anything else: `git worktree remove` on Windows deletes through a junction into its target. On
+  2026-11-20 that emptied the main checkout's `node_modules` and `.debug-in` (the audio came back only from a Previous
+  Versions copy). Give each worktree its own `npm ci`, and point the dev tools at the main checkout's tracks with their
+  `--dir` option instead.
+- **Remove worktrees with `npm run worktree:remove -- <path>`**, not `git worktree remove` directly; it refuses while a
+  link is inside.
+- **`.debug-in` is only partly committed.** The audio is local and never committed (this repo is public and much of the
+  music is not ours to publish); keep your own backup of it outside the repo. The tapped `.beats.json`, `.bpm` and
+  `tap-calibration.json` are committed, byte for byte (`.gitattributes`, `.prettierignore`), because the scorecard
+  baseline checks each `.beats.json` by hash and they cannot be recreated.
 
 ## CI and deploys
 Every pull request runs these checks, and `main` requires them to pass before merging. All of the actual CI/CD logic
