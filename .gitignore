@@ -22,4 +22,10 @@ playwright/.cache/
 
 # Output of npm run debug:viz (telemetry CSVs and screenshots)
 /.debug-out/
-.debug-in
+# Local test tracks for debug:viz and the scorecard: the audio stays out of this public repo (much of it is not ours to
+# publish). The tapped beats, tempos and tap calibration are committed: they cannot be recreated, and the scorecard
+# baseline checks every .beats.json by hash.
+/.debug-in/*
+!/.debug-in/*.beats.json
+!/.debug-in/*.bpm
+!/.debug-in/tap-calibration.json

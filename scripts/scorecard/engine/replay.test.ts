@@ -66,3 +66,14 @@ describe('replayPcm', () => {
         expect(second).toEqual(first);
     });
 });
+
+describe('replayPcm with a gate trace', () => {
+    it('records one entry per render tick and changes nothing in the result', () => {
+        const pcm = renderTrack({ seconds: 6, bpm: 120, beatsPerBar: 4 }).pcm;
+        const records: number[] = [];
+        const plain = replayPcm(pcm, TEST_SAMPLE_RATE);
+        const traced = replayPcm(pcm, TEST_SAMPLE_RATE, { gateTrace: { tick: (bass) => records.push(bass) } });
+        expect(traced).toEqual(plain);
+        expect(records.length).toBe(Math.floor(plain.seconds * RENDER_HZ) + 1);
+    });
+});
