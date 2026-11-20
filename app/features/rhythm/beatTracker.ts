@@ -36,6 +36,10 @@ const PHASE_SHIFT_RATIO = 1.15;
 const PHASE_SHIFT_BEATS = 4;
 const PHASE_MIN_BEATS = 8;
 
+// How far (in frames, either side) a grid point may be from the onset it is credited with when a halving picks which
+// beats to keep. 3 frames is 30 ms, a little more than a declared beat's remaining error after the phase gain.
+const PULSE_SEARCH_FRAMES = 3;
+
 // How often (in frames) the tracker retries aligning its first beat grid while it has none.
 const INIT_RETRY_FRAMES = 10;
 
@@ -142,8 +146,17 @@ export class BeatTracker {
     // Numbering carries on by one per beat of the new grid, so the count advances half as fast after a halving and twice
     // as fast after a doubling. The next beat is placed one new period after the latest declared beat, which is also
     // where consumers extrapolate to, (after a doubling that can already be in the past, and then the beat is declared at once).
+    //
+    // A halving has two ways to keep every second beat, and only one is the beat: from double time the grid alternates
+    // between the beat and the off-beat. Keeping the one after the latest declared beat whatever it was put
+    // `syncopationbass` (195.7 to 98 bpm) and `low-bpm-rnb` (162 to 81) half a beat off for 5 to 7 s, until the phase
+    // check moved them back. So the beats of each choice are summed over the recent envelope and the stronger is kept;
+    // a tie keeps the one after the latest declared beat.
     private changeOctave(factor: number): void {
-        const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
+        let base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
+        if (factor === 2 && this.pulseSum(base - this.period, 2 * this.period) > this.pulseSum(base, 2 * this.period)) {
+            base -= this.period;
+        }
         this.period *= factor;
         this.pendingBeat = base + this.period;
         // The bins are fractions of the old period, so they say nothing about places in the new one.
@@ -333,6 +346,28 @@ export class BeatTracker {
         this.phaseWins = 0;
         this.phaseShifts++;
         this.phaseBeats = 0;
+    }
+
+    // The onset energy on a grid of `period` seconds through `beat`, going back over the stored envelope: the strongest
+    // frame within PULSE_SEARCH_FRAMES of each grid point, since declared beats were pulled towards their onsets by only
+    // part of the error.
+    private pulseSum(beat: number, period: number): number {
+        const newest = this.times[this.ringIndex(0)];
+        let sum = 0;
+        for (let time = beat; ; time -= period) {
+            const center = Math.round((newest - time) * this.frameRate);
+            if (center - PULSE_SEARCH_FRAMES >= this.count) {
+                break;
+            }
+            let peak = 0;
+            for (let back = Math.max(0, center - PULSE_SEARCH_FRAMES); back <= center + PULSE_SEARCH_FRAMES; back++) {
+                if (back < this.count) {
+                    peak = Math.max(peak, this.envelope[this.ringIndex(back)]);
+                }
+            }
+            sum += peak;
+        }
+        return sum;
     }
 
     // Ring index of the frame `back` frames before the newest one.
