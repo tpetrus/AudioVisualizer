@@ -18,3 +18,5 @@ scripts/title-banner/*.json
 docs/plans/**/*.plan.json
 # Written by npm run scorecard and scorecard:live on every run.
 docs/agents/hub-scorecard*.json
+# Tapped beat sidecars: the scorecard baseline stores their SHA-256, so they must never be reformatted.
+.debug-in/

@@ -63,6 +63,8 @@ export interface GateColumns {
     lowEnd: number;
     // The hub's gate-input bass (what the gate hears since S4); -1 in recordings made before the column existed.
     gateBass: number;
+    // The tracker's tempo (state.bpm), which places the kicks heard before the lock (S5); -1 in recordings without it.
+    bpm: number;
 }
 
 // The probe prefix is whatever precedes ".in", so any probe's recording replays.
@@ -87,7 +89,35 @@ export function findGateColumns(columns: readonly string[]): GateColumns {
         gateOpen: at(`${prefix}gateOpen`, false),
         lowEnd: at(`${prefix}lowEnd`, false),
         gateBass: at(`${prefix}gateBass`, false),
+        bpm: at(`${prefix}bpm`, false),
     };
+}
+
+// How far ahead the tempo is read off the beat clock for a recording without a bpm column.
+const TEMPO_SPAN_SECONDS = 0.5;
+
+// The tempo at each row: the recorded bpm column, or for older recordings the rate the beat clock (beatCount plus
+// beatPhase) advances at over the next half second, while it runs without a song change. The gate needs the tempo on
+// the very row the lock arrives, which is why this looks ahead; a recording has every row already. 0 where unknown.
+export function tempoPerRow(table: TelemetryTable, c: GateColumns): Float64Array {
+    const tempo = new Float64Array(table.rows.length);
+    if (c.bpm >= 0) {
+        table.rows.forEach((row, i) => (tempo[i] = Number.isFinite(row[c.bpm]) ? row[c.bpm] : 0));
+        return tempo;
+    }
+    const position = (row: readonly number[]): number => row[c.beatCount] + row[c.beatPhase];
+    let ahead = 0;
+    for (let i = 0; i < table.rows.length; i++) {
+        const row = table.rows[i];
+        if (Number.isNaN(row[c.beatPhase])) continue;
+        ahead = Math.max(ahead, i);
+        while (ahead + 1 < table.rows.length && table.rows[ahead][c.t] - row[c.t] < TEMPO_SPAN_SECONDS) ahead++;
+        const later = table.rows[ahead];
+        const span = later[c.t] - row[c.t];
+        if (span <= 0 || Number.isNaN(later[c.beatPhase]) || later[c.songChanges] !== row[c.songChanges]) continue;
+        tempo[i] = ((position(later) - position(row)) / span) * 60;
+    }
+    return tempo;
 }
 
 // Which recorded column feeds the BassBump: the low end before S4 (the default), or the gate-input bass since S4.
@@ -116,8 +146,10 @@ export function replayGate(table: TelemetryTable, rule: GateRule, bump?: BumpOpt
     }
     const envelope = bump === undefined ? undefined : createEnvelope(bump);
     const state = createBassGateState();
-    // Only these three fields are read by the gate.
-    const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0 };
+    // Only these four fields are read by the gate.
+    const rhythm = { beatPhase: undefined as number | undefined, beatCount: 0, songChangeCount: 0, bpm: 0 };
+    const tempo = tempoPerRow(table, c);
+    let rowIndex = 0;
     let firstOpen: number | undefined;
     let firstLock: number | undefined;
     let rowsOpen = 0;
@@ -130,6 +162,7 @@ export function replayGate(table: TelemetryTable, rule: GateRule, bump?: BumpOpt
         rhythm.beatPhase = Number.isNaN(phase) ? undefined : phase;
         rhythm.beatCount = row[c.beatCount];
         rhythm.songChangeCount = row[c.songChanges];
+        rhythm.bpm = tempo[rowIndex++];
         // The recorded dt is rounded to four digits; the time step is the fallback when the column is absent.
         const dt = c.dt >= 0 ? row[c.dt] : row[c.t] - previousT;
         previousT = row[c.t];
