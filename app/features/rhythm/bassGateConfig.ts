@@ -20,6 +20,12 @@ export const BASS_GATE_STRENGTH_ADAPT = 0.15;
 // bass pulse reports each kick 0.11 to 0.21 beats after the tracker's beat (its filters and envelope lag the audio),
 // and a fixed window around the beat threw out half of a perfectly steady bassline.
 export const BASS_GATE_PHASE_WINDOW = 0.1;
+// When the gate opens it keeps the place most kicks land at, preferring one on the beat: within this radius (in beats)
+// of this center, which covers the 0.11 to 0.21 beats the bass pulse lags the tracker's beat by and a kick a little
+// early. Off-beat accents (an extra kick before the beat, a syncopated bass note) repeat as well as the kick on the beat
+// and are sometimes heard more often, and a bump on them lands 90 to 300 ms before the beat.
+export const BASS_GATE_ON_BEAT_CENTER = 0.1;
+export const BASS_GATE_ON_BEAT_RADIUS = 0.2;
 // How far each in-rhythm kick pulls the learned place toward itself, so it follows slow drift without jumping.
 export const BASS_GATE_PHASE_ADAPT = 0.1;
 // A bassline repeats every bar and scattered bass does not, so a kick is in rhythm when a kick landed at the same
@@ -34,7 +40,7 @@ export const BASS_GATE_BAR_WINDOW = 0.1;
 // kick used to fail the kick that repeats it a bar later as well, and the gate opened 10 s after the tempo locked on
 // five live recordings; with this it opens after 5.5 s on the same five.
 // The radius is a whole beat because random bass with a note on every beat always has one nearer than that (half a
-// beat let random bass through: 4 of 205 patterns against 0).
+// beat let random bass through under the old rule: 4 of 205 patterns against 0).
 export const BASS_GATE_EMPTY_RADIUS = 1;
 // Evidence while closed is a running sum. Each kick adds the log of how much likelier its outcome (repeated an earlier
 // bar or not) is for a real bassline, which repeats at least at the repeat rate, than for chance. The chance is the
@@ -42,16 +48,26 @@ export const BASS_GATE_EMPTY_RADIUS = 1;
 // because a kick is only seen once per rendered frame, and never below the minimum so no single repeat decides.
 // The sum never goes below 0 and the gate opens at the open score. Counting repeats without the chance (six of the
 // last eight, the latest three in a row) opened on 52 of 100 random patterns with two notes per beat over 120 beats,
-// because busy bass repeats by chance; this opens on 2, and on 0 of 205 with one note per beat over 40 beats. Once
+// because busy bass repeats by chance (an old rule; the shipped one is bounded in bassGate.test.ts). Once
 // open, each kick at the learned place adds 1 up to the maximum, and the gate closes at the close score.
-export const BASS_GATE_REPEAT_RATE = 0.6;
+// Retuned with the kicks placed from before the lock (hub-regressions S5, `npm run sweep:gate`): a repeat rate of 0.8,
+// a margin of 1.6 and an open score of 5.5 opened the dancer's gate within 4 s of the lock on 12 of 16 kick tracks
+// (1 before), and on fewer random-bass patterns than before (hub replay, `npm run sweep:gate`: 3 and 15 of 300 at 120 and
+// 400 beats, against 5 and 27; the level-domain spec in bassGate.test.ts measures 2 and 8).
+export const BASS_GATE_REPEAT_RATE = 0.8;
 export const BASS_GATE_DENSITY_BEATS = 8;
-export const BASS_GATE_CHANCE_MARGIN = 1.3;
+export const BASS_GATE_CHANCE_MARGIN = 1.6;
 export const BASS_GATE_CHANCE_MIN = 0.05;
 export const BASS_GATE_KICK_HISTORY = 32;
 export const BASS_GATE_SCORE_MAX = 8;
-export const BASS_GATE_OPEN_SCORE = 6;
+export const BASS_GATE_OPEN_SCORE = 5.5;
 export const BASS_GATE_CLOSE_SCORE = 1;
+// The tracker reports no beat until it locks, about 3 to 11 s into a track, so kicks heard before then had no place in
+// the beat and the first bar after the lock had nothing to repeat: the gate could not open before the second bar. Kicks
+// heard within this many seconds before the lock (0: none) are kept by time and placed on the beat at the lock, from the
+// tracker's tempo, as the bars the first kicks after the lock repeat, and weighed as evidence among themselves. Keeping
+// them only as history (not weighed) put 9 or 10 of 16 kick tracks within 4 s of the lock instead of 12.
+export const BASS_GATE_PRELOCK_SECONDS = 3;
 // Evidence lost per beat, but only once no kick has landed at the learned place for this many beats (four bars), so
 // masked kicks, breaks and fills do not drop the pulse; a bassline that has really changed closes the gate after about
 // six bars, and its new place is then learned. The same wearing down applies to the evidence gathered while closed.

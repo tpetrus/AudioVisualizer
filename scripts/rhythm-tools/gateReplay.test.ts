@@ -9,21 +9,25 @@ import { findGateColumns, findGateRule, formatGateReplay, recordedOpening, repla
 // The committed gate recordings: the five inputs of the gate and its own gateOpen column, trimmed from one recording per
 // kick-bearing track made with the first rule (kicks at one place in the beat). Replaying them through today's rule must
 // give the opening below; a change to the gate that moves an opening makes the matching row fail on purpose. Today's
-// rule weighs each kick that has an earlier bar (one bar back, or two when nothing landed near the first) against the
-// chance that random bass would repeat it, and opens at an evidence of 6. Against the rule it replaced (six of the last
-// eight kicks repeating the bar before, the latest three in a row), four tracks open earlier (imyourgirl by 0.43 s,
-// lonley by 4.51 s, syncopationbass by 1.24 s, syncopationbass2 by 0.47 s) and summer2000 opens later (15.171 s before,
-// 18.36 s now), so that track pays about 3 s for the stricter rule. `recorded` is the opening of the first rule, kept so
-// the cost on real music stays visible: syncopationbass opens exactly when it did, and lonley now opens before it.
+// rule (hub-regressions S5) weighs each kick that has an earlier bar against the chance that random bass would repeat
+// it, places the kicks heard in the 3 s before the lock on the beat (these recordings have no bpm column, so the tempo
+// comes from the beat clock), and opens at an evidence of 5.5. Against the rule before it, which opened at 6 with a
+// smaller chance margin and nothing before the lock, four tracks open earlier after the lock (imyourgirl 2.28 s against
+// 4.52, lonley 10.13 against 10.44, syncopationbass 2.86 against 3.47, syncopationbass2 3.57 against 4.03), and
+// summer2000 no longer opens on this recording (14.91 s before): its dense, loosely repeating bass earns too little per
+// repeat under the wider margin that halved the random-bass false opens. Offline the same rule opens summer2000 6.1 s
+// after the lock; Trevor kept the margin and the live scorecard decides that track. `recorded` is the opening of the
+// first rule, kept so the cost on real music stays visible.
 const DIRECTORY = fileURLToPath(new URL('../fixtures/rhythm/gate', import.meta.url));
 const MAX_BYTES = 200 * 1024;
 
-const TODAY: Record<string, { firstOpen: number; delayAfterLock: number; recorded: number }> = {
-    imyourgirl: { firstOpen: 7.7493, delayAfterLock: 4.52, recorded: 5.5093 },
-    lonley: { firstOpen: 13.819, delayAfterLock: 10.4403, recorded: 14.459 },
-    summer2000: { firstOpen: 18.36, delayAfterLock: 14.9093, recorded: 8.9493 },
-    syncopationbass: { firstOpen: 6.6987, delayAfterLock: 3.4694, recorded: 6.6987 },
-    syncopationbass2: { firstOpen: 7.2587, delayAfterLock: 4.0294, recorded: 5.4 },
+// undefined where today's rule never opens on the recording.
+const TODAY: Record<string, { firstOpen?: number; delayAfterLock?: number; recorded: number }> = {
+    imyourgirl: { firstOpen: 5.5093, delayAfterLock: 2.28, recorded: 5.5093 },
+    lonley: { firstOpen: 13.509, delayAfterLock: 10.1303, recorded: 14.459 },
+    summer2000: { recorded: 8.9493 },
+    syncopationbass: { firstOpen: 6.0907, delayAfterLock: 2.8614, recorded: 6.6987 },
+    syncopationbass2: { firstOpen: 6.8, delayAfterLock: 3.5707, recorded: 5.4 },
 };
 
 describe('gate fixtures', () => {
@@ -41,11 +45,16 @@ describe('gate fixtures', () => {
             expect(statSync(join(DIRECTORY, file)).size).toBeLessThanOrEqual(MAX_BYTES);
             const table = parseCsv(readFileSync(join(DIRECTORY, file), 'utf8'));
             const replay = replayGate(table, findGateRule('current'));
-            expect(replay.firstOpen).toBeCloseTo(TODAY[name].firstOpen, 3);
-            expect(replay.delayAfterLock).toBeCloseTo(TODAY[name].delayAfterLock, 3);
-            expect(recordedOpening(table)).toBe(TODAY[name].recorded);
-            // The gate stays open once found: no kick-bearing track loses it.
-            expect(replay.openShare).toBe(1);
+            const today = TODAY[name];
+            if (today.firstOpen === undefined) {
+                expect(replay).toMatchObject({ firstOpen: undefined, delayAfterLock: undefined, openShare: 0 });
+            } else {
+                expect(replay.firstOpen).toBeCloseTo(today.firstOpen, 3);
+                expect(replay.delayAfterLock).toBeCloseTo(today.delayAfterLock!, 3);
+                // The gate stays open once found: no kick-bearing track loses it.
+                expect(replay.openShare).toBe(1);
+            }
+            expect(recordedOpening(table)).toBe(today.recorded);
             // Deterministic: a second pass gives the same numbers.
             expect(replayGate(table, findGateRule('current'))).toEqual(replay);
         });
@@ -73,7 +82,7 @@ describe('gate rules', () => {
         expect(replay).toMatchObject({ firstOpen: undefined, delayAfterLock: undefined, openShare: 0 });
         expect(formatGateReplay('current', replay, undefined, 'x').join('\n')).toContain('first open: never');
         expect(formatGateReplay('current', replayGate(table, findGateRule('current')), 5.4, 'x')[2]).toBe(
-            'first open: 7.259 s',
+            'first open: 6.8 s',
         );
     });
 
@@ -82,7 +91,7 @@ describe('gate rules', () => {
         const bare = { columns: keep.map((i) => table.columns[i]), rows: table.rows.map((r) => keep.map((i) => r[i])) };
         expect(findGateColumns(bare.columns)).toMatchObject({ dt: -1, gateOpen: -1 });
         expect(recordedOpening(bare)).toBeUndefined();
-        expect(replayGate(bare, findGateRule('current')).firstOpen).toBeCloseTo(7.26, 1);
+        expect(replayGate(bare, findGateRule('current')).firstOpen).toBeCloseTo(6.8, 1);
     });
 
     it('refuses a table that is not a gate recording', () => {

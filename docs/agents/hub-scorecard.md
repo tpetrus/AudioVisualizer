@@ -324,6 +324,101 @@ runs are S3's, ingested again. 179 applicable live cells: 138 pass, 28 fail, 13 
   deviation still fails (0.19 against 0.003) in a phase the gate does not touch; its owner stays S7 and S8.
 - **`syncopationbass`'s dancer latency** still fails on noise (runs from 9 to 228 ms in every build).
 
+## S5 findings (targets version 7, measured on `dc822bf`)
+S5 changed the gate rule (`app/features/rhythm/bassGate.ts`, `bassGateConfig.ts`), not its input. Tuned offline with
+`npm run sweep:gate`, which replays every track and random-bass pattern once and re-steps only the gate per row of
+`bassGateConfig` overrides; `--lock-at S` hides the random bass's beat clock for S seconds, the only way to measure what
+the gate does before a lock, because the random-bass replay is otherwise locked from its first frame.
+
+### Cause: the first bar after the lock was always lost
+The tracker reports no beat phase before the dancer's lock (on every kick track the phase appears on the lock's own
+tick), so a kick heard before the lock had no place in the beat, and the first bar after the lock had nothing to
+repeat. Clean on-beat kicks therefore opened the gate on beat 8 after the lock at the earliest, which is 4 s at
+120 bpm and more at slower tempos. No retune of the constants alone fixes that: of 24 combinations of open score,
+repeat rate and chance margin, those within today's false opens put at most 4 of the 16 kick tracks inside 4 s.
+
+### The rule
+- **Kicks heard before the lock are kept by time and placed on the beat at the lock**, from the tracker's tempo
+  (`rhythm.bpm`), for the last `BASS_GATE_PRELOCK_SECONDS` (3 s), and weighed as evidence. A gate still open through a short dropout keeps its own bassline; a song change drops them.
+- **The gate opens on the kick on the beat**, not on whichever kick came last: the place it learns at the opening is
+  where most kicks of the last two bars land, preferring a repeated place within 0.2 beat of 0.1 (the bass pulse's lag).
+  Opening sooner had made the latest kick an off-beat accent on four tracks, live: every bump landed 90 to 300 ms off
+  the beat and the dancer's hit share fell to 0 on `drums-128`, `trap-2to1-double-90`, `trap-4to3-120` and `lonley`.
+  `sweep:gate` now reports where the bumps land against the tapped beats, so that shows offline.
+- **Retuned** for it: repeat rate 0.6 to 0.8, chance margin 1.3 to 1.6, open score 6 to 5.5 (Trevor, 2026-11-19).
+
+### Offline
+| | Before S5 | S5 |
+|---|---|---|
+| Kick tracks open within 4 s of the lock (AC6 floor) | 1 of 16 | 12 of 16 |
+| Within 2 s (stretch) | 0 | 6 |
+| Sum of seconds after the lock | 139.1 | 74.9 |
+| False opens, 300 random-bass patterns, 120 and 400 beats | 5, 27 | 3, 15 |
+| Same, beat clock hidden for the first 3 s | 4, 26 | 3, 15 |
+| Same, hidden for 8 s | 4, 26 | 2, 14 |
+| No-kick tracks that open | 3 | the same 3 |
+
+- **No kick track opens later than before.** `syncopationbass` 18.17 to 1.73 s, `imyourgirl` 4.60 to 0.15,
+  `high-bpm-dnb` never to 1.93, `lonley` 11.48 to 10.83, `summer2000` 7.03 to 6.10.
+- **Ratchet:** `scorecard:check` passes against the version 7 baseline; only `gate.firstOpenSeconds` and
+  `gate.secondsAfterLock` cells changed, 11 from fail to pass and none from pass to fail. Blocking failures 27 to 16.
+- **The pre-hub column moves with it.** The replay steps the same rule for the hub input and the pre-hub input, so the
+  gate's "no later than pre-hub" part of AC6 compares inputs, not rules; the ratchet against the latest baseline is
+  what guards the rule.
+- **The committed gate recordings** (`scripts/fixtures/rhythm/gate/`, `replay:gate`, which now feeds the gate the
+  tempo) open earlier on four tracks, and `summer2000` no longer opens on its old recording: its dense, loosely
+  repeating bass earns too little per repeat under the 1.6 margin. A margin of 1.45 saved that recording (11.72 s) but
+  opened 8 and 31 random-bass patterns, more than before; Trevor kept 1.6 and the live cells decide `summer2000`.
+- **`bass-ink` shares the rule**, fed by its own `BassPulse`; it has no reaction cell yet (S9 measures one).
+
+### Live
+Recorded headless on 2026-11-20, one run at a time from the main checkout at `3ddcd03`, 4 runs per track; the other
+visualizers' live cells are S4's (S5 changes only the gate, which only the dancer and `bass-ink` run). The dancer passes
+61 of its live cells and fails 17 (S4: 49 and 27).
+
+| Seconds from the lock to the first opening, median of 4 runs | S4 | S5 |
+|---|---|---|
+| `syncopationbass` | 16.45 | 1.58 |
+| `trap-4to3-120` | 4.32 | 0.70 |
+| `trap-2to1-half-140` | 5.03 | 1.53 |
+| `imyourgirl` | 4.53 | 2.30 |
+| `drums-128` | 3.88 | 2.77 |
+| `drums-100`, `drums-150`, `drifting-tempo`, `trap-2to1-double-90` | 4.8 to 5.9 | 2.9 to 2.95 |
+| `syncopationbass2` | 4.05 | 3.58 |
+| `high-bpm-dnb` (no pre-hub value, so the cell fails) | 6.65 | 2.17 |
+| `summer2000` | 7.39 | 6.06 |
+| `lonley` | 5.60 | 5.30 |
+| `half-time-shuffle` | 10.69 | 10.36 |
+| `low-bpm-rnb` | 17.81 | 18.49 |
+
+- **AC6 live:** 11 of 15 kick tracks open within 4 s of the lock (S4: 1), 3 within 2 s.
+- **The first S5 build (`dc822bf`) opened on the wrong kick.** It learned its place from the latest kick, which with
+  the earlier opening was an off-beat accent on `drums-128`, `trap-2to1-double-90`, `trap-4to3-120` and `lonley`: every
+  bump landed 90 to 300 ms off the beat and their hit share fell to 0. `3ddcd03` learns the place on the beat (see The
+  rule) and fixes the first three (hit share and latency pass again).
+- **Better than S4:** `drums-150` hit share 0.37 to 0.81, `drifting-tempo` hit share 0.15 to 0.37 and latency 125 to
+  13 ms, `syncopationbass` latency 157 to 83 ms, `high-bpm-dnb` lock spread and `half-time-shuffle` clip deviation pass.
+- **Signed-off exceptions (Trevor, 2026-11-20), worse than S4 beyond the spread:**
+  - `lonley`: hit share 0.29 to 0, latency 53 to 230 ms, false fires 0.47 to 1. In the two bars before it opens, its
+    kicks land only off the beat (phases 0.56, 0.56, 0.36 at 139.5 bpm), so there is no place on the beat to learn and
+    the gate pulses at 0.61; S4 happened to open on a rare kick on the beat. Owner S8 (where the dancer's bass lands).
+  - `summer2000`: hit share 0.15 to 0.02, latency 12 to 160 ms, false fires 0.68 to 0.97. The gate now learns a place on
+    the tracker's beat, but the tracker's beat is about 130 ms off the tapped beats on this track (`beat.errorMedianMs`
+    129); S4's place happened to sit nearer the real beat. Owner S7.
+  - `live.lock.spreadSeconds` on `low-bpm-rnb` (0.011 to 0.064 s) and `syncopationbass` (0.011 to 0.160 s): the
+    tracker's lock time across runs, which S5 does not touch; both pass their floor.
+- `trap-2to1-half-140`'s latency is 2.4 ms later (25.5 against 23.1, spread 1.4) and passes.
+- **The baseline is regenerated at targets version 7** with these cells, so the ratchet compares later slices with S5.
+
+### Tracks still over 4 s (signed off, Trevor, 2026-11-19)
+- **`half-time-shuffle` (7.18 s), deferred to S7.** The tracker locks at 169 bpm, where the bassline repeats every
+  3 beats, not every 4; the gate's bar comparison (4 beats, or 8 when the place a bar back is empty) cannot match it
+  until the bass turns into one kick per beat. Fixing it in the gate means searching for any bar length, a redesign;
+  the tracker's grid for shuffle is S7's.
+- **`low-bpm-rnb` (never opens in any build), deferred to S7**; cause not isolated.
+- **`lonley`** opens 5.30 s after the lock live (10.83 offline, where S3 found its replay unrepresentative).
+- **`summer2000`** opens 6.06 s after the lock live (6.10 offline).
+
 ## Follow-ups outside the fast lane
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
   (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
@@ -343,3 +438,13 @@ runs are S3's, ingested again. 179 applicable live cells: 138 pass, 28 fail, 13 
   the user's sync offset as `bands`, `lowEnd` and `beat` are. That is pre-hub's behavior, but the hub's class comment,
   `types.ts` and C1 say every field is read at one render time. Reword them, or shift the pulse, which would change the
   cubes and the dancer for users with an offset.
+- **`FU-S5-gate-lock-edges`** (gate timing, needs a live run; from S5's review): on the lock tick a gate that opens from
+  kicks placed before the lock can start a spurious bump (`lastPhase` is stale across an unlock), and the unplaced kicks
+  are timed on the clamped `dt` clock, so frames longer than 0.1 s compress their spacing and the placement silently stops
+  helping. Fix both and add specs for them and for a long unlock, bpm 0 and more than 32 kicks before the lock.
+- **`FU-S5-placed-kicks-telemetry`** (the dancer's telemetry columns; from S5's review): a DEV counter of kicks placed
+  from before the lock, recorded by `debug:viz`, so live recordings show the placement.
+- **`FU-S5-sparse-false-opens`** (the gate rule; found pinning S5's specs): one random note every two beats over 40
+  beats opens the gate on 26 of 300 patterns in the level-domain spec (bound 40 pins today's rate), against 2 of 300 for
+  one note per beat. Measure it through the hub replay and decide whether the chance minimum or the open score should
+  account for sparse bass.

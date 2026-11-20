@@ -34,8 +34,9 @@ export function exportedConstants(source: string): string[] {
 }
 
 // Returns the source with each named constant's initializer replaced. An unknown name, or a declaration that does not fit
-// on one line, throws: a silent no-op would make an ablation look like it had no effect.
-export function applyOverrides(source: string, overrides: readonly Override[]): string {
+// on one line, throws: a silent no-op would make an ablation look like it had no effect. `configName` only names the
+// file in the message (rhythmConfig.ts unless another config is being overridden).
+export function applyOverrides(source: string, overrides: readonly Override[], configName = 'rhythmConfig.ts'): string {
     let result = source;
     for (const { name, value } of overrides) {
         const pattern = declarationPattern(name);
@@ -44,7 +45,7 @@ export function applyOverrides(source: string, overrides: readonly Override[]): 
             throw new Error(
                 known.includes(name)
                     ? `Cannot override ${name}: its declaration does not fit the one-line form this tool rewrites`
-                    : `Unknown constant ${name}. rhythmConfig.ts exports: ${known.join(', ')}`,
+                    : `Unknown constant ${name}. ${configName} exports: ${known.join(', ')}`,
             );
         }
         result = result.replace(pattern, (_whole, _initializer: string, asConst: string | undefined) => {
