@@ -54,7 +54,9 @@ export interface HubSection {
 export interface HubGateBass {
     // BassPulse's feature at the render time: the linear RMS of the newest GATE_BASS_WINDOW samples after the 120 Hz,
     // 24 dB/octave lowpass (GateBassTap), read from the audio graph rather than from a frame, so it is as new as the
-    // audio; 0 with no source. A level, not an envelope: run a fast and a slow follower over it to find bumps.
+    // audio. Unlike `bands`, `lowEnd` and `beat`, it is not shifted by the user's sync offset: it is the audio of the
+    // moment of the update. It reads 0 when the tracker has no source (the tap is then disconnected). A level, not an
+    // envelope: run a fast and a slow follower over it to find bumps.
     pulse: number;
     // The louder of the `sub` and `kick` band energies of the frame `bands` comes from, before the hub scales them, in
     // FeatureBatch.bandEnergy units (mean of log(1 + MAGNITUDE_LOG_GAIN * magnitude)).
@@ -69,7 +71,11 @@ export interface AudioHubSnapshot {
     // (the oldest held frame if `time` is earlier than all of them), scaled so 1 is the band's loudest of the last few
     // seconds. Silence reads 0; before the first frame and after a reset all are 0; with no source the last values stay.
     bands: Float32Array;
-    // Keyed by FEATURE_ONSET_BANDS. Valid without a tempo lock.
+    // Keyed by FEATURE_ONSET_BANDS. Valid without a tempo lock. `strength` is on one of two scales, and they are not
+    // normalized to each other: a phase onset's (a re-struck low note, reported as bass or kick) is relative to the phase
+    // function's own decaying peak, a level onset's (any kind) to the decaying peak of its onset band's earlier
+    // strengths. So the kick and bass kinds each mix both scales, and the same strength from two kinds does not mean the
+    // same loudness. Gate each kind on its own values.
     onsets: Readonly<Record<HubOnsetBand, HubOnset>>;
     beat: HubBeat;
     section: HubSection;
