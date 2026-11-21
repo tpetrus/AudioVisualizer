@@ -15,12 +15,12 @@ import { RENDER_HZ } from './replay';
 // Only the director's own code is the app's: the offline cell exists so that a change to where the energy comes from
 // (the hub, FU-S9-bass-ink-energy) can be compared with this one before it is kept.
 //
-// Fidelity notes. The analyser is emulated from the post-gain audio with the Web Audio spec's own steps (a Blackman window
-// over the last fftSize samples, magnitudes over fftSize, smoothing per call, then the dB-to-byte mapping), read once per
-// 60 Hz render tick, only for the bins the scene sums (bins 1 to the bass cutoff). A browser reads it at the animation
-// frame's real time and its smoothing steps per rendered block, so the levels differ slightly from a live run. The
-// tracker's state reaches the director at batch arrival times exactly as in replay.ts. The scene clock here is the audio
-// clock with no frame-time clamp.
+// Fidelity notes. The analyser is emulated from the post-gain audio with the Web Audio spec's own steps (a Blackman
+// window over the last fftSize samples, magnitudes over fftSize, smoothing per call, then the dB-to-byte mapping), read
+// once per 60 Hz render tick, only for the bins the scene sums (bins 1 to the bass cutoff). A browser reads it at the
+// animation frame's real time and its smoothing steps per rendered block, so the levels differ slightly from a live
+// run. The tracker's state reaches the director at batch arrival times exactly as in replay.ts. The scene clock here is
+// the audio clock with no frame-time clamp.
 
 // What one track measured: the scene times, in seconds, at which the director started a transition.
 export interface SetDirectorMeasure {
@@ -62,8 +62,8 @@ export class BassByteLevel {
         }
     }
 
-    // One getByteFrequencyData call at the moment the audio has reached sample `end` (exclusive), as the scene's 0..1 bass
-    // level. Samples before the start of the audio read as silence.
+    // One getByteFrequencyData call at the moment the audio has reached sample `end` (exclusive), as the scene's 0..1
+    // bass level. Samples before the start of the audio read as silence.
     level(pcm: Float32Array, end: number): number {
         const { fftSize, count, smoothed, bytes } = this;
         const tau = BASS_INK_ANALYSER.smoothingTimeConstant;
@@ -92,8 +92,8 @@ export class BassByteLevel {
     }
 }
 
-// Replays one track through the tracker and `bass-ink`'s energy envelope and set director on the 60 Hz render clock, and
-// returns when the director started each transition. Deterministic.
+// Replays one track through the tracker and `bass-ink`'s energy envelope and set director on the 60 Hz render clock,
+// and returns when the director started each transition. Deterministic.
 export function measureSetDirector(track: string, pcm: Float32Array, sampleRate: number): SetDirectorMeasure {
     const audio = applyAgc(pcm, sampleRate);
     const extractor = new OnsetExtractor(sampleRate);
@@ -118,8 +118,8 @@ export function measureSetDirector(track: string, pcm: Float32Array, sampleRate:
         if (director.cue.transitionCount !== before) transitionTimes.push(director.cue.transitionStart);
     };
 
-    // The tracker analyzes whole batches of frames when the last of them arrives (see replay.ts); the render ticks before
-    // that moment have not seen them.
+    // The tracker analyzes whole batches of frames when the last of them arrives (see replay.ts); the render ticks
+    // before that moment have not seen them.
     const frames = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
     const times = new Float64Array(BATCH_FRAMES);
     let queued = 0;
