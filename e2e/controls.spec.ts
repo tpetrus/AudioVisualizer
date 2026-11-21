@@ -146,7 +146,8 @@ test.describe('Dancing character dance select', () => {
             // Long enough for the files to load and the swap to happen (or for a failure to put the default back).
             await page.waitForTimeout(1500);
             await expect(select).toHaveValue(value);
-            await expect(page.getByRole('status')).toHaveCount(0);
+            // Only non-empty messages count: the fullscreen hint's empty live region is always present.
+            await expect(page.getByRole('status').filter({ hasText: /\S/ })).toHaveCount(0);
             await expect(page.locator('canvas')).toHaveCount(1);
         }
     });
