@@ -6,7 +6,7 @@ const KEYBOARD_HINT = 'Press ESC to exit Fullscreen mode';
 const TOUCH_HINT = 'Tap the screen, then the exit icon to leave fullscreen';
 
 const settingsButton = (page: Page) => page.getByRole('button', { name: '☰ Settings' });
-const fullscreenButton = (page: Page) => page.getByRole('button', { name: 'Fullscreen (F)' });
+const fullscreenButton = (page: Page) => page.getByRole('button', { name: 'Fullscreen (F)', exact: true });
 const lockButton = (page: Page) => page.getByRole('button', { name: /^Camera (locked|unlocked)/ });
 
 // Makes the browser report that element fullscreen is unavailable, so the app takes its pseudo-fullscreen path. Run
@@ -91,12 +91,24 @@ test.describe(`${first.name} fullscreen behavior`, () => {
         test.setTimeout(120_000);
         await startVisualizer(page, first);
         await openSettings(page);
+        const statsCheckbox = page.getByRole('checkbox', { name: 'Show performance stats' });
+        await statsCheckbox.check();
+        // The overlay is the only place that shows the "Rendering" heading.
+        const statsOverlay = page.getByText('Rendering', { exact: true });
+        await expect(statsOverlay).toBeVisible();
         await page.getByRole('slider').first().focus();
 
         await page.keyboard.press('f');
         await expect.poll(() => hasFullscreenElement(page)).toBe(true);
+        await expect(statsOverlay).toBeHidden();
+        await expect(page.getByRole('button', { name: '✕ Close' })).toBeHidden();
+
         await page.keyboard.press('f');
         await expect.poll(() => hasFullscreenElement(page)).toBe(false);
+        // The panel keeps its state across fullscreen: still open, checkbox still checked, overlay back.
+        await expect(page.getByRole('button', { name: '✕ Close' })).toBeVisible();
+        await expect(statsCheckbox).toBeChecked();
+        await expect(statsOverlay).toBeVisible();
     });
 
     test('the cursor hides after 2 s of rest and returns on movement', async ({ page }) => {
@@ -104,6 +116,8 @@ test.describe(`${first.name} fullscreen behavior`, () => {
         await startWithPausedClock(page, first);
         await fullscreenButton(page).click();
         await expect.poll(() => hasFullscreenElement(page)).toBe(true);
+        // The idle timer starts when the app has switched modes; fast-forwarding before that would miss it.
+        await expect(page.getByText(KEYBOARD_HINT)).toBeVisible();
 
         const wrapper = wrapperOf(page);
         const canvasCursor = () => page.locator('canvas').evaluate((canvas) => getComputedStyle(canvas).cursor);
@@ -152,6 +166,27 @@ test.describe(`${first.name} fullscreen behavior`, () => {
         await expect(settingsButton(page)).toBeHidden();
         await page.keyboard.press('f');
         await expect(settingsButton(page)).toBeVisible();
+    });
+});
+
+test.describe('dancing character fullscreen', () => {
+    test('the attribution blurb hides in fullscreen and returns on exit', async ({ page }) => {
+        test.setTimeout(120_000);
+        const dancer = VISUALIZERS_UNDER_TEST.find(({ path }) => path === '/dancing-character')!;
+        await startVisualizer(page, dancer);
+
+        // The default character (MakeHuman) shows no credit, so pick one that does.
+        await openSettings(page);
+        await page.getByLabel('Character', { exact: true }).selectOption('wario');
+        const blurb = page.getByText(/^Wario.*license/);
+        await expect(blurb).toBeVisible({ timeout: 30_000 });
+        await page.getByRole('button', { name: '✕ Close' }).click();
+        await fullscreenButton(page).click();
+        await expect.poll(() => hasFullscreenElement(page)).toBe(true);
+        await expect(blurb).toBeHidden();
+        await page.evaluate(() => document.exitFullscreen());
+        await expect.poll(() => hasFullscreenElement(page)).toBe(false);
+        await expect(blurb).toBeVisible();
     });
 });
 
