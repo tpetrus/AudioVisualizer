@@ -16,6 +16,7 @@ import { SpectrumField } from './spectrumField';
 import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
+import { onRecordingClock } from '~/features/audio/devRecordingClock';
 import { createBassGateState, stepBassGate } from '~/features/rhythm/bassGate';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { useLatestRef } from '~/hooks/useLatestRef';
@@ -81,6 +82,10 @@ export function useBassInkScene(
         const pointSizeLimit = maxPointSize(renderer);
         const formationSeed = bassInkConfig.director.formationSeed;
         const pixelHeight = (height: number) => height * Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+
+        // DEV only: when this scene was built, on the page clock (`performance.now()`, ms); the probe turns it into the
+        // recording's own `t` clock.
+        const sceneBuiltMs = import.meta.env.DEV ? performance.now() : NaN;
 
         // Set logic: all of it framework-free and preallocated.
         const energy = new EnergyTracker();
@@ -164,6 +169,7 @@ export function useBassInkScene(
                     'gateOpen',
                     'gateIn',
                     'gateRaw',
+                    'sceneBuiltAt',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -185,6 +191,7 @@ export function useBassInkScene(
                     out[16] = bassGate.open ? 1 : 0;
                     out[17] = lastGateBass;
                     out[18] = lastGateRaw;
+                    out[19] = onRecordingClock(sceneBuiltMs, analyserRef.current?.context.currentTime);
                 },
             );
         }
@@ -209,6 +216,9 @@ export function useBassInkScene(
                 // The scene clock sums clamped deltas, so a stall cannot make the envelopes or the fades jump.
                 const dt = Math.min(delta / 1000, maxFrameDeltaSeconds);
                 sceneTime += dt;
+                // The gate keeps its own clock and needs the real gap, made finite and at least 0 (the dancer's rule).
+                const rawDt = delta / 1000;
+                const gateDt = Number.isFinite(rawDt) ? Math.max(rawDt, 0) : 0;
                 const now = sceneTime;
 
                 const source = analyserRef.current;
@@ -239,7 +249,7 @@ export function useBassInkScene(
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
                 lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
                 lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
-                stepBassGate(lastGateBass, state, clock.locked, bassGate, dt);
+                stepBassGate(lastGateBass, state, clock.locked, bassGate, gateDt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
                     lastKickStrength = kickRing.strengths[(kickRing.count - 1) % kickRing.strengths.length];
