@@ -373,5 +373,7 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   - **AC12:** offline, only the six re-tap cells change, none from pass to fail (blocking failures 14); the baseline is
     regenerated at version 8 and `scorecard:check` passes. All repository checks and budgets pass. Live, no dancer
     median is worse than S7 beyond the spread.
-- **Follow-ups outside the fast lane:** `FU-S8-live-retap`, `FU-S8-summer2000-gaps`.
+- **Review (R2):** no blocking findings; the scorecard and dancer specs, lint, typecheck and `scorecard:check` pass.
+- **Follow-ups outside the fast lane:** `FU-S8-clip-unit` and `FU-S8-manual-reselect` (from the review),
+  `FU-S8-live-retap`, `FU-S8-summer2000-gaps`.
 - **Next:** S9, moving the private analysis onto the hub.

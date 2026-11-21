@@ -637,6 +637,15 @@ below was traced from the dancer's telemetry, run by run, against its own tracke
 - **`FU-S8-live-retap`** (a live run; from S8): record `cubes` and `trio-color-wave` again on `lonley` and `summer2000`
   (`npm run scorecard:live -- --viz <name> --tracks lonley.wav,summer2000.wav`), whose live cells are still scored
   against the taps Trevor replaced in S8.
+- **`FU-S8-clip-unit`** (R2, it changes the AC7 definition and the targets version; from S8's review): in
+  `clipMaxDeviations` one run that is not meter-locked at a sample puts every run on the beat unit, so three runs a beat
+  apart in the bar pass while a fourth flickers or never locks; a loop shorter than a bar (`beatsPerLoop` under 4, a
+  4-beat clip against a 70 BPM tracker) is still compared within a bar; and lock flicker can skip most of the span,
+  leaving a pass on just over 4 s. Compare within the bar when at least 3 runs are meter-locked and every compared run
+  has `beatsPerLoop` of 4 or more, report the share the settle window skipped, and require a minimum share of the span.
+- **`FU-S8-manual-reselect`** (dancer behavior; from S8's review, low): with a dance chosen by hand, a fresh load starts on
+  the calm dance and switches at the first bar line, while a re-select stays on the chosen dance with no fade. That
+  follows the intent (the choice is kept), but AC7 would see the difference if it were ever recorded with a manual dance.
 - **`FU-S8-summer2000-gaps`** (Trevor; needs ears; optional): `summer2000`'s new taps still have uneven gaps between 8.6
   and 13.4 s (0.68, 0.78, 0.35 and 0.34 s against a 0.47 s beat); a third take of that stretch would tighten the truth.
 - **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
