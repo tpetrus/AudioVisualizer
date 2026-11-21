@@ -18,6 +18,12 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
 - The contracts are in `scripts/scorecard/types.ts` (C2 cell, C3 commands, revision 2 of the lock and false-song-change
   definitions); floors, stretch targets and the applicability matrix are in `scripts/scorecard/targets.ts` and
   `tracks.ts`.
+- `npm run scorecard:order -- --pair A,B` checks AC11: per track, alternating sessions that open A then B and B then A
+  in one page (`debug:viz --then`), then a comparison of each visualizer when it led and when it followed. Hub rows
+  (`gain`, `bassRaw`, the three onset columns and the visualizer's `.in`) compare the RMS difference between the two
+  orders, on a 10 ms track-time grid, with the largest difference between two runs of one order. Reaction rows compare
+  the followed runs' median hit share, latency and false fires with the committed live cell, allowing its spread. It
+  writes `hub-scorecard.order.json` and `.md` and is a report, not a gate.
 - CI runs only the synthetic ratchet (`scripts/scorecard/synthetic.test.ts`, 43 cells), because `.debug-in` is local.
 
 ## Definitions worth knowing
@@ -679,7 +685,87 @@ and its reaction cell does not drop across the move.
   gate's kick place are its causes (S7, S8).
 - **`high-bpm-dnb`** was unavailable before (too few runs fired) and has cells after (hit 0.02, latency 100 ms).
 
+## S10 findings: order independence (AC11) and the close (targets version 8, measured on `c2c343c`)
+### Order independence (AC11)
+- **Method.** `npm run scorecard:order` records, per track (`drums-128`, `imyourgirl`, `syncopationbass2`), 2
+  sessions each of A then B, B then A, A then A and B then B, one page per session (`debug:viz --then`), for the
+  pairs `dancing-character` with `cubes` and `bass-ink` with `dancing-character`: 48 sessions, all three hub-fed
+  visualizers. Reports: `hub-scorecard.order.dancing-character-cubes.md` and
+  `hub-scorecard.order.bass-ink-dancing-character.md`.
+- **Why a control session.** The second play of a session is always a navigation plus a re-select, and the first
+  version of the check compared it with fresh loads: 28 hub rows failed. With 8 fresh runs per visualizer, a play after
+  the *other* visualizer was no further from a fresh load than a re-select on the *same* visualizer, column by column
+  (for example the dancer's input on `syncopationbass2`: fresh 0.047, re-select 0.110, after `cubes` 0.063), so those
+  failures measured the re-select, not the order. Each row now judges "after the other" against "after itself" (hub:
+  RMS difference to the lead runs on a 10 ms grid, allowed the larger of the lead runs' own spread and the control's;
+  reaction: the followed runs' median against the control's, allowed the larger of the committed cell's spread and the
+  spread of this recording's lead and control runs).
+- **Result: 99 of 108 rows pass.** Reaction telemetry matches everywhere: hit share, latency and false fires, 36 of 36
+  rows. Hub signals: 63 of 72. Of the 9 that fail, 4 are at the noise floor (`onsetKick` on `syncopationbass2` for the
+  dancer, 0.1501 and 0.1487 against 0.1486; `gain` on `imyourgirl` for `cubes` and `bass-ink`, a track whose gain
+  barely moves, 0.008 against 0.007). Five recur in both pairs and point one way: a visualizer opened after a
+  *different* one sees a little more spread in the dancer's input on `imyourgirl` (0.038 and 0.034 against 0.027),
+  the dancer's `gain` on `syncopationbass2` (0.115 and 0.132 against 0.083 and 0.088), and `bass-ink`'s `onsetKick`
+  on `syncopationbass2` (0.182 against 0.144). The cause is not isolated. The likeliest is load timing (the next scene
+  builds, and the dancer parses its model, while the re-selected track starts), not state left in the hub, since the
+  same hub serves the control sessions. No reaction cell moves, so no visualizer reacts differently. Recorded as
+  `FU-S10-order-hub-spread` below.
+- **Two harness fixes** came out of the recording: live ingest ignores order runs (their `options.json` has `then` or
+  `after`), and choosing the track again after a navigation waits for the page first (`c2c343c`; the source chooser
+  could open a moment after the check).
+- **End to end:** `e2e/order.spec.ts` opens the dancer and `cubes` in both orders in one page session and checks the
+  source survives, each renders one canvas, nothing reloads and nothing logs an error.
+
+### The close
+- **FU-S8-live-retap done:** `cubes` and `trio-color-wave` are recorded again on `lonley` and `summer2000` against
+  the S8 taps. All 12 cells pass; `cubes` on `summer2000` now hits 0.27 of its beats (0.03 on the old taps) within
+  47 ms (140), as S8a predicted offline. Their pre-hub reference values are still the old taps' (the pre-hub runs
+  carry their own copy of the sidecar).
+- **Scorecard** (`npm run scorecard`, then `scorecard:check` passes against the S9 baseline): 426 applicable cells,
+  377 pass, 24 fail, 25 unavailable. Offline (blocking): 188 of 202 pass. Live (advisory): 189 pass, 10 fail, 25
+  unavailable.
+- **Every offline floor is met or deferred** (success metric 1). The 14 failing offline cells, each with its deferral:
+
+| Cell | Value (floor) | Deferred at |
+|---|---|---|
+| `ac9.dottedChangeCounted` | 0 (1) | S3 review, Trevor 2026-11-18 (the shelved 3/2 work) |
+| `6-8-time` beat error, tempo error, false song changes | never locks, never locks, 1 | S3 review, Trevor 2026-11-18 (no one tempo for 6/8) |
+| `low-bpm-rnb` beat error | 183 ms (40) | S7, merged in PR #101 (a syncopated kick captures the beat loop) |
+| `summer2000` beat error | 151 ms (40) | S7, merged; still 150 ms on the S8 re-tap |
+| `drifting-tempo` tempo error after lock | 0.028 (0.02) | S7, merged (the 8-beat tapped truth strays by itself; `FU-S7-drifting-truth`) |
+| `beatless` never locks | locks (0) | S7, merged (a real 140 bpm periodicity) |
+| `onset.f50` `bassline-kick-120` bass and kick | 0.77 and 0.81 (0.9) | S6, Trevor 2026-11-20 (two low tones in one bin) |
+| gate after lock, `half-time-shuffle` and `low-bpm-rnb` | 7.2 s and never (4 s) | S5, Trevor 2026-11-19, handed to S7 and deferred there |
+| gate after lock, `lonley` and `summer2000` | 10.8 s and 6.1 s (4 s) | S5, Trevor 2026-11-19 (5.3 s and 6.4 s live) |
+
+- **Live cells** are advisory (D13). The 10 failing: the dancer's gate after the lock on `drums-150`,
+  `half-time-shuffle`, `high-bpm-dnb`, `lonley`, `low-bpm-rnb` and `summer2000` (the deferrals above, and runs that
+  split on `drums-150` and `high-bpm-dnb`); its clip on `syncopation-no-kick` (S8's deferral); its hit share and
+  latency on `lonley` (the gate's kick place, audit finding 3); and `trio-color-wave`'s hit share on `low-bpm-rnb`
+  (below 0.25 in both builds since S3).
+- **Stretch targets** (reported, not blocking; cells met of measured):
+
+| Metric | Stretch | `dancing-character` | `cubes` | `bass-ink` | `trio-color-wave` |
+|---|---|---|---|---|---|
+| gate after lock, offline | 2 s | 6 of 15 | - | - | - |
+| gate after lock, live | 2 s | 3 of 15 | - | - | - |
+| hit share 50 ms, offline | 0.9 | - | 1 of 16 | - | - |
+| hit share 50 ms, live | 0.9 | 0 of 15 | 1 of 15 | 0 of 14 | 1 of 15 |
+| false fires, live | 0.1 | 6 of 15 | 1 of 15 | 5 of 14 | 1 of 15 |
+| latency, offline | 46.7 ms | - | 12 of 16 | - | - |
+| latency, live | 46.7 ms | 8 of 14 | 8 of 15 | 6 of 14 | 10 of 15 |
+
+  The gate and latency stretches are within reach on most kick tracks. Hit share 0.9 and false fires 0.1 are met only
+  on the clean synthetic tracks: on real songs every reaction to an onset that is not a tapped beat counts as false,
+  and a reaction a frame late misses the 50 ms window, so those two stretches measure onset selectivity and tap
+  jitter as much as the visualizers (S3's reading, unchanged). Raising them needs a design, not a retune.
+
 ## Follow-ups outside the fast lane
+- **`FU-S10-order-hub-spread`** (live runs; from S10): a visualizer opened after a different one shows somewhat more
+  spread than after itself in three hub signals on two tracks (the dancer's input on `imyourgirl`, the dancer's gain
+  and `bass-ink`'s kick onsets on `syncopationbass2`), in both pairs, with no change in any reaction cell. Record more
+  sessions with `npm run scorecard:order -- --pair ... --sessions 4 --top-up`, and mark the scene's build and the
+  dancer's model parse in the telemetry, to tell load timing from state left in the hub.
 - **`FU-S9-bass-ink-energy`** (R2; from S9, deferred under D11): move `bass-ink`'s set-level bass energy onto the hub
   (likely `gateBass.lowEnd`), after adding a cell for the set director (transition count and times per real track,
   before and after), since its ratio thresholds were tuned on the analyser's byte-dB scale. The spectrum field keeps its

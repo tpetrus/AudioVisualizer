@@ -1,6 +1,6 @@
 # Scorecard
 
-Targets version 8, revision 35ff575, created 2026-11-21T04:32:52.687Z.
+Targets version 8, revision e076338, created 2026-11-21T15:26:56.843Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
@@ -253,9 +253,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.falseFire.share | imyourgirl.wav | dancing-character | tapped | 0.488 | 0.061 | 4 | - | 0.100 | 0.455 | pass (advisory) |
 | live.falseFire.share | imyourgirl.wav | trio-color-wave | tapped | 0.233 | 0.061 | 4 | - | 0.100 | 0.258 | pass (advisory) |
 | live.falseFire.share | lonley.wav | bass-ink | tapped | 1.000 | 0.000 | 4 | - | 0.100 | - | pass (advisory) |
-| live.falseFire.share | lonley.wav | cubes | tapped | 0.816 | 0.072 | 4 | - | 0.100 | 0.817 | pass (advisory) |
+| live.falseFire.share | lonley.wav | cubes | tapped | 0.755 | 0.036 | 4 | - | 0.100 | 0.817 | pass (advisory) |
 | live.falseFire.share | lonley.wav | dancing-character | tapped | 1.000 | 0.000 | 4 | - | 0.100 | 0.474 | pass (advisory) |
-| live.falseFire.share | lonley.wav | trio-color-wave | tapped | 0.624 | 0.126 | 4 | - | 0.100 | 0.641 | pass (advisory) |
+| live.falseFire.share | lonley.wav | trio-color-wave | tapped | 0.667 | 0.011 | 4 | - | 0.100 | 0.641 | pass (advisory) |
 | live.falseFire.share | low-bpm-rnb.wav | bass-ink | tapped | 0.343 | 0.114 | 2 | - | 0.100 | - | unavailable (advisory) |
 | live.falseFire.share | low-bpm-rnb.wav | cubes | tapped | 0.899 | 0.022 | 4 | - | 0.100 | 0.897 | pass (advisory) |
 | live.falseFire.share | low-bpm-rnb.wav | dancing-character | tapped | 0.338 | 0.075 | 2 | - | 0.100 | 1.000 | unavailable (advisory) |
@@ -265,9 +265,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.falseFire.share | pad-lead-groove-110.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | summer2000.wav | bass-ink | tapped | 1.000 | 0.000 | 4 | - | 0.100 | - | pass (advisory) |
-| live.falseFire.share | summer2000.wav | cubes | tapped | 0.956 | 0.012 | 4 | - | 0.100 | 0.957 | pass (advisory) |
+| live.falseFire.share | summer2000.wav | cubes | tapped | 0.667 | 0.098 | 4 | - | 0.100 | 0.957 | pass (advisory) |
 | live.falseFire.share | summer2000.wav | dancing-character | tapped | 1.000 | 0.000 | 4 | - | 0.100 | 0.964 | pass (advisory) |
-| live.falseFire.share | summer2000.wav | trio-color-wave | tapped | 0.861 | 0.107 | 4 | - | 0.100 | 0.815 | pass (advisory) |
+| live.falseFire.share | summer2000.wav | trio-color-wave | tapped | 0.765 | 0.063 | 4 | - | 0.100 | 0.815 | pass (advisory) |
 | live.falseFire.share | syncopation-no-kick.wav | cubes | tapped | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | syncopation-no-kick.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.100 | - | n/a |
 | live.falseFire.share | syncopationbass.wav | bass-ink | tapped | 0.575 | 0.130 | 4 | - | 0.100 | - | pass (advisory) |
@@ -359,9 +359,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | imyourgirl.wav | dancing-character | tapped | 0.442 | 0.059 | 4 | - | 0.900 | 0.428 | pass (advisory) |
 | live.hit.share50ms | imyourgirl.wav | trio-color-wave | tapped | 0.809 | 0.079 | 4 | - | 0.900 | 0.809 | pass (advisory) |
 | live.hit.share50ms | lonley.wav | bass-ink | tapped | 0.000 | 0.000 | 4 | - | 0.900 | - | pass (advisory) |
-| live.hit.share50ms | lonley.wav | cubes | tapped | 0.114 | 0.043 | 4 | - | 0.900 | 0.114 | pass (advisory) |
+| live.hit.share50ms | lonley.wav | cubes | tapped | 0.169 | 0.031 | 4 | - | 0.900 | 0.114 | pass (advisory) |
 | live.hit.share50ms | lonley.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.293 | fail (advisory) |
-| live.hit.share50ms | lonley.wav | trio-color-wave | tapped | 0.186 | 0.057 | 4 | - | 0.900 | 0.171 | pass (advisory) |
+| live.hit.share50ms | lonley.wav | trio-color-wave | tapped | 0.154 | 0.000 | 4 | - | 0.900 | 0.171 | pass (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | bass-ink | tapped | 0.229 | 0.114 | 2 | - | 0.900 | - | unavailable (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | cubes | tapped | 0.157 | 0.029 | 4 | - | 0.900 | 0.157 | pass (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | dancing-character | tapped | 0.171 | 0.057 | 2 | - | 0.900 | 0.000 | unavailable (advisory) |
@@ -371,9 +371,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | pad-lead-groove-110.wav | cubes | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | summer2000.wav | bass-ink | tapped | 0.000 | 0.000 | 4 | - | 0.900 | - | pass (advisory) |
-| live.hit.share50ms | summer2000.wav | cubes | tapped | 0.034 | 0.000 | 4 | - | 0.900 | 0.034 | pass (advisory) |
+| live.hit.share50ms | summer2000.wav | cubes | tapped | 0.269 | 0.056 | 4 | - | 0.900 | 0.034 | pass (advisory) |
 | live.hit.share50ms | summer2000.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.017 | pass (advisory) |
-| live.hit.share50ms | summer2000.wav | trio-color-wave | tapped | 0.085 | 0.051 | 4 | - | 0.900 | 0.119 | pass (advisory) |
+| live.hit.share50ms | summer2000.wav | trio-color-wave | tapped | 0.148 | 0.037 | 4 | - | 0.900 | 0.119 | pass (advisory) |
 | live.hit.share50ms | syncopation-no-kick.wav | cubes | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopation-no-kick.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopationbass.wav | bass-ink | tapped | 0.170 | 0.089 | 4 | - | 0.900 | - | pass (advisory) |
@@ -465,9 +465,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.reaction.latencyMs | imyourgirl.wav | dancing-character | tapped | 50.2 | 2.0 | 4 | - | 46.7 | 49.6 | pass (advisory) |
 | live.reaction.latencyMs | imyourgirl.wav | trio-color-wave | tapped | 27.3 | 8.0 | 4 | - | 46.7 | 25.5 | pass (advisory) |
 | live.reaction.latencyMs | lonley.wav | bass-ink | tapped | 238.9 | 2.3 | 4 | - | 46.7 | - | pass (advisory) |
-| live.reaction.latencyMs | lonley.wav | cubes | tapped | 62.8 | 20.3 | 4 | - | 46.7 | 70.9 | pass (advisory) |
+| live.reaction.latencyMs | lonley.wav | cubes | tapped | 55.0 | 10.5 | 4 | - | 46.7 | 70.9 | pass (advisory) |
 | live.reaction.latencyMs | lonley.wav | dancing-character | tapped | 249.2 | 10.3 | 4 | - | 46.7 | 53.3 | fail (advisory) |
-| live.reaction.latencyMs | lonley.wav | trio-color-wave | tapped | 38.8 | 16.0 | 4 | - | 46.7 | 38.8 | pass (advisory) |
+| live.reaction.latencyMs | lonley.wav | trio-color-wave | tapped | 30.8 | 9.5 | 4 | - | 46.7 | 38.8 | pass (advisory) |
 | live.reaction.latencyMs | low-bpm-rnb.wav | bass-ink | tapped | 46.8 | 15.7 | 2 | - | 46.7 | - | unavailable (advisory) |
 | live.reaction.latencyMs | low-bpm-rnb.wav | cubes | tapped | 28.0 | 13.7 | 4 | - | 46.7 | 33.3 | pass (advisory) |
 | live.reaction.latencyMs | low-bpm-rnb.wav | dancing-character | tapped | 40.2 | 7.7 | 2 | - | 46.7 | - | unavailable (advisory) |
@@ -477,9 +477,9 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.reaction.latencyMs | pad-lead-groove-110.wav | cubes | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | summer2000.wav | bass-ink | tapped | 249.0 | 0.0 | 2 | - | 46.7 | - | unavailable (advisory) |
-| live.reaction.latencyMs | summer2000.wav | cubes | tapped | 140.0 | 18.7 | 4 | - | 46.7 | 144.2 | pass (advisory) |
+| live.reaction.latencyMs | summer2000.wav | cubes | tapped | 47.4 | 10.7 | 4 | - | 46.7 | 144.2 | pass (advisory) |
 | live.reaction.latencyMs | summer2000.wav | dancing-character | tapped | - | 0.0 | 0 | - | 46.7 | 104.0 | unavailable (advisory) |
-| live.reaction.latencyMs | summer2000.wav | trio-color-wave | tapped | 86.7 | 21.2 | 4 | - | 46.7 | 90.5 | pass (advisory) |
+| live.reaction.latencyMs | summer2000.wav | trio-color-wave | tapped | 41.4 | 16.0 | 4 | - | 46.7 | 90.5 | pass (advisory) |
 | live.reaction.latencyMs | syncopation-no-kick.wav | cubes | tapped | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | syncopation-no-kick.wav | dancing-character | tapped | - | 0.0 | 0 | - | 46.7 | - | n/a |
 | live.reaction.latencyMs | syncopationbass.wav | bass-ink | tapped | 57.4 | 23.7 | 4 | - | 46.7 | - | pass (advisory) |

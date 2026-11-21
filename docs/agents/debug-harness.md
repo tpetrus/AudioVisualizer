@@ -452,6 +452,11 @@ export function formatRepeatReport(comparison: RepeatComparison, targets?: Parti
   choosing it again in the source dialog each time, each play with its own output folder and summary. `--reselect` above
   1 with `--shots` is an error. A play counts as started once the position is back near 0 or goes backward, so a very
   short previous play cannot time out the wait.
+- `debug:viz` gains `--then <name>` (hub-regressions S10, AC11): after the play on `--viz`, the page moves to the
+  landing page and opens `<name>` from its card without a reload (a window marker set first must survive, or the run
+  fails), chooses the track again and records a second play there. Play 1's `options.json` gets `then`, play 2's
+  `after`; `scorecard:live` ignores both, since its cells are fresh page loads. It cannot be combined with `--reselect`
+  above 1. `npm run scorecard:order` drives it.
 - With `--from 0` the harness no longer seeks after the upload, because restarting the track a moment after it began feeds
   the tracker a discontinuity of a different length on every run. It resets the recorder only, so the first row's `t` is
   slightly above 0.
