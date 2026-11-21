@@ -3,6 +3,8 @@ import { CharacterAttribution } from './CharacterAttribution';
 import { DEFAULT_CHARACTER_ID, findCharacter } from './characterRegistry';
 import { controlsForMotionPreference, dancingCharacterControls } from './dancingCharacterControls';
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
+import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
+import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
 import { useAudioHub } from '~/features/audio/hub/useAudioHub';
@@ -11,6 +13,8 @@ import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 
 export function DancingCharacterPage() {
     const containerRef = useRef<HTMLDivElement>(null);
+    const fullscreenRef = useRef<HTMLDivElement>(null);
+    const fullscreen = useFullscreen(fullscreenRef);
     const analyser = useAnalyser();
     const hub = useAudioHub();
     const rhythm = useRhythm();
@@ -45,8 +49,14 @@ export function DancingCharacterPage() {
 
     return (
         <>
-            <div ref={containerRef} className="fixed inset-0 bg-black" />
-            {status === 'modelFailed' && (
+            {/* The wrapper is the fullscreen target, so the browser hides every overlay outside it. It is React-owned and its
+                className must stay a static string (useFullscreen adds the idle-cursor classes to it). The canvas host
+                stays a separate child because useThreeScene appends and removes the canvas imperatively. */}
+            <div ref={fullscreenRef} className="fixed inset-0 bg-black">
+                <div ref={containerRef} className="absolute inset-0" />
+                <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
+            </div>
+            {!fullscreen.active && status === 'modelFailed' && (
                 <p
                     role="status"
                     className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-4 py-2 text-center text-white"
@@ -54,7 +64,7 @@ export function DancingCharacterPage() {
                     The dancer couldn&apos;t be loaded. Try reloading the page.
                 </p>
             )}
-            {characterProblem !== null && (
+            {!fullscreen.active && characterProblem !== null && (
                 <p
                     role="status"
                     className="fixed top-4 left-1/2 -translate-x-1/2 rounded bg-black/70 px-4 py-2 text-center text-white"
@@ -62,7 +72,7 @@ export function DancingCharacterPage() {
                     {characterProblem}
                 </p>
             )}
-            {selected && <CharacterAttribution character={selected} />}
+            {!fullscreen.active && selected && <CharacterAttribution character={selected} />}
             <ControlPanel
                 definitions={controls}
                 values={values}
@@ -72,6 +82,8 @@ export function DancingCharacterPage() {
                 onCameraLockedChange={setCameraLocked}
                 viewChanged={viewChanged}
                 onResetView={resetView}
+                fullscreenActive={fullscreen.active}
+                onToggleFullscreen={() => fullscreen.toggle()}
             />
         </>
     );
