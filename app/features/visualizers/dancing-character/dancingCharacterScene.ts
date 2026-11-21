@@ -38,7 +38,7 @@ export interface DancingCharacterFrame {
     // Seconds since the last frame, for the animation, the sync and the envelopes: the caller caps it at MAX_FRAME_DT.
     dt: number;
     // The same gap as measured, not capped. The bass gate runs on the audio clock's real time, so a long frame has to
-    // reach it whole; it clamps nothing, and a value that is not finite counts as 0.
+    // reach it whole (the gate clamps only its own envelopes); a value that is not finite counts as 0.
     gateDt: number;
     // Read only; the caller has already called tracker.updatePhase().
     rhythm: RhythmState;
