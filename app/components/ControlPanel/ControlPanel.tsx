@@ -5,6 +5,8 @@ import styles from './ControlPanel.module.css';
 import { PerformanceStats } from '~/components/PerformanceStats/PerformanceStats';
 import { RhythmStats } from '~/components/RhythmStats/RhythmStats';
 import { AudioSourceDialog } from '~/features/audio/components/AudioSourceDialog';
+import { FULLSCREEN_STRINGS } from '~/features/fullscreen/strings';
+import { FULLSCREEN_TOGGLE_ATTRIBUTE } from '~/features/fullscreen/types';
 
 interface ControlPanelProps {
     definitions: readonly ControlDefinition[];
@@ -15,6 +17,9 @@ interface ControlPanelProps {
     onCameraLockedChange: (locked: boolean) => void;
     viewChanged: boolean;
     onResetView: () => void;
+    fullscreenActive?: boolean;
+    // The fullscreen button only exists when the page passes this.
+    onToggleFullscreen?: () => void;
 }
 
 export function ControlPanel({
@@ -26,6 +31,8 @@ export function ControlPanel({
     onCameraLockedChange,
     viewChanged,
     onResetView,
+    fullscreenActive = false,
+    onToggleFullscreen,
 }: ControlPanelProps) {
     const [collapsed, setCollapsed] = useState(true);
     const [showStats, setShowStats] = useState(false);
@@ -53,9 +60,14 @@ export function ControlPanel({
         });
     };
 
+    const fullscreenLabel = fullscreenActive ? FULLSCREEN_STRINGS.exit : FULLSCREEN_STRINGS.enter;
+    const fullscreenToggleAttribute = { [FULLSCREEN_TOGGLE_ATTRIBUTE]: '' };
+
     return (
         <>
-            <div className={collapsed ? styles.panel : `${styles.panel} ${styles.open}`}>
+            {/* Hidden rather than unmounted while fullscreen, so the open sections, stats toggles and dialog state
+                survive and come back as they were. */}
+            <div className={collapsed ? styles.panel : `${styles.panel} ${styles.open}`} hidden={fullscreenActive}>
                 <div className={styles.bar}>
                     <button
                         type="button"
@@ -88,6 +100,32 @@ export function ControlPanel({
                     <button type="button" className={styles.toggle} onClick={() => setCollapsed((current) => !current)}>
                         {collapsed ? '☰ Settings' : '✕ Close'}
                     </button>
+                    {onToggleFullscreen && (
+                        <button
+                            type="button"
+                            className={styles.fullscreen}
+                            onClick={onToggleFullscreen}
+                            aria-label={fullscreenLabel}
+                            title={fullscreenLabel}
+                            {...fullscreenToggleAttribute}
+                        >
+                            <svg
+                                viewBox="0 0 16 16"
+                                width="16"
+                                height="16"
+                                aria-hidden="true"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                            >
+                                {fullscreenActive ? (
+                                    <path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" />
+                                ) : (
+                                    <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                                )}
+                            </svg>
+                        </button>
+                    )}
                 </div>
 
                 {!collapsed && (
@@ -178,9 +216,9 @@ export function ControlPanel({
                 )}
             </div>
 
-            {showStats && <PerformanceStats />}
-            {showRhythm && <RhythmStats />}
-            {audioDialogOpen && <AudioSourceDialog onClose={() => setAudioDialogOpen(false)} />}
+            {!fullscreenActive && showStats && <PerformanceStats />}
+            {!fullscreenActive && showRhythm && <RhythmStats />}
+            {!fullscreenActive && audioDialogOpen && <AudioSourceDialog onClose={() => setAudioDialogOpen(false)} />}
         </>
     );
 }

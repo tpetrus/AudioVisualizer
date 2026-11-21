@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { cubesControls } from './cubesControls';
 import { useCubesScene } from './useCubesScene';
+import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
+import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { CUBES_ANALYSER } from './cubesAnalyser';
 import { useAnalyser } from '~/features/audio/useAudioState';
@@ -9,6 +11,8 @@ import { useControlValues } from '~/components/ControlPanel/useControlValues';
 
 export function CubesPage() {
     const containerRef = useRef<HTMLDivElement>(null);
+    const fullscreenRef = useRef<HTMLDivElement>(null);
+    const fullscreen = useFullscreen(fullscreenRef);
     const analyser = useAnalyser(CUBES_ANALYSER);
     const hub = useAudioHub();
     const { values, valuesRef, setValue, resetAll } = useControlValues(cubesControls);
@@ -27,7 +31,13 @@ export function CubesPage() {
 
     return (
         <>
-            <div ref={containerRef} className="fixed inset-0 bg-black" />
+            {/* The wrapper is the fullscreen target, so the browser hides every overlay outside it. It is React-owned and its
+                className must stay a static string (useFullscreen adds the idle-cursor classes to it). The canvas host
+                stays a separate child because useThreeScene appends and removes the canvas imperatively. */}
+            <div ref={fullscreenRef} className="fixed inset-0 bg-black">
+                <div ref={containerRef} className="absolute inset-0" />
+                <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
+            </div>
             <ControlPanel
                 definitions={cubesControls}
                 values={values}
@@ -37,6 +47,8 @@ export function CubesPage() {
                 onCameraLockedChange={setCameraLocked}
                 viewChanged={viewChanged}
                 onResetView={resetView}
+                fullscreenActive={fullscreen.active}
+                onToggleFullscreen={() => fullscreen.toggle()}
             />
         </>
     );
