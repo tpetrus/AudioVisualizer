@@ -136,6 +136,16 @@ describe('BoundaryDetector novelty', () => {
         expect(stream.detector.novelty).toBeLessThan(1);
     });
 
+    it('counts its soft boundaries, and keeps counting across reset()', () => {
+        const stream = createStream();
+        expect(stream.detector.softBoundaryCount).toBe(0);
+        play(stream, 30, SONG_A);
+        play(stream, 20, SONG_B);
+        expect(stream.detector.softBoundaryCount).toBe(1);
+        stream.detector.reset();
+        expect(stream.detector.softBoundaryCount).toBe(1);
+    });
+
     it('is forgotten by reset()', () => {
         const stream = createStream();
         play(stream, 30, SONG_A);
@@ -166,6 +176,7 @@ describe('BoundaryDetector tempo cue', () => {
         pushTempos(detector, 0, 10, 100);
         const results = pushTempos(detector, 10, 6, 130);
         expect(count(results, BOUNDARY_SOFT)).toBe(1);
+        expect(detector.softBoundaryCount).toBe(1);
         expect(results.indexOf(BOUNDARY_SOFT) * 0.25).toBeGreaterThanOrEqual(3);
     });
 

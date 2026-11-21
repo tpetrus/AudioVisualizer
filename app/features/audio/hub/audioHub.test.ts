@@ -397,6 +397,48 @@ describe('AudioHub', () => {
             expect(second.disconnected.length).toBe(4);
         });
 
+        it('reads 0 and disconnects the tap when the source goes away, with no explicit time', () => {
+            const { source, disconnected } = stubSource(0.25);
+            tracker.source = source;
+            hub.update();
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
+            // A stopped capture: the real tracker has no source and so no render time either.
+            tracker.source = undefined;
+            tracker.now = undefined;
+            hub.update();
+            expect(hub.snapshot.gateBass.pulse).toBe(0);
+            expect(disconnected.length).toBe(4);
+        });
+
+        it('keeps the tap and the pulse across a transiently undefined render time with the same source', () => {
+            const { source, nodes, disconnected } = stubSource(0.25);
+            tracker.source = source;
+            hub.update();
+            const built = nodes.length;
+            tracker.now = undefined;
+            hub.update();
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
+            expect(nodes.length).toBe(built);
+            expect(disconnected.length).toBe(0);
+            // The rest of the snapshot is left alone without a render time.
+            expect(hub.snapshot.time).toBe(10);
+        });
+
+        it('does nothing without a render time or a started tracker', () => {
+            const fresh = new AudioHub({ gateBass: { level: () => 0.3, dispose: vi.fn() } });
+            fresh.update();
+            expect(fresh.snapshot.gateBass.pulse).toBe(0);
+        });
+
+        it('reads the pulse at an explicit time as before, even when the render time is undefined', () => {
+            const { source } = stubSource(0.4);
+            tracker.source = source;
+            tracker.now = undefined;
+            hub.update(5);
+            expect(hub.snapshot.time).toBe(5);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.4, 6);
+        });
+
         it('disconnects its tap when disposed', () => {
             const { source, disconnected } = stubSource(0.25);
             tracker.source = source;

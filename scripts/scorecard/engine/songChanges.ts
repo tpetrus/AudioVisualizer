@@ -1,6 +1,5 @@
-import { RhythmAnalyzer } from '../../../app/features/rhythm/rhythmAnalyzer';
-
-// A song change with the time of the analyzed frame that raised it.
+// A song change with the time of the analyzed frame that raised it. The replay records one per rise of the analyzer's
+// songChangeCount (ReplayResult.songChanges).
 export interface SongChangeEvent {
     time: number;
 }
@@ -51,26 +50,4 @@ export function countUnexplainedChanges(
     return events.filter(
         (event) => !silences.some((s) => event.time >= s.start && event.time <= s.end + SILENCE_GRACE_SECONDS),
     ).length;
-}
-
-// The replay reports only the final songChangeCount, but the silence rule needs when each change happened. This wraps
-// the analyzer's pushFrame, watches the counter after each frame and records the frame time of every rise. It changes
-// nothing the analyzer sees. The wrapper is put back when `run` ends, even if it throws.
-export function recordSongChanges<T>(run: () => T): { result: T; events: SongChangeEvent[] } {
-    const prototype = RhythmAnalyzer.prototype;
-    // The original is always called back with its own `this` through apply below.
-    // eslint-disable-next-line @typescript-eslint/unbound-method
-    const original = prototype.pushFrame;
-    const events: SongChangeEvent[] = [];
-    prototype.pushFrame = function (this: RhythmAnalyzer, ...args: Parameters<typeof original>) {
-        const before = this.state.songChangeCount;
-        original.apply(this, args);
-        for (let n = before; n < this.state.songChangeCount; n++) events.push({ time: args[0] });
-    };
-    try {
-        const result = run();
-        return { result, events };
-    } finally {
-        prototype.pushFrame = original;
-    }
 }

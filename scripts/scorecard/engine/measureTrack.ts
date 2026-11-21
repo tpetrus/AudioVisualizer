@@ -5,7 +5,7 @@ import { LIVE_REACTION_COLUMN } from '../targets';
 import type { TrackMeasures, TrackClass } from '../types';
 import { scorecardBeatErrorMs, trackerOctave } from './beatError';
 import { RENDER_HZ, replayPcm } from './replay';
-import { countUnexplainedChanges, findSilences, recordSongChanges } from './songChanges';
+import { countUnexplainedChanges, findSilences } from './songChanges';
 import { SCORECARD_TEMPO_TOLERANCE, constantTruth, driftingTruth, foldedError, type TempoTruth } from './tempoTruth';
 
 export interface MeasureTrackInput {
@@ -104,13 +104,13 @@ function cubesReaction(pulse: Float32Array, beats: readonly number[] | undefined
 }
 
 export function measureTrack(input: MeasureTrackInput): TrackMeasures {
-    const { result: replay, events } = recordSongChanges(() => replayPcm(input.pcm, input.sampleRate));
+    const replay = replayPcm(input.pcm, input.sampleRate);
     const { sidecar } = input;
     const base = {
         track: input.track,
         class: input.class,
         seconds: replay.seconds,
-        falseSongChanges: countUnexplainedChanges(events, findSilences(input.pcm, input.sampleRate)),
+        falseSongChanges: countUnexplainedChanges(replay.songChanges, findSilences(input.pcm, input.sampleRate)),
         gateFirstOpenSeconds: replay.gate.firstOpenSeconds,
         gateOpenShare: replay.gate.openShare,
         dancerLockSeconds: replay.dancerLockSeconds,
