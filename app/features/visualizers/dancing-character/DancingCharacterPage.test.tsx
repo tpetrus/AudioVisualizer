@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-import { act, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dancingCharacterControls } from './dancingCharacterControls';
 import { DancingCharacterPage } from './DancingCharacterPage';
 import { useDancingCharacterScene } from './useDancingCharacterScene';
 import { audioHub } from '~/features/audio/hub/audioHub';
+import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
+import type { FullscreenSupport } from '~/features/fullscreen/types';
 import { renderWithProviders } from '~/test/renderWithProviders';
 
 // The default plus a made-up second character, so the page spec does not depend on which real characters ship.
@@ -53,7 +55,7 @@ describe('DancingCharacterPage', () => {
         const { container } = renderWithProviders(<DancingCharacterPage />);
 
         const [containerRef] = vi.mocked(useDancingCharacterScene).mock.calls[0];
-        expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0'));
+        expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0 > .absolute.inset-0'));
         const defaults = Object.fromEntries(dancingCharacterControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
         expect(latestOptions().reducedMotion).toBe(false);
@@ -71,13 +73,14 @@ describe('DancingCharacterPage', () => {
 
     it('shows no status note until the model fails to load', () => {
         renderWithProviders(<DancingCharacterPage />);
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        const note = "The dancer couldn't be loaded. Try reloading the page.";
+        expect(screen.queryByText(note)).not.toBeInTheDocument();
 
         act(() => latestOptions().onStatus('ready'));
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText(note)).not.toBeInTheDocument();
 
         act(() => latestOptions().onStatus('modelFailed'));
-        expect(screen.getByRole('status')).toHaveTextContent("The dancer couldn't be loaded. Try reloading the page.");
+        expect(screen.getByText(note)).toBeInTheDocument();
     });
 
     it('starts with the camera locked and passes lock changes to the scene', async () => {
@@ -144,10 +147,101 @@ describe('DancingCharacterPage', () => {
         act(() => latestOptions().onCharacterProblem("Robot couldn't be loaded, so the default character is back."));
 
         expect(screen.getByLabelText('Character')).toHaveValue('makehuman');
-        expect(screen.getByRole('status')).toHaveTextContent("Robot couldn't be loaded");
+        expect(screen.getByText(/Robot couldn't be loaded/)).toBeInTheDocument();
 
         act(() => latestOptions().onCharacterProblem(null));
-        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText(/Robot couldn't be loaded/)).not.toBeInTheDocument();
         expect(screen.getByLabelText('Character')).toHaveValue('makehuman');
+    });
+});
+
+describe('DancingCharacterPage fullscreen', () => {
+    let fake: FakeFullscreen;
+
+    afterEach(() => fake.restore());
+
+    // The fullscreen target is the canvas host's parent, so the browser hides everything outside it.
+    function renderPage(support: FullscreenSupport) {
+        fake = installFakeFullscreen({ support });
+        const rendered = renderWithProviders(<DancingCharacterPage />);
+        const host = vi.mocked(useDancingCharacterScene).mock.calls[0][0].current as HTMLElement;
+        return { ...rendered, wrapper: host.parentElement as HTMLElement };
+    }
+
+    it('adds the Fullscreen button after Settings', () => {
+        renderPage('native');
+
+        const labels = screen.getAllByRole('button').map((button) => button.textContent || button.ariaLabel);
+        const settings = labels.indexOf('☰ Settings');
+        expect(settings).toBeGreaterThan(-1);
+        expect(screen.getByRole('button', { name: 'Fullscreen (F)' })).toBe(
+            screen.getAllByRole('button')[settings + 1],
+        );
+    });
+
+    it('makes the wrapper the fullscreen element, hides the bar and shows the hint', async () => {
+        const { user, wrapper } = renderPage('native');
+
+        await user.click(screen.getByRole('button', { name: 'Fullscreen (F)' }));
+        await act(async () => {});
+
+        expect(fake.element).toBe(wrapper);
+        expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
+        expect(screen.getByText('Press ESC to exit Fullscreen mode')).toBeInTheDocument();
+    });
+
+    it('restores the bar and focuses the button when the browser leaves fullscreen', async () => {
+        const { user } = renderPage('native');
+        await user.click(screen.getByRole('button', { name: 'Fullscreen (F)' }));
+        await act(async () => {});
+
+        act(() => fake.exitExternally());
+
+        expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Fullscreen (F)' })).toHaveFocus();
+    });
+
+    it('falls back to a pseudo mode without the API, and Escape leaves it', async () => {
+        const { user } = renderPage('none');
+
+        await user.click(screen.getByRole('button', { name: 'Fullscreen (F)' }));
+        await act(async () => {});
+        expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument();
+        expect(screen.getByText('Press ESC to exit Fullscreen mode')).toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
+    });
+
+    it('hides the status messages while in fullscreen and restores them afterwards', async () => {
+        const { user } = renderPage('none');
+        act(() => latestOptions().onStatus('modelFailed'));
+        act(() => latestOptions().onCharacterProblem('Robot could not be loaded.'));
+        expect(screen.getByText(/The dancer couldn't be loaded/)).toBeInTheDocument();
+        expect(screen.getByText('Robot could not be loaded.')).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Fullscreen (F)' }));
+        await act(async () => {});
+        expect(screen.queryByText(/The dancer couldn't be loaded/)).not.toBeInTheDocument();
+        expect(screen.queryByText('Robot could not be loaded.')).not.toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.getByText(/The dancer couldn't be loaded/)).toBeInTheDocument();
+        expect(screen.getByText('Robot could not be loaded.')).toBeInTheDocument();
+    });
+
+    it('hides the attribution while in fullscreen and restores it afterwards', async () => {
+        const { user } = renderPage('none');
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        await user.selectOptions(screen.getByLabelText('Character'), 'robot');
+        expect(screen.getByText(/Robot by Ada Maker/)).toBeInTheDocument();
+
+        await act(async () => {
+            fireEvent.keyDown(document, { key: 'f' });
+        });
+        expect(screen.queryByText(/Robot by Ada Maker/)).not.toBeInTheDocument();
+
+        fireEvent.keyDown(document, { key: 'Escape' });
+        expect(screen.getByText(/Robot by Ada Maker/)).toBeInTheDocument();
     });
 });

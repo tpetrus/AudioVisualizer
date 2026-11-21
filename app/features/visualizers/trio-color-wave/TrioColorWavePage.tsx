@@ -1,12 +1,16 @@
 import { useRef, useState } from 'react';
 import { trioColorWaveControls } from './trioColorWaveControls';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
+import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
+import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
 import { useAnalyser } from '~/features/audio/useAudioState';
 
 export function TrioColorWavePage() {
     const containerRef = useRef<HTMLDivElement>(null);
+    const fullscreenRef = useRef<HTMLDivElement>(null);
+    const fullscreen = useFullscreen(fullscreenRef);
     const analyser = useAnalyser();
     const { values, valuesRef, setValue, resetAll } = useControlValues(trioColorWaveControls);
     // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.
@@ -23,8 +27,14 @@ export function TrioColorWavePage() {
 
     return (
         <>
-            {/* Fill the whole window with black, so nothing of the page shows around or under the picture. */}
-            <div ref={containerRef} className="fixed inset-0 overflow-hidden bg-black" />
+            {/* The wrapper is the fullscreen target, so the browser hides every overlay outside it. It is React-owned and its
+                className must stay a static string (useFullscreen adds the idle-cursor classes to it). The canvas host
+                stays a separate child because useThreeScene appends and removes the canvas imperatively. */}
+            <div ref={fullscreenRef} className="fixed inset-0 bg-black">
+                {/* Fill the whole window with black, so nothing of the page shows around or under the picture. */}
+                <div ref={containerRef} className="absolute inset-0 overflow-hidden" />
+                <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
+            </div>
             <ControlPanel
                 definitions={trioColorWaveControls}
                 values={values}
@@ -34,6 +44,8 @@ export function TrioColorWavePage() {
                 onCameraLockedChange={setCameraLocked}
                 viewChanged={viewChanged}
                 onResetView={resetView}
+                fullscreenActive={fullscreen.active}
+                onToggleFullscreen={() => fullscreen.toggle()}
             />
         </>
     );
