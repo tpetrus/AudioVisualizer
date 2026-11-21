@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { audioHub } from '~/features/audio/hub/audioHub';
 import { BASS_INK_ANALYSER } from './bassInkAnalyser';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -35,9 +36,10 @@ describe('BassInkPage', () => {
         expect(containerRef.current).toBe(container.querySelector('.fixed.inset-0 > .absolute.inset-0'));
     });
 
-    it('hands the scene its own analyser node (not the tap), the rhythm tracker and the default control values', () => {
+    it('hands the scene its own analyser node (not the tap), the audio hub, the rhythm tracker and the default control values', () => {
         const { engine, tracker } = renderWithProviders(<BassInkPage />);
         expect(latestOptions().analyser).toBeUndefined();
+        expect(latestOptions().hub).toBe(audioHub);
         expect(latestOptions().rhythm).toBe(tracker);
 
         const analyser = asWebAudio<AnalyserNode>({});

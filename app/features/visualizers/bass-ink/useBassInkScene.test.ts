@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react';
 import type { PerspectiveCamera, Scene } from 'three';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
+import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
@@ -155,6 +156,7 @@ function createContainer(width: number, height: number): HTMLDivElement {
 function mountScene(initial: Partial<Props> = {}) {
     const resizes = installFakeResizeObserver();
     const tracker = new FakeRhythmTracker();
+    const hub = new FakeAudioHub();
     const containerRef = { current: createContainer(800, 600) };
     const valuesRef: { current: BassInkControlValues } = { current: defaultValues(bassInkControls) };
     const onViewChanged = vi.fn();
@@ -163,6 +165,7 @@ function mountScene(initial: Partial<Props> = {}) {
         ({ analyser, cameraLocked }: Props) =>
             useBassInkScene(containerRef, {
                 analyser,
+                hub,
                 rhythm: asTracker(tracker),
                 valuesRef,
                 cameraLocked,
@@ -180,7 +183,7 @@ function mountScene(initial: Partial<Props> = {}) {
     };
     frame();
     const [scene, camera] = renderer.render.mock.calls[0] as unknown as [Scene, PerspectiveCamera];
-    return { ...hook, renderer, scene, camera, frame, tracker, valuesRef, onViewChanged, resizes, containerRef };
+    return { ...hook, renderer, scene, camera, frame, tracker, hub, valuesRef, onViewChanged, resizes, containerRef };
 }
 
 // The palette and the cue time the cloud was last updated with, as copies (the scene reuses one palette object).
@@ -424,22 +427,76 @@ describe('useBassInkScene', () => {
             expect(FakeRenderer.instances).toEqual([renderer]);
         });
 
-        it('taps the bass of each bound source for the gate and releases every tap', () => {
+        it('builds no filters and no taps of its own for the gate', () => {
+            const { analyser, node } = createAnalyser();
+            const { frame, unmount } = mountScene({ analyser: node });
+            frame();
+            unmount();
+
+            expect(analyser.context.createBiquadFilter).not.toHaveBeenCalled();
+            expect(analyser.connect).not.toHaveBeenCalled();
+        });
+
+        it('feeds the gate the hub gate bass through the bump envelope', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            frame();
+            expect(gateScript.calls.at(-1)!.bass).toBe(0);
+
+            hub.setGateBass(0.5);
+            // The envelope starts unseeded, so a sustained level reads as a bump while the slow follower catches up.
+            for (let i = 0; i < 10; i++) frame();
+            const raised = gateScript.calls.at(-1)!.bass;
+            expect(raised).toBeGreaterThan(0);
+            expect(readProbe()[17]).toBeCloseTo(raised, 5);
+        });
+
+        it('feeds the gate nothing without a source even when the hub reports bass', () => {
+            const { frame, hub } = mountScene();
+            hub.setGateBass(0.9);
+            frame();
+            frame();
+            expect(gateScript.calls.at(-1)!.bass).toBe(0);
+            expect(readProbe()[17]).toBe(0);
+        });
+
+        it('starts a fresh envelope for a new source', () => {
             const first = createAnalyser();
             const second = createAnalyser();
-            const { frame, rerender, unmount } = mountScene({ analyser: first.node });
-            frame();
-            expect(first.analyser.context.createBiquadFilter).toHaveBeenCalledTimes(2);
-            expect(first.analyser.connect).toHaveBeenCalledTimes(1);
+            const { frame, hub, rerender } = mountScene({ analyser: first.node });
+            hub.setGateBass(0.5);
+            for (let i = 0; i < 30; i++) frame();
+            const settled = gateScript.calls.at(-1)!.bass;
 
             rerender({ analyser: second.node, cameraLocked: true });
             frame();
-            // The old source no longer feeds a tap of a scene that has moved on.
-            expect(first.analyser.disconnect).toHaveBeenCalledTimes(1);
-            expect(second.analyser.connect).toHaveBeenCalledTimes(1);
+            // The old envelope had followed the level up; a fresh one has no history, so it responds differently.
+            expect(gateScript.calls.at(-1)!.bass).not.toBe(settled);
+        });
 
-            unmount();
-            expect(second.analyser.disconnect).toHaveBeenCalledTimes(1);
+        it('starts a fresh envelope when the source goes away and comes back', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, rerender } = mountScene({ analyser: node });
+            hub.setGateBass(0.5);
+            frame();
+            const firstFrame = gateScript.calls.at(-1)!.bass;
+            for (let i = 0; i < 30; i++) frame();
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            frame();
+            rerender({ analyser: node, cameraLocked: true });
+            frame();
+            expect(gateScript.calls.at(-1)!.bass).toBeCloseTo(firstFrame, 9);
+        });
+
+        it('brings the hub up to date at build and once per frame', () => {
+            const { hub, frame } = mountScene();
+            // One call at build, one for the first frame already drawn by mountScene.
+            expect(hub.update).toHaveBeenCalledTimes(2);
+
+            frame();
+            frame();
+            expect(hub.update).toHaveBeenCalledTimes(4);
         });
 
         it('ripples the spectrum of the bound source through the cloud, one new row per frame', () => {
@@ -488,14 +545,16 @@ describe('useBassInkScene', () => {
 
         it('keeps reading nothing after the source goes away', () => {
             const { analyser, node } = createAnalyser();
-            const { frame, rerender } = mountScene({ analyser: node });
-            analyser.setFloatTimeDomainData(0.5);
+            const { frame, hub, rerender } = mountScene({ analyser: node });
+            analyser.setByteFrequencyData(120);
+            hub.setGateBass(0.5);
             frame();
 
             rerender({ analyser: undefined, cameraLocked: true });
             frame();
 
             expect(readProbe()[0]).toBe(0);
+            expect(readProbe()[17]).toBe(0);
         });
     });
 
@@ -658,6 +717,7 @@ describe('useBassInkScene', () => {
                     { current: null },
                     {
                         analyser: undefined,
+                        hub: new FakeAudioHub(),
                         rhythm: asTracker(new FakeRhythmTracker()),
                         valuesRef: { current: defaultValues(bassInkControls) },
                         cameraLocked: true,
