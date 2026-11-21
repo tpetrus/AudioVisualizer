@@ -257,6 +257,34 @@ describe('clipMaxDeviations', () => {
     });
 });
 
+describe('reaction metrics on a counter column', () => {
+    const columns = ['t', 'bass-ink.kicks'];
+    // The gate-pulse counter steps by one at each of `steps`, and never falls: 40 steps over 10 s, far more than the
+    // 20%-of-range rise rule could see within one 50 ms window.
+    const counting = (steps: number[]): TelemetryTable =>
+        table(
+            columns,
+            times(11).map((t) => [t, steps.filter((step) => step <= t + 1e-9).length]),
+        );
+    const beats = Array.from({ length: 40 }, (_, i) => 0.5 + i * 0.25);
+
+    it('fires on every increment', () => {
+        const onBeat = counting(beats.map((beat) => beat + 0.02));
+        expect(hitShare(onBeat, 'bass-ink', beats)).toBe(1);
+        expect(falseFireShare(onBeat, 'bass-ink', beats)).toBe(0);
+        expect(reactionLatencyMs(onBeat, 'bass-ink', beats)).toBeCloseTo(20);
+    });
+
+    it('counts steps on every other beat as half the beats and steps between beats as false fires', () => {
+        const half = counting(beats.filter((_, i) => i % 2 === 0).map((beat) => beat + 0.01));
+        expect(hitShare(half, 'bass-ink', beats)).toBeCloseTo(0.5, 5);
+        expect(falseFireShare(half, 'bass-ink', beats)).toBe(0);
+        const between = counting(beats.map((beat) => beat + 0.12));
+        expect(hitShare(between, 'bass-ink', beats)).toBe(0);
+        expect(falseFireShare(between, 'bass-ink', beats)).toBe(1);
+    });
+});
+
 describe('reaction metrics', () => {
     const columns = ['t', 'cubes.out'];
     // The column jumps to 1 at `delay` after each beat and falls back 0.1 s later; `extra` adds rises of its own.
