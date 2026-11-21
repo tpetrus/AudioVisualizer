@@ -1,19 +1,31 @@
+import { AudioHub } from '../../../app/features/audio/hub/audioHub';
 import { BASS_INK_ANALYSER } from '../../../app/features/visualizers/bass-ink/bassInkAnalyser';
 import { bassInkConfig } from '../../../app/features/visualizers/bass-ink/bassInkConfig';
 import { bassBinCount, bassLevel, EnergyTracker } from '../../../app/features/visualizers/bass-ink/energyEnvelope';
 import { SetDirector } from '../../../app/features/visualizers/bass-ink/setDirector';
+import { BandOnsets } from '../../../app/features/rhythm/bandOnsets';
 import { OnsetExtractor, packFrame } from '../../../app/features/rhythm/onsetExtractor';
 import { RhythmAnalyzer } from '../../../app/features/rhythm/rhythmAnalyzer';
-import { BATCH_FRAMES, FFT_SIZE, FRAME_STRIDE } from '../../../app/features/rhythm/rhythmConfig';
+import {
+    BATCH_FRAMES,
+    FEATURE_ONSET_BAND_COUNT,
+    FFT_SIZE,
+    FRAME_STRIDE,
+    HUB_BAND_COUNT,
+} from '../../../app/features/rhythm/rhythmConfig';
+import { FEATURE_MESSAGE_VERSION, type FeatureBatch } from '../../../app/features/rhythm/types';
 import { applyAgc } from './agc';
 import { RENDER_HZ } from './replay';
 
 // The advisory set-director measurement (hub follow-ups S4, AC6): how often and when `bass-ink`'s set director starts a
 // transition to a new formation on a real track. The director reads two things: the rhythm state (kick onsets, novelty,
 // chroma, song changes) and the bass energy envelope. The state comes from the same tracker pipeline the replay runs;
-// the energy comes from the analyser byte spectrum the scene reads today, which `AnalyserNode` is emulated for below.
-// Only the director's own code is the app's: the offline cell exists so that a change to where the energy comes from
-// (the hub, FU-S9-bass-ink-energy) can be compared with this one before it is kept.
+// the energy comes from one of two sources (`SetDirectorOptions.energy`): the analyser byte spectrum the scene reads,
+// which `AnalyserNode` is emulated for below, or the hub's `gateBass.lowEnd`, which FU-S9-bass-ink-energy (S5) tried as
+// the scene's input and rejected: on `syncopationbass` the hub input starts the first transition 0.8 to 0.9 s early (more
+// than a beat at 98 BPM) whatever the ratio thresholds, and with the thresholds unchanged `lonley` and `beatless` change
+// their count too (the table is in docs/plans/hub-followups/ledger.md). Both stay so the comparison can be repeated.
+// Only the director's own code is the app's.
 //
 // Fidelity notes. The analyser is emulated from the post-gain audio with the Web Audio spec's own steps (a Blackman
 // window over the last fftSize samples, magnitudes over fftSize, smoothing per call, then the dB-to-byte mapping), read
@@ -92,27 +104,67 @@ export class BassByteLevel {
     }
 }
 
+// Where the energy envelope's input comes from.
+export type EnergySource = 'hub' | 'analyser';
+
+export interface SetDirectorOptions {
+    // The envelope's input: what the app reads (default `DEFAULT_ENERGY_SOURCE`), or the other one for comparison.
+    energy?: EnergySource;
+}
+
+// What the scene feeds its energy envelope, so a plain measure matches the app.
+export const DEFAULT_ENERGY_SOURCE: EnergySource = 'analyser';
+
 // Replays one track through the tracker and `bass-ink`'s energy envelope and set director on the 60 Hz render clock,
 // and returns when the director started each transition. Deterministic.
-export function measureSetDirector(track: string, pcm: Float32Array, sampleRate: number): SetDirectorMeasure {
+export function measureSetDirector(
+    track: string,
+    pcm: Float32Array,
+    sampleRate: number,
+    options: SetDirectorOptions = {},
+): SetDirectorMeasure {
+    const useHub = (options.energy ?? DEFAULT_ENERGY_SOURCE) === 'hub';
     const audio = applyAgc(pcm, sampleRate);
     const extractor = new OnsetExtractor(sampleRate);
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
-    const bass = new BassByteLevel(sampleRate);
+    const bass = useHub ? undefined : new BassByteLevel(sampleRate);
+    // The hub gets the same batches the tracker does, as replay.ts feeds it. Only its low end is read here, so it has no
+    // gate-input reader and the band onsets exist only to give the frames their band energies.
+    const hub = new AudioHub({ gateBass: { level: () => 0, dispose: () => {} } });
+    const bandOnsets = useHub ? new BandOnsets(sampleRate, extractor.frameRate) : undefined;
+    const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+    const batch: FeatureBatch = {
+        version: FEATURE_MESSAGE_VERSION,
+        time0: 0,
+        count: 0,
+        frames: new Float32Array(0),
+        frameTimes: new Float64Array(BATCH_FRAMES),
+        bandEnergy: new Float32Array(BATCH_FRAMES * HUB_BAND_COUNT),
+        onsetCount: 0,
+        onsetBand: new Uint8Array(onsetCapacity),
+        onsetTime: new Float64Array(onsetCapacity),
+        onsetStrength: new Float32Array(onsetCapacity),
+    };
     const energy = new EnergyTracker();
     const director = new SetDirector();
     const dt = 1 / RENDER_HZ;
     const transitionTimes: number[] = [];
 
     let tick = 0;
-    // One animation frame: the tracker's phase to the render time, the energy follows the analyser's bass, the director
+    // One animation frame: the tracker's phase to the render time, the energy follows the chosen source, the director
     // reads both.
     const renderTick = (): void => {
         const time = tick * dt;
         tick++;
         analyzer.updatePhase(time);
-        energy.update(bass.level(audio, Math.floor(time * sampleRate)), dt);
+        if (bass) {
+            energy.update(bass.level(audio, Math.floor(time * sampleRate)), dt);
+        } else {
+            // After hub.update, as the scene reads it.
+            hub.update(time);
+            energy.update(hub.snapshot.gateBass.lowEnd, dt);
+        }
         const before = director.cue.transitionCount;
         director.update(state, energy, time);
         if (director.cue.transitionCount !== before) transitionTimes.push(director.cue.transitionStart);
@@ -129,6 +181,11 @@ export function measureSetDirector(track: string, pcm: Float32Array, sampleRate:
             analyzer.pushFrame(times[i], frames, i * FRAME_STRIDE);
             analyzer.updatePhase(times[i]);
         }
+        if (useHub) {
+            batch.count = queued;
+            batch.frameTimes.set(times.subarray(0, queued));
+            hub.onBatch(batch);
+        }
         queued = 0;
     };
     const blockSize = 128;
@@ -137,6 +194,10 @@ export function measureSetDirector(track: string, pcm: Float32Array, sampleRate:
             const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
             packFrame(frame, frames, queued * FRAME_STRIDE);
             times[queued] = time;
+            if (bandOnsets) {
+                bandOnsets.push(frame, time, () => {});
+                batch.bandEnergy.set(bandOnsets.energy, queued * HUB_BAND_COUNT);
+            }
             if (++queued === BATCH_FRAMES) deliver(time);
         });
     }
