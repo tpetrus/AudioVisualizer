@@ -495,7 +495,8 @@ was already fixed: it holds 135 bpm (ratio 0.999), and its beat error passes (30
   because its evidence turns with the grid. Nothing tried moved it: band weights, the phase check's ratio and minimum
   shift, a narrower window, a distance-weighted peak, lower phase or period gains, and following the tempo estimate
   fully. Holding a beat against a strong syncopated onset needs a tracker that keeps more than one phase hypothesis.
-- **`summer2000` (129 ms): mostly the tapped truth.** Fitted with one tempo, the taps stray by 80 ms rms and up to
+- **`summer2000` (129 ms): mostly the tapped truth** (corrected in S8: with Trevor's new taps the error is the
+  tracker's; see "S8 findings"). Fitted with one tempo, the taps stray by 80 ms rms and up to
   188 ms, wandering slowly (from -188 ms at 2 s to +142 ms at 15 s). The tracker's grid is steady, and the kick folds
   sharply on it but is smeared on the taps. Tap jitter alone breaks the 40 ms floor.
 - **`drifting-tempo` (0.028): tap jitter plus the tracker's lag.** The tapped tempo ramps from 112 to 117 bpm, and the
@@ -548,13 +549,105 @@ was already fixed: it holds 135 bpm (ratio 0.999), and its beat error passes (30
 - **`half-time-shuffle` gate:** needs the tracker to count the shuffle's beat (83 bpm), not its 169 bpm subdivision,
   or a gate that searches bar lengths. Both are redesigns.
 
+## S8 findings (targets version 8, measured on `775ad02`)
+S8 owned AC7: in 3 of 4 plays of each real track (two fresh page loads and one page that plays the track twice) the
+dance stays with the run median after the lock, and the lock times agree within 2 s. Trevor also re-tapped `lonley` and
+`summer2000` before S8 (`FU-S7-retap-summer2000`), so the baseline carries their new `.beats.json` hashes. Each cause
+below was traced from the dancer's telemetry, run by run, against its own tracker's beat and bar phase.
+
+### The re-tapped truth
+- **`lonley`**: 21 ms rms against one tempo (was 25). Beat error 33.3 to 25.9 ms; cubes hit share 0.09 to 0.14 and
+  latency 83 to 50 ms.
+- **`summer2000`**: 65 ms rms against one tempo (was 80) and tight after 14 s; a few uneven gaps remain between 8.6 and
+  13.4 s (0.68, 0.78, 0.35 and 0.34 s against a 0.47 s beat). The cubes now land on the taps (hit share 0.03 to 0.30,
+  latency 119 to 45 ms), but the tracker's beat error rises from 129 to 150 ms: its beats sit 130 to 150 ms off the new
+  taps through most of the track. That corrects S7's cause ("mostly the tapped truth"): with taps that match the kicks,
+  the error is the tracker's. The cell stays deferred under D11.
+
+### Causes
+- **A re-select kept the dance the rotation had reached.** `restartDance` rewound the clock and the director's counters
+  but kept the active dance, so the second play in a page danced another clip, often with another loop length, than a
+  fresh load (S3's finding).
+- **The dancer keeps only the beat, and the bar once its meter locks, by design.** Before the meter lock it compares only
+  its place in the beat (`computeDanceTiming`: targeting the tracker's beat count would jump half a loop when the count
+  jitters), and after it only its place in the bar, while the calm clip is two bars long. Which beat or bar of the loop
+  it is on depends on when its clock started: a fresh load starts it when the model loads, about 1.4 s into the track, a
+  re-select when the source is chosen. With the re-select fixed, nearly every remaining deviation in loops was a whole
+  number of beats (0.125, 0.25, 0.375 or 0.5 of an 8-beat loop): on `imyourgirl` the re-selected run was 0.25 loop off
+  until its meter locked at about 20 s and then matched (0.339 against 0.342). The 0.05-loop cell measured that freedom,
+  not whether the dancer was with the music.
+- **The dancer slides into the bar after a lock.** The phase correction is capped at 0.06 loop a second, so closing two
+  beats of an 8-beat clip takes about 4 s; the cell sampled from the latest run's meter lock, when that run had not yet
+  caught up (`imyourgirl`, `syncopationbass`, `syncopationbass2` after its tempo lock, `lonley`'s re-select). Once caught
+  up every run was within 0.02 beat of its own tracker.
+- **A dance an octave from the tracker could not hold the beat** (`half-time-shuffle`). The dance tempo is folded into
+  80 to 160 BPM, but the beat and bar phases it aligns to are the tracker's, at the raw tempo: 165 BPM was danced at
+  82.5, so one dance beat spanned two tracker beats, the correction could hold no fixed offset, and each run stopped
+  somewhere else (every run half a tracker beat off its tracker, runs 0.14 to 0.28 beat apart).
+- **The tracker disagrees between runs** (`summer2000` before S8's fixes, `low-bpm-rnb`, `high-bpm-dnb`, `6-8-time`,
+  `syncopation-no-kick`): runs put the downbeat a beat apart, the meter lock comes on and off, or the tempo differs (one
+  `syncopation-no-kick` run locks 180 BPM, the 4:3 rival of 135).
+
+### The change
+- **A re-selected source starts on the dance a fresh load starts with** (`DanceDirector.restart`): in Auto the rotation
+  goes back to the initial dance through the usual cross-fade; a manually chosen dance stays.
+- **The dancer counts its place in the tracker's beats** (`computeDanceTiming`): `beatsPerLoop` is the clip's beats over
+  the step multiple times the tracker tempo over the dance tempo, so a dance at half the tracker's tempo holds one offset
+  to its beat and bar. A loop shorter than a tracker bar keeps to the beat. Nothing changes when the two share a tempo.
+  The DEV telemetry gains a `beatsPerLoop` column.
+- **AC7 measures the alignment the dancer keeps** (targets version 8, Trevor's option 2 at S8):
+  `live.clip.maxDeviationBeats` is each run's largest distance, in beats, from the run median, compared within the bar
+  where every run is meter-locked and within the beat otherwise; floor 0.2 beat (the old 0.05 loop of a 4-beat clip).
+  It skips the 4 s after each run's tempo and meter locks, the slide above (Trevor), and is unavailable when fewer than
+  4 s of samples remain, so a lock near the end of a recording cannot pass on a moment. Recordings without the
+  `beatsPerLoop` column have no value.
+- **The live file was carried to version 8 by hand**: only the clip metric changed, so the header was bumped, the old
+  clip cells removed and every other cell kept (the cubes', `trio-color-wave`'s and the pre-hub fields); the dancer's
+  cells were then recorded again.
+
+### Result
+- **Offline**, against the version 7 baseline only the six re-tap cells above change, none from pass to fail; blocking
+  failures stay at 14. The baseline is regenerated at version 8 with the new hashes, and `scorecard:check` passes. All
+  repository checks and budgets pass (total JS 334.84 of 335 kB, worklet 5.76 of 5.8 kB).
+- **Live** (`dancing-character`, 4 runs per track, headless, one at a time): 62 of 86 applicable cells pass, 9 fail and
+  15 are unavailable. The recording was stopped twice for low memory, so 5 tracks were recorded again with `--tracks`;
+  every cell comes from runs of `844d72c` or later (the metric commit after it changes no recording).
+  - **AC7 clip:** passes on 7 of 11 real tracks: `drifting-tempo` 0.023, `half-time-shuffle` 0.031 (0.24 before the
+    octave fix), `imyourgirl` 0.027, `lonley` 0.026, `summer2000` 0.038, `syncopationbass2` 0.040 beat. Fails on
+    `syncopation-no-kick` (0.22 beat: the 180 BPM run, and the other runs' tracker grids 0.12 beat apart). Unavailable
+    on `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb` and `syncopationbass`, whose latest meter lock comes at 26 to 32 s and
+    leaves under 4 s of samples.
+  - **AC7 lock spread:** passes on all 11 (largest 0.19 s).
+  - **Against the S7 baseline:** `drums-150`'s gate opens 3.12 s after the lock (2.80), inside its 3.1 s spread; S8 does
+    not touch the gate. `low-bpm-rnb`'s hit share, false fires and latency show as unavailable (too few runs fired);
+    its gate is deferred under D11.
+- **Not re-recorded:** the cubes' and `trio-color-wave`'s live cells on `lonley` and `summer2000` are still scored
+  against the old taps, because a run folder keeps its own copy of the sidecar (`FU-S8-live-retap`).
+
+### Deferred (under D11, the tracker's; to confirm at review)
+- **AC7 on `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb` and `syncopationbass`:** the runs' trackers
+  disagree on the tempo, the downbeat or when the meter locks.
+- **`summer2000` beat error (150 ms):** the tracker's, as above.
+
 ## Follow-ups outside the fast lane
 - **`FU-S7-drifting-truth`** (R2, it changes the targets; from S7): `tempo.maxErrorAfterLock` on `drifting-tempo`
   compares with the tempo of each 8-beat window of taps, which strays up to 2.0% from a smooth fit of the same taps, so
   a 2% floor measures tap jitter. Score drifting tracks against a quadratic fit of the tapped beat times (or a 16-beat
   window), and bump the targets version.
-- **`FU-S7-retap-summer2000`** (Trevor; needs ears): re-tap `summer2000` twice with the calibration and keep the run
-  with less drift against one tempo (today 80 ms rms, up to 188 ms), then regenerate the baseline.
+- **`FU-S8-live-retap`** (a live run; from S8): record `cubes` and `trio-color-wave` again on `lonley` and `summer2000`
+  (`npm run scorecard:live -- --viz <name> --tracks lonley.wav,summer2000.wav`), whose live cells are still scored
+  against the taps Trevor replaced in S8.
+- **`FU-S8-clip-unit`** (R2, it changes the AC7 definition and the targets version; from S8's review): in
+  `clipMaxDeviations` one run that is not meter-locked at a sample puts every run on the beat unit, so three runs a beat
+  apart in the bar pass while a fourth flickers or never locks; a loop shorter than a bar (`beatsPerLoop` under 4, a
+  4-beat clip against a 70 BPM tracker) is still compared within a bar; and lock flicker can skip most of the span,
+  leaving a pass on just over 4 s. Compare within the bar when at least 3 runs are meter-locked and every compared run
+  has `beatsPerLoop` of 4 or more, report the share the settle window skipped, and require a minimum share of the span.
+- **`FU-S8-manual-reselect`** (dancer behavior; from S8's review, low): with a dance chosen by hand, a fresh load starts on
+  the calm dance and switches at the first bar line, while a re-select stays on the chosen dance with no fade. That
+  follows the intent (the choice is kept), but AC7 would see the difference if it were ever recorded with a manual dance.
+- **`FU-S8-summer2000-gaps`** (Trevor; needs ears; optional): `summer2000`'s new taps still have uneven gaps between 8.6
+  and 13.4 s (0.68, 0.78, 0.35 and 0.34 s against a 0.47 s beat); a third take of that stretch would tighten the truth.
 - **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
   its value over the phase function's own decaying peak, while a level onset's is over its band's peak, so `hub.onsets`
   mixes two scales on `kick` and `bass`. Phase events are also not counted anywhere live. Decide the scale and add a DEV

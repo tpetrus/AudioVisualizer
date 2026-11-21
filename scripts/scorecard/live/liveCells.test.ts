@@ -18,7 +18,7 @@ const metricOf = (id: string): LiveMetricTarget => {
 const GATE = metricOf('live.gate.secondsAfterLock');
 const HIT = metricOf('live.hit.share50ms');
 const LOCK = metricOf('live.lock.spreadSeconds');
-const CLIP = metricOf('live.clip.maxDeviationLoops');
+const CLIP = metricOf('live.clip.maxDeviationBeats');
 
 const cell = (
     metric: LiveMetricTarget,
@@ -160,7 +160,7 @@ describe('mergeLiveFile', () => {
         expect(gate?.status).toBe('pass');
         // The metrics with no values are unavailable (or n/a on a synthetic track).
         expect(file.cells.find((c) => c.metric === 'live.hit.share50ms')?.status).toBe('unavailable');
-        expect(file.cells.find((c) => c.metric === 'live.clip.maxDeviationLoops')?.status).toBe('n/a');
+        expect(file.cells.find((c) => c.metric === 'live.clip.maxDeviationBeats')?.status).toBe('n/a');
         expect(file.runValues.find((entry) => entry.metric === 'live.gate.secondsAfterLock')?.current).toEqual([
             1, 2, 3, 4,
         ]);

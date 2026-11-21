@@ -1,34 +1,34 @@
 {
   "header": {
-    "targetsVersion": 7,
-    "revision": "a3b46a1",
-    "created": "2026-11-20T16:36:14.665Z",
+    "targetsVersion": 8,
+    "revision": "775ad02",
+    "created": "2026-11-21T02:20:59.677Z",
     "sidecarHashes": {}
   },
   "cells": [
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "6-8-time.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.24174749999999995,
-      "value": 0.44732500000000003,
-      "spread": 0.06577499999999992,
-      "runs": 4,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
       "pass": false,
-      "status": "fail"
+      "status": "unavailable"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "bassline-kick-120.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -41,11 +41,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
       "class": "beatless",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -58,11 +58,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -75,11 +75,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "click-140.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -92,11 +92,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "click-174.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -109,11 +109,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "click-90.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -126,28 +126,28 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "class": "drifting",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.059826499999999894,
-      "value": 0.003867500000000079,
-      "spread": 0.4954423,
+      "prehub": null,
+      "value": 0.023270000000000124,
+      "spread": 0.024713480000000843,
       "runs": 4,
       "pass": true,
       "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -160,11 +160,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -177,11 +177,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -194,96 +194,96 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.2882625,
-      "value": 0.3008674999999999,
-      "spread": 0.33758350000000015,
+      "prehub": null,
+      "value": 0.031319999999999126,
+      "spread": 0.016048000000000062,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.0026574999999999793,
-      "value": 0.30936199999999997,
-      "spread": 0.31541499999999967,
-      "runs": 4,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
       "pass": false,
-      "status": "fail"
+      "status": "unavailable"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.006602500000000122,
-      "value": 0.004451750000000032,
-      "spread": 0.48599400000000004,
+      "prehub": null,
+      "value": 0.026699999999999946,
+      "spread": 0.01872000000000007,
       "runs": 4,
       "pass": true,
       "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.003605000000000025,
-      "value": 0.004004999999999981,
-      "spread": 0.4910015000000001,
+      "prehub": null,
+      "value": 0.026140000000000274,
+      "spread": 0.016279999999999628,
       "runs": 4,
       "pass": true,
       "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.002102499999999896,
-      "value": 0.06607000000000007,
-      "spread": 0.09328000000000003,
-      "runs": 4,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
       "pass": false,
-      "status": "fail"
+      "status": "unavailable"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "no-kick-124.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -296,11 +296,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "pad-lead-groove-110.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -313,79 +313,79 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.1425209999999999,
-      "value": 0.1417210000000001,
-      "spread": 0.40188,
+      "prehub": null,
+      "value": 0.038433999999999746,
+      "spread": 0.06179199999999996,
       "runs": 4,
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.016415000000000013,
-      "value": 0.02412000000000003,
-      "spread": 0.47638,
-      "runs": 4,
-      "pass": true,
-      "status": "pass"
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "syncopationbass.wav",
-      "visualizer": "dancing-character",
-      "class": "tapped",
-      "floor": 0.05,
-      "stretch": null,
-      "source": "live",
-      "blocking": false,
-      "applicable": true,
-      "prehub": 0.0010025000000000728,
-      "value": 0.1951799999999999,
-      "spread": 0.4587149999999999,
+      "prehub": null,
+      "value": 0.21936,
+      "spread": 0.345796,
       "runs": 4,
       "pass": false,
       "status": "fail"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "syncopationbass2.wav",
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "class": "tapped",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
       "applicable": true,
-      "prehub": 0.006527500000000019,
-      "value": 0.0042799999999999505,
-      "spread": 0.4830350000000002,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
+      "pass": false,
+      "status": "unavailable"
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "syncopationbass2.wav",
+      "visualizer": "dancing-character",
+      "class": "tapped",
+      "floor": 0.2,
+      "stretch": null,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.03976000000000024,
+      "spread": 0.25667999999999935,
       "runs": 4,
       "pass": true,
       "status": "pass"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -398,11 +398,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -415,11 +415,11 @@
       "status": "n/a"
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
+      "metric": "live.clip.maxDeviationBeats",
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "class": "synthetic",
-      "floor": 0.05,
+      "floor": 0.2,
       "stretch": null,
       "source": "live",
       "blocking": false,
@@ -714,8 +714,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.5294117647058824,
-      "value": 0.5263157894736843,
-      "spread": 0.31052631578947365,
+      "value": 0.5263157894736842,
+      "spread": 0.1350114416475972,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -817,7 +817,7 @@
       "applicable": true,
       "prehub": 0.041666666666666664,
       "value": 0.02,
-      "spread": 0.02127659574468085,
+      "spread": 0.14893617021276595,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -867,8 +867,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0,
-      "spread": 0.017857142857142856,
+      "value": 0.017767295597484276,
+      "spread": 0.018867924528301886,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -918,8 +918,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7916666666666666,
-      "value": 0.7386363636363636,
-      "spread": 0.045454545454545414,
+      "value": 0.7958333333333334,
+      "spread": 0.1133333333333334,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -969,9 +969,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 0.4852941176470588,
-      "spread": 0.9705882352941176,
-      "runs": 2,
+      "value": 0.8703703703703703,
+      "spread": 0,
+      "runs": 1,
       "pass": false,
       "status": "unavailable"
     },
@@ -1020,8 +1020,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.45464480874316937,
-      "value": 0.4645337301587301,
-      "spread": 0.08438228438228434,
+      "value": 0.4880952380952381,
+      "spread": 0.06060606060606061,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1122,11 +1122,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 1,
-      "value": 0.36363636363636365,
-      "spread": 0.15000000000000002,
-      "runs": 3,
-      "pass": true,
-      "status": "pass"
+      "value": 0.3375,
+      "spread": 0.07500000000000001,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.falseFire.share",
@@ -1241,11 +1241,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.963527851458886,
-      "value": 0.8510416666666667,
-      "spread": 0.23541666666666672,
-      "runs": 2,
-      "pass": false,
-      "status": "unavailable"
+      "value": 1,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.falseFire.share",
@@ -1326,8 +1326,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8947368421052632,
-      "value": 0.7804878048780488,
-      "spread": 0.09756097560975607,
+      "value": 0.7439024390243902,
+      "spread": 0.21895787139689582,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1377,8 +1377,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4375,
-      "value": 0.3963893249607535,
-      "spread": 0.04931972789115646,
+      "value": 0.399822695035461,
+      "spread": 0.22319566124322066,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1428,8 +1428,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.016666666666666666,
-      "value": 0,
-      "spread": 0,
+      "value": 0.029411764705882353,
+      "spread": 0.029411764705882353,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1479,8 +1479,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0,
-      "spread": 0.01694915254237288,
+      "value": 0.00847457627118644,
+      "spread": 0.017857142857142856,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1683,8 +1683,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.5997,
-      "value": 2.5055000000000005,
-      "spread": 0.911999999999999,
+      "value": 2.5013000000000005,
+      "spread": 0.8987000000000003,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1700,8 +1700,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.8599499999999995,
-      "value": 3.5053499999999995,
-      "spread": 1.2081,
+      "value": 3.2293499999999997,
+      "spread": 1.2692999999999999,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1717,8 +1717,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 3.8907,
-      "value": 2.77065,
-      "spread": 1.056,
+      "value": 2.75465,
+      "spread": 1.1280000000000001,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1734,11 +1734,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.52,
-      "value": 2.796,
-      "spread": 3.1173,
+      "value": 3.12,
+      "spread": 4.24,
       "runs": 4,
-      "pass": true,
-      "status": "pass"
+      "pass": false,
+      "status": "fail"
     },
     {
       "metric": "live.gate.secondsAfterLock",
@@ -1751,8 +1751,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 10.73985,
-      "value": 10.3602,
-      "spread": 0.02859999999999907,
+      "value": 10.364,
+      "spread": 0.199600000000002,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1768,7 +1768,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 5.2985999999999995,
+      "value": 2.5199999999999996,
       "spread": 0,
       "runs": 1,
       "pass": false,
@@ -1785,8 +1785,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.53865,
-      "value": 2.5199499999999997,
-      "spread": 1.2880000000000003,
+      "value": 2.4985999999999997,
+      "spread": 1.9787000000000003,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1802,8 +1802,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.6186500000000015,
-      "value": 5.298650000000001,
-      "spread": 0.04199999999999804,
+      "value": 5.3,
+      "spread": 0.4480000000000022,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -1819,8 +1819,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 20.2103,
-      "value": 15.759700000000002,
-      "spread": 2.250700000000002,
+      "value": 16.749,
+      "spread": 3.3599999999999994,
       "runs": 3,
       "pass": false,
       "status": "fail"
@@ -1870,9 +1870,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": 7.673350000000002,
-      "value": 6.465150000000001,
-      "spread": 0.8717000000000006,
-      "runs": 2,
+      "value": 6.4388499999999995,
+      "spread": 5.108700000000001,
+      "runs": 4,
       "pass": false,
       "status": "fail"
     },
@@ -1904,8 +1904,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.029,
-      "value": 1.5787000000000013,
-      "spread": 0.05069999999999908,
+      "value": 1.54,
+      "spread": 3.2986000000000004,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1921,8 +1921,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.0613,
-      "value": 3.5399499999999997,
-      "spread": 1.8186,
+      "value": 3.5706999999999995,
+      "spread": 2.2800000000000002,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1938,8 +1938,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.8453,
-      "value": 3.52,
-      "spread": 0.48,
+      "value": 3.49465,
+      "spread": 0.5093999999999994,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1955,8 +1955,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 5.029299999999999,
-      "value": 1.5506499999999996,
-      "spread": 1.6905999999999999,
+      "value": 1.9346999999999996,
+      "spread": 1.6399,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1972,8 +1972,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 4.320300000000001,
-      "value": 0.6906500000000007,
-      "spread": 0.08000000000000007,
+      "value": 0.6946500000000002,
+      "spread": 0.034699999999999065,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2261,8 +2261,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.2857142857142857,
-      "value": 0.3241883116883117,
-      "spread": 0.2857142857142857,
+      "value": 0.32142857142857145,
+      "spread": 0.17857142857142855,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2312,8 +2312,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.7872340425531915,
-      "spread": 0.05427702996092054,
+      "value": 0.8152173913043479,
+      "spread": 0.0723158828748891,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2364,7 +2364,7 @@
       "applicable": true,
       "prehub": 0.7603825136612021,
       "value": 0.7984647410876919,
-      "spread": 0.049180327868852514,
+      "spread": 0.13870056497175143,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2414,8 +2414,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7571428571428571,
-      "value": 0.8052837573385518,
-      "spread": 0.11428571428571421,
+      "value": 0.7704126426690079,
+      "spread": 0.19641418211120065,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2465,8 +2465,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.13513513513513514,
-      "value": 0.16216216216216217,
-      "spread": 0.02702702702702703,
+      "value": 0.13513513513513514,
+      "spread": 0.08108108108108109,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2516,9 +2516,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 0.005952380952380952,
-      "spread": 0.011904761904761904,
-      "runs": 2,
+      "value": 0.08333333333333333,
+      "spread": 0,
+      "runs": 1,
       "pass": false,
       "status": "unavailable"
     },
@@ -2567,8 +2567,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4276315789473684,
-      "value": 0.4473684210526316,
-      "spread": 0.072280701754386,
+      "value": 0.4421510551647538,
+      "spread": 0.059122807017543855,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2669,11 +2669,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.17647058823529413,
-      "spread": 0.02857142857142858,
-      "runs": 3,
-      "pass": true,
-      "status": "pass"
+      "value": 0.17142857142857143,
+      "spread": 0.05714285714285716,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2788,11 +2788,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.01694915254237288,
-      "value": 0.07627118644067797,
-      "spread": 0.11864406779661017,
-      "runs": 2,
-      "pass": false,
-      "status": "unavailable"
+      "value": 0,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2873,8 +2873,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03571428571428571,
-      "value": 0.1607142857142857,
-      "spread": 0.07142857142857142,
+      "value": 0.18912337662337664,
+      "spread": 0.1851851851851852,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2924,8 +2924,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.4308566895822316,
-      "value": 0.4918032786885246,
-      "spread": 0.05711263881544154,
+      "value": 0.48305084745762716,
+      "spread": 0.19946236559139785,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2975,8 +2975,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7023809523809523,
-      "value": 0.7857142857142857,
-      "spread": 0.012987012987012991,
+      "value": 0.8001662971175166,
+      "spread": 0.019163763066202155,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3026,8 +3026,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.7424242424242424,
-      "value": 0.8521080368906455,
-      "spread": 0.045454545454545414,
+      "value": 0.859375,
+      "spread": 0.023056653491436152,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3111,8 +3111,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.050700000000000855,
-      "value": 0.061299999999999244,
-      "spread": 0.2613000000000003,
+      "value": 0.010699999999999932,
+      "spread": 0.03200000000000003,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3230,8 +3230,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.008000000000000895,
-      "value": 0.021300000000000097,
-      "spread": 5.133299999999999,
+      "value": 0.0025999999999992696,
+      "spread": 5.119999999999999,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3298,8 +3298,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.0025999999999992696,
-      "value": 0,
-      "spread": 0.01860000000000106,
+      "value": 0.010600000000000165,
+      "spread": 0.21060000000000123,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3315,8 +3315,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.05069999999999908,
-      "spread": 4.999999999999999,
+      "value": 0.16000000000000014,
+      "spread": 5.1093,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3332,8 +3332,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.010699999999999932,
-      "value": 0.01869999999999994,
-      "spread": 0.058699999999999974,
+      "value": 0.05069999999999997,
+      "spread": 0.24799999999999978,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3349,8 +3349,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.018700000000000827,
-      "value": 0.010699999999999932,
-      "spread": 0.03999999999999915,
+      "value": 0.03739999999999988,
+      "spread": 0.14939999999999998,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3366,7 +3366,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.04269999999999996,
-      "value": 0.06129999999999969,
+      "value": 0.05069999999999997,
       "spread": 5.050699999999999,
       "runs": 4,
       "pass": true,
@@ -3417,8 +3417,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.021300000000000097,
-      "value": 0.010600000000000165,
-      "spread": 0.053300000000000125,
+      "value": 0.05069999999999908,
+      "spread": 0.058699999999999974,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3434,8 +3434,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.061299999999999244,
-      "value": 0,
-      "spread": 0.05069999999999908,
+      "value": 0.08000000000000007,
+      "spread": 4.9893,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3451,8 +3451,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.018700000000000827,
-      "value": 0.010699999999999932,
-      "spread": 0.05069999999999908,
+      "value": 0.18930000000000113,
+      "spread": 5.1413,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3468,8 +3468,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0,
-      "value": 0.05069999999999997,
-      "spread": 0.13870000000000005,
+      "value": 0.018700000000000383,
+      "spread": 0.06930000000000014,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3808,8 +3808,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 15.166666666669215,
-      "value": 9.416666666670181,
-      "spread": 4.333333333335965,
+      "value": 9.333333333337634,
+      "spread": 7.666666666663602,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3859,8 +3859,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 31.000000000001915,
-      "spread": 11.000000000002785,
+      "value": 20.000000000000462,
+      "spread": 8.000000000000895,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3910,8 +3910,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 34.50000000000042,
-      "value": 36.24999999999989,
-      "spread": 4.875000000000185,
+      "value": 35.262499999999534,
+      "spread": 6.875000000000853,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3961,8 +3961,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 31.00000000000236,
-      "value": 34.849999999999824,
-      "spread": 10.699999999999932,
+      "value": 31.00000000000236,
+      "spread": 3.00000000000189,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4012,8 +4012,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 75.66666666667032,
-      "value": 60.08333333333393,
-      "spread": 10.666666666667268,
+      "value": 68.58333333333455,
+      "spread": 3.8333333333344655,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4063,7 +4063,7 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 114.66666666666737,
+      "value": 98.83333333333333,
       "spread": 0,
       "runs": 1,
       "pass": false,
@@ -4114,8 +4114,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.58333333333442,
-      "value": 49.66666666666741,
-      "spread": 2.6666666666645966,
+      "value": 50.16666666666758,
+      "spread": 1.9999999999971152,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4165,8 +4165,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 53.33333333333634,
-      "value": 239.00000000000077,
-      "spread": 62.83333333333198,
+      "value": 249.1666666666683,
+      "spread": 10.333333333333513,
       "runs": 4,
       "pass": false,
       "status": "fail"
@@ -4216,11 +4216,11 @@
       "blocking": false,
       "applicable": true,
       "prehub": null,
-      "value": 46.333333333333115,
-      "spread": 6.833333333332803,
-      "runs": 3,
-      "pass": true,
-      "status": "pass"
+      "value": 40.166666666667794,
+      "spread": 7.666666666665378,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4335,9 +4335,9 @@
       "blocking": false,
       "applicable": true,
       "prehub": 103.9999999999992,
-      "value": 101.50000000000236,
-      "spread": 176.00000000000017,
-      "runs": 2,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
       "pass": false,
       "status": "unavailable"
     },
@@ -4420,8 +4420,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 89.91666666666643,
-      "value": 81.00000000000173,
-      "spread": 9.333333333334963,
+      "value": 80.99999999999952,
+      "spread": 13.333333333331865,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4471,8 +4471,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 49.24166666666929,
-      "value": 49.00000000000304,
-      "spread": 0.33333333333285253,
+      "value": 49.316666666667786,
+      "spread": 11.00000000000012,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4523,7 +4523,7 @@
       "applicable": true,
       "prehub": 33.33299999999895,
       "value": 33.33299999999895,
-      "spread": 2.3330000000001405,
+      "spread": 2.332999999998364,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4573,8 +4573,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 24.571499999999524,
-      "value": 25.713999999998016,
-      "spread": 4.07100000000149,
+      "value": 25.500000000000078,
+      "spread": 2.2860000000015646,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4624,8 +4624,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 35.50000000000075,
-      "value": 31.500000000000306,
-      "spread": 9.999999999999787,
+      "value": 31.000000000000583,
+      "spread": 3.0000000000001137,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5632,13 +5632,6 @@
       "prehub": []
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "click-90.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "click-90.wav",
       "visualizer": "dancing-character",
@@ -5670,53 +5663,49 @@
       "metric": "live.gate.secondsAfterLock",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "click-120.wav",
-      "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.lock.spreadSeconds",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        3.248
+      ],
       "prehub": []
     },
     {
       "metric": "live.hit.share50ms",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.falseFire.share",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.reaction.latencyMs",
       "track": "click-120.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.gate.secondsAfterLock",
-      "track": "click-140.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
       "track": "click-140.wav",
       "visualizer": "dancing-character",
       "current": [],
@@ -5752,13 +5741,6 @@
     },
     {
       "metric": "live.gate.secondsAfterLock",
-      "track": "click-174.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
       "track": "click-174.wav",
       "visualizer": "dancing-character",
       "current": [],
@@ -5797,10 +5779,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        2.4505999999999997,
-        3.6586999999999996,
-        3.6586999999999996,
-        3.3519999999999994
+        3.3387,
+        3.7199999999999998,
+        2.4507,
+        3.1199999999999997
       ],
       "prehub": [
         4.901299999999999,
@@ -5810,31 +5792,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "drums-100.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.4999549999999999,
-        0.23641050000000008,
-        0.2364305,
-        0.4750049999999999
-      ],
-      "prehub": [
-        0.4995839999999998,
-        0.0025400000000002088,
-        0.0020400000000000418,
-        0.12588999999999995
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2187,
-        3.2,
-        3.2,
-        3.16
+        3.1813,
+        3.1307,
+        3.2293,
+        3.408
       ],
       "prehub": [
         3.1707,
@@ -5848,10 +5813,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.8297872340425532,
-        0.7872340425531915,
-        0.7872340425531915,
-        0.7755102040816326
+        0.7755102040816326,
+        0.8043478260869565,
+        0.8478260869565217,
+        0.8260869565217391
       ],
       "prehub": [
         0,
@@ -5882,10 +5847,10 @@
       "track": "drums-100.wav",
       "visualizer": "dancing-character",
       "current": [
-        31.00000000000147,
-        31.00000000000236,
-        31.00000000000236,
-        19.999999999999574
+        19.999999999999574,
+        20.00000000000135,
+        19.999999999999574,
+        28.00000000000047
       ],
       "prehub": [
         null,
@@ -5899,10 +5864,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        2.7359999999999998,
-        2.7493,
-        3.792,
-        2.792
+        2.7707,
+        2.7199999999999998,
+        3.848,
+        2.7386
       ],
       "prehub": [
         4.2213,
@@ -5912,31 +5877,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "drums-128.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.003714999999999913,
-        0.003794999999999993,
-        0.0025050000000000905,
-        0.49973
-      ],
-      "prehub": [
-        0.49941000000000013,
-        0.003435000000000077,
-        0.004135,
-        0.002000000000000113
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2027,
-        3.2,
-        3.2987,
-        3.16
+        3.1893,
+        3.24,
+        3.24,
+        3.2107
       ],
       "prehub": [
         3.16,
@@ -5950,10 +5898,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.8032786885245902,
-        0.8032786885245902,
-        0.7540983606557377,
-        0.7936507936507936
+        0.7936507936507936,
+        0.8166666666666667,
+        0.6779661016949152,
+        0.8032786885245902
       ],
       "prehub": [
         0,
@@ -5967,10 +5915,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
+        0,
         0.02,
-        0.02,
-        0.02127659574468085,
-        0
+        0.14893617021276595,
+        0.02
       ],
       "prehub": [
         1,
@@ -5984,10 +5932,10 @@
       "track": "drums-128.wav",
       "visualizer": "dancing-character",
       "current": [
-        37.25000000000023,
+        34.14999999999946,
         36.3749999999996,
-        36.125000000000185,
-        32.37500000000004
+        40.87499999999977,
+        33.99999999999892
       ],
       "prehub": [
         null,
@@ -6001,10 +5949,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        1.9707,
-        5.0693,
-        1.952,
-        3.6212999999999997
+        0.5999999999999996,
+        4.32,
+        1.92,
+        4.84
       ],
       "prehub": [
         3.5999999999999996,
@@ -6014,31 +5962,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "drums-150.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0019400000000000528,
-        0.003422500000000106,
-        0.0016979999999999773,
-        0.49741000000000013
-      ],
-      "prehub": [
-        0.49205999999999994,
-        0.0016300000000000203,
-        0.0024600000000000177,
-        0.002639000000000058
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2,
-        3.2987,
-        3.2187,
-        3.16
+        8.72,
+        3.4,
+        3.24,
+        3.1707
       ],
       "prehub": [
         3.1707,
@@ -6052,10 +5983,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.8571428571428571,
-        0.7428571428571429,
-        0.8571428571428571,
-        0.7534246575342466
+        0.6712328767123288,
+        0.7761194029850746,
+        0.8676470588235294,
+        0.7647058823529411
       ],
       "prehub": [
         0,
@@ -6070,9 +6001,9 @@
       "visualizer": "dancing-character",
       "current": [
         0,
-        0,
-        0,
-        0.017857142857142856
+        0.018867924528301886,
+        0.016666666666666666,
+        0.018867924528301886
       ],
       "prehub": [
         1,
@@ -6086,10 +6017,10 @@
       "track": "drums-150.wav",
       "visualizer": "dancing-character",
       "current": [
-        38.699999999999065,
-        27.99999999999958,
-        38.69999999999951,
-        31.000000000000583
+        31.00000000000236,
+        31.00000000000236,
+        28.00000000000047,
+        31.00000000000236
       ],
       "prehub": [
         null,
@@ -6106,13 +6037,6 @@
       "prehub": []
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "no-kick-124.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "no-kick-124.wav",
       "visualizer": "dancing-character",
@@ -6145,10 +6069,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.52,
-        3.52,
-        3.52,
-        3.04
+        3.0186,
+        3.4693,
+        3.5279999999999996,
+        3.52
       ],
       "prehub": [
         5.68,
@@ -6158,31 +6082,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "trap-2to1-double-90.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0020850000000001145,
-        0.01456500000000005,
-        0.00305500000000003,
-        0.49914499999999995
-      ],
-      "prehub": [
-        0.49850287000000004,
-        0.003944999999999976,
-        0.004255000000000009,
-        0.003944999999999865
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.3387,
-        3.3387,
-        3.3387,
-        3.16
+        3.1707,
+        3.4,
+        3.3307,
+        3.3413
       ],
       "prehub": [
         3.1707,
@@ -6196,10 +6103,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
+        0.7954545454545454,
+        0.8048780487804879,
         0.7857142857142857,
-        0.7857142857142857,
-        0.7857142857142857,
-        0.7727272727272727
+        0.8048780487804879
       ],
       "prehub": [
         0,
@@ -6214,9 +6121,9 @@
       "visualizer": "dancing-character",
       "current": [
         0,
-        0,
-        0,
-        0
+        0.029411764705882353,
+        0.029411764705882353,
+        0.029411764705882353
       ],
       "prehub": [
         1,
@@ -6230,10 +6137,10 @@
       "track": "trap-2to1-double-90.wav",
       "visualizer": "dancing-character",
       "current": [
+        31.000000000000583,
         33.33299999999895,
         33.33299999999895,
-        33.33299999999895,
-        30.999999999998806
+        33.33299999999895
       ],
       "prehub": [
         null,
@@ -6247,10 +6154,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        1.5012999999999996,
+        0.7494000000000001,
+        2.3893,
         1.5999999999999996,
-        2.4505999999999997,
-        0.7599999999999998
+        2.2693999999999996
       ],
       "prehub": [
         5.039999999999999,
@@ -6260,31 +6167,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "trap-2to1-half-140.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0031000000000001027,
-        0.005600000000000049,
-        0.0050200000000000244,
-        0.4974733
-      ],
-      "prehub": [
-        0.49477839999999995,
-        0.004170000000000007,
-        0.0021050000000000235,
-        0.0024489999999999235
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2987,
+        3.1893,
+        3.272,
         3.2,
-        3.2187,
-        3.192
+        3.3893
       ],
       "prehub": [
         3.1813,
@@ -6298,10 +6188,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
+        0.8405797101449275,
+        0.859375,
         0.8636363636363636,
-        0.8636363636363636,
-        0.8181818181818182,
-        0.8405797101449275
+        0.859375
       ],
       "prehub": [
         0.7101449275362319,
@@ -6315,10 +6205,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
+        0.01694915254237288,
+        0.017857142857142856,
         0,
-        0,
-        0,
-        0.01694915254237288
+        0
       ],
       "prehub": [
         0,
@@ -6332,10 +6222,10 @@
       "track": "trap-2to1-half-140.wav",
       "visualizer": "dancing-character",
       "current": [
-        25.285999999999476,
-        25.713999999998904,
-        25.713999999997128,
-        29.357000000000966
+        26.143000000001138,
+        23.856999999999573,
+        25.71400000000068,
+        25.285999999999476
       ],
       "prehub": [
         23.856999999999573,
@@ -6349,10 +6239,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.7093000000000007,
-        0.6720000000000006,
-        0.6720000000000006,
-        0.7520000000000007
+        0.7147000000000006,
+        0.7012999999999998,
+        0.6800000000000015,
+        0.6880000000000006
       ],
       "prehub": [
         4.371,
@@ -6362,31 +6252,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "trap-4to3-120.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0029650000000001064,
-        0.003534999999999844,
-        0.12950499999999998,
-        0.47374000000000005
-      ],
-      "prehub": [
-        0.4712479999999999,
-        0.005309999999999926,
-        0.0017400000000000748,
-        0.003430000000000044
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
-        8.2187,
-        8.2187,
-        8.16
+        8.1813,
+        8.208,
+        8.2107,
+        8.2107
       ],
       "prehub": [
         8.16,
@@ -6400,10 +6273,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.7192982456140351,
-        0.7192982456140351,
+        0.6779661016949152,
         0.7321428571428571,
-        0.6779661016949152
+        0.7192982456140351,
+        0.7192982456140351
       ],
       "prehub": [
         0.576271186440678,
@@ -6417,10 +6290,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
+        0.024390243902439025,
         0,
         0,
-        0,
-        0.024390243902439025
+        0
       ],
       "prehub": [
         0,
@@ -6434,10 +6307,10 @@
       "track": "trap-4to3-120.wav",
       "visualizer": "dancing-character",
       "current": [
+        32.00000000000003,
         28.999999999999915,
         31.000000000000583,
-        38.9999999999997,
-        32.00000000000003
+        31.000000000000583
       ],
       "prehub": [
         32.00000000000003,
@@ -6451,10 +6324,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        2.76,
-        2.7386,
-        2.3012999999999995,
-        1.4719999999999995
+        1.4212999999999996,
+        3.4,
+        2.2985999999999995,
+        2.6986
       ],
       "prehub": [
         4.5706999999999995,
@@ -6464,31 +6337,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "imyourgirl.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.004105000000000025,
-        0.004358500000000043,
-        0.004545000000000021,
-        0.49009900000000006
-      ],
-      "prehub": [
-        0.490409,
-        0.006610000000000227,
-        0.0038000000000000256,
-        0.0065950000000000175
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
         3.2,
+        3.448,
         3.2107,
-        3.2187,
-        3.16
+        3.2507
       ],
       "prehub": [
         3.16,
@@ -6502,10 +6358,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.4473684210526316,
-        0.4473684210526316,
+        0.4342105263157895,
+        0.44594594594594594,
         0.49333333333333335,
-        0.42105263157894735
+        0.4383561643835616
       ],
       "prehub": [
         0.27631578947368424,
@@ -6519,10 +6375,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.46875,
-        0.4603174603174603,
-        0.4307692307692308,
-        0.5151515151515151
+        0.5,
+        0.47619047619047616,
+        0.4393939393939394,
+        0.5
       ],
       "prehub": [
         0.6440677966101694,
@@ -6536,10 +6392,10 @@
       "track": "imyourgirl.wav",
       "visualizer": "dancing-character",
       "current": [
-        49.66666666666786,
-        49.66666666666697,
-        49.00000000000304,
-        51.66666666666764
+        51.66666666666586,
+        49.666666666668746,
+        49.666666666668746,
+        50.666666666666416
       ],
       "prehub": [
         55.833333333330515,
@@ -6553,10 +6409,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        5.309000000000001,
-        5.288300000000001,
-        5.288300000000001,
-        5.330299999999999
+        5.319699999999999,
+        5.170299999999999,
+        5.2803,
+        5.618300000000001
       ],
       "prehub": [
         5.672000000000001,
@@ -6566,31 +6422,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "lonley.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0038599999999999746,
-        0.004149999999999987,
-        0.003214999999999968,
-        0.49421650000000006
-      ],
-      "prehub": [
-        0.4968619999999999,
-        0.003495000000000026,
-        0.0036450000000000093,
-        0.0035650000000000404
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
-        8.2107,
-        8.2107,
-        8.1707
+        8.1813,
+        8.3307,
+        8.2187,
+        8.2107
       ],
       "prehub": [
         8.16,
@@ -6638,10 +6477,10 @@
       "track": "lonley.wav",
       "visualizer": "dancing-character",
       "current": [
-        239.00000000000077,
-        177.00000000000315,
-        239.00000000000077,
-        239.83333333333513
+        249.33333333333428,
+        249.33333333333428,
+        249.00000000000233,
+        239.00000000000077
       ],
       "prehub": [
         60.000000000002274,
@@ -6655,10 +6494,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        null,
-        6.029300000000001,
-        null,
-        6.901000000000002
+        11.1277,
+        6.019,
+        6.818999999999999,
+        6.0587
       ],
       "prehub": [
         8.789000000000001,
@@ -6668,31 +6507,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "summer2000.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.09654000000000007,
-        0.18690200000000012,
-        0.09585500000000002,
-        0.49773500000000004
-      ],
-      "prehub": [
-        0.48362000000000005,
-        0.18847699999999978,
-        0.096055,
-        0.09656500000000001
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2213,
-        8.2107,
-        8.2107,
-        8.168
+        8.1813,
+        8.232,
+        8.24,
+        8.1813
       ],
       "prehub": [
         8.16,
@@ -6706,10 +6528,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        null,
-        0.01694915254237288,
-        null,
-        0.13559322033898305
+        0,
+        0,
+        0,
+        0
       ],
       "prehub": [
         0.01694915254237288,
@@ -6723,10 +6545,10 @@
       "track": "summer2000.wav",
       "visualizer": "dancing-character",
       "current": [
-        null,
-        0.96875,
-        null,
-        0.7333333333333333
+        1,
+        1,
+        1,
+        1
       ],
       "prehub": [
         0.9615384615384616,
@@ -6741,9 +6563,9 @@
       "visualizer": "dancing-character",
       "current": [
         null,
-        189.50000000000244,
         null,
-        13.500000000002288
+        null,
+        null
       ],
       "prehub": [
         9.333333333334082,
@@ -6757,10 +6579,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.9493000000000009,
-        2.7203,
-        2.7093000000000007,
-        1
+        2.3409999999999993,
+        2.2479999999999993,
+        null,
+        0.9599999999999991
       ],
       "prehub": [
         4.5489999999999995,
@@ -6770,31 +6592,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "syncopation-no-kick.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.019244999999999957,
-        0.017754999999999965,
-        0.028995000000000104,
-        0.494135
-      ],
-      "prehub": [
-        0.49519500000000005,
-        0.011699999999999933,
-        0.014449999999999963,
-        0.018380000000000063
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2107,
-        8.2107,
-        8.2107,
-        8.16
+        8.16,
+        8.24,
+        3.2507,
+        8.192
       ],
       "prehub": [
         8.16,
@@ -6808,10 +6613,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.15625,
-        0.171875,
-        0.34375,
-        0.25
+        0.40625,
+        0.21875,
+        null,
+        0.21875
       ],
       "prehub": [
         0.109375,
@@ -6825,10 +6630,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.7959183673469388,
-        0.7555555555555555,
-        0.5111111111111111,
-        0.6530612244897959
+        0.43478260869565216,
+        0.6808510638297872,
+        null,
+        0.7083333333333334
       ],
       "prehub": [
         0.8095238095238095,
@@ -6842,10 +6647,10 @@
       "track": "syncopation-no-kick.wav",
       "visualizer": "dancing-character",
       "current": [
-        97.66666666666701,
-        87.00000000000152,
         28.000000000002245,
-        76.33333333333425
+        82.33333333333626,
+        null,
+        81.33333333333681
       ],
       "prehub": [
         115.99999999999966,
@@ -6859,10 +6664,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        1.5787000000000013,
-        1.5600000000000005,
-        1.5787000000000013,
-        1.6106999999999996
+        1.5493000000000006,
+        1.5306999999999995,
+        4.6693,
+        1.3706999999999994
       ],
       "prehub": [
         16.501,
@@ -6872,31 +6677,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "syncopationbass.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.03625999999999996,
-        0.35409999999999986,
-        0.03437000000000001,
-        0.4930849999999999
-      ],
-      "prehub": [
-        0.49143000000000003,
-        0.0009500000000001174,
-        0.0010550000000000281,
-        0.0003849999999999687
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2,
         8.2107,
-        8.2,
-        8.16
+        8.24,
+        3.2587,
+        8.4
       ],
       "prehub": [
         8.16,
@@ -6910,10 +6698,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.125,
         0.19642857142857142,
-        0.14285714285714285,
-        0.17857142857142858
+        0.18181818181818182,
+        0.2777777777777778,
+        0.09259259259259259
       ],
       "prehub": [
         0,
@@ -6927,10 +6715,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.8292682926829268,
         0.7317073170731707,
-        0.8048780487804879,
-        0.7560975609756098
+        0.7560975609756098,
+        0.6590909090909091,
+        0.8780487804878049
       ],
       "prehub": [
         1,
@@ -6944,10 +6732,10 @@
       "track": "syncopationbass.wav",
       "visualizer": "dancing-character",
       "current": [
-        83.00000000000284,
-        78.66666666666688,
-        88.00000000000185,
-        79.00000000000063
+        80.99999999999952,
+        80.99999999999952,
+        76.00000000000229,
+        89.33333333333415
       ],
       "prehub": [
         220.00000000000242,
@@ -6961,10 +6749,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.5012999999999996,
-        3.5786,
-        3.5892999999999997,
-        1.7706999999999997
+        1.7492999999999999,
+        4.0293,
+        3.5707,
+        3.5706999999999995
       ],
       "prehub": [
         4.12,
@@ -6974,31 +6762,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "syncopationbass2.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.0040599999999999525,
-        0.0032199999999998896,
-        0.0044999999999999485,
-        0.4862550000000001
-      ],
-      "prehub": [
-        0.48456600000000005,
-        0.004417000000000115,
-        0.004724999999999979,
-        0.00833000000000006
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2987,
-        3.2107,
-        3.2107,
-        3.16
+        3.1707,
+        3.232,
+        3.2213,
+        3.24
       ],
       "prehub": [
         3.16,
@@ -7012,10 +6783,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.5081967213114754,
-        0.45901639344262296,
-        0.47540983606557374,
-        0.5161290322580645
+        0.5161290322580645,
+        0.4915254237288136,
+        0.4745762711864407,
+        0.31666666666666665
       ],
       "prehub": [
         0.43548387096774194,
@@ -7029,10 +6800,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.3673469387755102,
+        0.37254901960784315,
+        0.3829787234042553,
         0.4166666666666667,
-        0.40816326530612246,
-        0.38461538461538464
+        0.5957446808510638
       ],
       "prehub": [
         0.41304347826086957,
@@ -7046,10 +6817,10 @@
       "track": "syncopationbass2.wav",
       "visualizer": "dancing-character",
       "current": [
-        49.00000000000304,
+        49.300000000001454,
+        49.00000000000215,
         49.33333333333412,
-        49.00000000000304,
-        49.000000000001265
+        60.000000000002274
       ],
       "prehub": [
         49.1500000000018,
@@ -7065,7 +6836,7 @@
       "current": [
         null,
         null,
-        5.2985999999999995,
+        2.5199999999999996,
         null
       ],
       "prehub": [
@@ -7073,23 +6844,6 @@
         null,
         null,
         null
-      ]
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "high-bpm-dnb.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.16224000000000016,
-        0.16301999999999994,
-        0.47765499999999983,
-        0.455704
-      ],
-      "prehub": [
-        0.3739299999999999,
-        0.0017300000000000093,
-        0.0025049999999999795,
-        0.002809999999999979
       ]
     },
     {
@@ -7097,10 +6851,10 @@
       "track": "high-bpm-dnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2107,
-        8.2107,
+        8.16,
+        8.32,
         3.2107,
-        8.16
+        8.2
       ],
       "prehub": [
         8.1707,
@@ -7116,8 +6870,8 @@
       "current": [
         null,
         null,
-        0.011904761904761904,
-        0
+        0.08333333333333333,
+        null
       ],
       "prehub": [
         null,
@@ -7133,8 +6887,8 @@
       "current": [
         null,
         null,
-        0.9705882352941176,
-        0
+        0.8703703703703703,
+        null
       ],
       "prehub": [
         null,
@@ -7150,7 +6904,7 @@
       "current": [
         null,
         null,
-        114.66666666666737,
+        98.83333333333333,
         null
       ],
       "prehub": [
@@ -7165,10 +6919,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        15.0583,
-        15.759700000000002,
-        null,
-        17.309
+        16.749,
+        18.9493,
+        15.589300000000001,
+        null
       ],
       "prehub": [
         17.301000000000002,
@@ -7178,31 +6932,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "low-bpm-rnb.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.037510000000000154,
-        0.13078999999999996,
-        0.09462999999999999,
-        0.03750999999999993
-      ],
-      "prehub": [
-        0.09177999999999997,
-        0.0015800000000001369,
-        0.0020899999999999253,
-        0.002114999999999867
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        3.2107,
-        3.2213,
+        3.16,
         8.2107,
-        3.16
+        3.2107,
+        3.2107
       ],
       "prehub": [
         3.168,
@@ -7216,10 +6953,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.2,
-        0.17647058823529413,
+        0.14285714285714285,
         null,
-        0.17142857142857143
+        0.2,
+        null
       ],
       "prehub": [
         0,
@@ -7233,10 +6970,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.36363636363636365,
-        0.4,
+        0.375,
         null,
-        0.25
+        0.3,
+        null
       ],
       "prehub": [
         1,
@@ -7250,10 +6987,10 @@
       "track": "low-bpm-rnb.wav",
       "visualizer": "dancing-character",
       "current": [
-        46.333333333333115,
-        49.33333333333323,
+        36.333333333335105,
         null,
-        42.500000000000426
+        44.00000000000048,
+        null
       ],
       "prehub": [
         null,
@@ -7280,31 +7017,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "6-8-time.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.47841500000000003,
-        0.4272,
-        0.4126400000000001,
-        0.46745000000000003
-      ],
-      "prehub": [
-        0.35914999999999986,
-        0.11856,
-        0.12434500000000004,
-        0.3972899999999999
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "6-8-time.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2213,
-        8.2213,
-        8.4213,
-        8.16
+        8.1787,
+        8.2107,
+        8.2,
+        8.2
       ],
       "prehub": [
         8.168,
@@ -7369,10 +7089,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        10.3497,
-        10.3783,
-        10.370700000000001,
-        10.3497
+        10.170699999999998,
+        10.3677,
+        10.3603,
+        10.3703
       ],
       "prehub": [
         10.741000000000001,
@@ -7382,31 +7102,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "half-time-shuffle.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.14732,
-        0.4267249999999998,
-        0.17501,
-        0.48490350000000015
-      ],
-      "prehub": [
-        0.489155,
-        0.47253999999999996,
-        0.103985,
-        0.05993499999999985
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.2293,
-        8.2107,
-        8.2293,
-        8.2293
+        8.4213,
+        8.2213,
+        8.2187,
+        8.2107
       ],
       "prehub": [
         8.208,
@@ -7420,9 +7123,9 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.16216216216216217,
-        0.16216216216216217,
-        0.16216216216216217,
+        0.13513513513513514,
+        0.1891891891891892,
+        0.10810810810810811,
         0.13513513513513514
       ],
       "prehub": [
@@ -7437,10 +7140,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.75,
-        0.7272727272727273,
-        0.7272727272727273,
-        0.7727272727272727
+        0.7916666666666666,
+        0.72,
+        0.8333333333333334,
+        0.8
       ],
       "prehub": [
         0.7916666666666666,
@@ -7454,10 +7157,10 @@
       "track": "half-time-shuffle.wav",
       "visualizer": "dancing-character",
       "current": [
-        58.83333333333418,
-        68.00000000000139,
-        57.333333333334124,
-        61.333333333333684
+        69.33333333333458,
+        71.66666666666899,
+        67.83333333333452,
+        67.83333333333452
       ],
       "prehub": [
         75.66666666667032,
@@ -7471,10 +7174,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        2.4880000000000013,
-        2.5093000000000014,
-        2.5016999999999996,
-        3.4000000000000004
+        3.3894000000000006,
+        2.4907000000000004,
+        2.5013000000000005,
+        2.5013000000000005
       ],
       "prehub": [
         5.4907,
@@ -7484,31 +7187,14 @@
       ]
     },
     {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "drifting-tempo.wav",
-      "visualizer": "dancing-character",
-      "current": [
-        0.003130000000000188,
-        0.00301499999999999,
-        0.00460499999999997,
-        0.4984573
-      ],
-      "prehub": [
-        0.49831500000000006,
-        0.11606499999999986,
-        0.0035879999999999246,
-        0.0022900000000000142
-      ]
-    },
-    {
       "metric": "live.lock.spreadSeconds",
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        8.312,
-        8.2907,
-        8.3093,
-        3.1787
+        3.1813,
+        8.3013,
+        8.2987,
+        8.2987
       ],
       "prehub": [
         3.1893,
@@ -7522,10 +7208,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.3392857142857143,
-        0.3090909090909091,
-        0.19642857142857142,
-        0.48214285714285715
+        0.5,
+        0.32142857142857145,
+        0.32142857142857145,
+        0.32142857142857145
       ],
       "prehub": [
         0,
@@ -7539,10 +7225,10 @@
       "track": "drifting-tempo.wav",
       "visualizer": "dancing-character",
       "current": [
-        0.5,
-        0.5526315789473685,
-        0.7105263157894737,
-        0.4
+        0.391304347826087,
+        0.5263157894736842,
+        0.5263157894736842,
+        0.5263157894736842
       ],
       "prehub": [
         1,
@@ -7557,9 +7243,9 @@
       "visualizer": "dancing-character",
       "current": [
         9.333333333337634,
-        13.333333333337194,
-        9.500000000002728,
-        9.00000000000123
+        9.333333333337634,
+        17.000000000001236,
+        9.333333333337634
       ],
       "prehub": [
         238.66666666667058,
@@ -7572,53 +7258,49 @@
       "metric": "live.gate.secondsAfterLock",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
-      "track": "beatless.wav",
-      "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        4.152
+      ],
       "prehub": []
     },
     {
       "metric": "live.lock.spreadSeconds",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        3.2187
+      ],
       "prehub": []
     },
     {
       "metric": "live.hit.share50ms",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.falseFire.share",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.reaction.latencyMs",
       "track": "beatless.wav",
       "visualizer": "dancing-character",
-      "current": [],
+      "current": [
+        null
+      ],
       "prehub": []
     },
     {
       "metric": "live.gate.secondsAfterLock",
-      "track": "bassline-kick-120.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
       "track": "bassline-kick-120.wav",
       "visualizer": "dancing-character",
       "current": [],
@@ -7654,13 +7336,6 @@
     },
     {
       "metric": "live.gate.secondsAfterLock",
-      "track": "pad-lead-groove-110.wav",
-      "visualizer": "dancing-character",
-      "current": [],
-      "prehub": []
-    },
-    {
-      "metric": "live.clip.maxDeviationLoops",
       "track": "pad-lead-groove-110.wav",
       "visualizer": "dancing-character",
       "current": [],
@@ -8485,6 +8160,270 @@
         28.999999999999915,
         28.999999999999915
       ]
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "click-90.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "click-120.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "click-140.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "click-174.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "drums-100.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.02519999999999989,
+        0.017440000000000566,
+        0.0713199999999996,
+        0.012720000000000287
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "drums-128.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.018816000000000166,
+        0.02464000000000066,
+        0.026559999999999917,
+        0.03267199999999981
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "drums-150.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.020799999999999486,
+        0.014559999999999906,
+        0.028520000000000323,
+        0.04367999999999839
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "no-kick-124.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.018479999999999386,
+        0.018240000000000034,
+        0.021239999999999704,
+        0.02400000000000002
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.023600000000000065,
+        0.015679999999999694,
+        0.08168000000000042,
+        0.016119999999999912
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.0485199999999999,
+        0.04420000000000002,
+        0.04868000000000006,
+        0.053480000000000416
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "imyourgirl.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.02308000000000021,
+        0.04180000000000028,
+        0.025800000000000267,
+        0.027599999999999625
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "lonley.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.02536000000000005,
+        0.03880000000000017,
+        0.02252000000000054,
+        0.0269200000000005
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "summer2000.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.012560000000000127,
+        0.024639999999999995,
+        0.0522279999999995,
+        0.07435200000000008
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "syncopation-no-kick.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.13791999999999938,
+        0.20335999999999999,
+        0.48371599999999937,
+        0.23536
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "syncopationbass.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "syncopationbass2.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.03399999999999981,
+        0.2823599999999997,
+        0.02568000000000037,
+        0.04552000000000067
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "6-8-time.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.03143999999999991,
+        0.03119999999999834,
+        0.028887999999999803,
+        0.044935999999999865
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "drifting-tempo.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        0.04227348000000042,
+        0.02337599999999984,
+        0.023164000000000406,
+        0.017559999999999576
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "beatless.wav",
+      "visualizer": "dancing-character",
+      "current": [
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "bassline-kick-120.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.clip.maxDeviationBeats",
+      "track": "pad-lead-groove-110.wav",
+      "visualizer": "dancing-character",
+      "current": [],
+      "prehub": []
     }
   ]
 }
