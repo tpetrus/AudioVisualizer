@@ -57,6 +57,8 @@ export class BoundaryDetector {
     private jumpStart = -1;
 
     private noveltyValue = 0;
+    // Soft boundaries reported over the detector's whole life (reset() does not clear it), for offline measurement.
+    private softBoundaries = 0;
 
     constructor(frameRate: number) {
         this.framesPerBin = Math.max(1, Math.round(NOVELTY_BIN_SECONDS * frameRate));
@@ -69,6 +71,11 @@ export class BoundaryDetector {
     // The latest novelty score: 1.0 is the soft-reset threshold. 0 while there is too little history to compare.
     get novelty(): number {
         return this.noveltyValue;
+    }
+
+    // How many soft boundaries the detector has reported, by either cue. It only increases.
+    get softBoundaryCount(): number {
+        return this.softBoundaries;
     }
 
     // Feeds one packed feature frame (rhythmConfig.ts layout) at `time` seconds.
@@ -148,6 +155,7 @@ export class BoundaryDetector {
         this.referenceBpm = rawBpm;
         this.jumpStart = -1;
         this.keepOnlyRecent();
+        this.softBoundaries++;
         return BOUNDARY_SOFT;
     }
 
@@ -215,6 +223,7 @@ export class BoundaryDetector {
             return BOUNDARY_NONE;
         }
         this.keepOnlyRecent();
+        this.softBoundaries++;
         return BOUNDARY_SOFT;
     }
 
