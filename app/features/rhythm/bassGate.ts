@@ -49,7 +49,7 @@ export interface BassGateState {
     peak: number;
     // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
     measuring: boolean;
-    // Seconds the gate has run (its own clock, from dt), and the clock times of kicks heard with no beat to place them on
+    // Seconds the gate has run (its own clock, from dt without the step clamp), and the clock times of kicks heard with no beat to place them on
     // (a ring of BASS_GATE_KICK_HISTORY, NaN when unused), placed on the beat once there is one.
     clock: number;
     unplacedTimes: Float64Array;
@@ -68,7 +68,8 @@ export interface BassGateState {
     beatsSinceOnBeat: number;
     // Seconds the tempo has been unlocked; the gate forgets the beat only after BASS_GATE_LOCK_GRACE_SECONDS.
     unlockedSeconds: number;
-    // The beat phase seen on the previous call, to notice the clock passing the learned kick place.
+    // The beat phase seen on the previous call, to notice the clock passing the learned kick place; NaN when that call had
+    // no beat phase (and at the start), so a phase that appears after a gap is never read as a pass from a stale one.
     lastPhase: number;
     // Seconds since the last bump started (capped, only compared against the minimum interval).
     sinceBump: number;
@@ -79,10 +80,12 @@ export interface BassGateState {
     beatCount: number;
     songChangeCount: number;
     initialized: boolean;
-    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), and the latest measured
-    // kick's signed distance from the learned place in beats (NaN until one was measured).
+    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), the latest measured
+    // kick's signed distance from the learned place in beats (NaN until one was measured), and the kicks placed on the
+    // beat from before the lock so far (monotonic), so a recording shows whether the placement helped.
     bumpCount: number;
     kickOffset: number;
+    placedKickCount: number;
 }
 
 export function createBassGateState(): BassGateState {
@@ -105,7 +108,7 @@ export function createBassGateState(): BassGateState {
         kickStrength: 1,
         beatsSinceOnBeat: 0,
         unlockedSeconds: 0,
-        lastPhase: 0,
+        lastPhase: NaN,
         sinceBump: BASS_GATE_MIN_INTERVAL,
         level: 0,
         bumpTarget: 0,
@@ -115,6 +118,7 @@ export function createBassGateState(): BassGateState {
         initialized: false,
         bumpCount: 0,
         kickOffset: NaN,
+        placedKickCount: 0,
     };
 }
 
@@ -154,7 +158,9 @@ export function stepBassGate(
     if (songChanged || state.unlockedSeconds > BASS_GATE_LOCK_GRACE_SECONDS) forgetBassline(state);
     // Kicks heard before a new song are not its bassline.
     if (songChanged) state.unplacedTimes.fill(NaN);
-    state.clock += step;
+    // The clock the unplaced kicks are timed on is real time, so a frame longer than the step clamp does not squeeze
+    // their spacing; only the envelopes below need the clamp.
+    state.clock += Math.max(dt, 0);
     // The first call only records the counters, so a track already playing does not count as a new beat.
     const newBeat = state.initialized && rhythm.beatCount !== state.beatCount;
     state.songChangeCount = rhythm.songChangeCount;
@@ -265,6 +271,8 @@ export function stepBassGate(
             state.attackLeft = BASS_GATE_ATTACK_SECONDS;
         }
         state.lastPhase = phase;
+    } else {
+        state.lastPhase = NaN;
     }
 
     // The bump rises smoothly over the attack time, then fades, so it breathes rather than snaps.
@@ -348,6 +356,7 @@ function placeUnplacedKicks(state: BassGateState, now: number, bpm: number): voi
             const repeat = repeatsEarlierBar(state, position);
             if (repeat !== NO_EARLIER_BAR) weighRepeat(state, repeat === REPEATED, chanceOfRepeat(state, position));
             rememberKick(state, position);
+            state.placedKickCount++;
             state.kickPhase = wrapUnit(position);
             state.phaseKnown = true;
         }

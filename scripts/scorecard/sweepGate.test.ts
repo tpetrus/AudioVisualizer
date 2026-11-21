@@ -3,13 +3,14 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BASS_GATE_OPEN_SCORE } from '../../app/features/rhythm/bassGateConfig';
 import { GateTrace, firstOpenSeconds } from './engine/gateTrace';
-import { RANDOM_BASS_BPM, RANDOM_BASS_SAMPLE_RATE, onBeatBassPcm } from './engine/gateInputs';
+import { RANDOM_BASS_BPM, RANDOM_BASS_SAMPLE_RATE, onBeatBassPcm, randomBassPcm } from './engine/gateInputs';
 import { replayPcm } from './engine/replay';
 import {
     expandRows,
     formatSweep,
     loadGateStepper,
     parseSweepGateArgs,
+    patternBassPcm,
     summarizeKickTracks,
     sweepJson,
     validateRows,
@@ -25,6 +26,7 @@ describe('parseSweepGateArgs', () => {
             patterns: 300,
             beats: [120, 400],
             lockAt: 0,
+            pattern: { notesPerBeat: 2, beatsPerNote: 1 },
             set: [],
             grid: [],
             detail: false,
@@ -39,12 +41,14 @@ describe('parseSweepGateArgs', () => {
             ...['--set', 'BASS_GATE_CLOSE_SCORE=2'],
             ...['--grid', 'BASS_GATE_OPEN_SCORE=4,6', '--grid', 'BASS_GATE_OPEN_SCORE=5'],
             ...['--detail', '--json', 'out.json', '--lock-at', '3.5'],
+            ...['--notes-per-beat', '1', '--beats-per-note', '2'],
         ]);
         expect(args).toMatchObject({
             dir: 'x',
             patterns: 5,
             beats: [8, 16],
             lockAt: 3.5,
+            pattern: { notesPerBeat: 1, beatsPerNote: 2 },
             detail: true,
             json: 'out.json',
         });
@@ -59,6 +63,8 @@ describe('parseSweepGateArgs', () => {
         [['--set', 'lower=1'], /NAME=VALUE/],
         [['--dir'], /needs a value/],
         [['--lock-at', '-1'], /0 or more/],
+        [['--notes-per-beat', '0'], /whole number/],
+        [['--beats-per-note', 'x'], /whole number/],
         [['--set', 'A=1', '--grid', 'A=1,2'], /given twice/],
     ])('rejects %j', (argv, message) => {
         expect(() => parseSweepGateArgs(argv)).toThrow(message);
@@ -135,6 +141,7 @@ describe('the report', () => {
         patterns: 3,
         beats: [120],
         lockAt: 0,
+        pattern: { notesPerBeat: 2, beatsPerNote: 1 },
         dancerLockSeconds: { 'a.wav': 5, 'b.wav': 6, 'c.wav': null, 'n.wav': 4 },
         rows: [
             {
@@ -185,5 +192,31 @@ describe('the report', () => {
         const json = sweepJson(result) as { rows: { secondsAfterLock: Record<string, number | null> }[] };
         expect(json.rows[0].secondsAfterLock).toEqual({ 'a.wav': 1.5, 'b.wav': 30, 'c.wav': null });
         expect(JSON.parse(JSON.stringify(json))).toEqual(json);
+    });
+});
+
+describe('patternBassPcm', () => {
+    it('reproduces the default random bass sample for sample, and differs for a sparse pattern', () => {
+        const same = patternBassPcm(7, 16, { notesPerBeat: 2, beatsPerNote: 1 });
+        expect(same).toEqual(randomBassPcm(7, 16));
+        const sparse = patternBassPcm(7, 16, { notesPerBeat: 1, beatsPerNote: 2 });
+        expect(sparse).toHaveLength(same.length);
+        expect(sparse).not.toEqual(same);
+    });
+
+    it('puts one note in each group of beats, and the same seed always gives the same samples', () => {
+        const pattern = { notesPerBeat: 1, beatsPerNote: 4 };
+        const sparse = patternBassPcm(3, 8, pattern);
+        const samplesPerBeat = (60 / RANDOM_BASS_BPM) * RANDOM_BASS_SAMPLE_RATE;
+        const loudest = (from: number, to: number) => {
+            let peak = 0;
+            for (let i = Math.floor(from * samplesPerBeat); i < Math.floor(to * samplesPerBeat); i++) {
+                peak = Math.max(peak, Math.abs(sparse[i]));
+            }
+            return peak;
+        };
+        expect(loudest(0, 4.5)).toBeGreaterThan(0);
+        expect(loudest(4, 8.5)).toBeGreaterThan(0);
+        expect(patternBassPcm(3, 8, pattern)).toEqual(sparse);
     });
 });
