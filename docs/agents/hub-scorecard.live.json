@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 8,
-    "revision": "775ad02",
-    "created": "2026-11-21T02:20:59.677Z",
+    "revision": "35ff575",
+    "created": "2026-11-21T04:32:23.940Z",
     "sidecarHashes": {}
   },
   "cells": [
@@ -739,6 +739,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "class": "drifting",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.3847826086956522,
+      "spread": 0.09954233409610985,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "drums-100.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -790,6 +807,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
+      "spread": 0,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -835,6 +869,23 @@
       "prehub": 0.6530612244897959,
       "value": 0.6382978723404256,
       "spread": 0.028368794326241065,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -892,6 +943,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
+      "pass": false,
+      "status": "unavailable"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -937,6 +1005,23 @@
       "prehub": 0.7221269296740995,
       "value": 0.73816029143898,
       "spread": 0.044973544973545,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.7141666666666666,
+      "spread": 0.12,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -994,6 +1079,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.9393939393939394,
+      "spread": 0.003676470588235281,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -1039,6 +1141,23 @@
       "prehub": 0.25775602409638554,
       "value": 0.23259493670886078,
       "spread": 0.06097560975609756,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.4233802216538789,
+      "spread": 0.1008369054909165,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -1096,6 +1215,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 1,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "low-bpm-rnb.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -1144,6 +1280,23 @@
       "runs": 4,
       "pass": true,
       "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.34285714285714286,
+      "spread": 0.11428571428571432,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.falseFire.share",
@@ -1266,6 +1419,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 1,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "syncopation-no-kick.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -1351,6 +1521,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.575,
+      "spread": 0.13,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -1402,6 +1589,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.3886792452830189,
+      "spread": 0.07214206437291898,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "trap-2to1-double-90.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -1446,6 +1650,23 @@
       "applicable": true,
       "prehub": 0.4942528735632184,
       "value": 0.4942528735632184,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
       "spread": 0,
       "runs": 4,
       "pass": true,
@@ -1504,6 +1725,23 @@
     },
     {
       "metric": "live.falseFire.share",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
       "track": "trap-4to3-120.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -1548,6 +1786,23 @@
       "applicable": true,
       "prehub": 0.6027397260273972,
       "value": 0.6027397260273972,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.1,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
       "spread": 0,
       "runs": 4,
       "pass": true,
@@ -2286,6 +2541,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "class": "drifting",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.5,
+      "spread": 0.1607142857142857,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "drums-100.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -2337,6 +2609,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.7959183673469388,
+      "spread": 0,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -2382,6 +2671,23 @@
       "prehub": 0.2698412698412698,
       "value": 0.2698412698412698,
       "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.8095238095238095,
+      "spread": 0.031746031746031744,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2439,6 +2745,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
+      "pass": false,
+      "status": "unavailable"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -2483,6 +2806,23 @@
       "applicable": true,
       "prehub": 0.40540540540540543,
       "value": 0.40540540540540543,
+      "spread": 0.08108108108108109,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.1891891891891892,
       "spread": 0.08108108108108109,
       "runs": 4,
       "pass": true,
@@ -2541,6 +2881,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.023529411764705882,
+      "spread": 0,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -2586,6 +2943,23 @@
       "prehub": 0.8092105263157895,
       "value": 0.8092105263157895,
       "spread": 0.07894736842105265,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.5197368421052632,
+      "spread": 0.0789473684210526,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -2643,6 +3017,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "low-bpm-rnb.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -2691,6 +3082,23 @@
       "runs": 4,
       "pass": false,
       "status": "fail"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.22857142857142856,
+      "spread": 0.11428571428571427,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.hit.share50ms",
@@ -2813,6 +3221,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "syncopation-no-kick.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -2898,6 +3323,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.16964285714285715,
+      "spread": 0.08928571428571427,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -2949,6 +3391,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.5080645161290323,
+      "spread": 0.08064516129032262,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "trap-2to1-double-90.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -2993,6 +3452,23 @@
       "applicable": true,
       "prehub": 1,
       "value": 1,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.7954545454545454,
       "spread": 0,
       "runs": 4,
       "pass": true,
@@ -3051,6 +3527,23 @@
     },
     {
       "metric": "live.hit.share50ms",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.8840579710144928,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
       "track": "trap-4to3-120.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -3095,6 +3588,23 @@
       "applicable": true,
       "prehub": 0.4915254237288136,
       "value": 0.4915254237288136,
+      "spread": 0,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 0.9,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 0.711864406779661,
       "spread": 0,
       "runs": 4,
       "pass": true,
@@ -3833,6 +4343,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "class": "drifting",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 9.333333333334082,
+      "spread": 13.33333333333453,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "drums-100.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -3884,6 +4411,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 31.00000000000236,
+      "spread": 1.7763568394002505e-12,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "drums-128.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -3929,6 +4473,23 @@
       "prehub": 14.500000000000401,
       "value": 15.000000000000568,
       "spread": 3.3000000000005247,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 35.62500000000046,
+      "spread": 4.5000000000001705,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3986,6 +4547,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": null,
+      "spread": 0,
+      "runs": 0,
+      "pass": false,
+      "status": "unavailable"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "half-time-shuffle.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -4031,6 +4609,23 @@
       "prehub": 42.65833333333502,
       "value": 38.66666666666774,
       "spread": 2.699999999999484,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 51.00000000000193,
+      "spread": 11.333333333331197,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4088,6 +4683,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 100.33333333333516,
+      "spread": 7.666666666665378,
+      "runs": 3,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "imyourgirl.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -4133,6 +4745,23 @@
       "prehub": 25.500000000001855,
       "value": 27.34166666666704,
       "spread": 8.016666666667227,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 49.33333333333145,
+      "spread": 2.999999999996561,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4190,6 +4819,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 238.91666666666822,
+      "spread": 2.333333333336185,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "low-bpm-rnb.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -4238,6 +4884,23 @@
       "runs": 4,
       "pass": true,
       "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 46.83333333333373,
+      "spread": 15.666666666664497,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
     },
     {
       "metric": "live.reaction.latencyMs",
@@ -4360,6 +5023,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 249.00000000000233,
+      "spread": 0,
+      "runs": 2,
+      "pass": false,
+      "status": "unavailable"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "syncopation-no-kick.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -4445,6 +5125,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 57.41666666666756,
+      "spread": 23.666666666661833,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "syncopationbass2.wav",
       "visualizer": "cubes",
       "class": "tapped",
@@ -4490,6 +5187,23 @@
       "prehub": 68.16666666666916,
       "value": 68.33333333333601,
       "spread": 1.1666666666672114,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "class": "tapped",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 49.16666666666991,
+      "spread": 0.3500000000000725,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4547,6 +5261,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 33.33299999999895,
+      "spread": 4.666999999999533,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "trap-2to1-half-140.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -4598,6 +5329,23 @@
     },
     {
       "metric": "live.reaction.latencyMs",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 27.270999999998935,
+      "spread": 1.8569999999993314,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
       "track": "trap-4to3-120.wav",
       "visualizer": "cubes",
       "class": "synthetic",
@@ -4643,6 +5391,23 @@
       "prehub": 28.999999999999915,
       "value": 28.999999999999915,
       "spread": 8.49999999999951,
+      "runs": 4,
+      "pass": true,
+      "status": "pass"
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "class": "synthetic",
+      "floor": null,
+      "stretch": 46.66666666666667,
+      "source": "live",
+      "blocking": false,
+      "applicable": true,
+      "prehub": null,
+      "value": 30.99999999999925,
+      "spread": 5.000000000000782,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -8423,6 +9188,543 @@
       "track": "pad-lead-groove-110.wav",
       "visualizer": "dancing-character",
       "current": [],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.7959183673469388,
+        0.7959183673469388,
+        0.7959183673469388
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "drums-100.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        31.00000000000236,
+        31.00000000000236,
+        31.000000000000583
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.8095238095238095,
+        0.8095238095238095,
+        0.7777777777777778,
+        0.8095238095238095
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "drums-128.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        36.000000000001364,
+        38.50000000000087,
+        35.24999999999956,
+        34.000000000000696
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "drums-150.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.7954545454545454,
+        0.7954545454545454,
+        0.7954545454545454,
+        0.7954545454545454
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "trap-2to1-double-90.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        31.000000000000583,
+        35.667000000000115,
+        33.33299999999895,
+        33.33299999999895
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.8840579710144928,
+        0.8840579710144928,
+        0.8840579710144928,
+        0.8840579710144928
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "trap-2to1-half-140.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        25.71400000000068,
+        27.571000000000012,
+        27.270999999998935,
+        27.270999999998935
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.711864406779661,
+        0.711864406779661,
+        0.711864406779661,
+        0.711864406779661
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "trap-4to3-120.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        35.99999999999959,
+        30.999999999998806,
+        30.999999999999694,
+        30.999999999998806
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.4473684210526316,
+        0.5131578947368421,
+        0.5263157894736842,
+        0.5263157894736842
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.5211267605633803,
+        0.4264705882352941,
+        0.42028985507246375,
+        0.42028985507246375
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "imyourgirl.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        51.9999999999996,
+        49.00000000000304,
+        49.00000000000304,
+        49.666666666659864
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "lonley.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        241.0000000000032,
+        239.00000000000077,
+        238.66666666666703,
+        238.83333333333567
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "summer2000.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        null,
+        249.00000000000233,
+        249.00000000000233
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.16071428571428573,
+        0.125,
+        0.21428571428571427,
+        0.17857142857142858
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.55,
+        0.65,
+        0.52,
+        0.6
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "syncopationbass.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        56.000000000001826,
+        78.49999999999557,
+        54.833333333333734,
+        58.83333333333329
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.5645161290322581,
+        0.4838709677419355,
+        0.4838709677419355,
+        0.532258064516129
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.33962264150943394,
+        0.4,
+        0.4117647058823529,
+        0.37735849056603776
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "syncopationbass2.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        49.00000000000304,
+        49.34999999999956,
+        49.33333333333678,
+        48.99999999999949
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        0.023529411764705882,
+        0.023529411764705882,
+        0.023529411764705882
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        0.9393939393939394,
+        0.9375,
+        0.9411764705882353
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "high-bpm-dnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        null,
+        100.33333333333516,
+        107.83333333333545,
+        100.16666666667007
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.17142857142857143,
+        null,
+        null,
+        0.2857142857142857
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.4,
+        null,
+        null,
+        0.2857142857142857
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "low-bpm-rnb.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        54.666666666665975,
+        null,
+        null,
+        39.00000000000148
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.1891891891891892,
+        0.13513513513513514,
+        0.21621621621621623,
+        0.1891891891891892
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.72,
+        0.8,
+        0.68,
+        0.7083333333333334
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "half-time-shuffle.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        47.00000000000415,
+        58.33333333333535,
+        49.66666666666697,
+        52.333333333336896
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.hit.share50ms",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.48214285714285715,
+        0.375,
+        0.5357142857142857,
+        0.5178571428571429
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.falseFire.share",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        0.4,
+        0.4473684210526316,
+        0.34782608695652173,
+        0.3695652173913043
+      ],
+      "prehub": []
+    },
+    {
+      "metric": "live.reaction.latencyMs",
+      "track": "drifting-tempo.wav",
+      "visualizer": "bass-ink",
+      "current": [
+        14.500000000001734,
+        1.1666666666672043,
+        9.333333333334082,
+        9.333333333334082
+      ],
       "prehub": []
     }
   ]

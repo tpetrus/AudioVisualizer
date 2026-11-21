@@ -377,3 +377,27 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
 - **Follow-ups outside the fast lane:** `FU-S8-clip-unit` and `FU-S8-manual-reselect` (from the review),
   `FU-S8-live-retap`, `FU-S8-summer2000-gaps`.
 - **Next:** S9, moving the private analysis onto the hub.
+
+### S9 done (2026-11-21, branch `s9-hub-migration`)
+- **Scope decided** by the orchestrator under Trevor's instruction of 2026-11-21 ("if there are any decisions needed
+  from me, go with your recommendation"); confirm at the PR review:
+  - Spectrum displays keep their owned analyser, as audio-engine-alignment's C5 allows for a fine spectrum: the cubes'
+    columns, `trio-color-wave`'s sheets and `bass-ink`'s spectrum field. Moving them onto six hub bands would be a
+    visual redesign (a non-goal), so no visual baseline is regenerated.
+  - The shared rhythm tracker's state (beat phase, tempo confidence, `bandOnsets`) is not private analysis.
+  - `bass-ink`'s set-level bass energy is deferred under D11 (`FU-S9-bass-ink-energy`): it drives the set director,
+    whose thresholds were tuned on the analyser's scale, and no cell measures the director.
+  - `bass-ink`'s reaction cell is `bass-ink.kicks` (the gate's pulses), as the audit's finding 5 asks; a counter column
+    fires on each increment. The targets version stays 8, since only cells are added.
+- **Delivered:** `bass-ink`'s bass gate reads `gateBass.pulse` through `BassBump` (`GATE_BASS_BUMP`) instead of its own
+  `BassPulse`, with a spec banning a private filter chain in the folder; `bass-ink` joins the live cells.
+- **Acceptance:**
+  - **AC10:** met for every hub-fed visualizer's bands and onsets as scoped above; no visualizer has a private onset
+    detector. The energy item is deferred.
+  - **AC8 / AC12:** offline nothing changes and `scorecard:check` passes against S8's baseline. Live, the before cells
+    were committed to the baseline first and the after cells checked against them: equal within a frame on every track
+    with a fixed outcome; `drifting-tempo`'s latency (9.5 to 14.7 ms) follows a split of the gate's runs between two
+    outcomes (`docs/agents/hub-scorecard.md`, "S9 findings"), and a confirmation set measured 9.3 ms (before 9.5), so
+    `scorecard:check` passes. The baseline is regenerated with S9's cells. All repository checks and budgets pass.
+- **Fast-lane follow-ups:** `FU-S9-bass-ink-specs`, `FU-S9-bass-ink-gate-raw` (from the R2 review).
+- **Next:** S10, order independence and the close.
