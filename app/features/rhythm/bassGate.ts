@@ -80,10 +80,12 @@ export interface BassGateState {
     beatCount: number;
     songChangeCount: number;
     initialized: boolean;
-    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), and the latest measured
-    // kick's signed distance from the learned place in beats (NaN until one was measured).
+    // Written only for DEV telemetry, never read by the gate: bumps started so far (monotonic), the latest measured
+    // kick's signed distance from the learned place in beats (NaN until one was measured), and the kicks placed on the
+    // beat from before the lock so far (monotonic), so a recording shows whether the placement helped.
     bumpCount: number;
     kickOffset: number;
+    placedKickCount: number;
 }
 
 export function createBassGateState(): BassGateState {
@@ -116,6 +118,7 @@ export function createBassGateState(): BassGateState {
         initialized: false,
         bumpCount: 0,
         kickOffset: NaN,
+        placedKickCount: 0,
     };
 }
 
@@ -353,6 +356,7 @@ function placeUnplacedKicks(state: BassGateState, now: number, bpm: number): voi
             const repeat = repeatsEarlierBar(state, position);
             if (repeat !== NO_EARLIER_BAR) weighRepeat(state, repeat === REPEATED, chanceOfRepeat(state, position));
             rememberKick(state, position);
+            state.placedKickCount++;
             state.kickPhase = wrapUnit(position);
             state.phaseKnown = true;
         }

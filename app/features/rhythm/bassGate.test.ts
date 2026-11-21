@@ -808,6 +808,34 @@ describe('stepBassGate on the lock tick', () => {
         expect(positions[0]).toBeGreaterThanOrEqual(40.5 - BASS_GATE_PRELOCK_SECONDS * 2 - 1e-9);
     });
 
+    it('counts the kicks it places from before the lock, once each, and never counts down', () => {
+        const state = createBassGateState();
+        expect(state.placedKickCount).toBe(0);
+        const rhythm = driveUnlocked(FAST_BEAT * 12 + 6, fastKick, DT, state);
+        expect(state.placedKickCount).toBe(0);
+        rhythm.beatPhase = 0.6;
+        rhythm.beatCount = 12;
+        rhythm.bpm = FAST_BPM;
+        stepBassGate(0, rhythm, true, state, DT);
+        // One count per kick that went into the history, and the rest of the lock's ticks add nothing.
+        expect(state.placedKickCount).toBe(placed(state).length);
+        expect(state.placedKickCount).toBeGreaterThan(8);
+        const count = state.placedKickCount;
+        forgetBassline(state);
+        expect(state.placedKickCount).toBe(count);
+    });
+
+    it('does not count kicks that were not placed: no tempo, or a gate still open from before', () => {
+        const noTempo = createBassGateState();
+        lockOn(noTempo, driveUnlocked(FRAMES_PER_BEAT * 4, onBeatKick, DT, noTempo), 0);
+        expect(noTempo.placedKickCount).toBe(0);
+
+        const state = locked();
+        drive(2 * FRAMES_PER_BEAT, onBeatKick, { state, locked: false, start: FRAMES_PER_BEAT * WARM_BEATS });
+        drive(1, silent, { state, start: FRAMES_PER_BEAT * (WARM_BEATS + 2) });
+        expect(state.placedKickCount).toBe(0);
+    });
+
     it('places nothing, and keeps no stale kicks, when the lock arrives with a tempo of 0', () => {
         const state = createBassGateState();
         const rhythm = driveUnlocked(FRAMES_PER_BEAT * 4, onBeatKick, DT, state);
