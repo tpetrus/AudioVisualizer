@@ -47,7 +47,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(8);
+        expect(TARGETS_VERSION).toBe(9);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });

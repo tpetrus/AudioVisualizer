@@ -7,7 +7,7 @@
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
-export const TARGETS_VERSION = 8;
+export const TARGETS_VERSION = 9;
 
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count' | 'beats';
