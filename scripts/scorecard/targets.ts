@@ -265,13 +265,17 @@ export const SCENARIO_TARGETS: readonly ScenarioTarget[] = [
 
 // The live cells (S3): measured from debug:viz recordings in a browser, 4 runs per track, advisory rather than blocking
 // (decision D13). `npm run scorecard:live` reads this table; the ratchet knows their direction through directionOf.
-export type LiveVisualizer = 'dancing-character' | 'cubes' | 'trio-color-wave';
+export type LiveVisualizer = 'dancing-character' | 'cubes' | 'trio-color-wave' | 'bass-ink';
 
 // The telemetry column whose rise is the visualizer's reaction to a beat (AC8).
 export const LIVE_REACTION_COLUMN: Readonly<Record<LiveVisualizer, string>> = {
     'dancing-character': 'dancing-character.out',
     cubes: 'cubes.out',
     'trio-color-wave': 'trio-color-wave.out',
+    // The cloud's brightness, which flashes on each kick the bass gate lets through (S9 measures it before and after
+    // bass-ink moves onto the hub's gate-input bass). Adding a visualizer adds cells and changes none, so the targets
+    // version stays.
+    'bass-ink': 'bass-ink.out',
 };
 
 // AC8's fire-to-beat rule, defined once for live.hit.share50ms and live.falseFire.share (targets version 6). A fire is
@@ -319,7 +323,7 @@ export interface LiveMetricTarget {
 
 const isReal = (trackClass: TrackClass): boolean => trackClass === 'tapped' || trackClass === 'drifting';
 const kickWithBeat = (trackClass: TrackClass, kick: boolean): boolean => kick && hasBeat(trackClass);
-const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio-color-wave'];
+const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio-color-wave', 'bass-ink'];
 
 export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     {
