@@ -131,7 +131,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(18);
+    const out = new Float32Array(19);
     probeRead()(out);
     return out;
 }
@@ -458,6 +458,20 @@ describe('useBassInkScene', () => {
             expect(differsFromRaw).toBe(true);
         });
 
+        it('reports the raw hub gate bass before the envelope, and 0 without a source', () => {
+            const { node } = createAnalyser();
+            const withSource = mountScene({ analyser: node });
+            withSource.hub.setGateBass(0.5);
+            withSource.frame();
+            expect(readProbe()[18]).toBeCloseTo(0.5, 6);
+            withSource.unmount();
+
+            const bare = mountScene();
+            bare.hub.setGateBass(0.9);
+            bare.frame();
+            expect(readProbe()[18]).toBe(0);
+        });
+
         it('feeds the gate nothing without a source even when the hub reports bass', () => {
             const { frame, hub } = mountScene();
             hub.setGateBass(0.9);
@@ -766,6 +780,7 @@ describe('useBassInkScene', () => {
                     'mid',
                     'gateOpen',
                     'gateIn',
+                    'gateRaw',
                 ],
                 expect.any(Function),
             );

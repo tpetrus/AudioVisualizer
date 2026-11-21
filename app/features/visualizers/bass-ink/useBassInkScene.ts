@@ -133,6 +133,8 @@ export function useBassInkScene(
         let lastBrightness = 0;
         let lastKickStrength = 0;
         let lastGateBass = 0;
+        // The hub's gate bass before the envelope, kept to tell a weak hub signal from a weak envelope in telemetry.
+        let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
         let midLevel = 0;
         let highLevel = 0;
@@ -161,6 +163,7 @@ export function useBassInkScene(
                     'mid',
                     'gateOpen',
                     'gateIn',
+                    'gateRaw',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -181,6 +184,7 @@ export function useBassInkScene(
                     out[15] = midLevel;
                     out[16] = bassGate.open ? 1 : 0;
                     out[17] = lastGateBass;
+                    out[18] = lastGateRaw;
                 },
             );
         }
@@ -233,7 +237,8 @@ export function useBassInkScene(
                 const state = rhythm.state;
                 const breathing = advance(clock, state, dt);
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
-                lastGateBass = source ? bump.step(hub.snapshot.gateBass.pulse, dt) : 0;
+                lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
+                lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
                 stepBassGate(lastGateBass, state, clock.locked, bassGate, dt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
