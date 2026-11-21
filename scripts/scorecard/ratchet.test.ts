@@ -107,4 +107,21 @@ describe('compareToBaseline', () => {
         const missing = compareToBaseline(card([]), card([], { sidecarHashes: {} }));
         expect(missing.problems).toEqual(['sidecar for a.wav is missing: regenerate the baseline after re-tapping']);
     });
+
+    // D13: the advisory set-director cells are not in the baseline until a later baseline rewrite adds them, and the
+    // comparison walks the baseline's cells only, so they cannot fail scorecard:check, whatever their values.
+    it('does not fail on a set-director cell that is absent from the baseline', () => {
+        const advisory = cell({
+            metric: 'setDirector.transitions',
+            track: 'lonley.wav',
+            visualizer: 'bass-ink',
+            floor: null,
+            blocking: false,
+            value: 7,
+        });
+        expect(compareToBaseline(card([cell()]), card([cell(), advisory]))).toEqual({ ok: true, problems: [] });
+        // Nor when a later baseline has it and it moved: a cell without a floor or a live source is not judged.
+        const moved = { ...advisory, value: 0 };
+        expect(compareToBaseline(card([cell(), advisory]), card([cell(), moved])).ok).toBe(true);
+    });
 });
