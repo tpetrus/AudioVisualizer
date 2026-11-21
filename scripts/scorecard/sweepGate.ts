@@ -22,6 +22,9 @@ const GATE_SOURCE = 'app/features/rhythm/bassGate.ts';
 export const GATE_CONFIG = 'app/features/rhythm/bassGateConfig.ts';
 const GATE_CONFIG_NAME = 'bassGateConfig.ts';
 
+// Notes per group are capped so a typo cannot make a pattern of thousands of overlapping notes.
+const MAX_NOTES_PER_GROUP = 16;
+
 export const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]...
                             [--grid NAME=v1,v2,...]... [--lock-at S] [--notes-per-beat N] [--beats-per-note K]
                             [--detail] [--json <file>]
@@ -35,8 +38,9 @@ gate column of probe:gate-inputs; on kick tracks of <folder> (default ${DEFAULT_
 dancer's lock and the sum and max of the seconds after it (the rest of the track if the gate never opens); on no-kick tracks
 the names whose gate opened. --lock-at S hides the random bass's beat clock for its first S seconds (default 0), so the
 false opens include what the gate does before a lock. --notes-per-beat N and --beats-per-note K change the random bass
-from two notes in every beat (the default) to N notes at random places in every K beats, so 1 and 2 is one random note
-every two beats, the sparse bass of FU-S5-sparse-false-opens (the other options still apply). on-beat: kick tracks whose bumps mostly hit a labelled beat (the live hit window on the bump starts; tracks with a
+from two notes in every beat (the default) to N notes at random places in every group of K beats (N is at most 16), so 1
+and 2 is one random note every two beats, the sparse bass of FU-S5-sparse-false-opens (the other options still apply). A
+beat count that is not a multiple of K thins its last group, which warns on stderr. on-beat: kick tracks whose bumps mostly hit a labelled beat (the live hit window on the bump starts; tracks with a
 .beats.json). --detail adds per track the seconds after the lock and where the bumps land; --json writes everything.`;
 
 // How the random bass is laid out: `notesPerBeat` notes at random places in every `beatsPerNote` beats. The default, two
@@ -148,9 +152,14 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
                 args.lockAt = seconds;
                 break;
             }
-            case '--notes-per-beat':
-                args.pattern.notesPerBeat = positiveInteger(flag, value());
+            case '--notes-per-beat': {
+                const notes = positiveInteger(flag, value());
+                if (notes > MAX_NOTES_PER_GROUP) {
+                    throw new Error(`${flag} is at most ${MAX_NOTES_PER_GROUP}, got ${notes}`);
+                }
+                args.pattern.notesPerBeat = notes;
                 break;
+            }
             case '--beats-per-note':
                 args.pattern.beatsPerNote = positiveInteger(flag, value());
                 break;
@@ -180,6 +189,15 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
     for (const name of [...args.grid.map((axis) => axis.name), ...args.set.map((entry) => entry.name)]) {
         if (seen.has(name)) throw new Error(`${name} was given twice (--grid and --set count together)`);
         seen.add(name);
+    }
+    // The last group of a beat count that K does not divide is cut short, so it holds fewer notes than the others and
+    // the pattern is thinner than asked for there.
+    const thinned = args.beats.filter((beats) => beats % args.pattern.beatsPerNote !== 0);
+    if (thinned.length > 0) {
+        console.error(
+            `Warning: --beats ${thinned.join(',')} is not a multiple of --beats-per-note ${args.pattern.beatsPerNote}, ` +
+                'so the last group of random notes is thinned.',
+        );
     }
     return args;
 }
