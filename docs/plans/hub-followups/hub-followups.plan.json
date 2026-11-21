@@ -1,0 +1,1124 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "hub-followups-20261121t205405z-e94edfe5",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-21T20:54:05.089Z",
+  "updated": "2026-11-21T21:03:30.214Z",
+  "feature": {
+    "slug": "hub-followups",
+    "title": "Hub regressions follow-up backlog",
+    "request": "we have a lot of follow up backlog items from the hub-regressions plan. let's clear up these by replacing them with a new implementation plan from this session. We should reduce any repeat/unnecessary steps, and come up with a systematic plan to complete all of these items"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b"
+  },
+  "problem": {
+    "statement": "The hub-regressions plan closed with about 20 FU-* follow-ups spread over docs/agents/hub-scorecard.md (15 listed at 763-823) and plan run notes (5 more), some already done but still listed (FU-S8-live-retap, FU-HR-falsefire-onset, FU-S7-retap-summer2000), four with no written description (FU-S5-sweep-entry-guard, FU-S5-prelock-false-open-pin, FU-S9-bass-ink-specs, FU-S9-bass-ink-gate-raw), and many sharing the same mechanisms (targets version, dancer telemetry columns, gateBass contract C1, the bass gate rule). Done one by one in the S4-S10 style they would repeat baseline rewrites, targets bumps and slow live recordings many times.",
+    "users": [
+      "Trevor, the maintainer who records live runs and signs off deferrals",
+      "Implementing agents in fresh sessions working slice by slice"
+    ],
+    "evidence": [
+      "docs/agents/hub-scorecard.md:763-823 lists 15 FU items, one of them (FU-S8-live-retap) already done at :720",
+      "docs/plans/hub-regressions/hub-regressions.plan.md:316 and :402 name four fast-lane items with no description anywhere in the repo",
+      "scripts/scorecard/targets.ts:10 TARGETS_VERSION = 8; three FU items each want a targets change"
+    ]
+  },
+  "goals": [
+    "G1: Every open hub-regressions FU item is fixed, documented as intended behavior, or closed as won't-do with a reason and Trevor's sign-off, and the follow-up list in hub-scorecard.md is replaced by a pointer to this plan's ledger.",
+    "G2: Shared mechanisms are touched once: one targets-version bump, one telemetry-column change, one contract C1 rewording, one consolidated live recording pass.",
+    "G3: No blocking scorecard cell that passes today gets worse, except cells whose definition v9 changes in S6, each listed in the S6 PR with Trevor's sign-off."
+  ],
+  "non_goals": [
+    "Follow-ups from other plans or docs (audio-alignment-findings.md, rhythm-stability-results.md) that are not FU-* items of hub-regressions.",
+    "The deferred offline floors in the S10 close table (6/8 time, dotted change, low-bpm-rnb beat error, beatless lock, onset f50) unless an FU item itself names them.",
+    "Raising hit-share 0.9 or false-fire 0.1 stretch targets (needs a design, per S3's reading).",
+    "Visual redesign of any visualizer; upgrading three.js; changing CI in tpetrus/ci-workflows."
+  ],
+  "success_metrics": [
+    "M1: 0 untriaged FU ids; a grep for FU- over docs/ finds no id without a ledger row.",
+    "M2: TARGETS_VERSION bumped exactly once (8 to 9); the committed baseline rewritten once in S6, or a second time in S7 only if S4 or S5 changed a live-scored visualizer.",
+    "M3: Exactly one consolidated live recording pass, at the end.",
+    "M4: scorecard:check exits 0 at the end of every slice (intermediate S6 commits are exempt)."
+  ],
+  "constraints": [
+    "Repo rules: named exports only, logic outside React, refs in render loops, every resource freed, no per-frame allocation, 95% coverage; format, lint, typecheck, test:coverage and build green (AGENTS.md).",
+    "Live runs are recorded one at a time from the main checkout; .debug-in audio is never committed and .beats.json hashes are checked by the baseline.",
+    "Worktrees get their own npm ci, never links; remove them with npm run worktree:remove.",
+    "Bundle budgets are near the limit (total JS about 335 kB, worklet 5.8 kB); DEV-only telemetry must not ship.",
+    "User stance: document current behavior unless a cell or spec shows a real defect; a resource leak counts as a defect."
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "the plan's ledger in docs/plans/hub-followups/",
+      "when": "a reader looks up any hub-regressions FU id, including the four undescribed fast-lane ids and the three already done",
+      "then": "it shows a description, an outcome (fixed, documented, won't-do, done earlier) and the commit or reason, any won't-do carries Trevor's sign-off, a grep for FU- over docs/ finds no id without a row, and hub-scorecard.md no longer carries its own open list"
+    },
+    {
+      "id": "AC2",
+      "given": "a hub whose tracker's getSource() becomes undefined after a capture stops",
+      "when": "hub.update() runs",
+      "then": "gateBass.pulse reads 0 and the gate-input tap is disconnected; a same-source resume with renderTimeNow() briefly undefined rebuilds no tap and leaves no pulse gap; update(now) with an explicit time behaves as before; all pinned by specs; and contract C1, hub types.ts and the hub class comment state that gateBass.pulse is the newest audio, not shifted by the sync offset"
+    },
+    {
+      "id": "AC3",
+      "given": "a scorecard replay",
+      "when": "soft-boundary and song-change counts are computed",
+      "then": "they come from counters the analyzer exposes, boundaryProbe.ts and songChanges.ts no longer wrap prototype methods, and the offline scorecard cells are identical to before"
+    },
+    {
+      "id": "AC4",
+      "given": "a debug:viz recording of the dancer",
+      "when": "the telemetry CSV is written",
+      "then": "it carries DEV-only columns for kicks placed before the lock, phase-onset count, and scene-build and model-parse marks; bass-ink's recording carries a scene-build mark; the two hub.onsets strength scales are documented as they are; and the production bundle stays within 0.1 kB of before"
+    },
+    {
+      "id": "AC5",
+      "given": "the dancer's bass gate",
+      "when": "it opens on the lock tick after an unlock, sees frames longer than 0.1 s, bpm 0, or more than 32 kicks before the lock",
+      "then": "specs show no spurious bump from a stale lastPhase and placed kicks spaced on the unclamped clock; and sparse-bass false opens are measured through the hub replay with a recorded keep-or-change decision"
+    },
+    {
+      "id": "AC6",
+      "given": "the scorecard",
+      "when": "it runs over the real tracks",
+      "then": "a set-director cell reports bass-ink transition count and times per track; the hub-energy move is kept only if on every real track the transition count is equal and each transition time is within one beat of the pre-move replay, otherwise it is reverted with the failing tracks recorded; a kept move is confirmed in S7 by bass-ink's live kicks cell not getting worse"
+    },
+    {
+      "id": "AC7",
+      "given": "TARGETS_VERSION 9",
+      "when": "the scorecard runs",
+      "then": "drifting tracks are scored against a smooth fit of the taps, clip comparison uses the meter-locked-runs and beatsPerLoop rule with a reported skipped share and a minimum span, hit share uses a relative tolerance, live cells are recomputed by --ingest from existing runs, the version bump is the first S6 commit with each scoring commit's diff produced against a scratch baseline, and the committed baseline is rewritten once at the end of S6"
+    },
+    {
+      "id": "AC8",
+      "given": "the final live pass",
+      "when": "live cells of the changed visualizers and scorecard:order with 4 sessions per order are recorded",
+      "then": "the scorecard is committed and scorecard:check passes (with the second baseline rewrite only if S4 or S5 changed a live-scored visualizer); FU-S10-order-hub-spread is closed as load timing if the scene-build or model-parse mark lands later relative to track start after a different visualizer by more than the control sessions' spread and the hub-signal spread follows it, otherwise deferred with the mark data"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "decided_by": "user",
+      "question": "Which items does the plan cover?",
+      "answer": "Every open FU item of hub-regressions, each fixed, documented or closed.",
+      "rationale": "Clear the backlog list completely."
+    },
+    {
+      "id": "D2",
+      "decided_by": "user",
+      "question": "Document or change behavior when an item offers both?",
+      "answer": "Document unless a cell or spec shows a real defect.",
+      "rationale": "Keeps visualizers stable and avoids re-scoring."
+    },
+    {
+      "id": "D3",
+      "decided_by": "user",
+      "question": "How are live recordings scheduled?",
+      "answer": "One consolidated pass at the end.",
+      "rationale": "Live runs are slow and serial; per-slice recording repeated work in S4-S10."
+    },
+    {
+      "id": "D4",
+      "decided_by": "user",
+      "question": "One or several targets bumps?",
+      "answer": "One combined bump for drifting-truth, clip-unit and hitshare-relative-tolerance.",
+      "rationale": "One sign-off, one rescore."
+    },
+    {
+      "id": "D5",
+      "decided_by": "repo-fact",
+      "question": "Which listed items are already done?",
+      "answer": "FU-S8-live-retap (S10 close), FU-HR-falsefire-onset (targets v6) and FU-S7-retap-summer2000 (S8).",
+      "rationale": "hub-scorecard.md:177, :562, :720."
+    },
+    {
+      "id": "D6",
+      "decided_by": "repo-fact",
+      "question": "What does a targets bump imply?",
+      "answer": "TARGETS_VERSION is 8 and live files of another version are dropped, so v9 needs --ingest recomputation of live cells and a baseline rewrite.",
+      "rationale": "scripts/scorecard/targets.ts:10, live/session.ts:22-27, inputs.ts:172-176."
+    },
+    {
+      "id": "D7",
+      "decided_by": "planner-assumption",
+      "question": "FU-S4-gatebass-sync-offset: reword or shift the pulse?",
+      "answer": "Reword C1, types.ts and the class comment.",
+      "rationale": "D2; shifting would change cubes and the dancer for users with an offset."
+    },
+    {
+      "id": "D8",
+      "decided_by": "planner-assumption",
+      "question": "FU-S4-gatebass-no-source: fix or document?",
+      "answer": "Fix: release the tap and zero the pulse when tracker.getSource() is undefined, not on renderTimeNow() alone.",
+      "rationale": "A tap left connected breaks the resource-ownership rule; getSource() is the real ownership signal, and renderTimeNow() can be transiently undefined with a live source (critic F3)."
+    },
+    {
+      "id": "D9",
+      "question": "FU-S9-bass-ink-energy in scope?",
+      "answer": "Add the set-director cell first, then try the move onto the hub; keep it only if transitions stay within the pre-move spread, otherwise document and close.",
+      "decided_by": "user",
+      "rationale": "Measure before changing the set director."
+    },
+    {
+      "id": "D10",
+      "question": "FU-S8-summer2000-gaps?",
+      "answer": "Optional re-tap by Trevor, scheduled before the v9 baseline rewrite so its hash lands in that single rewrite; skipping is allowed.",
+      "decided_by": "user",
+      "rationale": "Avoids a second baseline rewrite."
+    },
+    {
+      "id": "D11",
+      "question": "Where do the analyzer counters live?",
+      "answer": "Methods on RhythmAnalyzer and BoundaryDetector only; RhythmState is unchanged.",
+      "decided_by": "user",
+      "rationale": "No consumer contract change."
+    },
+    {
+      "id": "D12",
+      "question": "hub.onsets strength scale (FU-S6-phase-strength-telemetry): document or normalize?",
+      "answer": "Document both scales as they are and add the phase-onset counter; no visualizer reads hub.onsets, so normalizing is deferred to whoever first reads it.",
+      "decided_by": "planner-assumption",
+      "rationale": "D2; keeps S3 at R1 with offline cells identical (critic F6)."
+    },
+    {
+      "id": "D13",
+      "question": "Does a cell missing from the baseline fail scorecard:check?",
+      "answer": "No: compareToBaseline in scripts/scorecard/ratchet.ts iterates baseline cells only, so the S4 advisory cell passes until S6 adds it.",
+      "decided_by": "repo-fact",
+      "rationale": "Critic F7 read of ratchet.ts; S4 adds one spec pinning it."
+    },
+    {
+      "id": "D14",
+      "question": "How are the undescribed fast-lane ids handled?",
+      "answer": "S1 recovers them from the S5 and S9 PR reviews and git log; spec gaps go to S4 (gate) or S5 (bass-ink); a won't-do needs Trevor's sign-off.",
+      "decided_by": "planner-assumption",
+      "rationale": "Missing specs are a defect under the 95% coverage rule (critic F5)."
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Three sequential PRs grouped by what they invalidate: PR1 code changes that leave every offline cell identical (no baseline touch), PR2 the single targets v9 bump plus bass-ink cell and one baseline rewrite, PR3 the one live pass and ledger close.",
+      "approach": [
+        "PR1 (no baseline change, scorecard:check unchanged): ledger file docs/plans/hub-followups/ledger.md with all FU ids (incl. 4 undescribed, 3 done per D5); AC2 hub fix (zero pulse + disconnect tap when renderTimeNow undefined) and C1/types.ts/class-comment reword (D7/D8); AC3 analyzer counter methods on RhythmAnalyzer and BoundaryDetector (D11), delete prototype wrappers, prove offline cells identical via scorecard:check; AC4 DEV-only telemetry columns plus onsets scale note, bundle diff checked once.",
+        "PR1 also: AC5 specs for lock-tick stale lastPhase, frames over 0.1 s, bpm 0, more than 32 kicks; sparse-false-open measured once with replay:gate through the hub, keep-or-change recorded in the ledger (D2 default keep). Only change gate code if the measure shows a defect; a gate change goes here, before the bump, so it is rescored once.",
+        "PR2 (the only baseline rewrite): Trevor's optional summer2000 re-tap first (D10); add the set-director bass-ink transition cell (count and times); try bass-ink energy on the hub, compare against pre-move spread in the same run, keep or document (D9).",
+        "PR2 continues: TARGETS_VERSION 8 to 9 with smooth-fit drifting truth, meter-locked-runs/beatsPerLoop clip rule (reported skipped share, minimum span), relative hit-share tolerance (D4); run --ingest to recompute live cells from existing files (D6); one --write-baseline.",
+        "PR3: single consolidated live pass (D3): scorecard:live for changed visualizers, then scorecard:order 4 sessions per order, one job at a time from main; use new build/parse marks to name cause of FU-S10-order-hub-spread or defer with evidence; commit live json, scorecard:check green.",
+        "PR3 closes the ledger and replaces hub-scorecard.md:763-823 with a pointer; each PR runs format, lint, typecheck, test:coverage, build and scorecard:check."
+      ],
+      "components": [
+        {
+          "name": "Ledger",
+          "responsibility": "One row per FU id: description, outcome, commit or reason",
+          "location": "docs/plans/hub-followups/ledger.md"
+        },
+        {
+          "name": "Hub gate tap fix and C1 wording",
+          "responsibility": "Zero pulse and release tap without render time; document unshifted pulse",
+          "location": "app/features/audio/hub/audioHub.ts, gateBassTap.ts, types.ts, docs/plans/hub-regressions/contracts.md"
+        },
+        {
+          "name": "Analyzer counters",
+          "responsibility": "Expose soft-boundary and song-change counts as methods",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, boundary.ts, scripts/scorecard/engine/"
+        },
+        {
+          "name": "Targets v9",
+          "responsibility": "Combined scoring changes",
+          "location": "scripts/scorecard/targets.ts, cells.ts"
+        }
+      ],
+      "contracts": [
+        "Hub: gateBass.pulse is 0 and tap disconnected when renderTimeNow() is undefined; pulse is newest audio, unshifted.",
+        "RhythmAnalyzer and BoundaryDetector gain read-only counter methods; RhythmState unchanged.",
+        "TARGETS_VERSION 9; live files of v8 are recomputed through --ingest."
+      ],
+      "pros": [
+        "One bump, one baseline rewrite, one live pass (M2, M3).",
+        "PR1 is provably baseline-neutral, so G3 is checked by an unchanged scorecard:check.",
+        "Gate changes land before the rescore, so nothing is scored twice."
+      ],
+      "cons": [
+        "PR1 is wide (hub, analyzer, telemetry, specs) and harder to review.",
+        "Bass-ink hub-move result is known only in PR2, so a revert there costs a rerun of the offline scorecard."
+      ],
+      "risks": [
+        "Sparse-false-open measure may justify a gate change that shifts cells before PR2; mitigated by ordering it inside PR1.",
+        "Bundle budget (0.1 kB) if telemetry is not tree-shaken.",
+        "Live pass finds a regression after the baseline is rewritten, forcing a second rewrite (allowed, at most two)."
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 3
+      },
+      "total": 3.5
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Seven ordered slices, each one mechanism, behavior changes in their own revertible commit behind a measure-first, ratchet-second rule, one baseline rewrite for the new cell and one for v9, one live pass last.",
+      "approach": [
+        "S0 ledger (docs only): create docs/plans/hub-followups/ledger.md with every FU id (15 listed, 5 plan-only, 3 done earlier per D5) as description/outcome/commit-or-reason; hub-scorecard.md:763-823 becomes a pointer at the end. Rows are updated in the same commit as each fix.",
+        "S1 gateBass (AC2): spec first (renderTimeNow undefined gives pulse 0 and tap disconnected), then the release fix (D8), then C1/types.ts/class comment reword (D7). Gate: scorecard:check with baseline byte-identical.",
+        "S2 analyzer counters (AC3, D11): add counter methods to RhythmAnalyzer and BoundaryDetector, switch boundaryProbe.ts/songChanges.ts, delete prototype wrapping. Ratchet: offline cells identical, RhythmState untouched.",
+        "S3 dancer telemetry (AC4): one DEV-only column change (pre-lock kicks, phase-onset count, scene-build/model-parse marks), document the single hub.onsets strength scale. Ratchet: build size diff within 0.1 kB, DEV tree-shake check.",
+        "S4 gate edges (AC5): specs for lock-tick stale lastPhase, dt>0.1, bpm 0, >32 pre-lock kicks; measure sparse false opens via hub replay first, record keep-or-change; any rule change is a separate commit with before/after cells (D2).",
+        "S5 bass-ink (AC6, D9): add set-director transition cell and record pre-move spread (rewrite #1 of baseline); then the hub-energy move as its own commit, kept only if inside spread, else revert and record the reason.",
+        "S6 targets v9 (AC7, D4/D6/D10): optional summer2000 re-tap first; three commits (smooth-fit truth, clip rule with skipped share and min span, relative hit tolerance), each with a rescore diff report; one TARGETS_VERSION bump, --ingest live cells, baseline rewrite #2.",
+        "S7 final live pass (AC8, D3): record changed visualizers plus scorecard:order, 4 sessions per order, one at a time from main; close order-hub-spread using the S3 marks; finalize ledger."
+      ],
+      "components": [
+        {
+          "name": "Ledger",
+          "responsibility": "single source of truth for FU outcomes",
+          "location": "docs/plans/hub-followups/ledger.md"
+        },
+        {
+          "name": "gateBass release",
+          "responsibility": "zero pulse and disconnect tap when no render time",
+          "location": "app/features/audio/hub/audioHub.ts, gateBassTap.ts"
+        },
+        {
+          "name": "Analyzer counters",
+          "responsibility": "expose soft-boundary and song-change counts",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, boundary.ts"
+        },
+        {
+          "name": "Targets v9",
+          "responsibility": "drifting fit, clip rule, relative tolerance",
+          "location": "scripts/scorecard/targets.ts, cells.ts"
+        }
+      ],
+      "contracts": [
+        "C1: gateBass.pulse is the newest audio, not shifted by the sync offset; 0 without render time",
+        "RhythmAnalyzer and BoundaryDetector gain read-only counter methods; RhythmState unchanged",
+        "TARGETS_VERSION 8 to 9, once"
+      ],
+      "pros": [
+        "Every behavior change is separately measured and revertible",
+        "Baseline rewritten only twice; slices S1-S4 keep it byte-identical, a cheap ratchet",
+        "Live recording happens once, after all measures exist (S3 marks)"
+      ],
+      "cons": [
+        "Seven slices is more ceremony than a docs-heavy backlog may need",
+        "Two baseline rewrites instead of one",
+        "Live-dependent decisions (order spread) arrive last, so a late finding cannot be fixed within the plan"
+      ],
+      "risks": [
+        "S5 hub-energy move may fail the spread test, leaving the work as documentation only",
+        "Bundle budget is near the limit, so S1-S3 additions may need trimming",
+        "v9 rescore may move cells that pass today (G3); the per-commit diff report is the guard"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Sequence by measurement dependency and score impact, not shared mechanism: ledger and zero-score-impact work first, one offline measurement pass that decides every keep-or-change question, then a single v9 bump with baseline rewrite, then the live pass, so any item the measurements clear closes as documented or won't-do and never reaches a rewrite or recording.",
+      "approach": [
+        "Slice 1, ledger and triage: write docs/plans/hub-followups/ledger.md with all ids (D5 three done earlier; four undescribed ids described from plan notes 316/402 and pre-classified documented or won't-do unless slice 3 finds a defect); replace hub-scorecard.md:763-823 with a pointer. Docs only (AC1).",
+        "Slice 2, zero-score-impact code: gateBass no-source fix plus spec and C1/types.ts/class-comment rewording (AC2, D7, D8); analyzer counters on RhythmAnalyzer and BoundaryDetector (D11) with offline cells diffed identical (AC3); DEV-only dancer telemetry columns and onsets scale doc (AC4). Baseline untouched; scorecard:check green.",
+        "Slice 3, one offline measurement pass before any decision: add the bass-ink transition cell (AC6, D9), run hub replay for sparse false opens and lock-edge specs (AC5). Record keep-or-change per item; default is document (D2); change a gate only on a failing cell or spec. Add cell without rewriting baseline if it is non-blocking.",
+        "Slice 4, gate and set-director edits only for defects slice 3 proved (stale lastPhase bump, unclamped placement, bass-ink move if within pre-move spread); otherwise close as documented/won't-do with measured reason.",
+        "Slice 5, the only targets work: TARGETS_VERSION 9 with drifting truth, clip unit, relative hit-share tolerance (D4); optional summer2000 re-tap first (D10); --ingest live cells; baseline rewrite once (AC7).",
+        "Slice 6, one consolidated live pass (D3): live cells only for visualizers actually changed in slices 2-4, plus scorecard:order 4 sessions per order; close order-hub-spread from new marks or defer with evidence (AC8).",
+        "Close the ledger with commits; M2 baseline rewrites target 1 (at most 2)."
+      ],
+      "components": [
+        {
+          "name": "Ledger",
+          "responsibility": "One row per FU id: description, outcome, commit or reason",
+          "location": "docs/plans/hub-followups/ledger.md"
+        },
+        {
+          "name": "Decision gate",
+          "responsibility": "Measured keep-or-change record per gate/bass-ink item before code edits",
+          "location": "docs/plans/hub-followups/ledger.md and scripts/scorecard/"
+        },
+        {
+          "name": "Analyzer counters",
+          "responsibility": "Expose soft-boundary and song-change counts",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, boundary.ts"
+        }
+      ],
+      "contracts": [
+        "RhythmAnalyzer and BoundaryDetector gain count accessors; RhythmState unchanged (D11)",
+        "C1: gateBass.pulse is newest audio, unshifted by sync offset; 0 with tap released when renderTimeNow() is undefined",
+        "TARGETS_VERSION 8 to 9 only in slice 5"
+      ],
+      "pros": [
+        "Lowest rewrite and recording count: live pass scope shrinks to visualizers that really changed",
+        "Decisions come from numbers before edits, matching D2 and D9",
+        "Slices 1-4 never touch the baseline, so M4 is trivial",
+        "Early slices are low-risk and independently shippable"
+      ],
+      "cons": [
+        "Departs from mechanism grouping: telemetry columns land before the marks are exercised live",
+        "Slice 3 outcome is unknown, so slice 4 and 6 size is uncertain",
+        "Pre-classifying undescribed items as documented rests on thin written evidence"
+      ],
+      "risks": [
+        "Replay in slice 3 may show a real defect that forces a gate change after v9 plans were made; mitigated by ordering it before slice 5",
+        "Cell added in slice 3 may shift v9 targets and need a second baseline rewrite (still within M2)",
+        "Counters refactor could alter offline cells; diff gate catches it"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 4,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 4
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "O3's measurement-first order (ledger, zero-score-impact code, one offline measurement pass, defect-only edits, one v9 bump, one live pass) with O2's discipline: each behavior change spec-first in its own revertible commit with a before/after cell diff, and ledger rows updated in the same PR as each fix. The four undescribed fast-lane ids are recovered from the S5 and S9 PR review threads rather than pre-classified.",
+      "approach": [
+        "S1 ledger: docs/plans/hub-followups/ledger.md with every FU id; recover the four undescribed ids from the S5 and S9 PR review comments (gh pr view) and git log; fold each into a later slice or close it; hub-scorecard.md:763-823 becomes a pointer (AC1).",
+        "S2 contracts and counters, baseline byte-identical: gateBass no-source fix with spec, C1/types.ts/class comment reworded (AC2, D7, D8); counter methods on RhythmAnalyzer and BoundaryDetector, prototype wrapping deleted, offline cells identical (AC3, D11).",
+        "S3 DEV telemetry, one column change: placed-before-lock kicks, phase-onset count, scene-build and model-parse marks, onsets scale documented; bundle diff within 0.1 kB (AC4).",
+        "S4 offline measurement and gate edges: lock-edge specs, sparse false opens via hub replay and sweep:gate, set-director cell added report-only; keep-or-change recorded; gate edits only for proven defects, each its own commit with cell diff (AC5, part of AC6).",
+        "S5 bass-ink energy move tried against the S4 cell spread, kept or reverted with reason (AC6, D9).",
+        "S6 targets v9: optional summer2000 re-tap first (D10), three scoring commits each with a rescore diff, one TARGETS_VERSION bump, --ingest live cells, one baseline rewrite including the set-director cell (AC7).",
+        "S7 one live pass for the visualizers that changed plus scorecard:order 4 sessions per order using S3 marks; close FU-S10-order-hub-spread; close ledger (AC8)."
+      ],
+      "components": [
+        {
+          "name": "Ledger",
+          "responsibility": "One row per FU id with outcome and commit or reason",
+          "location": "docs/plans/hub-followups/ledger.md"
+        },
+        {
+          "name": "Hub gateBass release",
+          "responsibility": "Zero pulse and disconnect tap without render time",
+          "location": "app/features/audio/hub/audioHub.ts, gateBassTap.ts, types.ts"
+        },
+        {
+          "name": "Analyzer counters",
+          "responsibility": "Soft-boundary and song-change counts as methods",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, boundary.ts, scripts/scorecard/engine/"
+        },
+        {
+          "name": "Dancer DEV telemetry",
+          "responsibility": "New columns recorded by debug:viz",
+          "location": "app/features/visualizers/dancing-character/useDancingCharacterScene.ts, scripts/debug-viz"
+        },
+        {
+          "name": "Gate and set-director cells",
+          "responsibility": "Measure before change",
+          "location": "app/features/rhythm/bassGate.ts, scripts/scorecard/cells.ts"
+        },
+        {
+          "name": "Targets v9",
+          "responsibility": "Drifting fit, clip rule, relative hit-share tolerance",
+          "location": "scripts/scorecard/targets.ts"
+        }
+      ],
+      "contracts": [
+        "C1 gateBass: pulse is newest audio, unshifted by sync offset; 0 with tap released when renderTimeNow() is undefined",
+        "RhythmAnalyzer and BoundaryDetector gain read-only counter methods; RhythmState unchanged",
+        "TARGETS_VERSION 8 to 9 once, in S6"
+      ],
+      "pros": [
+        "One targets bump, one baseline rewrite planned (two at most), one live pass scoped to changed visualizers",
+        "Every behavior change is measured first and separately revertible",
+        "S1-S5 leave the blocking baseline untouched, so scorecard:check is a cheap ratchet"
+      ],
+      "cons": [
+        "Seven slices, though S1, S3 and S5 are small",
+        "S4 and S5 sizes depend on measurement outcomes"
+      ],
+      "risks": [
+        "The four undescribed ids may not be recoverable from PR threads; then they close as won't-do with that reason",
+        "A report-only cell added in S4 must not break scorecard:check before the S6 rewrite"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 4.3
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O4 keeps O3's measurement-first order, which minimises rewrites and scopes the single live pass to visualizers that actually changed, and adds O2's spec-first, one-commit-per-behavior-change discipline so each change is reversible. O1 packs too much into one wide PR; O2 needs two baseline rewrites and more ceremony.",
+  "design": {
+    "overview": "Seven slices ordered by measurement dependency. S1 builds the ledger that replaces the backlog list. S2 and S3 make changes that leave every offline cell identical (gateBass contract and leak fix, analyzer counters, DEV telemetry). S4 measures every keep-or-change question offline (gate edges, sparse false opens, a report-only set-director cell) and edits the gate only for proven defects. S5 tries the bass-ink energy move against that cell. S6 does the single targets v9 bump and the one baseline rewrite. S7 is the single live pass, scoped to visualizers that changed, plus the order sessions, and closes the ledger. Each behavior change is spec-first in its own commit with a before/after cell diff in the PR description.",
+    "components": [
+      {
+        "name": "Ledger",
+        "responsibility": "One row per FU id: description, outcome (fixed, documented, won't-do, done earlier), commit or reason, slice",
+        "location": "docs/plans/hub-followups/ledger.md"
+      },
+      {
+        "name": "Hub gateBass release",
+        "responsibility": "Zero the pulse and disconnect the tap when the tracker has no render time",
+        "location": "app/features/audio/hub/audioHub.ts, app/features/audio/hub/gateBassTap.ts, app/features/audio/hub/types.ts"
+      },
+      {
+        "name": "Analyzer counters",
+        "responsibility": "Expose soft-boundary and song-change counts; scorecard engine reads them instead of patching prototypes",
+        "location": "app/features/rhythm/rhythmAnalyzer.ts, app/features/rhythm/boundary.ts, scripts/scorecard/engine/boundaryProbe.ts, scripts/scorecard/engine/songChanges.ts"
+      },
+      {
+        "name": "Dancer DEV telemetry",
+        "responsibility": "Placed-before-lock kicks, phase-onset count, scene-build and model-parse marks",
+        "location": "app/features/visualizers/dancing-character/, scripts/debug-viz/"
+      },
+      {
+        "name": "Gate measurement",
+        "responsibility": "Lock-edge specs, sparse false-open measure, defect-only fixes",
+        "location": "app/features/rhythm/bassGate.ts, bassGateConfig.ts, scripts/scorecard/sweepGate.ts"
+      },
+      {
+        "name": "Set-director cell",
+        "responsibility": "bass-ink transition count and times per real track",
+        "location": "scripts/scorecard/cells.ts, app/features/visualizers/bass-ink/"
+      },
+      {
+        "name": "Targets v9",
+        "responsibility": "Drifting smooth-fit truth, clip rule, relative hit-share tolerance",
+        "location": "scripts/scorecard/targets.ts"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "gateBass snapshot (hub contract C1)",
+        "kind": "internal TypeScript interface",
+        "definition": "gateBass.pulse is the newest audio, not shifted by the sync offset (bands, lowEnd and beat are); when tracker.getSource() is undefined it reads 0 and the gate-input tap is disconnected; a transiently undefined renderTimeNow() with the same source keeps the tap. Wording updated in docs/plans/hub-regressions/contracts.md, hub types.ts and the hub class comment."
+      },
+      {
+        "id": "C2",
+        "name": "Analyzer counters",
+        "kind": "internal class methods",
+        "definition": "RhythmAnalyzer and BoundaryDetector expose read-only counters for soft boundaries and song-change times; RhythmState is unchanged; the scorecard engine reads the counters and no longer wraps prototype methods."
+      },
+      {
+        "id": "C3",
+        "name": "DEV telemetry columns",
+        "kind": "debug:viz CSV columns",
+        "definition": "New DEV-only columns: dancer placedKicks, phaseOnsets, sceneBuiltAt, modelParsedAt; bass-ink sceneBuiltAt; absent from production bundles; debug:summary tolerates their absence in older CSVs."
+      },
+      {
+        "id": "C4",
+        "name": "Scorecard targets v9",
+        "kind": "scorecard file format and rules",
+        "definition": "TARGETS_VERSION 9: drifting tracks scored against a quadratic fit of tapped beat times; clip compared within the bar only when at least 3 runs are meter-locked and every compared run has beatsPerLoop of 4 or more, with skipped share reported and a minimum span share; hit share tolerance max(0.05, 0.1 x pre-hub). Live v8 files are recomputed by --ingest."
+      }
+    ],
+    "data": "Committed artifacts change: hub-scorecard.cells .json/.md and the baseline (rewritten once in S6), hub-scorecard.live.json and order .json/.md (S6 ingest, S7 recording), and summer2000.beats.json only if Trevor re-taps (D10). Audio in .debug-in stays uncommitted.",
+    "ux": "No visible change for end users except possibly bass-ink set transitions if the S5 move is kept, which must stay within the pre-move spread.",
+    "accessibility": "",
+    "security_privacy": "",
+    "observability": "New DEV telemetry columns (C3) make the gate placement, phase onsets and load timing visible in debug:viz recordings; the set-director cell makes bass-ink's director measurable.",
+    "rollout": "One PR per slice, Conventional Commit titles (docs for S1 and S6 docs-only parts, fix for S2, chore or refactor for S3, fix or refactor for S4 and S5, test or chore for the scorecard-only S6, docs for S7), merged in order; each deploys to production via Workers Builds. Behavior changes sit in their own commits so a single revert undoes one; production rollback via the Cloudflare dashboard if smoke fails."
+  },
+  "test_strategy": {
+    "unit": "Spec-first per behavior change: hub spec with a tracker whose renderTimeNow() is undefined (pulse 0, tap disconnected); analyzer counter specs; bassGate specs for lock tick after unlock, dt over 0.1 s, bpm 0, more than 32 pre-lock kicks; targets specs for the quadratic fit, the clip rule edge cases and the relative tolerance. Coverage stays at 95%.",
+    "integration": "npm run scorecard then scorecard:check at the end of every slice; S2 and S3 require offline cells identical to the base; S4 and S5 attach a before/after cell diff; S6 rewrites the baseline once and attaches the rescore diff per scoring commit.",
+    "e2e": "npm run test:e2e for slices touching app code (S2, S3, S4, S5), including e2e/order.spec.ts.",
+    "manual": "S5: watch bass-ink in npm run dev on two real tracks if the move is kept. S7: live recordings one at a time from the main checkout.",
+    "non_functional": "npm run size after S3 and S5: production bundle within 0.1 kB of base for S3; budgets in .size-limit.json unchanged."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "The four undescribed fast-lane ids cannot be recovered from PR threads or git history.",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Close them as won't-do with 'no recoverable description' and the PR links searched, so the ledger still has a row."
+    },
+    {
+      "id": "K2",
+      "description": "A refactor in S2 or S3 changes an offline cell by accident.",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Require scorecard cells identical to the base before merge; any diff blocks the PR."
+    },
+    {
+      "id": "K3",
+      "description": "The advisory set-director cell added in S4 is mistaken for a blocking one.",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "D13: the ratchet ignores cells absent from the baseline; S4 adds a spec pinning that."
+    },
+    {
+      "id": "K4",
+      "description": "The S7 live pass shows a changed visualizer worse than the S6 baseline.",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Allowed second rewrite (M2) only for visualizers S4 or S5 changed, listed in the S7 PR; any other regression becomes a new ledger row with evidence."
+    },
+    {
+      "id": "K5",
+      "description": "DEV telemetry leaks into the production bundle near the budget.",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Guard with import.meta.env.DEV as existing columns do; check npm run size in S3."
+    },
+    {
+      "id": "K6",
+      "description": "The v9 clip or hit-share rule flips a passing blocking cell to failing.",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "One commit per rule with a rescore diff; any newly failing blocking cell needs Trevor's sign-off in the PR, recorded in the ledger."
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Ledger and triage",
+      "objective": "Write docs/plans/hub-followups/ledger.md with every hub-regressions FU id; recover the four undescribed ids from the S5 and S9 PR reviews and git log and assign spec gaps to S4 or S5; record the three done earlier; assign each open id to a slice, or close it with Trevor's sign-off; add a ledger completeness check (grep for FU- over docs/); replace hub-scorecard.md:763-823 with a pointer.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1"
+      ],
+      "contracts": [],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "docs/plans/hub-followups/ledger.md",
+        "docs/agents/hub-scorecard.md"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "gateBass contract and analyzer counters",
+      "objective": "Spec-first fix that zeroes gateBass.pulse and disconnects the tap when tracker.getSource() is undefined, with specs for same-source resume and explicit update(now); reword C1, types.ts and the hub comment for the unshifted pulse; add analyzer counter methods and remove the prototype wrapping; offline cells identical.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC3"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/audio/hub/audioHub.ts",
+        "app/features/audio/hub/gateBassTap.ts",
+        "app/features/audio/hub/types.ts",
+        "docs/plans/hub-regressions/contracts.md",
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/boundary.ts",
+        "scripts/scorecard/engine/boundaryProbe.ts",
+        "scripts/scorecard/engine/songChanges.ts"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Dancer DEV telemetry columns",
+      "objective": "One telemetry-column change: dancer placed-before-lock kicks, phase-onset count, scene-build and model-parse marks, bass-ink scene-build mark, recorded by debug:viz; document the two hub.onsets strength scales as they are (D12); bundle within 0.1 kB.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC4"
+      ],
+      "contracts": [
+        "C3"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/dancing-character/useDancingCharacterScene.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "scripts/debug-viz/"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Offline measurement and gate edges",
+      "objective": "Add lock-edge specs and any recovered gate spec gaps, measure sparse false opens through the hub replay and sweep:gate, add the set-director cell as advisory with a spec that the ratchet ignores it (D13), record the pre-move set-director replay; record keep-or-change per item in the ledger; fix only proven gate defects, each in its own commit with a cell diff.",
+      "depends_on": [
+        "S2",
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC5",
+        "AC6"
+      ],
+      "contracts": [],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/bassGate.ts",
+        "app/features/rhythm/bassGateConfig.ts",
+        "scripts/scorecard/sweepGate.ts",
+        "scripts/scorecard/cells.ts"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "bass-ink energy onto the hub",
+      "objective": "Move bass-ink's set-level energy onto the hub low end and retune its ratio thresholds; keep the move only if every real track has an equal transition count and each transition within one beat of the S4 replay, otherwise revert and record the failing tracks; add any recovered bass-ink spec gaps.",
+      "depends_on": [
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC6"
+      ],
+      "contracts": [],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Targets v9 and the one baseline rewrite",
+      "objective": "After the optional summer2000 re-tap, bump TARGETS_VERSION to 9 in the first commit, then land the drifting smooth-fit truth, the clip rule and the relative hit-share tolerance as three commits whose rescore diffs are produced against a scratch baseline; recompute live cells with --ingest; rewrite the committed baseline once at the end, including the set-director cell; list cells changed by v9 for Trevor's sign-off.",
+      "depends_on": [
+        "S5"
+      ],
+      "acceptance_refs": [
+        "AC7"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "scripts/scorecard/targets.ts",
+        "scripts/scorecard/cells.ts",
+        "docs/agents/hub-scorecard.cells.json",
+        "docs/agents/hub-scorecard.live.json"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "One live pass and close",
+      "objective": "Record live cells only for visualizers changed in S2-S5, and scorecard:order with 4 sessions per order using the S3 marks, one at a time from the main checkout; apply the AC8 rule to close or defer FU-S10-order-hub-spread; document FU-S8-manual-reselect; rewrite the baseline a second time only for visualizers S4 or S5 changed; close the ledger.",
+      "depends_on": [
+        "S6"
+      ],
+      "acceptance_refs": [
+        "AC8",
+        "AC1"
+      ],
+      "contracts": [
+        "C3",
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "docs/agents/hub-scorecard.live.json",
+        "docs/agents/hub-scorecard.order.json",
+        "docs/agents/hub-scorecard.cells.json",
+        "docs/agents/hub-scorecard.md",
+        "docs/plans/hub-followups/ledger.md"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Will Trevor do the optional summer2000 re-tap of 8.6-13.4 s before S6?",
+      "owner": "Trevor",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC6, D9 and S5 gate the bass-ink hub-energy move on 'within the pre-move spread' of the set-director cell, but the cell is an offline replay over real tracks, which is deterministic, so a spread does not exist unless it is defined (across what: tracks, seeds, a tolerance on count and times?). S4 is told to 'record the pre-move spread' with no definition or number. S5 can therefore not fail, or is judged by taste. The live effect of the move on bass-ink is first seen in S7, after the baseline is rewritten in S6.",
+        "suggestion": "Define the pass rule in AC6 before S4: for example transition count equal and each time within X s per track, or a per-track tolerance taken from the existing live spread for bass-ink. S5 reverts if any track is outside it. Name which S7 live cell confirms the kept move.",
+        "resolution": "Changed: AC6 and S5 now define the pass rule (equal transition count and each transition within one beat per real track, else revert) and name bass-ink's live kicks cell in S7 as confirmation."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "The 'baseline rewritten once' promise (AC7, M2) and the claim in O4 pros that 'S1-S5 leave the blocking baseline untouched' conflict with S4 and S5, which can change the dancer's gate and bass-ink's director. S6 then runs --ingest over live files recorded before those changes and rewrites the baseline from them. S7 records new live cells and runs scorecard:check against that baseline. ratchet.ts fails any live metric worse than baseline by more than its spread, so a changed visualizer can fail in S7 and force a second rewrite (K4 allows it, AC7 says once). S7 draft_paths also omit the baseline and cells.json, so the plan does not expect to touch them.",
+        "suggestion": "State that any S4/S5 behavior change that moves a live-scored visualizer either gets its live recording before S6 or accepts the second rewrite. Fix AC7 wording to 'once, or twice if S4/S5 changed a live-scored visualizer'. Add the baseline file to S7 draft_paths. Drop the 'baseline untouched' claim for S4/S5.",
+        "resolution": "Changed: M2, AC7, AC8 and S7 allow a second rewrite only when S4 or S5 changed a live-scored visualizer; the baseline-untouched claim is limited to S2 and S3; S7 draft_paths include the cells file."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "design",
+        "finding": "AC2/D8 key the tap release on tracker.renderTimeNow() being undefined. In audioHub.ts update() returns early on that, and readGateBassLevel() already decides on tracker.getSource(), which is the real ownership signal. If renderTimeNow() is also undefined transiently while a live source exists (before the first worklet message, or around a resume on the same source), releasing the tap there makes the hub rebuild a GateBassTap for the same source each time, dropping the gate level for those frames, and allocates in the update path. The plan also does not say that update(now) with an explicit time, which scorecard replay uses, is unaffected, and bass-ink and the dancer already mask the stale pulse with `source ? pulse : 0`.",
+        "suggestion": "Release on getSource() being undefined (tappedSource reset in the same place), or zero the pulse on the early-return path only when the source is gone. Add specs for same-source resume (no tap rebuild, no pulse gap) and for update(now) with an explicit time.",
+        "resolution": "Changed: D8, C1, AC2 and S2 key the release on getSource() being undefined, with specs for same-source resume and explicit update(now)."
+      },
+      {
+        "id": "F4",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "S6 lands three scoring commits, each 'with a rescore diff', plus a single version bump. ratchet.ts returns not-ok on any targets-version mismatch with the baseline, so the commit that bumps the version fails scorecard:check until the baseline is rewritten. If the bump comes last, the earlier commits change definitions under version 8 and the diff against the v8 baseline mixes definition changes with real regressions. M4 'scorecard:check exits 0 at the end of every slice' holds only at the end of S6. G3 ('no blocking cell that passes today gets worse') also conflicts with a v9 whose purpose is to rescore, and K6 handles that only by sign-off.",
+        "suggestion": "Say where the bump goes: put it in the first S6 commit and produce each rescore diff with --baseline pointing at a scratch file, or state that intermediate commits are not check-green. Reword G3/M4 to exempt S6 and name the sign-off route for cells that change under v9.",
+        "resolution": "Changed: the bump is the first S6 commit, scoring diffs are produced against a scratch baseline, M4 exempts intermediate S6 commits, G3 exempts v9-redefined cells with Trevor's sign-off."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "problem",
+        "finding": "Several FU items have no acceptance criterion or slice: FU-S5-sweep-entry-guard, FU-S5-prelock-false-open-pin, FU-S9-bass-ink-specs, FU-S9-bass-ink-gate-raw (names appear only at hub-regressions.plan.md:316 and :402), FU-S8-manual-reselect (only a clause in the S7 objective) and FU-S8-summer2000-gaps (only D10). AC1 is satisfied by a ledger row alone, and K1 lets the four undescribed ids close as won't-do with 'no recoverable description'. The names suggest real work: a sweepGate entry guard, a spec pin, and bass-ink specs, where the repo's 95% coverage rule makes missing specs a defect, not a won't-do. A won't-do without a description cannot honestly meet G1.",
+        "suggestion": "In S1, recover them from the S5/S9 reviews and git log, or ask Trevor. Where bass-ink-specs or the pin is a spec gap, assign it to S4/S5 with an AC line. Only close as won't-do with Trevor's sign-off recorded. Add a ledger-completeness check: every FU id found by grep over docs/ has a row.",
+        "resolution": "Changed: D14 and S1 recover the undescribed ids and route spec gaps to S4 or S5; won't-do needs Trevor's sign-off; AC1 and M1 add a grep completeness check; manual-reselect is documented in S7."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "S3 says 'decide and document the hub.onsets strength scale' (AC4), but the decision is not in the decisions list, has no owner, and may mean changing hub values rather than writing a note. That would break S3's R1 rating and the 'offline cells identical' ratchet, and it touches app/features/audio/hub/, which S3 lists only as draft_paths for the counter. Also, FU-S10-order-hub-spread showed spread on bass-ink's kick onsets and the dancer's gain, but only the dancer gets build/parse marks (C3), so S7 can name the cause for one of the two visualizers at most.",
+        "suggestion": "Add a decision (user-owned) before S3: document both scales as-is or normalize them. If normalizing, raise S3 to R2 and treat it as a behavior change with a cell diff. Add a bass-ink scene-build mark, or narrow AC8 to the dancer signals.",
+        "resolution": "Changed: D12 documents both scales as they are (S3 stays R1); C3 and AC4 add a bass-ink scene-build mark."
+      },
+      {
+        "id": "F7",
+        "severity": "low",
+        "area": "acceptance",
+        "finding": "AC8 lets FU-S10-order-hub-spread close as 'load timing or hub state named as cause' or 'deferred with its evidence', so it cannot fail, and gives no rule for what the 4 sessions per order must show. Q2 and K3 are open for a point the code already answers: compareToBaseline in ratchet.ts iterates baseline cells only, so a new cell absent from the baseline does not fail scorecard:check. The 'check exception' in K3 is not needed.",
+        "suggestion": "State a rule for AC8, such as a mark-timing difference between orders larger than the spread explains means load timing, otherwise defer. Close Q2 and K3 with a single spec showing the check passes with an added advisory cell.",
+        "resolution": "Changed: AC8 has a concrete close-or-defer rule; Q2 closed by D13 (repo fact); K3 updated."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "6f1c60033b4ab0533a7a0d8c623739bfb004d41682d77d712c0ae5248d69d413",
+    "cards": {
+      "O1": "e3a55ccb0f1205980fe8cd8353a077c94c16a89f9cca86d8209c02a9101867af",
+      "O2": "0e669103a686f386038dea97f57f0858de2e7d0968ef4963a7b5c614e85e4c77",
+      "O3": "89e7eb51cbbdb90e372f7970b984d61532cfc39cc1a2409e639478bb872d5a76"
+    },
+    "critic_sha256": "0b8ffbfb0299348f0d9b2057fac4f664eca05a5efadc5876b3fe66ef2c482db1",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "e9a30ce16c67920a",
+      "acs_sha256": "ff8f7cfa8b179dce"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "8bcf00a67ff72cd3",
+      "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "gateBass snapshot (hub contract C1)",
+          "kind": "internal TypeScript interface",
+          "definition": "gateBass.pulse is the newest audio, not shifted by the sync offset (bands, lowEnd and beat are); when tracker.getSource() is undefined it reads 0 and the gate-input tap is disconnected; a transiently undefined renderTimeNow() with the same source keeps the tap. Wording updated in docs/plans/hub-regressions/contracts.md, hub types.ts and the hub class comment."
+        },
+        {
+          "id": "C2",
+          "name": "Analyzer counters",
+          "kind": "internal class methods",
+          "definition": "RhythmAnalyzer and BoundaryDetector expose read-only counters for soft boundaries and song-change times; RhythmState is unchanged; the scorecard engine reads the counters and no longer wraps prototype methods."
+        },
+        {
+          "id": "C3",
+          "name": "DEV telemetry columns",
+          "kind": "debug:viz CSV columns",
+          "definition": "New DEV-only columns: dancer placedKicks, phaseOnsets, sceneBuiltAt, modelParsedAt; bass-ink sceneBuiltAt; absent from production bundles; debug:summary tolerates their absence in older CSVs."
+        },
+        {
+          "id": "C4",
+          "name": "Scorecard targets v9",
+          "kind": "scorecard file format and rules",
+          "definition": "TARGETS_VERSION 9: drifting tracks scored against a quadratic fit of tapped beat times; clip compared within the bar only when at least 3 runs are meter-locked and every compared run has beatsPerLoop of 4 or more, with skipped share reported and a minimum span share; hit share tolerance max(0.05, 0.1 x pre-hub). Live v8 files are recomputed by --ingest."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Ledger and triage: Write docs/plans/hub-followups/ledger.md with every hub-regressions FU id; recover the four undescribed ids from the S5 and S9 PR reviews and git log and assign spec gaps to S4 or S5; record the three done earlier; assign each open id to a slice, or close it with Trevor's sign-off; add a ledger completeness check (grep for FU- over docs/); replace hub-scorecard.md:763-823 with a pointer.",
+          "dependencies": [],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/plans/hub-followups/ledger.md",
+            "docs/agents/hub-scorecard.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC1: Given the plan's ledger in docs/plans/hub-followups/, when a reader looks up any hub-regressions FU id, including the four undescribed fast-lane ids and the three already done, then it shows a description, an outcome (fixed, documented, won't-do, done earlier) and the commit or reason, any won't-do carries Trevor's sign-off, a grep for FU- over docs/ finds no id without a row, and hub-scorecard.md no longer carries its own open list"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "gateBass contract and analyzer counters: Spec-first fix that zeroes gateBass.pulse and disconnects the tap when tracker.getSource() is undefined, with specs for same-source resume and explicit update(now); reword C1, types.ts and the hub comment for the unshifted pulse; add analyzer counter methods and remove the prototype wrapping; offline cells identical.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/audio/hub/audioHub.ts",
+            "app/features/audio/hub/gateBassTap.ts",
+            "app/features/audio/hub/types.ts",
+            "docs/plans/hub-regressions/contracts.md",
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/boundary.ts",
+            "scripts/scorecard/engine/boundaryProbe.ts",
+            "scripts/scorecard/engine/songChanges.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 gateBass snapshot (hub contract C1) (internal TypeScript interface): gateBass.pulse is the newest audio, not shifted by the sync offset (bands, lowEnd and beat are); when tracker.getSource() is undefined it reads 0 and the gate-input tap is disconnected; a transiently undefined renderTimeNow() with the same source keeps the tap. Wording updated in docs/plans/hub-regressions/contracts.md, hub types.ts and the hub class comment.",
+            "C2 Analyzer counters (internal class methods): RhythmAnalyzer and BoundaryDetector expose read-only counters for soft boundaries and song-change times; RhythmState is unchanged; the scorecard engine reads the counters and no longer wraps prototype methods."
+          ],
+          "acceptance": [
+            "AC2: Given a hub whose tracker's getSource() becomes undefined after a capture stops, when hub.update() runs, then gateBass.pulse reads 0 and the gate-input tap is disconnected; a same-source resume with renderTimeNow() briefly undefined rebuilds no tap and leaves no pulse gap; update(now) with an explicit time behaves as before; all pinned by specs; and contract C1, hub types.ts and the hub class comment state that gateBass.pulse is the newest audio, not shifted by the sync offset",
+            "AC3: Given a scorecard replay, when soft-boundary and song-change counts are computed, then they come from counters the analyzer exposes, boundaryProbe.ts and songChanges.ts no longer wrap prototype methods, and the offline scorecard cells are identical to before"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Dancer DEV telemetry columns: One telemetry-column change: dancer placed-before-lock kicks, phase-onset count, scene-build and model-parse marks, bass-ink scene-build mark, recorded by debug:viz; document the two hub.onsets strength scales as they are (D12); bundle within 0.1 kB.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/dancing-character/useDancingCharacterScene.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "scripts/debug-viz/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 DEV telemetry columns (debug:viz CSV columns): New DEV-only columns: dancer placedKicks, phaseOnsets, sceneBuiltAt, modelParsedAt; bass-ink sceneBuiltAt; absent from production bundles; debug:summary tolerates their absence in older CSVs."
+          ],
+          "acceptance": [
+            "AC4: Given a debug:viz recording of the dancer, when the telemetry CSV is written, then it carries DEV-only columns for kicks placed before the lock, phase-onset count, and scene-build and model-parse marks; bass-ink's recording carries a scene-build mark; the two hub.onsets strength scales are documented as they are; and the production bundle stays within 0.1 kB of before"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Offline measurement and gate edges: Add lock-edge specs and any recovered gate spec gaps, measure sparse false opens through the hub replay and sweep:gate, add the set-director cell as advisory with a spec that the ratchet ignores it (D13), record the pre-move set-director replay; record keep-or-change per item in the ledger; fix only proven gate defects, each in its own commit with a cell diff.",
+          "dependencies": [
+            "S2",
+            "S3"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/bassGate.ts",
+            "app/features/rhythm/bassGateConfig.ts",
+            "scripts/scorecard/sweepGate.ts",
+            "scripts/scorecard/cells.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC5: Given the dancer's bass gate, when it opens on the lock tick after an unlock, sees frames longer than 0.1 s, bpm 0, or more than 32 kicks before the lock, then specs show no spurious bump from a stale lastPhase and placed kicks spaced on the unclamped clock; and sparse-bass false opens are measured through the hub replay with a recorded keep-or-change decision",
+            "AC6: Given the scorecard, when it runs over the real tracks, then a set-director cell reports bass-ink transition count and times per track; the hub-energy move is kept only if on every real track the transition count is equal and each transition time is within one beat of the pre-move replay, otherwise it is reverted with the failing tracks recorded; a kept move is confirmed in S7 by bass-ink's live kicks cell not getting worse"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "bass-ink energy onto the hub: Move bass-ink's set-level energy onto the hub low end and retune its ratio thresholds; keep the move only if every real track has an equal transition count and each transition within one beat of the S4 replay, otherwise revert and record the failing tracks; add any recovered bass-ink spec gaps.",
+          "dependencies": [
+            "S4"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC6: Given the scorecard, when it runs over the real tracks, then a set-director cell reports bass-ink transition count and times per track; the hub-energy move is kept only if on every real track the transition count is equal and each transition time is within one beat of the pre-move replay, otherwise it is reverted with the failing tracks recorded; a kept move is confirmed in S7 by bass-ink's live kicks cell not getting worse"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S6",
+          "objective": "Targets v9 and the one baseline rewrite: After the optional summer2000 re-tap, bump TARGETS_VERSION to 9 in the first commit, then land the drifting smooth-fit truth, the clip rule and the relative hit-share tolerance as three commits whose rescore diffs are produced against a scratch baseline; recompute live cells with --ingest; rewrite the committed baseline once at the end, including the set-director cell; list cells changed by v9 for Trevor's sign-off.",
+          "dependencies": [
+            "S5"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/scorecard/targets.ts",
+            "scripts/scorecard/cells.ts",
+            "docs/agents/hub-scorecard.cells.json",
+            "docs/agents/hub-scorecard.live.json"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 Scorecard targets v9 (scorecard file format and rules): TARGETS_VERSION 9: drifting tracks scored against a quadratic fit of tapped beat times; clip compared within the bar only when at least 3 runs are meter-locked and every compared run has beatsPerLoop of 4 or more, with skipped share reported and a minimum span share; hit share tolerance max(0.05, 0.1 x pre-hub). Live v8 files are recomputed by --ingest."
+          ],
+          "acceptance": [
+            "AC7: Given TARGETS_VERSION 9, when the scorecard runs, then drifting tracks are scored against a smooth fit of the taps, clip comparison uses the meter-locked-runs and beatsPerLoop rule with a reported skipped share and a minimum span, hit share uses a relative tolerance, live cells are recomputed by --ingest from existing runs, the version bump is the first S6 commit with each scoring commit's diff produced against a scratch baseline, and the committed baseline is rewritten once at the end of S6"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S7",
+          "objective": "One live pass and close: Record live cells only for visualizers changed in S2-S5, and scorecard:order with 4 sessions per order using the S3 marks, one at a time from the main checkout; apply the AC8 rule to close or defer FU-S10-order-hub-spread; document FU-S8-manual-reselect; rewrite the baseline a second time only for visualizers S4 or S5 changed; close the ledger.",
+          "dependencies": [
+            "S6"
+          ],
+          "base_revision": "bb1e55fe5f14736ffe0189e1be99b91e512dbe5b",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/hub-scorecard.live.json",
+            "docs/agents/hub-scorecard.order.json",
+            "docs/agents/hub-scorecard.cells.json",
+            "docs/agents/hub-scorecard.md",
+            "docs/plans/hub-followups/ledger.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 DEV telemetry columns (debug:viz CSV columns): New DEV-only columns: dancer placedKicks, phaseOnsets, sceneBuiltAt, modelParsedAt; bass-ink sceneBuiltAt; absent from production bundles; debug:summary tolerates their absence in older CSVs.",
+            "C4 Scorecard targets v9 (scorecard file format and rules): TARGETS_VERSION 9: drifting tracks scored against a quadratic fit of tapped beat times; clip compared within the bar only when at least 3 runs are meter-locked and every compared run has beatsPerLoop of 4 or more, with skipped share reported and a minimum span share; hit share tolerance max(0.05, 0.1 x pre-hub). Live v8 files are recomputed by --ingest."
+          ],
+          "acceptance": [
+            "AC8: Given the final live pass, when live cells of the changed visualizers and scorecard:order with 4 sessions per order are recorded, then the scorecard is committed and scorecard:check passes (with the second baseline rewrite only if S4 or S5 changed a live-scored visualizer); FU-S10-order-hub-spread is closed as load timing if the scene-build or model-parse mark lands later relative to track start after a different visualizer by more than the control sessions' spread and the hub-signal spread follows it, otherwise deferred with the mark data",
+            "AC1: Given the plan's ledger in docs/plans/hub-followups/, when a reader looks up any hub-regressions FU id, including the four undescribed fast-lane ids and the three already done, then it shows a description, an outcome (fixed, documented, won't-do, done earlier) and the commit or reason, any won't-do carries Trevor's sign-off, a grep for FU- over docs/ finds no id without a row, and hub-scorecard.md no longer carries its own open list"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 2,
+    "lane_changes": []
+  }
+}
