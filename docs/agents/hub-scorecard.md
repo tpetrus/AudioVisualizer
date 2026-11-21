@@ -18,6 +18,12 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
 - The contracts are in `scripts/scorecard/types.ts` (C2 cell, C3 commands, revision 2 of the lock and false-song-change
   definitions); floors, stretch targets and the applicability matrix are in `scripts/scorecard/targets.ts` and
   `tracks.ts`.
+- `npm run scorecard:order -- --pair A,B` checks AC11: per track, alternating sessions that open A then B and B then A
+  in one page (`debug:viz --then`), then a comparison of each visualizer when it led and when it followed. Hub rows
+  (`gain`, `bassRaw`, the three onset columns and the visualizer's `.in`) compare the RMS difference between the two
+  orders, on a 10 ms track-time grid, with the largest difference between two runs of one order. Reaction rows compare
+  the followed runs' median hit share, latency and false fires with the committed live cell, allowing its spread. It
+  writes `hub-scorecard.order.json` and `.md` and is a report, not a gate.
 - CI runs only the synthetic ratchet (`scripts/scorecard/synthetic.test.ts`, 43 cells), because `.debug-in` is local.
 
 ## Definitions worth knowing
