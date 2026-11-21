@@ -3,7 +3,7 @@
 // runs that rendered at different frame rates compare directly.
 
 import type { TelemetryTable } from '../../../app/features/audio/devTelemetrySummary';
-import { measureReactionOffset } from '../../debug-visualizer/reactionOffset';
+import { isCounter, measureReactionOffset } from '../../debug-visualizer/reactionOffset';
 import {
     LIVE_HIT_WINDOW_SECONDS,
     LIVE_REACTION_COLUMN,
@@ -219,6 +219,14 @@ function reactionFires(table: TelemetryTable, viz: LiveVisualizer): ReactionFire
     const range = Math.max(...values) - Math.min(...values);
     if (!(range > 0)) return null;
     const threshold = LIVE_RISE_FRACTION * range;
+
+    // A counter column (bass-ink's gate pulses) fires on each increment, as measureReactionOffset reads it: a share of
+    // its whole range would need dozens of increments within the window.
+    if (isCounter(values)) {
+        const fires: number[] = [];
+        for (let i = 1; i < values.length; i++) if (values[i] > values[i - 1]) fires.push(times[i]);
+        return { firstSeconds: times[0], lastSeconds: times[times.length - 1], fires };
+    }
 
     const fires: number[] = [];
     let windowStart = 0;

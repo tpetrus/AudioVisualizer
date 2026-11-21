@@ -40,7 +40,7 @@ function percentile(sorted: readonly number[], fraction: number): number {
 }
 
 // A column of whole numbers that never goes down and does go up is a counter.
-function isCounter(values: readonly number[]): boolean {
+export function isCounter(values: readonly number[]): boolean {
     let rose = false;
     for (let i = 0; i < values.length; i++) {
         if (!Number.isInteger(values[i])) return false;

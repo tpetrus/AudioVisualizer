@@ -13,9 +13,10 @@ import { advance, beatPunch, createMotionClock } from './motionClock';
 import { isSoftwareRenderer, maxPointSize, pointCountFor } from './renderBudget';
 import { SetDirector } from './setDirector';
 import { SpectrumField } from './spectrumField';
+import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
+import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createBassGateState, stepBassGate } from '~/features/rhythm/bassGate';
-import { BassPulse } from '~/features/rhythm/bassPulse';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
@@ -26,7 +27,10 @@ import { createOrbitView } from '~/lib/three/orbitView';
 const MAX_PIXEL_RATIO = 2;
 
 interface BassInkSceneOptions {
+    // Still owned for the spectrum field and the energy level; the gate's bass comes from the hub.
     analyser: AnalyserNode | undefined;
+    // The app-wide audio hub: a stable instance, so the scene reads its snapshot without a ref.
+    hub: AudioHubReader;
     // The app-wide rhythm tracker: a stable instance, so the scene reads its state without a ref.
     rhythm: RhythmTracker;
     valuesRef: { readonly current: BassInkControlValues };
@@ -48,7 +52,7 @@ function copyPalette(from: PalettePair, to: PalettePair): void {
 // into a new shape on the drop.
 export function useBassInkScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, rhythm, valuesRef, cameraLocked, onViewChanged }: BassInkSceneOptions,
+    { analyser, hub, rhythm, valuesRef, cameraLocked, onViewChanged }: BassInkSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
@@ -86,6 +90,15 @@ export function useBassInkScene(
         const brightnessMix = new BrightnessMix();
         // Shared with the dancing character: learns where the bassline's kick sits in the beat and pulses there.
         const bassGate = createBassGateState();
+        // The snapshot is only refreshed by update(), so it may be stale (the hub started, or this page was left and
+        // revisited). Catch up first so the first frame does not read an old gate bass.
+        hub.update();
+        // The bass envelope over the hub's gate-input bass, the same one the dancing character uses. A new source gets a
+        // fresh one so the old source's levels are not carried over; it is replaced only then, never per frame.
+        const newBump = () => new BassBump(GATE_BASS_BUMP);
+        let bump = newBump();
+        // True while a source feeds the envelope, so one that goes away and comes back starts afresh too.
+        let bumpHasSource = false;
         const field = new SpectrumField();
         // The oldest row a point reads, as a texture-coordinate distance back from the newest one.
         const spectrumSpan = (field.rows - 1) / field.rows;
@@ -113,14 +126,15 @@ export function useBassInkScene(
 
         // Audio state, rebuilt whenever the analyser changes.
         let boundAnalyser: AnalyserNode | undefined;
-        let bassPulse: BassPulse | undefined;
         let spectrum = new Uint8Array(0);
         let bassBins = 1;
         let sceneTime = 0;
         let lastLevel = 0;
         let lastBrightness = 0;
         let lastKickStrength = 0;
-        let lastBassPulse = 0;
+        let lastGateBass = 0;
+        // The hub's gate bass before the envelope, kept to tell a weak hub signal from a weak envelope in telemetry.
+        let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
         let midLevel = 0;
         let highLevel = 0;
@@ -149,6 +163,7 @@ export function useBassInkScene(
                     'mid',
                     'gateOpen',
                     'gateIn',
+                    'gateRaw',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -168,7 +183,8 @@ export function useBassInkScene(
                     out[14] = rhythm.state.beatCount;
                     out[15] = midLevel;
                     out[16] = bassGate.open ? 1 : 0;
-                    out[17] = lastBassPulse;
+                    out[17] = lastGateBass;
+                    out[18] = lastGateRaw;
                 },
             );
         }
@@ -179,8 +195,7 @@ export function useBassInkScene(
             // A different source is different music: forget the old loudness history.
             energy.reset();
             field.reset();
-            bassPulse?.dispose();
-            bassPulse = new BassPulse(source);
+            bump = newBump();
             boundAnalyser = source;
         };
 
@@ -202,21 +217,29 @@ export function useBassInkScene(
                     if (source !== boundAnalyser) {
                         bindAudio(source);
                     }
+                    bumpHasSource = true;
                     source.getByteFrequencyData(spectrum);
                     lastLevel = bassLevel(spectrum, bassBins);
                     field.update(spectrum, source.context.sampleRate / source.fftSize, dt);
                 } else {
                     lastLevel = 0;
                     field.fade(dt);
+                    if (bumpHasSource) {
+                        // The old source's levels must not seed the envelope of whatever comes next.
+                        bump = newBump();
+                        bumpHasSource = false;
+                    }
                 }
                 energy.update(lastLevel, dt);
 
                 rhythm.updatePhase();
+                hub.update();
                 const state = rhythm.state;
                 const breathing = advance(clock, state, dt);
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
-                lastBassPulse = source && bassPulse ? bassPulse.update() : 0;
-                stepBassGate(lastBassPulse, state, clock.locked, bassGate, dt);
+                lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
+                lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
+                stepBassGate(lastGateBass, state, clock.locked, bassGate, dt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
                     lastKickStrength = kickRing.strengths[(kickRing.count - 1) % kickRing.strengths.length];
@@ -294,7 +317,6 @@ export function useBassInkScene(
 
             dispose: () => {
                 orbit.dispose();
-                bassPulse?.dispose();
                 field.dispose();
                 cloud.dispose();
                 unregisterProbe?.();
