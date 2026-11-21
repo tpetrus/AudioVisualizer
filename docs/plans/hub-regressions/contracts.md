@@ -17,8 +17,9 @@ S4 measurement (`npm run probe:gate-inputs`; the figures are in the plan's amend
   source changes. It was first computed per frame in the worklet and carried in `FeatureBatch` version 3, but a frame is
   up to a batch old when the hub reads it, and live that made the cubes react 10 ms later than pre-hub on average and
   moved the dancer's learned kick place (S4's live findings in `docs/agents/hub-scorecard.md`). The worklet message is
-  back to version 2, unchanged from before S4. Visualizers still read the bass only through the hub; `BassPulse`
-  (bass-ink until S9) is the tap plus its envelope.
+  back to version 2, unchanged from before S4. Visualizers read the bass only through the hub (bass-ink too, since
+  S9); `BassPulse` is the tap plus its envelope, kept only as the pre-hub reference for `BassBump`'s spec and the
+  scorecard's pre-hub column.
 - `gateBass.pulse` is that level, linear and not normalized, 0 with no source. `gateBass.lowEnd` is the louder of the
   `sub` and `kick` band energies before the hub's peak scaling, from the same frame as `bands` (the newest at or before
   the render time). Both are written in place, 0 before the first update and after a reset. The existing fields and
