@@ -22,33 +22,39 @@ const GATE_SOURCE = 'app/features/rhythm/bassGate.ts';
 export const GATE_CONFIG = 'app/features/rhythm/bassGateConfig.ts';
 const GATE_CONFIG_NAME = 'bassGateConfig.ts';
 
-export const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400] [--set NAME=VALUE]...
-                            [--grid NAME=v1,v2,...]... [--lock-at S] [--notes-per-beat N] [--beats-per-note K]
-                            [--detail] [--json <file>]
+// Notes per group are capped so a typo cannot make a pattern of thousands of overlapping notes.
+const MAX_NOTES_PER_GROUP = 16;
 
-Replays every track and random pattern once with the shipped code, then steps only the dancer's bass gate (bassGate.ts) per
-row, with constants of ${GATE_CONFIG_NAME} overridden. Rows: base (no overrides), then every combination of the --grid values,
-each with every --set applied. NAME must be an exported constant of ${GATE_CONFIG_NAME}; VALUE is a number, arithmetic or a
-[ ] list, as for ablate:rhythm. A repeated --grid NAME adds values to its axis.
-Per row: false opens of the gate on N seeded random-bass patterns (default 300) for each beat count (default 120,400), the
-gate column of probe:gate-inputs; on kick tracks of <folder> (default ${DEFAULT_DIR}) how many open within 4 s and 2 s of the
-dancer's lock and the sum and max of the seconds after it (the rest of the track if the gate never opens); on no-kick tracks
-the names whose gate opened. --lock-at S hides the random bass's beat clock for its first S seconds (default 0), so the
-false opens include what the gate does before a lock. --notes-per-beat N and --beats-per-note K change the random bass
-from two notes in every beat (the default) to N notes at random places in every K beats, so 1 and 2 is one random note
-every two beats, the sparse bass of FU-S5-sparse-false-opens (the other options still apply). on-beat: kick tracks whose bumps mostly hit a labelled beat (the live hit window on the bump starts; tracks with a
+export const USAGE = `Usage: npm run sweep:gate -- [--dir <folder>] [--patterns N] [--beats 120,400]
+                            [--set NAME=VALUE]... [--grid NAME=v1,v2,...]... [--lock-at S] [--notes-per-beat N]
+                            [--beats-per-note K] [--detail] [--json <file>]
+
+Replays every track and random pattern once with the shipped code, then steps only the dancer's bass gate
+(bassGate.ts) per row, with constants of ${GATE_CONFIG_NAME} overridden. Rows: base (no overrides), then every
+combination of the --grid values, each with every --set applied. NAME must be an exported constant of
+${GATE_CONFIG_NAME}; VALUE is a number, arithmetic or a [ ] list, as for ablate:rhythm. A repeated --grid NAME adds
+values to its axis.
+Per row: false opens of the gate on N seeded random-bass patterns (default 300) for each beat count (default 120,400),
+the gate column of probe:gate-inputs; on kick tracks of <folder> (default ${DEFAULT_DIR}) how many open within 4 s and
+2 s of the dancer's lock and the sum and max of the seconds after it (the rest of the track if the gate never opens); on
+no-kick tracks the names whose gate opened. --lock-at S hides the random bass's beat clock for its first S seconds
+(default 0), so the false opens include what the gate does before a lock. --notes-per-beat N and --beats-per-note K
+change the random bass from two notes in every beat (the default) to N notes at random places in every group of K beats
+(N is at most 16), so 1 and 2 is one random note every two beats, the sparse bass of FU-S5-sparse-false-opens (the
+other options still apply). A beat count that is not a multiple of K thins its last group, which warns on stderr.
+on-beat: kick tracks whose bumps mostly hit a labelled beat (the live hit window on the bump starts; tracks with a
 .beats.json). --detail adds per track the seconds after the lock and where the bumps land; --json writes everything.`;
 
-// How the random bass is laid out: `notesPerBeat` notes at random places in every `beatsPerNote` beats. The default, two
-// notes in every beat, is the pattern of the gate specs and of probe:gate-inputs (randomBassPcm).
+// How the random bass is laid out: `notesPerBeat` notes at random places in every `beatsPerNote` beats. The default,
+// two notes in every beat, is the pattern of the gate specs and of probe:gate-inputs (randomBassPcm).
 export interface BassPattern {
     notesPerBeat: number;
     beatsPerNote: number;
 }
 
-// Same note shape as randomBassPcm's (a low sine with a short attack and a decay, see gateInputs.ts), so a sparse pattern
-// goes through the same analysis chains. The random draws are in the same order (place, pitch, gain), so the default
-// pattern reproduces randomBassPcm sample for sample. Notes of the same pattern can overlap, as they can there.
+// Same note shape as randomBassPcm's (a low sine with a short attack and a decay, see gateInputs.ts), so a sparse
+// pattern goes through the same analysis chains. The random draws are in the same order (place, pitch, gain), so the
+// default pattern reproduces randomBassPcm sample for sample. Notes of the same pattern can overlap, as they can there.
 const NOTE_MIN_HZ = 45;
 const NOTE_MAX_HZ = 100;
 const NOTE_MIN_GAIN = 0.3;
@@ -148,9 +154,14 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
                 args.lockAt = seconds;
                 break;
             }
-            case '--notes-per-beat':
-                args.pattern.notesPerBeat = positiveInteger(flag, value());
+            case '--notes-per-beat': {
+                const notes = positiveInteger(flag, value());
+                if (notes > MAX_NOTES_PER_GROUP) {
+                    throw new Error(`${flag} is at most ${MAX_NOTES_PER_GROUP}, got ${notes}`);
+                }
+                args.pattern.notesPerBeat = notes;
                 break;
+            }
             case '--beats-per-note':
                 args.pattern.beatsPerNote = positiveInteger(flag, value());
                 break;
@@ -180,6 +191,15 @@ export function parseSweepGateArgs(argv: readonly string[]): SweepArgs {
     for (const name of [...args.grid.map((axis) => axis.name), ...args.set.map((entry) => entry.name)]) {
         if (seen.has(name)) throw new Error(`${name} was given twice (--grid and --set count together)`);
         seen.add(name);
+    }
+    // The last group of a beat count that K does not divide is cut short, so it holds fewer notes than the others and
+    // the pattern is thinner than asked for there.
+    const thinned = args.beats.filter((beats) => beats % args.pattern.beatsPerNote !== 0);
+    if (thinned.length > 0) {
+        console.error(
+            `Warning: --beats ${thinned.join(',')} is not a multiple of ` +
+                `--beats-per-note ${args.pattern.beatsPerNote}, so the last group of random notes is thinned.`,
+        );
     }
     return args;
 }
@@ -248,8 +268,8 @@ function checkBase(where: string, row: Row, opening: number | null, shipped: num
 }
 
 export interface TrackOutcome {
-    // Seconds from the dancer's lock to the first opening (the rest of the track if it never opens); null when the dancer
-    // never locks.
+    // Seconds from the dancer's lock to the first opening (the rest of the track if it never opens); null when the
+    // dancer never locks.
     secondsAfterLock: number | null;
     opened: boolean;
     // Where the gate's bumps land against the track's labelled beats; null without bumps or a .beats.json.
@@ -340,8 +360,8 @@ export async function runSweep(
         noKickOpened: [],
     }));
 
-    // The random bass of probe:gate-inputs: the same seeds, notes and locked beat clock, so the base row is its gateBass
-    // column. Each pattern is replayed once and its trace stepped by every row before the next pattern.
+    // The random bass of probe:gate-inputs: the same seeds, notes and locked beat clock, so the base row is its
+    // gateBass column. Each pattern is replayed once and its trace stepped by every row before the next pattern.
     for (const beats of args.beats) {
         for (const result of results) result.falseOpens[String(beats)] = 0;
         for (let seed = 1; seed <= args.patterns; seed++) {
@@ -352,7 +372,8 @@ export async function runSweep(
             );
             rows.forEach((row, index) => {
                 const opening = firstOpenSeconds(trace, steppers[index], lockAt);
-                // A hidden lock is not what the replay's own gate saw, so there is nothing to check the base row against.
+                // A hidden lock is not what the replay's own gate saw, so there is nothing to check the base row
+                // against.
                 if (lockAt === 0) checkBase(`${beats} beats, seed ${seed}`, row, opening, shipped);
                 if (opening !== null) results[index].falseOpens[String(beats)]++;
             });
@@ -403,7 +424,10 @@ export function formatSweep(result: SweepResult, detail: boolean): string[] {
     const headers = [...result.beats.map((beats) => `fo@${beats}`), '<=4s', '<=2s', 'sum', 'max', 'on-beat'];
     const labelWidth = Math.max(5, ...result.rows.map((row) => row.label.length));
     lines.push(
-        `fo@N: false opens of ${result.patterns} random-bass patterns of N beats (${result.pattern.notesPerBeat} note(s) in every ${result.pattern.beatsPerNote} beat(s))${result.lockAt > 0 ? ` (beat clock hidden for ${result.lockAt} s)` : ''}. <=4s and <=2s: kick tracks within that many seconds of the dancer lock.`,
+        `fo@N: false opens of ${result.patterns} random-bass patterns of N beats ` +
+            `(${result.pattern.notesPerBeat} note(s) in every ${result.pattern.beatsPerNote} beat(s))` +
+            `${result.lockAt > 0 ? ` (beat clock hidden for ${result.lockAt} s)` : ''}. ` +
+            '<=4s and <=2s: kick tracks within that many seconds of the dancer lock.',
     );
     lines.push(['row'.padEnd(labelWidth), ...headers.map((text) => pad(text, 8)), '  no-kick opened'].join(' '));
     for (const row of result.rows) {
@@ -423,7 +447,8 @@ export function formatSweep(result: SweepResult, detail: boolean): string[] {
         (name) => result.dancerLockSeconds[name] === null,
     );
     lines.push(
-        `Kick tracks whose dancer never locks (excluded from the sums): ${neverLocked.length === 0 ? 'none' : neverLocked.join(', ')}`,
+        'Kick tracks whose dancer never locks (excluded from the sums): ' +
+            `${neverLocked.length === 0 ? 'none' : neverLocked.join(', ')}`,
     );
     if (detail) {
         lines.push(
