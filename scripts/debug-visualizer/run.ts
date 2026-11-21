@@ -178,9 +178,13 @@ async function closeSourceDialog(page: Page): Promise<void> {
 // dialog opens straight on the chooser and that button is absent; both cases are handled.
 async function chooseTrackAgain(page: Page, trackPath: string, previousPosition: number): Promise<void> {
     const dialog = page.getByRole('dialog', { name: 'Audio source' });
+    const settings = page.getByRole('button', { name: '☰ Settings' });
+    const audioSettings = page.getByRole('button', { name: 'Audio settings' });
+    // Just after a navigation (debug:viz --then) the page may not have rendered yet, so checking for the dialog at once
+    // would miss a source chooser that opens a moment later and then wait for a settings button that never appears.
+    await dialog.or(settings).or(audioSettings).first().waitFor({ state: 'visible' });
     let openedPanel = false;
     if (!(await dialog.count())) {
-        const settings = page.getByRole('button', { name: '☰ Settings' });
         if (await settings.count()) {
             await settings.click();
             openedPanel = true;
