@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import type { Group, PerspectiveCamera } from 'three';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
@@ -9,6 +9,7 @@ import { FakeRenderer } from '~/test/fakeThree';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
 import type { AudioHubReader } from '~/features/audio/hub/types';
+import { getActivePlayback, type FilePlayback } from '~/features/audio/devFileSource';
 import type { DancingCharacterAssets } from './dancingCharacterAssets';
 import { loadDancingCharacterAssets, disposeDancingCharacterAssets } from './dancingCharacterAssets';
 import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, type CharacterEntry } from './characterRegistry';
@@ -57,6 +58,9 @@ vi.mock('./dancingCharacterScene', () => ({
         }
     },
 }));
+
+// The file playback the recording's clock reads from; a spec sets what it returns.
+vi.mock('~/features/audio/devFileSource', () => ({ getActivePlayback: vi.fn() }));
 
 // The recorder has its own spec; here only what the scene registers and when it ticks matters.
 const telemetry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), tick: vi.fn() }));
@@ -698,7 +702,101 @@ describe('useDancingCharacterScene', () => {
                 'lowEnd',
                 'gateBass',
                 'beatsPerLoop',
+                'placedKicks',
+                'phaseOnsets',
+                'sceneBuiltAt',
+                'modelParsedAt',
             ]);
+        });
+
+        describe('the placement, phase onset and load-time columns', () => {
+            const NOW_SECONDS = 100;
+            let position = 0;
+            let playing = true;
+
+            let clock: ReturnType<typeof vi.spyOn>;
+
+            beforeEach(() => {
+                position = 12;
+                playing = true;
+                vi.mocked(getActivePlayback).mockImplementation(() =>
+                    playing ? ({ position: () => position } as unknown as FilePlayback) : undefined,
+                );
+                clock = vi.spyOn(performance, 'now').mockReturnValue(NOW_SECONDS * 1000);
+            });
+
+            afterEach(() => {
+                vi.mocked(getActivePlayback).mockReset();
+                clock.mockRestore();
+            });
+
+            it('reads the placed kicks from the gate and the phase onsets from the tracker', () => {
+                const { renderer, tracker } = mountScene();
+                renderer.renderFrame(0);
+                const scene = scenes[scenes.length - 1] as unknown as Record<string, unknown>;
+                scene.bassGate = { open: false, score: 0, weight: 0, placedKickCount: 3 };
+                Object.assign(tracker, { phaseOnsets: 9 });
+
+                const out = readProbe(35);
+
+                expect(out[31]).toBe(3);
+                expect(out[32]).toBe(9);
+            });
+
+            // The mocked scene has no gate; the probe needs one to read.
+            const withGate = () => {
+                (scenes[scenes.length - 1] as unknown as Record<string, unknown>).bassGate = {
+                    open: false,
+                    score: 0,
+                    weight: 0,
+                };
+            };
+
+            it('puts the scene build on the recording clock, before the track started when it was built earlier', () => {
+                const { renderer } = mountScene();
+                // Built at page time 100 s; this row is read 2.5 s later, 12 s into the track: built 9.5 s into it.
+                clock.mockReturnValue((NOW_SECONDS + 2.5) * 1000);
+                renderer.renderFrame(0);
+                withGate();
+
+                const out = readProbe(35);
+
+                expect(out[33]).toBeCloseTo(12 - 2.5, 6);
+                // No model has arrived yet.
+                expect(out[34]).toBeNaN();
+            });
+
+            it('marks when the model finished parsing, on the same clock', async () => {
+                const { renderer } = mountScene();
+                clock.mockReturnValue((NOW_SECONDS + 1) * 1000);
+                loads[0].resolve(makeAssets());
+                await flush();
+                clock.mockReturnValue((NOW_SECONDS + 4) * 1000);
+                renderer.renderFrame(0);
+                withGate();
+
+                const out = readProbe(35);
+
+                // Parsed 1 s after the scene was built and 3 s before this row, which is 12 s into the track.
+                expect(out[34]).toBeCloseTo(12 - 3, 6);
+                expect(out[33]).toBeCloseTo(12 - 4, 6);
+            });
+
+            it('uses the audio context clock when no file is playing, and NaN with no source at all', () => {
+                const analyser = asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext()));
+                const { renderer } = mountScene({ analyser });
+                playing = false;
+                renderer.renderFrame(0);
+                withGate();
+                (analyser.context as unknown as { currentTime: number }).currentTime = 30;
+
+                expect(readProbe(35)[33]).toBeCloseTo(30, 6);
+
+                const { renderer: bare } = mountScene();
+                bare.renderFrame(0);
+                withGate();
+                expect(readProbe(35)[33]).toBeNaN();
+            });
         });
 
         it('reads the beats one loop of the clip spans from the timing', () => {
