@@ -281,6 +281,17 @@ describe('rhythm processor worklet', () => {
         });
     });
 
+    it('adds the running phase onset count to every batch in development', async () => {
+        const harness = await loadProcessor();
+        play(harness, [kickTrain()]);
+
+        const counts = harness.posted().map(({ message }) => (message as { phaseOnsets?: number }).phaseOnsets);
+        expect(counts.length).toBeGreaterThan(1);
+        counts.forEach((count) => expect(Number.isInteger(count)).toBe(true));
+        // A running count never falls back.
+        counts.forEach((count, i) => i > 0 && expect(count).toBeGreaterThanOrEqual(counts[i - 1] as number));
+    });
+
     it('sends each onset event once, including those decided in a later batch than their frame', async () => {
         const harness = await loadProcessor();
         const pcm = kickTrain();

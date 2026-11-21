@@ -125,7 +125,9 @@ class RhythmProcessor extends AudioWorkletProcessor {
         if (this.batchCount === 0) {
             return;
         }
-        const message: FeatureBatch = {
+        // In development only, the running count of phase onsets rides along (FeatureBatch has no field for it: the hub
+        // reads the batch as is, and the count is for the debug telemetry alone).
+        const message: FeatureBatch & { phaseOnsets?: number } = {
             version: FEATURE_MESSAGE_VERSION,
             time0: this.batchTime0,
             count: this.batchCount,
@@ -137,6 +139,9 @@ class RhythmProcessor extends AudioWorkletProcessor {
             onsetTime: this.onsetTime,
             onsetStrength: this.onsetStrength,
         };
+        if (import.meta.env.DEV) {
+            message.phaseOnsets = this.bandOnsets.phaseOnsetCount;
+        }
         this.port.postMessage(message, [
             this.batch.buffer,
             this.frameTimes.buffer,

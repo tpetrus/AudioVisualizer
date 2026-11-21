@@ -11,6 +11,7 @@ import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
+import { getActivePlayback } from '~/features/audio/devFileSource';
 import { createOrbitView } from '~/lib/three/orbitView';
 
 const CAMERA_FOV = 40;
@@ -69,6 +70,11 @@ export function useDancingCharacterScene(
 
     useThreeScene(containerRef, ({ scene, renderer, size, signal }) => {
         const camera = new THREE.PerspectiveCamera(CAMERA_FOV, size.width / size.height, CAMERA_NEAR, CAMERA_FAR);
+
+        // DEV only: when this scene was built and when its latest model finished parsing, on the page clock
+        // (`performance.now()`, ms; NaN until the model is in). The probe turns them into the recording's own `t` clock.
+        const sceneBuiltMs = import.meta.env.DEV ? performance.now() : NaN;
+        let modelParsedMs = NaN;
 
         // Built before the orbit view: the scene writes the starting camera pose, and that pose is what Reset view
         // returns to.
@@ -138,6 +144,7 @@ export function useDancingCharacterScene(
                         disposeDancingCharacterAssets(assets);
                         return;
                     }
+                    if (import.meta.env.DEV) modelParsedMs = performance.now();
                     // The previous model is disposed inside setCharacter, after the new one is ready to show.
                     const { danced, missing } = character.setCharacter(
                         assets.model,
@@ -177,6 +184,7 @@ export function useDancingCharacterScene(
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
             dt: 0,
+            gateDt: 0,
             rhythm: rhythm.state,
             bass: 0,
             settings: valuesRef.current,
@@ -187,6 +195,17 @@ export function useDancingCharacterScene(
         // DEV only: the gate's input is the frame's bass (the hub's gate-input bass through the bump envelope); the rest
         // is read from the scene after its update.
         let unregisterProbe: (() => void) | undefined;
+        // A page-clock mark on the recording's `t` clock, the same one the row's `t` is read from: the file playback's
+        // position when a track is playing, else the audio context's time. A mark made before the track started is
+        // negative, which is how a recording shows that a scene was already built, or its model parsed, at track start.
+        // `performance.now()` is the one clock both marks can use: the audio context may not exist yet when a scene is
+        // built. Each row subtracts the mark's age, so the two clocks agree to a frame. NaN while the mark is unset.
+        const onRecordingClock = (markMs: number): number => {
+            const playback = getActivePlayback();
+            const now = playback ? playback.position() : analyserRef.current?.context.currentTime;
+            if (now === undefined || Number.isNaN(markMs)) return NaN;
+            return now - (performance.now() - markMs) / 1000;
+        };
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
                 'dancing-character',
@@ -222,6 +241,10 @@ export function useDancingCharacterScene(
                     'lowEnd',
                     'gateBass',
                     'beatsPerLoop',
+                    'placedKicks',
+                    'phaseOnsets',
+                    'sceneBuiltAt',
+                    'modelParsedAt',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -258,6 +281,10 @@ export function useDancingCharacterScene(
                     out[28] = lowEnd;
                     out[29] = gateLevel;
                     out[30] = character.timing.beatsPerLoop;
+                    out[31] = gate.placedKickCount;
+                    out[32] = rhythm.phaseOnsets;
+                    out[33] = onRecordingClock(sceneBuiltMs);
+                    out[34] = onRecordingClock(modelParsedMs);
                 },
             );
         }
@@ -287,6 +314,8 @@ export function useDancingCharacterScene(
                 rhythm.updatePhase();
                 hub.update();
                 frame.dt = Math.min(delta / 1000, MAX_FRAME_DT);
+                // The gate keeps its own clock and needs the real gap (the scene makes it finite and at least 0).
+                frame.gateDt = delta / 1000;
                 frame.rhythm = rhythm.state;
                 // With no source the hub has nothing to read, so the gate sees silence.
                 lowEnd = source ? hubLowEnd(hub.snapshot.bands) : 0;

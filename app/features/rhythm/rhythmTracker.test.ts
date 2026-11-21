@@ -190,6 +190,25 @@ describe('RhythmTracker', () => {
             expect(harness.web.workletNodes).toHaveLength(1);
         });
 
+        it('keeps the DEV phase onset count of the worklet, and starts again at 0 when the node goes', async () => {
+            harness.engine.setAnalyser(asAnalyser(createAnalyser()));
+            harness.tracker.start(asEngine(harness.engine));
+            const node = await attachedNode(harness.web);
+            expect(harness.tracker.phaseOnsets).toBe(0);
+
+            await deliver(node, { ...flatBatch(0), phaseOnsets: 5 } as FrameBatch, () => harness.tracker.phaseOnsets);
+            expect(harness.tracker.phaseOnsets).toBe(5);
+
+            // A batch without the field (a worklet from before) leaves the count where it was.
+            node.processorPort.postMessage(flatBatch(0.2));
+            // Nothing observable marks the end of the message, so give the port time to deliver it.
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(harness.tracker.phaseOnsets).toBe(5);
+
+            harness.tracker.dispose();
+            expect(harness.tracker.phaseOnsets).toBe(0);
+        });
+
         it('dispose() is safe before start and twice in a row', () => {
             expect(() => harness.tracker.dispose()).not.toThrow();
             harness.tracker.start(asEngine(harness.engine));

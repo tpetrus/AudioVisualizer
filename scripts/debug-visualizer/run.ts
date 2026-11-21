@@ -11,6 +11,7 @@ import { formatCsv, parseCsv } from './csv';
 import { VISUALIZATIONS } from '../../app/features/landing/visualizations';
 import { causeNote, createLineCollector, type LineCollector } from './output';
 import { chooseReference, listAudioFiles, parseArgs, playFolderName, scheduleShots, sidecarName, USAGE } from './args';
+import { dancerMarksLines } from './dancerMarks';
 import { parseBpmSidecar, summarizeTempo } from './tempoReport';
 import { createPlaybackStart } from './playbackStart';
 
@@ -341,6 +342,7 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
     console.log(`Output: ${outDir}`);
     console.log(summarizeTelemetry(table, { maxLines: 20 }).join('\n'));
     console.log(summarizeTempo(table, { referenceBpm: reference }).join('\n'));
+    for (const line of dancerMarksLines(table)) console.log(line);
     return lastPosition;
 }
 

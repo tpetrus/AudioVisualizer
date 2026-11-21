@@ -441,6 +441,19 @@ describe('BandOnsets low-end phase', () => {
         expect(events.map((event) => event.time)).toEqual([expect.closeTo(0.5, 1), expect.closeTo(0.62, 1)]);
     });
 
+    it('counts its phase onsets, and a reset does not clear the count', () => {
+        const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
+        const onsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
+        expect(onsets.phaseOnsetCount).toBe(0);
+        const first = run(restruckNotes(), TEST_SAMPLE_RATE, onsets);
+        const counted = onsets.phaseOnsetCount;
+        // The first note is the level detector's; every event after it here is a phase onset.
+        expect(counted).toBe(first.events.length - 1);
+        expect(counted).toBeGreaterThan(0);
+        onsets.reset();
+        expect(onsets.phaseOnsetCount).toBe(counted);
+    });
+
     it('forgets the phase history on reset', () => {
         const extractor = new OnsetExtractor(TEST_SAMPLE_RATE);
         const onsets = new BandOnsets(TEST_SAMPLE_RATE, extractor.frameRate);
