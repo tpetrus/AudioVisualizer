@@ -22,7 +22,7 @@ import {
 import { createCubesBassEnvelope, stepCubesBass } from '../../../app/features/visualizers/cubes/cubesBass';
 import { DANCER_BUMP } from '../../../app/features/visualizers/dancing-character/dancingCharacterConfig';
 import { applyAgc } from './agc';
-import { countSoftBoundaries } from './boundaryProbe';
+import type { SongChangeEvent } from './songChanges';
 import type { GateTraceSink } from './gateTrace';
 import { PrehubBass } from './prehubBass';
 
@@ -83,9 +83,13 @@ export interface ReplayResult {
     beats: number[];
     // Onset events of BandOnsets per band, the detector the worklet runs.
     onsets: Record<(typeof FEATURE_ONSET_BANDS)[number], number[]>;
-    // songChangeCount at the end, and how many of the boundaries behind it were soft.
+    // songChangeCount at the end, and how many of the boundaries behind it were soft (the analyzer's own counter, since
+    // the state counts soft and hard boundaries together).
     songChangeCount: number;
     softBoundaries: number;
+    // The frame time of every song change, in order: one entry per rise of songChangeCount, so the silence rule can tell
+    // which changes a silence explains.
+    songChanges: SongChangeEvent[];
     // True if, at any render tick, the shared snapshot's own lock test held: a tempo above 0 and a beat phase (the hub's
     // `beat.locked`, which is what every visualizer reads). Not the same as the dancer's stricter lock, which also needs
     // the tempo confidence.
@@ -137,10 +141,7 @@ export interface ReplayOptions {
 
 export function replayPcm(pcm: Float32Array, sampleRate: number, options: ReplayOptions = {}): ReplayResult {
     const audio = options.agc === false ? pcm : applyAgc(pcm, sampleRate);
-    const { result, softBoundaries } = countSoftBoundaries(() =>
-        run(audio, sampleRate, options.lockedTempo, options.gateTrace),
-    );
-    return { ...result, softBoundaries };
+    return run(audio, sampleRate, options.lockedTempo, options.gateTrace);
 }
 
 // Counts the render ticks of one gate into its summary.
@@ -165,17 +166,13 @@ class GateTally {
     }
 }
 
-function run(
-    pcm: Float32Array,
-    sampleRate: number,
-    lockedTempo?: number,
-    gateTrace?: GateTraceSink,
-): Omit<ReplayResult, 'softBoundaries'> {
+function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number, gateTrace?: GateTraceSink): ReplayResult {
     const seconds = pcm.length / sampleRate;
     const blockSize = 128;
     const extractor = new OnsetExtractor(sampleRate);
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
+    const songChanges: SongChangeEvent[] = [];
     const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
     // The hub's gate-input bass reader: BassPulse's feature with its window ending at the current render tick (see the
     // fidelity note above). It shares the pre-hub chain's filtered audio once that is prepared below.
@@ -310,6 +307,7 @@ function run(
         for (let i = 0; lockedTempo === undefined && i < batch.count; i++) {
             const time = batch.time0 + i / analyzer.frameRate;
             analyzer.pushFrame(time, batch.frames, i * FRAME_STRIDE);
+            while (songChanges.length < state.songChangeCount) songChanges.push({ time });
             analyzer.updatePhase(time);
             tempo.push({ time, bpm: state.bpm });
             if (state.beatCount > lastBeatCount) {
@@ -365,6 +363,8 @@ function run(
         beats,
         onsets,
         songChangeCount: state.songChangeCount,
+        softBoundaries: analyzer.softBoundaryCount,
+        songChanges,
         everReportedLock,
         gate: hubTally.summary(),
         dancerLockSeconds,

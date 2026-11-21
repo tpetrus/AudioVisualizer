@@ -690,3 +690,39 @@ describe('RhythmAnalyzer first-lock tie', () => {
         }
     });
 });
+
+describe('RhythmAnalyzer song-change counters', () => {
+    it('counts a soft boundary and stamps it with the time of the frame that raised it', () => {
+        // 100 to 170 bpm is neither an octave nor a dotted ratio, so the tracker raises one soft boundary.
+        const pcm = concat(
+            renderTrack({ seconds: 24, bpm: 100, beatsPerBar: 4 }).pcm,
+            renderTrack({ seconds: 30, bpm: 170, beatsPerBar: 4, clickHz: 2200 }).pcm,
+        );
+        const { analyzer, songChangeEvents } = runPipeline(pcm);
+        expect(analyzer.softBoundaryCount).toBe(1);
+        expect(analyzer.state.songChangeCount).toBe(1);
+        expect(songChangeEvents).toHaveLength(1);
+        expect(analyzer.lastSongChangeTime).toBeCloseTo(songChangeEvents[0], 6);
+    });
+
+    it('stamps a hard boundary (silence) without counting it as soft', () => {
+        const pcm = concat(renderTrack({ seconds: 12, bpm: 120, beatsPerBar: 4 }).pcm, silence(4));
+        const { analyzer, songChangeEvents } = runPipeline(pcm);
+        expect(analyzer.softBoundaryCount).toBe(0);
+        expect(analyzer.state.songChangeCount).toBe(1);
+        expect(analyzer.lastSongChangeTime).toBeCloseTo(songChangeEvents[0], 6);
+    });
+
+    it('reads no change before the first, and stamps a reset with the newest frame time', () => {
+        const analyzer = new RhythmAnalyzer(100);
+        expect(analyzer.lastSongChangeTime).toBe(-Infinity);
+        expect(analyzer.softBoundaryCount).toBe(0);
+        const frame = new Float32Array(FRAME_STRIDE);
+        analyzer.pushFrame(3, frame, 0);
+        analyzer.hardReset(false);
+        expect(analyzer.lastSongChangeTime).toBe(-Infinity);
+        analyzer.hardReset(true);
+        expect(analyzer.lastSongChangeTime).toBe(3);
+        expect(analyzer.state.songChangeCount).toBe(1);
+    });
+});

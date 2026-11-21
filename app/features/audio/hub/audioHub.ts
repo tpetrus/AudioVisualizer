@@ -32,8 +32,10 @@ export interface AudioHubOptions {
 //
 // It hears the worklet through RhythmTracker.addFeatureListener. Batches arrive a few times a second and are written
 // into preallocated rings; `update` then reads them at the render time, once per animation frame. The gate-input bass's
-// level (contract C1) is not in the frames: the hub reads it at the render time from its own tap of the tracker's
-// source (GateBassTap), which it rebuilds when the source changes. Nothing else here allocates after the constructor.
+// level (contract C1) is not in the frames: the hub reads it from its own tap of the tracker's source (GateBassTap),
+// which it rebuilds when the source changes and disconnects when there is none (the pulse then reads 0). That level is
+// the newest audio: unlike `bands`, `lowEnd` and `beat`, it is not shifted by the user's sync offset, and it is read
+// even in an update with no render time. Nothing else here allocates after the constructor.
 export class AudioHub implements AudioHubReader, FeatureListener {
     // Updated in place for the hub's whole life; consumers may hold on to it.
     readonly snapshot: AudioHubSnapshot;
@@ -124,12 +126,23 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.tappedSource = undefined;
     }
 
-    // Brings the snapshot up to `now`, or to the tracker's render time without an argument. Does nothing with no
-    // source, or when `now` is the time of the last update, so any number of readers may call it each frame.
+    // Brings the snapshot up to `now`, or to the tracker's render time without an argument. With no render time only
+    // the gate-input pulse is read (see below); `now` equal to the time of the last update does nothing, so any number
+    // of readers may call it each frame.
     public update(now?: number): void {
         const tracker = this.tracker;
         const time = now ?? tracker?.renderTimeNow();
-        if (time === undefined || time === this.lastUpdateTime) {
+        if (time === undefined) {
+            // No render time: the source is gone (a stopped capture) or the time is briefly unavailable. The pulse is
+            // the newest audio and needs no render time, so it is still read: that frees the tap and zeroes the level
+            // when the source is gone, and leaves no gap in it when the same source is still there. The rest of the
+            // snapshot keeps its last values.
+            if (tracker) {
+                (this.snapshot.gateBass as HubGateBass).pulse = this.readGateBassLevel();
+            }
+            return;
+        }
+        if (time === this.lastUpdateTime) {
             return;
         }
         this.lastUpdateTime = time;
@@ -266,7 +279,7 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         (this.snapshot.gateBass as HubGateBass).lowEnd = this.frameLowEnd[slot];
     }
 
-    // The gate-input bass level now, 0 with no source. A new source gets a new tap and the old one is disconnected, so
+    // The gate-input bass level now (the newest audio, not shifted by the sync offset), 0 with no source. A new source gets a new tap and the old one is disconnected, so
     // the old source's audio never reaches the level; this allocates only then.
     private readGateBassLevel(): number {
         if (this.fixedGateBass) {

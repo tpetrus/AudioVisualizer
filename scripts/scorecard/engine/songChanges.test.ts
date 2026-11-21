@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderTrack, TEST_SAMPLE_RATE } from '../../../app/features/rhythm/testSignals';
-import { countUnexplainedChanges, findSilences, recordSongChanges } from './songChanges';
-import { replayPcm } from './replay';
+import { countUnexplainedChanges, findSilences } from './songChanges';
 
 describe('findSilences', () => {
     it('finds stretches of at least a second of digital silence', () => {
@@ -25,21 +23,5 @@ describe('countUnexplainedChanges', () => {
 
     it('counts the others', () => {
         expect(countUnexplainedChanges([{ time: 4.9 }, { time: 8.1 }], silences)).toBe(2);
-    });
-});
-
-describe('recordSongChanges', () => {
-    it('records nothing on a steady track', () => {
-        const click = renderTrack({ seconds: 8, bpm: 120, beatsPerBar: 4 });
-        const { events } = recordSongChanges(() => replayPcm(click.pcm, TEST_SAMPLE_RATE));
-        expect(events).toEqual([]);
-    });
-
-    it('puts the analyzer back even when the run throws', () => {
-        expect(() =>
-            recordSongChanges(() => {
-                throw new Error('boom');
-            }),
-        ).toThrow('boom');
     });
 });
