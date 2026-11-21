@@ -11,7 +11,7 @@ import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
-import { getActivePlayback } from '~/features/audio/devFileSource';
+import { onRecordingClock } from '~/features/audio/devRecordingClock';
 import { createOrbitView } from '~/lib/three/orbitView';
 
 const CAMERA_FOV = 40;
@@ -195,17 +195,6 @@ export function useDancingCharacterScene(
         // DEV only: the gate's input is the frame's bass (the hub's gate-input bass through the bump envelope); the rest
         // is read from the scene after its update.
         let unregisterProbe: (() => void) | undefined;
-        // A page-clock mark on the recording's `t` clock, the same one the row's `t` is read from: the file playback's
-        // position when a track is playing, else the audio context's time. A mark made before the track started is
-        // negative, which is how a recording shows that a scene was already built, or its model parsed, at track start.
-        // `performance.now()` is the one clock both marks can use: the audio context may not exist yet when a scene is
-        // built. Each row subtracts the mark's age, so the two clocks agree to a frame. NaN while the mark is unset.
-        const onRecordingClock = (markMs: number): number => {
-            const playback = getActivePlayback();
-            const now = playback ? playback.position() : analyserRef.current?.context.currentTime;
-            if (now === undefined || Number.isNaN(markMs)) return NaN;
-            return now - (performance.now() - markMs) / 1000;
-        };
         if (import.meta.env.DEV) {
             unregisterProbe = registerTelemetryProbe(
                 'dancing-character',
@@ -283,8 +272,8 @@ export function useDancingCharacterScene(
                     out[30] = character.timing.beatsPerLoop;
                     out[31] = gate.placedKickCount;
                     out[32] = rhythm.phaseOnsets;
-                    out[33] = onRecordingClock(sceneBuiltMs);
-                    out[34] = onRecordingClock(modelParsedMs);
+                    out[33] = onRecordingClock(sceneBuiltMs, analyserRef.current?.context.currentTime);
+                    out[34] = onRecordingClock(modelParsedMs, analyserRef.current?.context.currentTime);
                 },
             );
         }
