@@ -73,6 +73,19 @@ describe('FullscreenLayer toast', () => {
         const status = screen.getByRole('status');
         expect(status.textContent).toBe('');
         expect(status.getAttribute('aria-live')).toBe('polite');
+        expect(status.classList.contains('hidden')).toBe(false);
+        expect(status.className).not.toContain('bg-black');
+    });
+
+    it('gives the toast a box only while it is shown, and never hides the region', () => {
+        setup({ active: true, hint: 'keyboard' });
+        const status = screen.getByRole('status');
+        expect(status.className).toContain('bg-black/70');
+        act(() => {
+            vi.advanceTimersByTime(3000);
+        });
+        expect(status.classList.contains('hidden')).toBe(false);
+        expect(status.className).not.toContain('bg-black');
     });
 
     it('hides at once when going inactive and shows again on re-entry', () => {

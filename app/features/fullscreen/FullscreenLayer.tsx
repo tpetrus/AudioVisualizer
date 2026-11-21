@@ -25,8 +25,9 @@ export function FullscreenLayer(props: FullscreenLayerProps) {
     const touch = active && hint === 'touch';
     const toastVisible = active && !toastExpired;
 
-    // The toast shows on each off-to-on change of `active`. The live region itself stays mounted, so screen readers
-    // announce the text when it is put into it.
+    // The toast shows on each off-to-on change of `active`. The live region itself stays mounted and is never
+    // display:none (that would drop it from the accessibility tree), so screen readers announce the text when it is put
+    // into it; while idle it is empty and has no box of its own.
     useEffect(() => {
         if (!active) return;
         const timer = setTimeout(() => setToastExpired(true), FULLSCREEN_HINT_MS);
@@ -71,7 +72,7 @@ export function FullscreenLayer(props: FullscreenLayerProps) {
             <p
                 role="status"
                 aria-live="polite"
-                className={`pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 rounded bg-black/70 px-4 py-2 text-center text-sm text-white ${toastVisible ? '' : 'hidden'}`}
+                className={`pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 text-center text-sm text-white ${toastVisible ? 'rounded bg-black/70 px-4 py-2' : ''}`}
             >
                 {toastVisible ? FULLSCREEN_STRINGS[hint === 'touch' ? 'touchHint' : 'keyboardHint'] : ''}
             </p>
