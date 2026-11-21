@@ -369,7 +369,8 @@ repeat rate and chance margin, those within today's false opens put at most 4 of
   tempo) open earlier on four tracks, and `summer2000` no longer opens on its old recording: its dense, loosely
   repeating bass earns too little per repeat under the 1.6 margin. A margin of 1.45 saved that recording (11.72 s) but
   opened 8 and 31 random-bass patterns, more than before; Trevor kept 1.6 and the live cells decide `summer2000`.
-- **`bass-ink` shares the rule**, fed by its own `BassPulse`; it has no reaction cell yet (S9 measures one).
+- **`bass-ink` shares the rule**, fed by its own `BassPulse` until S9 moved it onto `gateBass`; S9 adds its reaction
+  cell.
 
 ### Live
 Recorded headless on 2026-11-20, one run at a time from the main checkout at `3ddcd03`, 4 runs per track; the other
@@ -629,7 +630,60 @@ below was traced from the dancer's telemetry, run by run, against its own tracke
   disagree on the tempo, the downbeat or when the meter locks.
 - **`summer2000` beat error (150 ms):** the tracker's, as above.
 
+## S9 findings (targets version 8, measured on `64bc86e` before and `9487cf0` after)
+S9 owned AC10: every hub-fed visualizer takes its bands and onsets from the hub, with no private band or onset analysis,
+and its reaction cell does not drop across the move.
+
+### What was private, and what moves
+- **`bass-ink`'s bass gate ran its own `BassPulse`**: two lowpass filters and an analyser of its own, the last private
+  analysis feeding a reaction. It now reads `gateBass.pulse` through `BassBump` with `GATE_BASS_BUMP`, as the dancer
+  does since S4. The input is `BassPulse`'s by construction (the hub's `GateBassTap` is its chain, and `BassBump` is its
+  envelope frame for frame at 60 fps, pinned by `bassBump.test.ts`); away from 60 fps it is now time-based rather than
+  per frame, which retires the audit's finding 7 for `bass-ink`. A new source, or a source that goes away and comes
+  back, starts a fresh envelope. `bassInkNoAnalysis.test.ts` fails if the folder builds a filter or an analyser,
+  reads a time-domain buffer, or imports `BassPulse` or `GateBassTap` again. `BassPulse` stays in the app only as the
+  pre-hub reference `BassBump`'s spec and the scorecard's pre-hub column replay.
+- **Spectrum displays keep their owned analyser** (contract C5 of audio-engine-alignment: "Visualizers that need a raw
+  or fine spectrum keep an owned analyser (C4) for that only"): the cubes' columns (40 Hz to 14 kHz, one band per
+  column), `trio-color-wave`'s three sheets and `bass-ink`'s 48-frequency spectrum field. The hub has six bands; moving
+  them would be a visual redesign, a non-goal. The cubes' bass bump has read `gateBass` since S4, and the trio has no
+  bass or onset reaction to move. No visual baseline changes.
+- **The shared rhythm tracker is not private analysis**: `bass-ink` keeps reading the tracker's beat phase, tempo
+  confidence and `bandOnsets`, as the dancer does.
+- **Deferred under D11: `bass-ink`'s set-level bass energy** (`bassLevel` over its owned spectrum below 120 Hz into
+  `EnergyTracker`). Its fast-to-slow ratio drives the set director's surge, dip, build and drop, whose thresholds were
+  tuned on the analyser's byte-dB scale, and no cell measures the director. Moving it is a retune with nothing to hold
+  it to, so it is `FU-S9-bass-ink-energy`, below.
+
+### The reaction cell
+- **`bass-ink` joins the live cells** (hit share, false fires and latency) on `bass-ink.kicks`, the gate's pulse
+  counter, as the audit's finding 5 asks: `bass-ink.out` is a governed brightness, capped at two kick flashes a second,
+  with no per-hit reaction. A counter column fires on each increment, as `measureReactionOffset` already read one.
+  Adding a visualizer adds cells and changes none, so the targets version stays 8.
+- **Before** (`64bc86e`, the hub-regressions build without the move, 4 runs per track): 39 of 45 applicable cells pass,
+  0 fail, 6 unavailable; written into the baseline first so `scorecard:check` holds the move to it.
+
+### Result
+- **Offline:** nothing changes (`scorecard:check` against S8's version 8 baseline passes; blocking failures stay 14).
+- **Live, after against before** (`bass-ink`, 4 runs per track, one at a time): 38 of 45 pass, 0 fail, 7 unavailable.
+  On every track with a fixed outcome the cells are equal within a frame: hit share `drums-100` 0.80, `drums-128` 0.81,
+  `trap-2to1-half-140` 0.88, `trap-4to3-120` 0.71 in both; latency `drums-128` 33.5 and 35.6 ms, `imyourgirl` 49.6 and
+  49.3 ms, `lonley` 239 in both (the gate's kick place, the audit's finding 3, not the input).
+- **`drifting-tempo` latency 9.5 to 14.7 ms** is the one cell `scorecard:check` lists (spread 3 ms). Its runs split
+  between two outcomes of the gate, 38 or 46 pulses: 9 to 12 ms after the beat at 38, 12 to 20 ms at 46, which also
+  hits more beats (hit share 0.375 to 0.48). Before, 3 runs of 4 settled at 38; after, 1. It is S4's split on the same
+  track, and the input is identical by construction. A confirmation set of 4 runs (3 at 46 pulses) measured 9.3 ms and
+  a hit share of 0.50, which is what the committed cells hold; `scorecard:check` then passes against the before cells.
+- **`summer2000`** splits the same way: before, two runs placed the kick and hit 4 of 54 beats at about 165 ms, and two
+  hit none; after, all four hit none, so its latency is unavailable. The deferred tracker beat error (150 ms) and the
+  gate's kick place are its causes (S7, S8).
+- **`high-bpm-dnb`** was unavailable before (too few runs fired) and has cells after (hit 0.02, latency 100 ms).
+
 ## Follow-ups outside the fast lane
+- **`FU-S9-bass-ink-energy`** (R2; from S9, deferred under D11): move `bass-ink`'s set-level bass energy onto the hub
+  (likely `gateBass.lowEnd`), after adding a cell for the set director (transition count and times per real track,
+  before and after), since its ratio thresholds were tuned on the analyser's byte-dB scale. The spectrum field keeps its
+  analyser.
 - **`FU-S7-drifting-truth`** (R2, it changes the targets; from S7): `tempo.maxErrorAfterLock` on `drifting-tempo`
   compares with the tempo of each 8-beat window of taps, which strays up to 2.0% from a smooth fit of the same taps, so
   a 2% floor measures tap jitter. Score drifting tracks against a quadratic fit of the tapped beat times (or a 16-beat
@@ -651,7 +705,8 @@ below was traced from the dancer's telemetry, run by run, against its own tracke
 - **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
   its value over the phase function's own decaying peak, while a level onset's is over its band's peak, so `hub.onsets`
   mixes two scales on `kick` and `bass`. Phase events are also not counted anywhere live. Decide the scale and add a DEV
-  counter recorded by `debug:viz` before S9 moves visualizers onto `hub.onsets`.
+  counter recorded by `debug:viz` before any visualizer reads `hub.onsets` (S9 moved none onto it: no visualizer had
+  a private onset detector).
 - **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
   (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
   `RhythmAnalyzer` prototype methods for the duration of a replay. It works and its specs fail on a rename, but the

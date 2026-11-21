@@ -15,7 +15,7 @@ each figure is uncertain by about 19 ms. "Hits" is how many of the track's beats
 |---|---|---|---|---|---|---|
 | cubes | Own analyser (FFT 2048, smoothing 0.5): 40 Hz to 14 kHz log bands (`bands.ts`). `BassPulse` for the bass pulse (since S7: the hub's low end through `bassBump.ts`, see "cubes (S7)" below) | Bands rise fast and fall by the user's smoothing control, per frame. `BassPulse`: rises by 0.45 and falls by 0.12 of the gap per frame (settles in about 0.3 s at 60 fps) | `cubes.in` 18.7 ms (57 of 57) | `cubes.in` 35.9 ms (20 of 61) | `cubes.out` 29.5 ms on drums (16 of 61); never moves on the click track | Within target where it reacts |
 | trio-color-wave | Three analysers of its own (FFT 1024, 2048, 4096; -90 dB floor; smoothing from the user control) | Analyser smoothing, plus loudness balancing against each band's recent peak | `trio-color-wave.in` 28.0 ms (59 of 59) | 16.5 ms (17 of 63) | `trio-color-wave.out` 28.0 ms on clicks, 16.5 ms on drums | Within target |
-| bass-ink | Own analyser (FFT 2048, smoothing 0.8): 48 log-spaced frequencies (`spectrumField.ts`) and a bass level below 120 Hz. `BassPulse` into the shared bass gate. Tracker beat phase, tempo confidence and kick onset | Spectrum: attack 0.03 s, release 0.22 s against a 1.5 s running average. Mid band: 0.3 s and 1.2 s. Sparkle: 0.15 s and 0.6 s. Motion clock follows the tracker's beat phase | `bass-ink.in` 9.3 ms (59 of 59) | 19.1 ms (32 of 63) | `bass-ink.out` (governed brightness) does not react to single hits. `bass-ink.kicks` (gate pulses): 49 to 57 ms on `imyourgirl` and `syncopationbass2` (45 to 60 hits of 62 to 75); about 240 ms on `lonley` (5 to 7 of 70) | Input within target. Gate pulses miss it by 3 to 10 ms on good tracks and by about 190 ms on `lonley` |
+| bass-ink | Own analyser (FFT 2048, smoothing 0.8): 48 log-spaced frequencies (`spectrumField.ts`) and a bass level below 120 Hz. `BassPulse` into the shared bass gate (since S9 of hub-regressions: the hub's `gateBass.pulse` through `bassBump.ts`). Tracker beat phase, tempo confidence and kick onset | Spectrum: attack 0.03 s, release 0.22 s against a 1.5 s running average. Mid band: 0.3 s and 1.2 s. Sparkle: 0.15 s and 0.6 s. Motion clock follows the tracker's beat phase | `bass-ink.in` 9.3 ms (59 of 59) | 19.1 ms (32 of 63) | `bass-ink.out` (governed brightness) does not react to single hits. `bass-ink.kicks` (gate pulses): 49 to 57 ms on `imyourgirl` and `syncopationbass2` (45 to 60 hits of 62 to 75); about 240 ms on `lonley` (5 to 7 of 70) | Input within target. Gate pulses miss it by 3 to 10 ms on good tracks and by about 190 ms on `lonley` |
 | dancing-character | `BassPulse` into the shared bass gate. Tracker tempo, beat phase and meter | `BassPulse` as above. Dance clips follow the beat clock | `dancing-character.in` never moves (a click has no bass) | 27.5 ms (15 of 60) | `dancing-character.out` no reaction to single hits on either track | Input within target. Output is beat-driven, not hit-driven |
 
 Shared by all four: the tracker's onset bands (`onsetKick`, `onsetMid`, `onsetHigh`) arrive a median 49 to 60 ms after
@@ -38,7 +38,9 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
    bars still react (`cubes.in`). Not a fault, but a click track cannot be the migration check for `cubes`: use
    `drums-128`.
 7. **`BassPulse` smooths per frame, not per second** (0.45 and 0.12 of the gap each frame). At 30 fps or 144 fps the
-   pulse rises and settles at a different speed. Not measured here (all recordings ran at 60 fps).
+   pulse rises and settles at a different speed. Not measured here (all recordings ran at 60 fps). No visualizer uses it
+   any more: the cubes, the dancer and (since hub-regressions S9) `bass-ink` read the hub through the time-based
+   `BassBump`.
 
 ## Fixes and reasons
 

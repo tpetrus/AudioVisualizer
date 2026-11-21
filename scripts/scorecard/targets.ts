@@ -2,6 +2,7 @@
 // measures, which direction is better, the floor and stretch, and which tracks it applies to). The cell builder, the
 // report and the ratchet all read this table, so a floor changes in one place. Bump TARGETS_VERSION whenever a floor,
 // a stretch, a metric definition or an applicability rule changes: the ratchet refuses to compare across versions.
+// A new visualizer whose cells are only added (no existing cell changes) does not bump it.
 
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
@@ -265,18 +266,23 @@ export const SCENARIO_TARGETS: readonly ScenarioTarget[] = [
 
 // The live cells (S3): measured from debug:viz recordings in a browser, 4 runs per track, advisory rather than blocking
 // (decision D13). `npm run scorecard:live` reads this table; the ratchet knows their direction through directionOf.
-export type LiveVisualizer = 'dancing-character' | 'cubes' | 'trio-color-wave';
+export type LiveVisualizer = 'dancing-character' | 'cubes' | 'trio-color-wave' | 'bass-ink';
 
 // The telemetry column whose rise is the visualizer's reaction to a beat (AC8).
 export const LIVE_REACTION_COLUMN: Readonly<Record<LiveVisualizer, string>> = {
     'dancing-character': 'dancing-character.out',
     cubes: 'cubes.out',
     'trio-color-wave': 'trio-color-wave.out',
+    // The gate's pulses, a counter that steps on each kick the bass gate lets through (S9 measures it before and after
+    // bass-ink moves onto the hub's gate-input bass). Not `bass-ink.out`: that is a governed brightness, capped at two
+    // kick flashes a second, with no per-hit reaction (docs/agents/audio-presentation-audit.md, finding 5). A counter
+    // fires on each increment. Adding a visualizer adds cells and changes none, so the targets version stays.
+    'bass-ink': 'bass-ink.kicks',
 };
 
 // AC8's fire-to-beat rule, defined once for live.hit.share50ms and live.falseFire.share (targets version 6). A fire is
 // the first row at which the reaction column is LIVE_RISE_FRACTION of its whole-recording range above its minimum over
-// the preceding LIVE_HIT_WINDOW_SECONDS. A fire belongs to a labeled beat when it lies in
+// the preceding LIVE_HIT_WINDOW_SECONDS, or, for a counter column, each row at which it increments. A fire belongs to a labeled beat when it lies in
 // [beat - LIVE_TAP_TOLERANCE_SECONDS, beat + LIVE_HIT_WINDOW_SECONDS] (liveFireHitsBeat). A beat with a fire of its own is
 // hit; a fire that belongs to no beat is a false fire. The tolerance before the beat absorbs the jitter of hand-tapped
 // beats (about 20 ms): without it a reaction a few ms ahead of a tapped beat was a miss and a false fire.
@@ -319,7 +325,7 @@ export interface LiveMetricTarget {
 
 const isReal = (trackClass: TrackClass): boolean => trackClass === 'tapped' || trackClass === 'drifting';
 const kickWithBeat = (trackClass: TrackClass, kick: boolean): boolean => kick && hasBeat(trackClass);
-const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio-color-wave'];
+const ALL_LIVE: readonly LiveVisualizer[] = ['dancing-character', 'cubes', 'trio-color-wave', 'bass-ink'];
 
 export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     {

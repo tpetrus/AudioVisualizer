@@ -6,6 +6,7 @@ import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
+import { useAudioHub } from '~/features/audio/hub/useAudioHub';
 import { useAnalyser } from '~/features/audio/useAudioState';
 import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 
@@ -14,6 +15,7 @@ export function BassInkPage() {
     const fullscreenRef = useRef<HTMLDivElement>(null);
     const fullscreen = useFullscreen(fullscreenRef);
     const analyser = useAnalyser(BASS_INK_ANALYSER);
+    const hub = useAudioHub();
     const rhythm = useRhythm();
     const { values, valuesRef, setValue, resetAll } = useControlValues(bassInkControls);
     // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.
@@ -23,6 +25,7 @@ export function BassInkPage() {
 
     const { resetView } = useBassInkScene(containerRef, {
         analyser,
+        hub,
         rhythm,
         valuesRef,
         cameraLocked,
