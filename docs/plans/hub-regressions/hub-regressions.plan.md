@@ -401,3 +401,24 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
     `scorecard:check` passes. The baseline is regenerated with S9's cells. All repository checks and budgets pass.
 - **Fast-lane follow-ups:** `FU-S9-bass-ink-specs`, `FU-S9-bass-ink-gate-raw` (from the R2 review).
 - **Next:** S10, order independence and the close.
+
+### S10 done (2026-11-21, branch `s10-order-close`): the plan closes
+- **Delivered:** `debug:viz --then` (a second visualizer in the same page, no reload) and `npm run scorecard:order`,
+  which compares each visualizer opened after another with the same visualizer opened after itself; an end-to-end
+  spec opening the dancer and `cubes` in both orders; `cubes` and `trio-color-wave` recorded again on the re-tapped
+  `lonley` and `summer2000` (`FU-S8-live-retap`); the final scorecard and its close in
+  `docs/agents/hub-scorecard.md` ("S10 findings").
+- **Acceptance:**
+  - **AC11:** reaction telemetry matches in either order on all three hub-fed visualizers (36 of 36 rows); hub signals
+    match on 63 of 72 rows, and 5 small differences recur after a different visualizer on two tracks with no reaction
+    cell moving (`FU-S10-order-hub-spread`). Met for reactions; the hub-signal remainder is to confirm at review.
+  - **AC1:** the committed scorecard lists every applicable cell (426: 377 pass, 24 fail, 25 unavailable); two offline
+    runs give identical cells.
+  - **AC12:** `scorecard:check` passes against S9's baseline; only the 12 re-recorded live cells changed, all passing.
+  - **Success metric 1:** every offline floor is met or deferred under D11 (14 cells, each listed with its sign-off).
+    Stretch results are reported per visualizer; hit share 0.9 and false fires 0.1 are met only on clean synthetic
+    tracks.
+- **Decisions** taken by the orchestrator under Trevor's instruction of 2026-11-21 ("if there are any decisions
+  required, go with your recommendation"), to confirm at the PR review: the same-visualizer control as AC11's
+  reference; reporting AC11's hub-signal remainder as a follow-up rather than a deferral.
+- **Next:** none in this plan. Open follow-ups are listed in `docs/agents/hub-scorecard.md`.

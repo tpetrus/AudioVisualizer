@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 8,
-    "revision": "35ff575",
-    "created": "2026-11-21T04:32:52.687Z",
+    "revision": "e076338",
+    "created": "2026-11-21T15:26:56.843Z",
     "sidecarHashes": {
       "6-8-time.wav": "9ce3c12d1ee614a1b947adb52e32663ed07716c6d45effd67ff04167b3b61ed8",
       "click-120.wav": "c1da26467ef8490858e599dc3647e25f32b69234b1f2fe2b24b420830e309cb7",
@@ -3797,8 +3797,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8172541743970316,
-      "value": 0.8160676532769556,
-      "spread": 0.07171717171717173,
+      "value": 0.7554347826086957,
+      "spread": 0.0357142857142857,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -3831,8 +3831,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.6412655971479502,
-      "value": 0.6235294117647059,
-      "spread": 0.12605042016806722,
+      "value": 0.6666666666666666,
+      "spread": 0.011494252873563204,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4001,8 +4001,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.9569444444444445,
-      "value": 0.9559108527131783,
-      "spread": 0.01226415094339628,
+      "value": 0.6667547568710359,
+      "spread": 0.0976744186046512,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -4035,8 +4035,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.8152777777777778,
-      "value": 0.8610038610038611,
-      "spread": 0.10728910728910734,
+      "value": 0.7645021645021646,
+      "spread": 0.06349206349206349,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5599,8 +5599,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.11428571428571428,
-      "value": 0.11428571428571428,
-      "spread": 0.042857142857142844,
+      "value": 0.16923076923076924,
+      "spread": 0.03076923076923077,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5633,8 +5633,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.17142857142857143,
-      "value": 0.18571428571428572,
-      "spread": 0.05714285714285716,
+      "value": 0.15384615384615385,
+      "spread": 0,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5803,8 +5803,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.03389830508474576,
-      "value": 0.03389830508474576,
-      "spread": 0,
+      "value": 0.2685185185185185,
+      "spread": 0.05555555555555555,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -5837,8 +5837,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 0.11864406779661017,
-      "value": 0.0847457627118644,
-      "spread": 0.05084745762711865,
+      "value": 0.14814814814814814,
+      "spread": 0.037037037037037035,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7401,8 +7401,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 70.85000000000053,
-      "value": 62.83333333333463,
-      "spread": 20.3499999999992,
+      "value": 55.00000000000193,
+      "spread": 10.500000000000398,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7435,8 +7435,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 38.833333333336384,
-      "value": 38.758333333334114,
-      "spread": 16.000000000001123,
+      "value": 30.750000000001165,
+      "spread": 9.500000000000064,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7605,8 +7605,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 144.16666666666788,
-      "value": 140.00000000000057,
-      "spread": 18.66666666666461,
+      "value": 47.42500000000316,
+      "spread": 10.666666666670821,
       "runs": 4,
       "pass": true,
       "status": "pass"
@@ -7639,8 +7639,8 @@
       "blocking": false,
       "applicable": true,
       "prehub": 90.50833333333475,
-      "value": 86.67500000000118,
-      "spread": 21.166666666666785,
+      "value": 41.41666666666843,
+      "spread": 16.000000000002235,
       "runs": 4,
       "pass": true,
       "status": "pass"

@@ -17,6 +17,10 @@ export interface RunFolder {
     // Sortable: the folder's ISO-like stamp, or '' when the name carries none.
     stamp: string;
     play: number;
+    // Set only by `debug:viz --then` order runs (the visualizer played next, or the one played before). Live cells are
+    // measured on fresh page loads, so a folder with either is not a live-cell run.
+    then?: string;
+    after?: string;
 }
 
 const STAMP = /(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)(?:-play(\d+))?$/;
@@ -46,6 +50,8 @@ export function describeRunFolder(path: string): RunFolder | null {
         const options = JSON.parse(readFileSync(join(path, 'options.json'), 'utf8')) as {
             viz?: unknown;
             track?: unknown;
+            then?: unknown;
+            after?: unknown;
         };
         if (typeof options.viz !== 'string' || typeof options.track !== 'string') return null;
         const name =
@@ -53,7 +59,14 @@ export function describeRunFolder(path: string): RunFolder | null {
                 .replace(/[\\/]+$/, '')
                 .split(/[\\/]/)
                 .pop() ?? '';
-        return { path, viz: options.viz, track: options.track, ...parseFolderStamp(name) };
+        return {
+            path,
+            viz: options.viz,
+            track: options.track,
+            ...parseFolderStamp(name),
+            ...(typeof options.then === 'string' ? { then: options.then } : {}),
+            ...(typeof options.after === 'string' ? { after: options.after } : {}),
+        };
     } catch {
         return null;
     }
@@ -66,7 +79,8 @@ export function newestRunFolders(folders: readonly RunFolder[], count: number): 
         .slice(0, count);
 }
 
-// Folders of `viz`, optionally of the listed tracks, grouped by track, each group cut to its `count` newest.
+// Folders of `viz`, optionally of the listed tracks, grouped by track, each group cut to its `count` newest. Order runs
+// (a `then` or `after` in options.json) are left out: they belong to scorecard:order, not to a live cell.
 export function groupRunFolders(
     folders: readonly RunFolder[],
     viz: string,
@@ -75,6 +89,7 @@ export function groupRunFolders(
 ): Map<string, RunFolder[]> {
     const groups = new Map<string, RunFolder[]>();
     for (const folder of folders) {
+        if (folder.then !== undefined || folder.after !== undefined) continue;
         if (folder.viz !== viz || (tracks !== undefined && !tracks.includes(folder.track))) continue;
         groups.set(folder.track, [...(groups.get(folder.track) ?? []), folder]);
     }
