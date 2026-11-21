@@ -20,8 +20,9 @@ const CLIP_COLUMN = 'dancing-character.clipPhase';
 const LOOP_BEATS_COLUMN = 'dancing-character.beatsPerLoop';
 // The dancer's meter lock only exists on a bar of four (dancingCharacterSync.ts).
 const BEATS_PER_BAR = 4;
-// How long AC7 leaves the dancer after a meter lock: at MAX_PHASE_NUDGE_PER_SECOND (0.06 loop a second) an 8-beat clip
-// closes half a bar, the largest distance within a bar, in about 4 s (Trevor, S8).
+// How long AC7 leaves the dancer after a tempo or meter lock: at MAX_PHASE_NUDGE_PER_SECOND (0.06 loop a second) an
+// 8-beat clip closes half a bar, the largest distance within a bar, in about 4 s. The same window follows the tempo lock
+// (Trevor, S8: syncopationbass2's runs reach one place in the beat about 1.2 s after it).
 export const CLIP_SETTLE_SECONDS = 4;
 // The least time the AC7 samples must cover for the cell to have a value.
 export const CLIP_MIN_SAMPLED_SECONDS = 4;
@@ -116,9 +117,9 @@ export function circularMedian(values: readonly number[]): number {
 // in that unit: the place within the bar at a sample where every run is meter-locked, within the beat otherwise. A run's
 // place is its clip phase times its beats per loop (the beatsPerLoop column), and its row at a sample is its last at or
 // before it. Sampling starts at the latest run's first meterLocked, or the latest first tempoLocked when no run
-// meter-locks, and ends where the shortest run ends. A sample within CLIP_SETTLE_SECONDS after any run's meter lock
-// (each time it locks) is skipped: the dancer then slides into the bar at its capped correction rate rather than
-// jumping, which is how it is meant to move, not a disagreement between runs. null for every run when no run locks, a
+// meter-locks, and ends where the shortest run ends. A sample within CLIP_SETTLE_SECONDS after any run's tempo or meter
+// lock (each time it locks) is skipped: the dancer then slides onto the beat or into the bar at its capped correction
+// rate rather than jumping, which is how it is meant to move, not a disagreement between runs. null for every run when no run locks, a
 // column is missing (a recording from before version 8 has no beatsPerLoop) or the samples left cover less than
 // CLIP_MIN_SAMPLED_SECONDS, so a late lock near the end of the recording cannot pass on a moment.
 export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | null)[] {
@@ -131,16 +132,17 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
 
     const runs: ClipSeries[] = [];
     for (const table of tables) {
-        const index = ['t', CLIP_COLUMN, LOOP_BEATS_COLUMN, METER_LOCK_COLUMN].map((column) =>
+        const index = ['t', CLIP_COLUMN, LOOP_BEATS_COLUMN, METER_LOCK_COLUMN, TEMPO_LOCK_COLUMN].map((column) =>
             table.columns.indexOf(column),
         );
         if (index.some((i) => i < 0) || table.rows.length === 0) return none;
-        const [t, phase, beats, meter] = index;
+        const [t, phase, beats, meter, tempo] = index;
         runs.push({
             t: table.rows.map((row) => row[t]),
             phase: table.rows.map((row) => row[phase]),
             beats: table.rows.map((row) => row[beats]),
             meter: table.rows.map((row) => row[meter] > FLAG_THRESHOLD),
+            tempo: table.rows.map((row) => row[tempo] > FLAG_THRESHOLD),
         });
     }
     const end = Math.min(...runs.map((s) => s.t[s.t.length - 1]));
@@ -149,7 +151,8 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
     let samples = 0;
     // Each run's index of its last row at or before the sample; samples only move forward, so it only moves forward.
     const at = runs.map(() => -1);
-    // Each run's latest meter lock (a row where meterLocked turns on) at or before the sample.
+    // Each run's latest tempo and meter lock (a row where the flag turns on) at or before the sample.
+    const tempoLockedAt = runs.map(() => -Infinity);
     const lockedAt = runs.map(() => -Infinity);
     const places = runs.map(() => NaN);
     for (let k = 0; start + k * CLIP_SAMPLE_STEP_SECONDS <= end + 1e-9; k++) {
@@ -159,10 +162,13 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
         runs.forEach((s, run) => {
             while (at[run] + 1 < s.t.length && s.t[at[run] + 1] <= sampleT) {
                 at[run]++;
-                if (s.meter[at[run]] && (at[run] === 0 || !s.meter[at[run] - 1])) lockedAt[run] = s.t[at[run]];
+                const i = at[run];
+                if (s.meter[i] && (i === 0 || !s.meter[i - 1])) lockedAt[run] = s.t[i];
+                if (s.tempo[i] && (i === 0 || !s.tempo[i - 1])) tempoLockedAt[run] = s.t[i];
             }
             const row = at[run];
             if (row >= 0 && s.meter[row] && sampleT - lockedAt[run] < CLIP_SETTLE_SECONDS) settling = true;
+            if (row >= 0 && s.tempo[row] && sampleT - tempoLockedAt[run] < CLIP_SETTLE_SECONDS) settling = true;
             const usable = row >= 0 && Number.isFinite(s.phase[row]) && s.beats[row] > 0;
             places[run] = usable ? s.phase[row] * s.beats[row] : NaN;
             if (usable && !s.meter[row]) allMeter = false;
@@ -189,6 +195,7 @@ interface ClipSeries {
     phase: number[];
     beats: number[];
     meter: boolean[];
+    tempo: boolean[];
 }
 
 // The reaction fires of one recording, as targets.ts defines them next to liveFireHitsBeat: a row where the reaction

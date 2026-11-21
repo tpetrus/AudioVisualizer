@@ -165,6 +165,21 @@ describe('clipMaxDeviations', () => {
         expect(clipMaxDeviations([run(2, 0), late, run(2, 0)])[1]).toBeCloseTo(1);
     });
 
+    it('leaves the dancer CLIP_SETTLE_SECONDS after each tempo lock to slide onto the beat', () => {
+        // No meter lock: the odd run is half a beat off for the first 3 s after its tempo lock at 2 s.
+        const sliding = table(
+            columns,
+            times(16).map((t) => [t, t >= 2 ? 1 : 0, 0, (((t + (t < 5 ? 0.0625 : 0)) % 1) + 1) % 1, 8]),
+        );
+        expect(allZero(clipMaxDeviations([run(2, 0, false), sliding, run(2, 0, false)]))).toBe(true);
+        // Still off 5 s after the lock: that counts.
+        const late = table(
+            columns,
+            times(16).map((t) => [t, t >= 2 ? 1 : 0, 0, (((t + (t < 7 ? 0.0625 : 0)) % 1) + 1) % 1, 8]),
+        );
+        expect(clipMaxDeviations([run(2, 0, false), late, run(2, 0, false)])[1]).toBeCloseTo(0.5);
+    });
+
     it('starts the settle window again when a run locks its meter again', () => {
         // The meter drops at 6 s and locks again at 6.5 s; the run is a beat off until 9 s, inside the new window.
         const relock = table(
