@@ -23,8 +23,8 @@ function key(init: KeyboardEventInit, on: Element | Document = document) {
 // Lets the controller's promise settle and the change event land.
 const settle = () => act(async () => {});
 
-function setup(support: 'native' | 'webkit' | 'none', reject = false) {
-    fullscreen = installFakeFullscreen({ support, reject });
+function setup(support: 'native' | 'webkit' | 'none', reject = false, webkitError = false) {
+    fullscreen = installFakeFullscreen({ support, reject, webkitError });
 }
 
 beforeEach(() => {
@@ -71,6 +71,37 @@ describe('useFullscreen', () => {
         await settle();
         expect(result.current.mode).toBe('native');
         act(() => result.current.exit());
+        await settle();
+        expect(result.current.mode).toBe('off');
+    });
+
+    it('falls back to pseudo when Safari signals an error event', async () => {
+        setup('webkit', false, true);
+        const { result } = mount();
+        act(() => result.current.toggle());
+        await settle();
+        expect(result.current.mode).toBe('pseudo');
+    });
+
+    it('ignores toggle while an enter request is pending', async () => {
+        setup('native');
+        const { result } = mount();
+        act(() => {
+            result.current.toggle();
+            result.current.toggle();
+        });
+        await settle();
+        expect(fullscreen.requestCalls).toHaveBeenCalledTimes(1);
+        expect(result.current.mode).toBe('native');
+    });
+
+    it('does not fall back to pseudo when the user left while a refused request was pending', async () => {
+        setup('native', true);
+        const { result } = mount();
+        act(() => {
+            result.current.toggle();
+            result.current.exit();
+        });
         await settle();
         expect(result.current.mode).toBe('off');
     });
@@ -252,7 +283,7 @@ describe('useFullscreen', () => {
             act(() => void vi.advanceTimersByTime(1));
             expect(hidden()).toBe(true);
 
-            act(() => void document.dispatchEvent(new MouseEvent('mousemove')));
+            act(() => void document.dispatchEvent(new Event('pointermove')));
             expect(visible()).toBe(true);
             act(() => void vi.advanceTimersByTime(FULLSCREEN_IDLE_CURSOR_MS));
             expect(hidden()).toBe(true);

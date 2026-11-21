@@ -11,6 +11,10 @@ interface WebkitFullscreenElement {
     webkitRequestFullscreen?: () => unknown;
 }
 
+// How long a webkit request may wait for its change or error event before the state is read as it is. Safari fires one
+// of the two, but a missing event must never leave the caller hanging.
+const WEBKIT_ENTER_TIMEOUT_MS = 1000;
+
 // Decides once which API the document offers. The element method is checked as well as the enabled flag, because a
 // browser can report the flag without implementing the call on elements.
 function detectSupport(doc: Document): FullscreenSupport {
@@ -33,6 +37,31 @@ export function createFullscreenController(doc: Document): FullscreenController 
     const fullscreenElement = (): Element | null =>
         (support === 'native' ? doc.fullscreenElement : webkitDoc.webkitFullscreenElement) ?? null;
 
+    // The prefixed request returns no promise, so Safari denying it is only visible as an error event. Settles on the
+    // first of the change event, the error event or the timeout, and always removes its listeners.
+    const enterWebkit = (element: HTMLElement & WebkitFullscreenElement) =>
+        new Promise<boolean>((resolve) => {
+            // Declared with the listeners below it, which `settle` removes; the timer is armed after they exist.
+            const settle = (result: boolean) => {
+                clearTimeout(timer);
+                doc.removeEventListener('webkitfullscreenchange', onChange);
+                doc.removeEventListener('webkitfullscreenerror', onError);
+                resolve(result);
+            };
+            const onChange = () => settle(fullscreenElement() === element);
+            const onError = () => settle(false);
+            doc.addEventListener('webkitfullscreenchange', onChange);
+            doc.addEventListener('webkitfullscreenerror', onError);
+            const timer = setTimeout(onChange, WEBKIT_ENTER_TIMEOUT_MS);
+            try {
+                // Some builds do return a promise; a rejection there is a refusal too.
+                const returned = element.webkitRequestFullscreen?.();
+                if (returned instanceof Promise) returned.catch(onError);
+            } catch {
+                settle(false);
+            }
+        });
+
     return {
         support,
 
@@ -41,11 +70,9 @@ export function createFullscreenController(doc: Document): FullscreenController 
             try {
                 if (support === 'native') {
                     await element.requestFullscreen({ navigationUI: 'hide' });
-                } else {
-                    // The prefixed call may return undefined instead of a promise; awaiting handles both.
-                    await (element as HTMLElement & WebkitFullscreenElement).webkitRequestFullscreen?.();
+                    return true;
                 }
-                return true;
+                return await enterWebkit(element);
             } catch {
                 return false;
             }

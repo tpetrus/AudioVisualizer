@@ -96,6 +96,32 @@ describe('shouldToggleOnKey', () => {
     });
 });
 
+describe('shouldToggleOnKey guards', () => {
+    it('ignores keydowns without a string key (autofill)', () => {
+        const event = new KeyboardEvent('keydown', { key: 'f' });
+        Object.defineProperty(event, 'key', { value: undefined });
+        expect(shouldToggleOnKey(event)).toBe(false);
+    });
+
+    it('ignores the key while a modal dialog is open', () => {
+        const dialog = document.createElement('div');
+        dialog.setAttribute('aria-modal', 'true');
+        document.body.append(dialog);
+        expect(shouldToggleOnKey(press({ key: 'f' }))).toBe(false);
+        dialog.remove();
+        const native = document.createElement('dialog');
+        native.setAttribute('open', '');
+        document.body.append(native);
+        expect(shouldToggleOnKey(press({ key: 'f' }))).toBe(false);
+        native.remove();
+        expect(shouldToggleOnKey(press({ key: 'f' }))).toBe(true);
+    });
+
+    it('falls back to document when the target is not a node', () => {
+        expect(shouldToggleOnKey(new KeyboardEvent('keydown', { key: 'f' }))).toBe(true);
+    });
+});
+
 describe('isEscapeKey', () => {
     it('accepts Escape only when not composing', () => {
         expect(isEscapeKey(new KeyboardEvent('keydown', { key: 'Escape' }))).toBe(true);

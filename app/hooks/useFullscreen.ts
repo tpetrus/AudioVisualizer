@@ -34,14 +34,20 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
         return target !== null && controller.isActive(target);
     }, [controller]);
 
+    // True from the request until its answer. A second toggle in that gap would race the first request.
+    const pendingRef = useRef(false);
+    // Set when the user asked to leave while a request was pending, so a late refusal does not pull in pseudo mode.
+    const leaveRequestedRef = useRef(false);
+
     const exit = useCallback(() => {
+        if (pendingRef.current) leaveRequestedRef.current = true;
         if (modeRef.current === 'native' || browserFullscreen()) void controller.exit();
         else if (modeRef.current === 'pseudo') setMode('off');
     }, [browserFullscreen, controller, modeRef]);
 
     const toggle = useCallback(() => {
         const target = targetRef.current;
-        if (!target) return;
+        if (!target || pendingRef.current) return;
         if (modeRef.current !== 'off' || browserFullscreen()) {
             exit();
             return;
@@ -51,8 +57,11 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
         setHint(coarse ? 'touch' : 'keyboard');
         // No await before this call: the Fullscreen API only accepts a request made inside the user's gesture.
         // Native state is set by the change event below, never here.
+        pendingRef.current = true;
+        leaveRequestedRef.current = false;
         void controller.enter(target).then((accepted) => {
-            if (!accepted && mountedRef.current) setMode('pseudo');
+            pendingRef.current = false;
+            if (!accepted && mountedRef.current && !leaveRequestedRef.current) setMode('pseudo');
         });
     }, [browserFullscreen, controller, exit, modeRef, targetRef]);
 
@@ -102,10 +111,10 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
             timer = setTimeout(hide, FULLSCREEN_IDLE_CURSOR_MS);
         };
         restart();
-        document.addEventListener('mousemove', restart);
+        document.addEventListener('pointermove', restart);
         return () => {
             clearTimeout(timer);
-            document.removeEventListener('mousemove', restart);
+            document.removeEventListener('pointermove', restart);
             target.classList.remove(...FULLSCREEN_IDLE_CURSOR_CLASSES);
         };
     }, [active]);

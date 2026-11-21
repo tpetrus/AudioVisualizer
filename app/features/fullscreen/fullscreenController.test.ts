@@ -122,12 +122,39 @@ describe('createFullscreenController', () => {
                 ...members,
             });
 
-        it('enters with the prefixed call, which may return nothing', async () => {
+        it('enters with the prefixed call and resolves from the change event', async () => {
+            const target = element();
+            const { doc, fire, listeners } = setup({ webkitFullscreenElement: target });
             const request = vi.fn();
-            await expect(
-                createFullscreenController(setup().doc).enter(element({ webkitRequestFullscreen: request })),
-            ).resolves.toBe(true);
+            const entered = createFullscreenController(doc).enter(
+                Object.assign(target, { webkitRequestFullscreen: request }),
+            );
             expect(request).toHaveBeenCalledOnce();
+            fire('webkitfullscreenchange');
+            await expect(entered).resolves.toBe(true);
+            expect(listeners.get('webkitfullscreenchange')?.size).toBe(0);
+            expect(listeners.get('webkitfullscreenerror')?.size).toBe(0);
+        });
+
+        it('resolves false on the error event, even though the call returned normally', async () => {
+            const { doc, fire, listeners } = setup();
+            const entered = createFullscreenController(doc).enter(element({ webkitRequestFullscreen: vi.fn() }));
+            fire('webkitfullscreenerror');
+            await expect(entered).resolves.toBe(false);
+            expect(listeners.get('webkitfullscreenchange')?.size).toBe(0);
+            expect(listeners.get('webkitfullscreenerror')?.size).toBe(0);
+        });
+
+        it('settles from the current state after a second when no event arrives', async () => {
+            vi.useFakeTimers();
+            try {
+                const { doc } = setup();
+                const entered = createFullscreenController(doc).enter(element({ webkitRequestFullscreen: vi.fn() }));
+                await vi.advanceTimersByTimeAsync(1000);
+                await expect(entered).resolves.toBe(false);
+            } finally {
+                vi.useRealTimers();
+            }
         });
 
         it('resolves false when the prefixed call throws or rejects', async () => {

@@ -12,6 +12,7 @@ import type { FullscreenSupport } from '~/features/fullscreen/types';
 //   expect(fullscreen.element).toBe(target);   // the fullscreen element, null when not in fullscreen
 //   act(() => fullscreen.exitExternally());    // the browser's own Escape or exit UI
 //
+// `webkitError: true` makes a webkit request fail the way Safari does: no promise, a webkitfullscreenerror event.
 // `reject: true` makes every request reject (a policy block or a refused request). `requestCalls` counts requests and
 // `exitCalls` counts exitFullscreen calls made by the code under test (not exitExternally).
 
@@ -35,9 +36,11 @@ interface Patch {
 export function installFakeFullscreen({
     support,
     reject = false,
+    webkitError = false,
 }: {
     support: FullscreenSupport;
     reject?: boolean;
+    webkitError?: boolean;
 }): FakeFullscreen {
     const patches: Patch[] = [];
     let element: Element | null = null;
@@ -99,6 +102,10 @@ export function installFakeFullscreen({
         value: function (this: Element) {
             requestCalls();
             if (reject) return prefix ? Promise.reject(new Error('refused')) : Promise.reject(new TypeError('refused'));
+            if (webkitError) {
+                Promise.resolve().then(() => document.dispatchEvent(new Event('webkitfullscreenerror')));
+                return undefined;
+            }
             // A browser answers after the call returns, so the change event arrives later than the request.
             return Promise.resolve().then(() => setElement(this));
         },
