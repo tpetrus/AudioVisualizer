@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunFolder } from '../live/ingest';
-import { pairSessions, planSessions, selectSessions } from './sessions';
+import { missingPlans, pairSessions, planSessions, selectSessions } from './sessions';
 
 const PAIR: [string, string] = ['cubes', 'bass-ink'];
 
@@ -17,15 +17,40 @@ function folder(viz: string, track: string, second: number, play: 1 | 2, other: 
 }
 
 describe('planSessions', () => {
-    it('alternates the orders per track', () => {
-        expect(planSessions(PAIR, ['a.wav', 'b.wav'], 2)).toEqual([
-            ...['a.wav', 'b.wav'].flatMap((track) => [
-                { track, lead: 'cubes', then: 'bass-ink' },
-                { track, lead: 'bass-ink', then: 'cubes' },
-                { track, lead: 'cubes', then: 'bass-ink' },
-                { track, lead: 'bass-ink', then: 'cubes' },
-            ]),
+    it('interleaves the four combinations per repetition and track', () => {
+        expect(planSessions(PAIR, ['a.wav', 'b.wav'], 2)).toEqual(
+            ['a.wav', 'b.wav'].flatMap((track) =>
+                [0, 1].flatMap(() => [
+                    { track, lead: 'cubes', then: 'bass-ink' },
+                    { track, lead: 'bass-ink', then: 'cubes' },
+                    { track, lead: 'cubes', then: 'cubes' },
+                    { track, lead: 'bass-ink', then: 'bass-ink' },
+                ]),
+            ),
+        );
+    });
+});
+
+describe('missingPlans', () => {
+    it('keeps only the shortfall per track and combination, in planned order', () => {
+        const plans = planSessions(PAIR, ['a.wav'], 2);
+        const folders = [
+            folder('cubes', 'a.wav', 1, 1, 'bass-ink'),
+            folder('bass-ink', 'a.wav', 5, 2, 'cubes'),
+            folder('cubes', 'a.wav', 10, 1, 'cubes'),
+            folder('cubes', 'a.wav', 15, 2, 'cubes'),
+            folder('cubes', 'a.wav', 20, 1, 'cubes'),
+            folder('cubes', 'a.wav', 25, 2, 'cubes'),
+        ];
+        const missing = missingPlans(plans, pairSessions(folders, PAIR));
+        expect(missing.map((plan) => `${plan.lead}>${plan.then}`)).toEqual([
+            'bass-ink>cubes',
+            'bass-ink>bass-ink',
+            'cubes>bass-ink',
+            'bass-ink>cubes',
+            'bass-ink>bass-ink',
         ]);
+        expect(missingPlans(plans, [])).toEqual(plans);
     });
 });
 
@@ -65,8 +90,20 @@ describe('pairSessions', () => {
     });
 });
 
+describe('pairSessions control sessions', () => {
+    it('pairs a same-visualizer session and marks its kind', () => {
+        const folders = [
+            folder('cubes', 'a.wav', 1, 1, 'cubes'),
+            folder('cubes', 'a.wav', 9, 2, 'cubes'),
+            folder('cubes', 'a.wav', 20, 1, 'bass-ink'),
+            folder('bass-ink', 'a.wav', 29, 2, 'cubes'),
+        ];
+        expect(pairSessions(folders, PAIR).map((s) => s.kind)).toEqual(['control', 'cross']);
+    });
+});
+
 describe('selectSessions', () => {
-    it('keeps the newest sessions of each order per track', () => {
+    it('keeps the newest sessions of each combination per track', () => {
         const folders = [1, 20, 40].flatMap((second) => [
             folder('cubes', 'a.wav', second, 1, 'bass-ink'),
             folder('bass-ink', 'a.wav', second + 5, 2, 'cubes'),
@@ -79,5 +116,8 @@ describe('selectSessions', () => {
         expect([...picked.keys()]).toEqual(['a.wav']);
         const leads = picked.get('a.wav')!.map((s) => `${s.lead.viz}@${s.lead.stamp.slice(17, 19)}`);
         expect(leads).toEqual(['cubes@40', 'cubes@20', 'bass-ink@48', 'bass-ink@28']);
+        const control = [folder('cubes', 'a.wav', 55, 1, 'cubes'), folder('cubes', 'a.wav', 58, 2, 'cubes')];
+        const both = selectSessions(pairSessions([...folders, ...control], PAIR), PAIR, ['a.wav'], 1);
+        expect(both.get('a.wav')!.map((s) => s.kind)).toEqual(['control', 'cross', 'cross']);
     });
 });

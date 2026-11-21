@@ -1,6 +1,6 @@
 // `npm run scorecard:order -- --pair A,B`: AC11. Records (or ingests) page sessions in which two hub-fed visualizers play
-// the same track one after the other without a reload, in both orders, and writes a report comparing each visualizer's
-// hub signals and reactions when it led with when it followed. A report, not a gate: it exits 0 whatever the rows say.
+// the same track one after the other without a reload, in both orders and each after itself as a control, and writes a
+// report comparing each visualizer's second play after the other with its second play after itself. A report, not a gate: it exits 0 whatever the rows say.
 // Not part of the app bundle: nothing under app/ imports this file.
 
 import { execSync } from 'node:child_process';
@@ -13,7 +13,9 @@ import { orderRows, type LiveCellLookup, type LoadedSession, type OrderRun } fro
 import { ORDER_USAGE, parseOrderArgs, type OrderArgs } from './order/args';
 import { recordSession } from './order/record';
 import { renderMarkdown, summaryLine, type OrderReport } from './order/report';
-import { pairSessions, planSessions, selectSessions } from './order/sessions';
+import { missingPlans, pairSessions, planSessions, selectSessions, type OrderSession } from './order/sessions';
+
+const DEBUG_OUT = '.debug-out';
 
 function revision(): string {
     try {
@@ -60,11 +62,12 @@ function describeAll(paths: readonly string[]): RunFolder[] {
 }
 
 // Recording is real time and CPU sensitive, so the sessions run strictly one after another.
-async function record(args: OrderArgs): Promise<RunFolder[]> {
+async function record(args: OrderArgs, existing: readonly OrderSession[]): Promise<RunFolder[]> {
     const pair = args.pair!;
     const dir = resolve(args.dir);
     const outputs: string[] = [];
-    for (const plan of planSessions(pair, args.tracks, args.sessions)) {
+    const planned = planSessions(pair, args.tracks, args.sessions);
+    for (const plan of args.topUp ? missingPlans(planned, existing) : planned) {
         if (!existsSync(resolve(dir, plan.track))) {
             console.log(`${plan.track}: not in ${dir}; skipped`);
             continue;
@@ -102,7 +105,12 @@ async function main(): Promise<void> {
         return;
     }
     const pair = args.pair!;
-    const folders = args.ingest.length > 0 ? describeAll(args.ingest) : await record(args);
+    let folders: RunFolder[];
+    if (args.topUp) {
+        // Count what .debug-out already holds, record the shortfall, then read .debug-out again for the report.
+        await record(args, pairSessions(describeAll([DEBUG_OUT]), pair));
+        folders = describeAll([DEBUG_OUT]);
+    } else folders = args.ingest.length > 0 ? describeAll(args.ingest) : await record(args, []);
     const dir = existsSync(resolve(args.dir)) ? resolve(args.dir) : undefined;
 
     const selected = selectSessions(pairSessions(folders, pair), pair, args.tracks, args.sessions);

@@ -53,13 +53,16 @@ const REACTION_SIGNALS: readonly {
 const numbers = (values: readonly (number | null)[]): number[] =>
     values.filter((value): value is number => value !== null && Number.isFinite(value));
 
-// Reaction rows: the median of each side's per-run values, judged against the committed live cell's value and spread.
+// Reaction rows: the median of the self runs (the visualizer's second play after itself) against the median of the other
+// runs (its second play after the other visualizer). The allowance is the larger of the committed live cell's spread
+// (when there is a cell) and the spread of the lead and self values, which is the run-to-run noise of this recording.
 export function reactionRows(
     pair: string,
     track: string,
     viz: LiveVisualizer,
-    first: readonly OrderRun[],
-    second: readonly OrderRun[],
+    lead: readonly OrderRun[],
+    self: readonly OrderRun[],
+    other: readonly OrderRun[],
     cellOf: LiveCellLookup,
 ): OrderRow[] {
     return REACTION_SIGNALS.map(({ id, measure }) => {
@@ -76,18 +79,23 @@ export function reactionRows(
         };
         const withBeats = (runs: readonly OrderRun[]): number[] =>
             numbers(runs.map((run) => (run.beats === undefined ? null : measure(run.table, viz, run.beats))));
-        row.first = median(withBeats(first));
-        row.second = median(withBeats(second));
-        const cell = cellOf(id, track, viz);
-        if ([...first, ...second].every((run) => run.beats === undefined) && first.length + second.length > 0) {
+        const leadValues = withBeats(lead);
+        const selfValues = withBeats(self);
+        const otherValues = withBeats(other);
+        if ([...lead, ...self, ...other].every((run) => run.beats === undefined) && lead.length + self.length > 0) {
             row.note = 'the track has no beats';
-        } else if (cell === undefined || !cell.applicable || cell.status === 'unavailable' || cell.value === null) {
-            row.note = 'no live cell to compare with';
-        } else if (row.second === null) {
-            row.note = 'no second run measured';
+        } else if (selfValues.length === 0 || otherValues.length === 0) {
+            row.note = selfValues.length === 0 ? 'no self run measured' : 'no run after the other visualizer measured';
         } else {
-            row.allowed = cell.spread;
-            row.pass = Math.abs(row.second - cell.value) <= cell.spread + EPSILON;
+            const cell = cellOf(id, track, viz);
+            const spreadValues = [...leadValues, ...selfValues];
+            const own = Math.max(...spreadValues) - Math.min(...spreadValues);
+            const first = median(selfValues)!;
+            const second = median(otherValues)!;
+            row.first = first;
+            row.second = second;
+            row.allowed = Math.max(cell?.spread ?? 0, own);
+            row.pass = Math.abs(second - first) <= row.allowed + EPSILON;
         }
         return row;
     });
@@ -140,7 +148,8 @@ export interface LoadedSession {
     follow: OrderRun;
 }
 
-// All rows of one pair: for each track and each visualizer, its led runs against its followed runs.
+// All rows of one pair: for each track and each visualizer V, V's lead runs (play 1 of every session V led), its self
+// runs (play 2 of V's control sessions) and its other runs (play 2 after the other visualizer).
 export function orderRows(
     pair: readonly [string, string],
     sessionsByTrack: ReadonlyMap<string, readonly LoadedSession[]>,
@@ -149,11 +158,16 @@ export function orderRows(
     const rows: OrderRow[] = [];
     for (const [track, sessions] of sessionsByTrack) {
         for (const viz of pair) {
-            const first = sessions.filter((session) => session.leadViz === viz).map((session) => session.lead);
-            const second = sessions.filter((session) => session.followViz === viz).map((session) => session.follow);
+            const lead = sessions.filter((session) => session.leadViz === viz).map((session) => session.lead);
+            const self = sessions
+                .filter((session) => session.leadViz === viz && session.followViz === viz)
+                .map((session) => session.follow);
+            const other = sessions
+                .filter((session) => session.leadViz !== viz && session.followViz === viz)
+                .map((session) => session.follow);
             rows.push(
-                ...hubRows(pair.join(','), track, viz as LiveVisualizer, first, second),
-                ...reactionRows(pair.join(','), track, viz as LiveVisualizer, first, second, cellOf),
+                ...hubRows(pair.join(','), track, viz as LiveVisualizer, lead, self, other),
+                ...reactionRows(pair.join(','), track, viz as LiveVisualizer, lead, self, other, cellOf),
             );
         }
     }
@@ -169,15 +183,18 @@ function withinDistances(runs: readonly OrderRun[], column: string): (number | n
     return out;
 }
 
-// Hub rows: how far apart the signal is between the two conditions (second column), against how far apart runs of one
-// condition already are (first column and the allowance). The hub signals are the shared inputs the visualizers read, so
-// a visualizer that leads and one that follows should see the same signal within a recording's own run-to-run spread.
+// Hub rows. The hub signals are the shared inputs the visualizers read, so a visualizer's second play should look the
+// same whichever visualizer played before it. First is how far the lead runs are from the self runs (the same visualizer
+// after itself, the cost of the navigate and re-select path alone); second is how far they are from the runs after the
+// other visualizer. The allowance is the larger of the lead runs' own spread and first, so only a difference the control
+// does not explain fails.
 export function hubRows(
     pair: string,
     track: string,
     viz: LiveVisualizer,
-    first: readonly OrderRun[],
-    second: readonly OrderRun[],
+    lead: readonly OrderRun[],
+    self: readonly OrderRun[],
+    other: readonly OrderRun[],
 ): OrderRow[] {
     return [...HUB_COLUMNS, `${viz}.in`].map((column) => {
         const row: OrderRow = {
@@ -191,22 +208,21 @@ export function hubRows(
             allowed: null,
             pass: null,
         };
-        if (first.length < 2 || second.length < 2) {
-            row.note = 'needs at least 2 runs in each condition';
+        if (lead.length < 2 || self.length === 0 || other.length === 0) {
+            row.note = 'needs at least 2 lead runs and at least 1 self and 1 other run';
             return row;
         }
-        const within = numbers([...withinDistances(first, column), ...withinDistances(second, column)]);
-        const cross = numbers(first.flatMap((a) => second.map((b) => distance(a.table, b.table, column))));
-        if (within.length === 0 || cross.length === 0) {
+        const within = numbers(withinDistances(lead, column));
+        const toSelf = numbers(lead.flatMap((a) => self.map((b) => distance(a.table, b.table, column))));
+        const toOther = numbers(lead.flatMap((a) => other.map((b) => distance(a.table, b.table, column))));
+        if (within.length === 0 || toSelf.length === 0 || toOther.length === 0) {
             row.note = 'the column is missing or the runs do not overlap';
             return row;
         }
-        const spread = Math.max(...within);
-        row.first = spread;
-        const between = median(cross)!;
-        row.second = between;
-        row.allowed = spread;
-        row.pass = between <= spread + EPSILON;
+        row.first = median(toSelf)!;
+        row.second = median(toOther)!;
+        row.allowed = Math.max(Math.max(...within), row.first);
+        row.pass = row.second <= row.allowed + EPSILON;
         return row;
     });
 }

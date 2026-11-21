@@ -11,25 +11,30 @@ export interface OrderArgs {
     pair: [string, string] | undefined;
     dir: string;
     tracks: string[];
-    // Sessions per order (A then B, and B then A), per track.
+    // Sessions per combination (A then B, B then A, A then A, B then B), per track.
     sessions: number;
     seconds: number | undefined;
     headless: boolean;
     ingest: string[];
+    // Record only the planned sessions .debug-out does not already hold, then report from .debug-out.
+    topUp: boolean;
     out: string;
     help: boolean;
 }
 
 export const ORDER_USAGE = `Usage: npm run scorecard:order -- --pair A,B [--dir <folder>] [--tracks a.wav,b.wav] [--sessions N]
-                                   [--seconds S] [--headless] [--ingest <folder> ...] [--out <basename>]
+                                   [--seconds S] [--headless] [--ingest <folder> ...] [--top-up] [--out <basename>]
 
 A and B are two different visualizers from: ${LIVE_VISUALIZERS.join(', ')}.
 Records, per track (default ${ORDER_TRACKS.join(', ')}; the audio is read from <folder>, default ${ORDER_DIR}), N sessions
-(default ${DEFAULT_SESSIONS}) of each order, alternating A-then-B and B-then-A, one at a time. A session is one page: the
-track plays on the first visualizer, the page moves to the second without a reload, and the track plays again there
-(debug:viz --then). Then it compares each visualizer's hub signals and reaction metrics when it led with when it
-followed, against the run-to-run spread of the same recordings and of the committed live cells (AC11).
---ingest reads existing debug:viz output folders instead of recording (the newest N sessions per track and order).
+(default ${DEFAULT_SESSIONS}) of each of four combinations, interleaved: A-then-B, B-then-A, A-then-A and B-then-B, one at
+a time. A session is one page: the track plays on the first visualizer, the page moves to the second (possibly the same
+one) without a reload, and the track plays again there (debug:viz --then). The same-visualizer sessions are the control:
+they show what the navigate and re-select path alone changes. Then it compares each visualizer's second play after the
+other visualizer with its second play after itself, against the spread of its first plays (AC11).
+--ingest reads existing debug:viz output folders instead of recording (the newest N sessions per track and combination).
+--top-up records only the sessions .debug-out lacks (the shortfall per track and combination up to N), then reports from
+.debug-out as --ingest .debug-out would.
 Writes <basename>.json and <basename>.md (default ${ORDER_OUT}). It is a report: the exit code is 0 even when rows fail.`;
 
 function valueOf(argv: readonly string[], i: number): string {
@@ -61,6 +66,7 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
         seconds: undefined,
         headless: false,
         ingest: [],
+        topUp: false,
         out: ORDER_OUT,
         help: false,
     };
@@ -68,6 +74,7 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
         const arg = argv[i];
         if (arg === '--help' || arg === '-h') args.help = true;
         else if (arg === '--headless') args.headless = true;
+        else if (arg === '--top-up') args.topUp = true;
         else if (arg === '--pair') args.pair = parsePair(valueOf(argv, i++));
         else if (arg === '--dir') args.dir = valueOf(argv, i++);
         else if (arg === '--out') args.out = valueOf(argv, i++);

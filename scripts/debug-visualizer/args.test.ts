@@ -269,11 +269,8 @@ describe('parseArgs --then', () => {
         expect(run(['--then', 'bass-ink', '--reselect', '1']).then).toBe('bass-ink');
     });
 
-    it('must differ from --viz', () => {
-        expect(parseArgs([...base, '--then', 'cubes'])).toEqual({
-            kind: 'error',
-            message: '--then must name a different visualizer than --viz.',
-        });
+    it('may name the same visualizer as --viz', () => {
+        expect(run(['--then', 'cubes']).then).toBe('cubes');
     });
 
     it('is in the usage text', () => {

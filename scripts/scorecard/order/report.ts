@@ -42,9 +42,9 @@ export function renderMarkdown(report: OrderReport): string {
         '',
         `${rows.length} rows: ${counts.pass} pass, ${counts.fail} fail, ${counts.unjudged} not judged.`,
         '',
-        'Hub rows: first is the run-to-run distance within one condition, second the distance between conditions (RMS, 10 ms grid). Reaction rows: first and second are the medians when the visualizer led and followed; allowed is the live cell spread.',
+        "Per visualizer: lead runs are its first play of a session it led, self runs its second play after itself (the control), other runs its second play after the other visualizer. Hub rows (RMS, 10 ms grid): after itself is the median distance from the lead runs to the self runs, after the other the median distance to the other runs, allowed the larger of the lead runs' own spread and after itself. Reaction rows: after itself and after the other are the medians of the self and other runs; allowed is the larger of the live cell spread and the spread of the lead and self values.",
         '',
-        '| Pair | Track | Visualizer | Signal | Kind | First | Second | Allowed | Result | Note |',
+        '| Pair | Track | Visualizer | Signal | Kind | After itself | After the other | Allowed | Result | Note |',
         '|---|---|---|---|---|---|---|---|---|---|',
         ...rows.map(
             (row) =>

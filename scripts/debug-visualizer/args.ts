@@ -101,12 +101,10 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     if (reselect > 1 && shots.length > 0) {
         return { kind: 'error', message: '--reselect above 1 cannot be combined with --shots.' };
     }
-    // --then is one extra play on another visualizer; it does not combine with a repeat count on the first.
+    // --then is one extra play on another visualizer (or the same one, as the order check's control); it does not combine with a repeat count on the first.
     const then = values.get('then');
     if (then !== undefined) {
         if (reselect > 1) return { kind: 'error', message: '--then cannot be combined with --reselect above 1.' };
-        if (then === values.get('viz'))
-            return { kind: 'error', message: '--then must name a different visualizer than --viz.' };
     }
 
     return {

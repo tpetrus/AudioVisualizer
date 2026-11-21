@@ -13,6 +13,7 @@ describe('parseOrderArgs', () => {
             seconds: undefined,
             headless: false,
             ingest: [],
+            topUp: false,
             out: ORDER_OUT,
             help: false,
         });
@@ -30,6 +31,7 @@ describe('parseOrderArgs', () => {
             '--seconds',
             '20',
             '--headless',
+            '--top-up',
             '--ingest',
             'x',
             'y',
@@ -44,6 +46,7 @@ describe('parseOrderArgs', () => {
             sessions: 3,
             seconds: 20,
             headless: true,
+            topUp: true,
             ingest: ['x', 'y', 'z'],
             out: 'scratch/order',
         });
@@ -53,6 +56,7 @@ describe('parseOrderArgs', () => {
         expect(parseOrderArgs(['--help']).help).toBe(true);
         expect(parseOrderArgs(['-h']).help).toBe(true);
         expect(ORDER_USAGE).toContain('--pair A,B');
+        expect(ORDER_USAGE).toContain('--top-up');
     });
 
     it.each([
