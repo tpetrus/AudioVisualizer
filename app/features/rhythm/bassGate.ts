@@ -68,7 +68,8 @@ export interface BassGateState {
     beatsSinceOnBeat: number;
     // Seconds the tempo has been unlocked; the gate forgets the beat only after BASS_GATE_LOCK_GRACE_SECONDS.
     unlockedSeconds: number;
-    // The beat phase seen on the previous call, to notice the clock passing the learned kick place.
+    // The beat phase seen on the previous call, to notice the clock passing the learned kick place; NaN when that call had
+    // no beat phase (and at the start), so a phase that appears after a gap is never read as a pass from a stale one.
     lastPhase: number;
     // Seconds since the last bump started (capped, only compared against the minimum interval).
     sinceBump: number;
@@ -105,7 +106,7 @@ export function createBassGateState(): BassGateState {
         kickStrength: 1,
         beatsSinceOnBeat: 0,
         unlockedSeconds: 0,
-        lastPhase: 0,
+        lastPhase: NaN,
         sinceBump: BASS_GATE_MIN_INTERVAL,
         level: 0,
         bumpTarget: 0,
@@ -265,6 +266,8 @@ export function stepBassGate(
             state.attackLeft = BASS_GATE_ATTACK_SECONDS;
         }
         state.lastPhase = phase;
+    } else {
+        state.lastPhase = NaN;
     }
 
     // The bump rises smoothly over the attack time, then fades, so it breathes rather than snaps.

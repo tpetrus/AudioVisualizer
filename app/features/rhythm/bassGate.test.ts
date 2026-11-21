@@ -753,6 +753,29 @@ describe('stepBassGate on the lock tick', () => {
             (_, i) => state.kickTimes[(state.kickHead + i) % BASS_GATE_KICK_HISTORY],
         ).filter((time) => !Number.isNaN(time));
 
+    // A kick every 15 frames, a beat at 240 BPM: twelve of them fit in the 3 s the kicks are kept for, enough repeats to
+    // open the gate on the lock tick alone.
+    const FAST_BPM = 240;
+    const FAST_BEAT = 15;
+    const fastKick = (frame: number) => (frame % FAST_BEAT < 4 ? 0.8 : 0);
+
+    // The beat phase is only known once the tempo has locked, so the clock the gate compares it with on the lock tick is
+    // from before the unlock (or from nowhere): it must not be read as the clock having passed the learned place.
+    it('starts no bump from a stale beat phase when kicks placed from before the lock open the gate', () => {
+        const state = createBassGateState();
+        // Twelve beats of kicks with no beat phase, then the lock on a tick 0.4 beats after the last kick, with the clock at
+        // 0.6 of a beat: the placed kicks land at 0.2, the gate opens on them, and the clock has not passed that place
+        // since the lock.
+        const rhythm = driveUnlocked(FAST_BEAT * 12 + 6, fastKick, DT, state);
+        rhythm.beatPhase = 0.6;
+        rhythm.beatCount = 12;
+        rhythm.bpm = FAST_BPM;
+        stepBassGate(0, rhythm, true, state, DT);
+        expect(state.open).toBe(true);
+        expect(state.kickPhase).toBeCloseTo(0.2, 1);
+        expect(state.bumpCount).toBe(0);
+    });
+
     // The lock tick for a gate that has heard kicks with no beat: the beat position and tempo the tracker reports then.
     function lockOn(state: State, rhythm: ReturnType<typeof createRhythmState>, bpm: number) {
         rhythm.beatPhase = 0.5;
