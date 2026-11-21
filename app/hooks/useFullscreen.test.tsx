@@ -229,6 +229,25 @@ describe('useFullscreen', () => {
             document.removeEventListener('fullscreenchange', holdBack);
         });
 
+        it('leaves on a second F while the browser shows fullscreen but has not answered the request', () => {
+            setup('native');
+            const request = vi.fn();
+            // A browser that has made the target fullscreen but not yet resolved the request or sent the change event.
+            Object.defineProperty(HTMLElement.prototype, 'requestFullscreen', {
+                configurable: true,
+                value: function (this: HTMLElement) {
+                    request();
+                    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => this });
+                    return new Promise(() => {});
+                },
+            });
+            mount();
+            key({ key: 'f' });
+            key({ key: 'f' });
+            expect(request).toHaveBeenCalledTimes(1);
+            expect(fullscreen.exitCalls).toHaveBeenCalledTimes(1);
+        });
+
         it('ignores F while a text input has focus but not a range input', async () => {
             setup('none');
             const { result } = mount();

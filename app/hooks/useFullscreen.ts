@@ -47,11 +47,13 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
 
     const toggle = useCallback(() => {
         const target = targetRef.current;
-        if (!target || pendingRef.current) return;
+        if (!target) return;
+        // Checked before the pending guard: the browser can already show fullscreen while its request is unanswered.
         if (modeRef.current !== 'off' || browserFullscreen()) {
             exit();
             return;
         }
+        if (pendingRef.current) return;
         lastTargetRef.current = target;
         const coarse = typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
         setHint(coarse ? 'touch' : 'keyboard');
