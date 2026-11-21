@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { BASS_GATE_OPEN_SCORE } from '../../app/features/rhythm/bassGateConfig';
 import { GateTrace, firstOpenSeconds } from './engine/gateTrace';
 import { RANDOM_BASS_BPM, RANDOM_BASS_SAMPLE_RATE, onBeatBassPcm, randomBassPcm } from './engine/gateInputs';
@@ -14,6 +14,7 @@ import {
     summarizeKickTracks,
     sweepJson,
     validateRows,
+    USAGE,
     type SweepResult,
 } from './sweepGate';
 
@@ -64,10 +65,34 @@ describe('parseSweepGateArgs', () => {
         [['--dir'], /needs a value/],
         [['--lock-at', '-1'], /0 or more/],
         [['--notes-per-beat', '0'], /whole number/],
+        [['--notes-per-beat', '17'], /at most 16/],
         [['--beats-per-note', 'x'], /whole number/],
         [['--set', 'A=1', '--grid', 'A=1,2'], /given twice/],
     ])('rejects %j', (argv, message) => {
         expect(() => parseSweepGateArgs(argv)).toThrow(message);
+    });
+
+    it('accepts 16 notes per group', () => {
+        expect(parseSweepGateArgs(['--notes-per-beat', '16']).pattern.notesPerBeat).toBe(16);
+    });
+
+    it('warns on stderr when a beat count is not a multiple of --beats-per-note, and not otherwise', () => {
+        const warn = vi.spyOn(console, 'error').mockImplementation(() => {});
+        try {
+            parseSweepGateArgs(['--beats', '8,15', '--beats-per-note', '4']);
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(String(warn.mock.calls[0]![0])).toMatch(/--beats 15 is not a multiple of --beats-per-note 4/);
+            warn.mockClear();
+            parseSweepGateArgs(['--beats', '8,16', '--beats-per-note', '4']);
+            parseSweepGateArgs([]);
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            warn.mockRestore();
+        }
+    });
+
+    it('describes the pattern as N notes per group of K beats in the usage', () => {
+        expect(USAGE).toMatch(/group of K beats/);
     });
 });
 
