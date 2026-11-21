@@ -359,3 +359,21 @@ A verified-diamond draft DAG with 10 task(s) and 3 contract(s) to freeze first i
   go with your recommendation"); confirm them at the PR review.
 - **Follow-ups outside the fast lane:** `FU-S7-drifting-truth` (targets), `FU-S7-retap-summer2000` (Trevor).
 - **Next:** S8, the dance clip-phase stability.
+
+### S8 done (2026-11-21, branch `s8-clip-phase`)
+- **Delivered:** a re-selected source starts on the dance a fresh load starts with; the dancer counts its place in the
+  tracker's beats, so a dance an octave from the tracker holds the beat (`half-time-shuffle`); AC7's clip cell measures
+  the alignment the dancer keeps, within the bar after the meter lock and within the beat before it, in beats, leaving
+  4 s after each tempo and meter lock (targets version 8, Trevor's option 2, 2026-11-20). Trevor's re-taps of `lonley`
+  and `summer2000` are in the baseline (`docs/agents/hub-scorecard.md`, "S8 findings").
+- **Acceptance:**
+  - **AC7:** clip passes on 7 of 11 real tracks and lock spread on all 11. `syncopation-no-kick` fails and `6-8-time`,
+    `high-bpm-dnb`, `low-bpm-rnb` and `syncopationbass` are unavailable (late meter locks), all on the trackers'
+    disagreement; deferred under D11, to confirm at review.
+  - **AC12:** offline, only the six re-tap cells change, none from pass to fail (blocking failures 14); the baseline is
+    regenerated at version 8 and `scorecard:check` passes. All repository checks and budgets pass. Live, no dancer
+    median is worse than S7 beyond the spread.
+- **Review (R2):** no blocking findings; the scorecard and dancer specs, lint, typecheck and `scorecard:check` pass.
+- **Follow-ups outside the fast lane:** `FU-S8-clip-unit` and `FU-S8-manual-reselect` (from the review),
+  `FU-S8-live-retap`, `FU-S8-summer2000-gaps`.
+- **Next:** S9, moving the private analysis onto the hub.
