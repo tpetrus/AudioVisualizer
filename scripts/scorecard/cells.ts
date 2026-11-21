@@ -13,6 +13,7 @@ import {
     type MetricTarget,
     type ScenarioTarget,
 } from './targets';
+import type { SetDirectorMeasure } from './engine/setDirector';
 import { EXPECTED_TRACKS } from './tracks';
 import type { Scorecard, ScorecardCell, ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
@@ -24,6 +25,8 @@ export interface ScorecardInput {
     sidecarHashes: Record<string, string>;
     // The expected tracks the runner found, and whether each has a .beats.json.
     available: { track: string; hasBeats: boolean }[];
+    // The advisory set-director measure of each track (see setDirectorCells); absent when it was not measured.
+    setDirector?: SetDirectorMeasure[];
 }
 
 type CellBase = Pick<ScorecardCell, 'metric' | 'track' | 'visualizer' | 'class' | 'floor' | 'stretch' | 'blocking'>;
@@ -101,6 +104,40 @@ function scenarioCell(target: ScenarioTarget, measures: ScenarioMeasures | undef
     return scoredCell(base, target.direction, target.value(measures));
 }
 
+export const SET_DIRECTOR_VISUALIZER = 'bass-ink';
+export const SET_DIRECTOR_COUNT_METRIC = 'setDirector.transitions';
+// One cell per transition, numbered from 01 in the order the director started them, holding its scene time in seconds.
+export const setDirectorTimeMetric = (index: number): string =>
+    `setDirector.transitionSeconds.${String(index + 1).padStart(2, '0')}`;
+
+// The advisory cells of bass-ink's set director on the real tracks (every class but synthetic): how many transitions to a
+// new formation it started and when (AC6). They have no floor and never block: the count and the times only exist so that
+// moving the director's energy onto the hub (FU-S9-bass-ink-energy) can be compared with what it did before. The
+// ratchet compares only the baseline's cells, so these pass `scorecard:check` until a later baseline adds them.
+export function setDirectorCells(measures: readonly SetDirectorMeasure[]): ScorecardCell[] {
+    const cells: ScorecardCell[] = [];
+    for (const measure of measures) {
+        const trackClass = EXPECTED_TRACKS.find((spec) => spec.name === measure.track)?.class ?? 'tapped';
+        if (trackClass === 'synthetic') continue;
+        const base: CellBase = {
+            metric: SET_DIRECTOR_COUNT_METRIC,
+            track: measure.track,
+            visualizer: SET_DIRECTOR_VISUALIZER,
+            class: trackClass,
+            floor: null,
+            stretch: null,
+            blocking: false,
+        };
+        cells.push(offlineCell(base, true, measure.transitionTimes.length, 'pass', true));
+        measure.transitionTimes.forEach((time, index) => {
+            // Millisecond resolution keeps the JSON stable and is far finer than a beat.
+            const rounded = Math.round(time * 1000) / 1000;
+            cells.push(offlineCell({ ...base, metric: setDirectorTimeMetric(index) }, true, rounded, 'pass', true));
+        });
+    }
+    return cells;
+}
+
 // Plain code-unit order, so the output does not depend on the machine's locale.
 const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -126,6 +163,8 @@ export function buildScorecard(input: ScorecardInput): Scorecard {
         }
     }
     for (const target of SCENARIO_TARGETS) cells.push(scenarioCell(target, scenarioById.get(target.scenario)));
+
+    cells.push(...setDirectorCells(input.setDirector ?? []));
 
     cells.sort((a, b) => compare(a.metric, b.metric) || compare(a.track, b.track));
     return {

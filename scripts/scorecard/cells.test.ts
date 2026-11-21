@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScorecard, scenarioNotes, type ScorecardInput } from './cells';
+import { buildScorecard, scenarioNotes, setDirectorCells, type ScorecardInput } from './cells';
 import { TARGETS_VERSION } from './targets';
 import { EXPECTED_TRACK_NAMES } from './tracks';
 import type { Scorecard, ScorecardCell, TrackMeasures } from './types';
@@ -439,5 +439,47 @@ describe('scenarioNotes', () => {
                 { id: 'scenario:b', songChanges: 0, softBoundaries: 0 },
             ]),
         ).toEqual(['scenario:a: soft boundaries were not observable, scored on song changes alone']);
+    });
+});
+
+describe('the set-director cells', () => {
+    const lonley = { track: 'lonley.wav', transitionTimes: [10.7834, 22] };
+
+    it('report the transition count and the time of each, on real tracks only', () => {
+        const cells = setDirectorCells([lonley, { track: 'click-90.wav', transitionTimes: [3] }]);
+        expect(cells.map((entry) => [entry.metric, entry.track, entry.value])).toEqual([
+            ['setDirector.transitions', 'lonley.wav', 2],
+            ['setDirector.transitionSeconds.01', 'lonley.wav', 10.783],
+            ['setDirector.transitionSeconds.02', 'lonley.wav', 22],
+        ]);
+    });
+
+    it('have no floor, are advisory, and always pass, so they can never fail the ratchet', () => {
+        for (const entry of setDirectorCells([lonley, { track: 'beatless.wav', transitionTimes: [] }])) {
+            expect(entry).toMatchObject({
+                visualizer: 'bass-ink',
+                source: 'offline',
+                floor: null,
+                stretch: null,
+                blocking: false,
+                applicable: true,
+                pass: true,
+                status: 'pass',
+            });
+        }
+        // A track with no transition still has its count, which is 0.
+        const none = setDirectorCells([{ track: 'beatless.wav', transitionTimes: [] }]);
+        expect(none.map((entry) => entry.value)).toEqual([0]);
+    });
+
+    it('join the scorecard in metric order, and are left out when nothing was measured', () => {
+        const card = build({ setDirector: [lonley] });
+        const metrics = card.cells.map((entry) => entry.metric);
+        expect(metrics).toEqual([...metrics].sort());
+        expect(cell(card, 'setDirector.transitions', 'lonley.wav').value).toBe(2);
+        const without = build().cells;
+        expect(without.some((entry) => entry.metric.startsWith('setDirector.'))).toBe(false);
+        // The cells that were there without it are unchanged.
+        expect(card.cells.filter((entry) => !entry.metric.startsWith('setDirector.'))).toEqual(without);
     });
 });
