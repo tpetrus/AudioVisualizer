@@ -69,6 +69,7 @@ export class RhythmAnalyzer {
 
     private framesSinceTempo = 0;
     private latestTime = 0;
+    private changeTime = -Infinity;
     private frames = 0;
     private seenGridEpoch = 0;
 
@@ -117,6 +118,18 @@ export class RhythmAnalyzer {
 
     get gridEpoch(): number {
         return this.seenGridEpoch;
+    }
+
+    // How many soft boundaries (a timbre or tempo change that shrinks the evidence instead of clearing it) the analyzer
+    // has acted on. The state's songChangeCount counts these together with the hard ones, so this tells them apart.
+    get softBoundaryCount(): number {
+        return this.boundary.softBoundaryCount;
+    }
+
+    // The time in seconds of the newest frame analysed when the latest song change was counted, -Infinity before the
+    // first. Read it after each frame to get the time of every change.
+    get lastSongChangeTime(): number {
+        return this.changeTime;
     }
 
     // Number of frames analysed over this analyzer's whole life (resets do not clear it); 0 means nothing was heard yet.
@@ -224,11 +237,16 @@ export class RhythmAnalyzer {
         }
     }
 
+    private countSongChange(): void {
+        this.state.songChangeCount++;
+        this.changeTime = this.latestTime;
+    }
+
     // Forgets everything learned (a new source, or the music ended). `countAsSongChange` increments songChangeCount.
     hardReset(countAsSongChange: boolean): void {
         this.clear(true);
         if (countAsSongChange) {
-            this.state.songChangeCount++;
+            this.countSongChange();
         }
     }
 
@@ -261,7 +279,7 @@ export class RhythmAnalyzer {
         }
         if (kind === BOUNDARY_HARD) {
             this.clear(false);
-            this.state.songChangeCount++;
+            this.countSongChange();
             return true;
         }
         if (kind === BOUNDARY_SOFT) {
@@ -270,7 +288,7 @@ export class RhythmAnalyzer {
             this.tempo.keepRecent(NOVELTY_RECENT_SECONDS);
             this.meter.shrink(SOFT_RESET_KEEP);
             this.syncMeterState();
-            this.state.songChangeCount++;
+            this.countSongChange();
         }
         return false;
     }
