@@ -761,63 +761,7 @@ and its reaction cell does not drop across the move.
   jitter as much as the visualizers (S3's reading, unchanged). Raising them needs a design, not a retune.
 
 ## Follow-ups outside the fast lane
-- **`FU-S10-order-hub-spread`** (live runs; from S10): a visualizer opened after a different one shows somewhat more
-  spread than after itself in three hub signals on two tracks (the dancer's input on `imyourgirl`, the dancer's gain
-  and `bass-ink`'s kick onsets on `syncopationbass2`), in both pairs, with no change in any reaction cell. Record more
-  sessions with `npm run scorecard:order -- --pair ... --sessions 4 --top-up`, and mark the scene's build and the
-  dancer's model parse in the telemetry, to tell load timing from state left in the hub.
-- **`FU-S9-bass-ink-energy`** (R2; from S9, deferred under D11): move `bass-ink`'s set-level bass energy onto the hub
-  (likely `gateBass.lowEnd`), after adding a cell for the set director (transition count and times per real track,
-  before and after), since its ratio thresholds were tuned on the analyser's byte-dB scale. The spectrum field keeps its
-  analyser.
-- **`FU-S7-drifting-truth`** (R2, it changes the targets; from S7): `tempo.maxErrorAfterLock` on `drifting-tempo`
-  compares with the tempo of each 8-beat window of taps, which strays up to 2.0% from a smooth fit of the same taps, so
-  a 2% floor measures tap jitter. Score drifting tracks against a quadratic fit of the tapped beat times (or a 16-beat
-  window), and bump the targets version.
-- **`FU-S8-live-retap`** (a live run; from S8): record `cubes` and `trio-color-wave` again on `lonley` and `summer2000`
-  (`npm run scorecard:live -- --viz <name> --tracks lonley.wav,summer2000.wav`), whose live cells are still scored
-  against the taps Trevor replaced in S8.
-- **`FU-S8-clip-unit`** (R2, it changes the AC7 definition and the targets version; from S8's review): in
-  `clipMaxDeviations` one run that is not meter-locked at a sample puts every run on the beat unit, so three runs a beat
-  apart in the bar pass while a fourth flickers or never locks; a loop shorter than a bar (`beatsPerLoop` under 4, a
-  4-beat clip against a 70 BPM tracker) is still compared within a bar; and lock flicker can skip most of the span,
-  leaving a pass on just over 4 s. Compare within the bar when at least 3 runs are meter-locked and every compared run
-  has `beatsPerLoop` of 4 or more, report the share the settle window skipped, and require a minimum share of the span.
-- **`FU-S8-manual-reselect`** (dancer behavior; from S8's review, low): with a dance chosen by hand, a fresh load starts on
-  the calm dance and switches at the first bar line, while a re-select stays on the chosen dance with no fade. That
-  follows the intent (the choice is kept), but AC7 would see the difference if it were ever recorded with a manual dance.
-- **`FU-S8-summer2000-gaps`** (Trevor; needs ears; optional): `summer2000`'s new taps still have uneven gaps between 8.6
-  and 13.4 s (0.68, 0.78, 0.35 and 0.34 s against a 0.47 s beat); a third take of that stretch would tighten the truth.
-- **`FU-S6-phase-strength-telemetry`** (the dancer's telemetry columns; from S6's review): a phase onset's strength is
-  its value over the phase function's own decaying peak, while a level onset's is over its band's peak, so `hub.onsets`
-  mixes two scales on `kick` and `bass`. Phase events are also not counted anywhere live. Decide the scale and add a DEV
-  counter recorded by `debug:viz` before any visualizer reads `hub.onsets` (S9 moved none onto it: no visualizer had
-  a private onset detector).
-- **`FU-HR-analyzer-counters`** (R2, it changes the `RhythmState` contract): the engine counts soft boundaries
-  (`engine/boundaryProbe.ts`) and times song changes (`engine/songChanges.ts`) by wrapping `BoundaryDetector` and
-  `RhythmAnalyzer` prototype methods for the duration of a replay. It works and its specs fail on a rename, but the
-  analyzer should expose both counters instead.
-- **`FU-S4-hitshare-relative-tolerance`** (R2, it changes the targets; from S4's review): the hit share cells allow an
-  absolute 0.05 below pre-hub, so they cannot fail where pre-hub is under 0.05 (`high-bpm-dnb` 0 against 0,
-  `summer2000` 0.034) and allow a 58% loss on `lonley` (0.086). Decide on a relative tolerance, such as
-  max(0.05, 0.1 × pre-hub), or mark tracks with pre-hub under 0.1 as uninformative.
-- **`FU-S4-gatebass-no-source`** (contract C1's wording; from the review of the render-time redesign): the contract and
-  `types.ts` say `gateBass.pulse` is 0 with no source, but when the capture stops the tracker has no render time, so
-  `hub.update()` returns early and the pulse keeps its last value (the dancer masks it; the cubes' envelope decays), and
-  the old tap stays connected until the next source or the hub's dispose. Either release the tap and zero the pulse when
-  the tracker has no render time, or document that the last value stays; test it with a tracker whose `renderTimeNow()`
-  is undefined.
-- **`FU-S4-gatebass-sync-offset`** (contract C1's wording; same review): the pulse is the newest audio, not shifted by
-  the user's sync offset as `bands`, `lowEnd` and `beat` are. That is pre-hub's behavior, but the hub's class comment,
-  `types.ts` and C1 say every field is read at one render time. Reword them, or shift the pulse, which would change the
-  cubes and the dancer for users with an offset.
-- **`FU-S5-gate-lock-edges`** (gate timing, needs a live run; from S5's review): on the lock tick a gate that opens from
-  kicks placed before the lock can start a spurious bump (`lastPhase` is stale across an unlock), and the unplaced kicks
-  are timed on the clamped `dt` clock, so frames longer than 0.1 s compress their spacing and the placement silently stops
-  helping. Fix both and add specs for them and for a long unlock, bpm 0 and more than 32 kicks before the lock.
-- **`FU-S5-placed-kicks-telemetry`** (the dancer's telemetry columns; from S5's review): a DEV counter of kicks placed
-  from before the lock, recorded by `debug:viz`, so live recordings show the placement.
-- **`FU-S5-sparse-false-opens`** (the gate rule; found pinning S5's specs): one random note every two beats over 40
-  beats opens the gate on 26 of 300 patterns in the level-domain spec (bound 40 pins today's rate), against 2 of 300 for
-  one note per beat. Measure it through the hub replay and decide whether the chance minimum or the open score should
-  account for sparse bass.
+
+The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
+the hub-regressions plan with its description, the slice that owns it, its outcome and the commit or reason. Add and
+close follow-ups there.
