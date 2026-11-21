@@ -109,6 +109,8 @@ export class DancingCharacterScene {
     private danceLengths: number[] = [];
     // Index of the dance at full weight once any fade finishes, and of the one fading out (-1 when there is no fade).
     private activeIndex = 0;
+    // The dance a fresh load starts with, which a restart in Auto returns to.
+    private initialIndex = 0;
     private fadeFromIndex = -1;
     // 0..1 of the cross-fade that is running; the weights are 1 - fadeProgress and fadeProgress.
     private fadeProgress = 1;
@@ -278,7 +280,8 @@ export class DancingCharacterScene {
         this.mixer = mixer;
 
         // The calm dance first, or the first loaded one when it did not load.
-        this.activeIndex = Math.max(this.danceIds.indexOf(CALM_DANCE_ID), 0);
+        this.initialIndex = Math.max(this.danceIds.indexOf(CALM_DANCE_ID), 0);
+        this.activeIndex = this.initialIndex;
         this.director = createDanceDirector<DanceId>(
             this.danceIds,
             DANCES.map((dance) => dance.id),
@@ -443,11 +446,14 @@ export class DancingCharacterScene {
     // played before: the clip position would otherwise carry over, and the bar lock takes seconds to correct it. Called
     // only when the source changes, and the weight is left to ease, so this is never a visible pop during a song.
     restartDance(): void {
-        if (this.mixer) {
-            // The clock rewinds and the director forgets its counters; the active dance and the weights stay, so only
-            // the phase moves.
+        const director = this.director;
+        const directorOut = this.directorOut;
+        if (this.mixer && director && directorOut) {
+            // The clock rewinds and the director forgets its counters. In Auto the rotation also goes back to the dance
+            // a fresh load starts with, through the usual cross-fade; a manually chosen dance stays.
             this.danceTime = 0;
-            this.director?.reset();
+            director.restart(directorOut, this.danceIds[this.initialIndex]);
+            this.startFade(this.danceIds.indexOf(directorOut.active));
             this.applyDancePose();
         }
         Object.assign(this.timingState, createDanceTimingState(), { danceWeight: this.timingState.danceWeight });

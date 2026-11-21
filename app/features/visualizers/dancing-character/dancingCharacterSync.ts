@@ -41,6 +41,10 @@ export interface DanceTimingResult {
     normalizedBpm: number | undefined;
     // True only while the tempo is locked, the meter is a confident 4 and a bar position is known.
     barLocked: boolean;
+    // Tracker beats one loop of the clip spans: while locked its own beats over the step multiple, times the tracker
+    // tempo over the dance tempo (2 when 165 BPM is danced at 82.5); its own beats otherwise. The clip is aligned only
+    // within a tracker beat (and bar once barLocked), so telemetry compares runs in these.
+    beatsPerLoop: number;
 }
 
 // Plain numbers and booleans only, so it can be kept across frames without allocation.
@@ -82,6 +86,7 @@ export function createDanceTimingResult(): DanceTimingResult {
         danceWeight: CALM_DANCE_WEIGHT,
         normalizedBpm: undefined,
         barLocked: false,
+        beatsPerLoop: 0,
     };
 }
 
@@ -182,6 +187,7 @@ export function computeDanceTiming(
 
     let target: number;
     let nudge = 0;
+    let beatsPerLoop = clipBeats;
     // (A locked state always has a beat phase; the check is ordered so the types narrow.)
     if (rhythm.beatPhase !== undefined && state.locked) {
         const normalized = normalizeOctave(rhythm.bpm, state.lastNormalizedBpm, state.lastRawBpm);
@@ -198,20 +204,23 @@ export function computeDanceTiming(
         while (normalized * multiple > limit && multiple > MIN_TIME_SCALE / 1024) multiple /= 2;
         state.overSpeedLimit = multiple < chosen;
         target = (normalized / NATIVE_BPM) * multiple;
+        // The beat and bar phases are the tracker's, at its raw tempo, which the normalized dance tempo can be an
+        // octave away from (165 BPM danced at 82.5). So the clip's place is counted in the tracker's beats: compared in
+        // dance beats, one dance beat would span two tracker beats and the phase could hold no fixed offset, leaving
+        // each play wherever the correction happened to stop.
+        beatsPerLoop = (clipBeats / multiple) * (rhythm.bpm / normalized);
+        const barsPerLoop = beatsPerLoop / 4;
 
-        if (state.meterLocked && rhythm.barPhase !== undefined) {
+        if (state.meterLocked && rhythm.barPhase !== undefined && barsPerLoop >= 1) {
             // Where the clip is within its bar against where the music is within its bar. The error is in bars, so
-            // the correction divides by the bars in one loop to get loop fractions.
-            // With a multiple of at most 1 a loop is at least one bar, so the clip position can always be compared
-            // in bars.
-            const barsPerLoop = clipBeats / (4 * multiple);
+            // the correction divides by the bars in one loop to get loop fractions. A loop shorter than a bar (a short
+            // clip against a tracker at half the dance tempo) cannot be placed in the bar, so it keeps to the beat.
             const position = clipPhase * barsPerLoop;
             const error = wrapSigned(rhythm.barPhase - (position - Math.floor(position)));
             nudge = correction(error, barsPerLoop, step);
         } else {
             // Only the beat slot is compared, not which beat of the loop it is: the tracker's beat count can jitter,
             // and targeting the count would make the dancer jump by half a loop.
-            const beatsPerLoop = clipBeats / multiple;
             const slot = clipPhase * beatsPerLoop - STEP_PHASE_OFFSET;
             const error = wrapSigned(rhythm.beatPhase - (slot - Math.floor(slot)));
             nudge = correction(error, beatsPerLoop, step);
@@ -234,5 +243,6 @@ export function computeDanceTiming(
     out.phaseNudge = nudge;
     out.danceWeight = state.danceWeight;
     out.barLocked = state.meterLocked;
+    out.beatsPerLoop = beatsPerLoop;
     return out;
 }

@@ -110,6 +110,7 @@ interface DanceInternals {
     danceIds: DanceId[];
     danceTime: number;
     activeIndex: number;
+    fadeFromIndex: number;
 }
 function inner(dancing: DancingCharacterScene): DanceInternals {
     return dancing as unknown as DanceInternals;
@@ -692,7 +693,7 @@ describe('dances', () => {
         expect(weightsOf(dancing).twist).toBeGreaterThan(0);
     });
 
-    it('restartDance rewinds the clock and the director, keeping the dance, the weights and the dance weight', () => {
+    it('restartDance rewinds the clock and the director, keeping a manual dance, the weights and the dance weight', () => {
         const { dancing } = loaded();
         run(dancing, 90, () => makeFrame({ rhythm: lockedRhythm(0.3), settings: noOrbit(), danceSelection: 'salsa' }));
         const weight = dancing.timingState.danceWeight;
@@ -708,6 +709,33 @@ describe('dances', () => {
         expect(dancing.timingState.locked).toBe(false);
         expect(dancing.timingState.timeScale).toBe(CALM_TIME_SCALE);
         expect(dancing.timingState.danceWeight).toBe(weight);
+    });
+
+    it('restartDance in Auto cross-fades back to the dance a fresh load starts with', () => {
+        const { dancing } = loaded();
+        // A song change rotates Auto to the next dance on the bar line at frame 120, as in a long first track.
+        for (let frame = 0; frame < 60; frame++) step(dancing, frame, AUTO_DANCE);
+        for (let frame = 60; frame < 160; frame++) step(dancing, frame, undefined, 1);
+        expect(weightsOf(dancing)).toEqual({ lambada: 0, twist: 1, 'cabbage-patch': 0, salsa: 0 });
+
+        dancing.restartDance();
+
+        // The clock is at 0 and lambada fades in, so the new source dances the same clip as after a fresh load.
+        expect(inner(dancing).danceTime).toBe(0);
+        expect(weightsOf(dancing)).toEqual({ lambada: 0, twist: 1, 'cabbage-patch': 0, salsa: 0 });
+        for (let frame = 0; frame < 60; frame++) step(dancing, frame, AUTO_DANCE, 1);
+        expect(weightsOf(dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
+        // The director counted afresh: the song change before the restart is not pending, so lambada holds its bar.
+        for (let frame = 60; frame < 160; frame++) step(dancing, frame, AUTO_DANCE, 1);
+        expect(weightsOf(dancing).lambada).toBe(1);
+    });
+
+    it('restartDance in Auto on the dance it started with starts no fade', () => {
+        const { dancing } = loaded();
+        for (let frame = 0; frame < 30; frame++) step(dancing, frame, AUTO_DANCE);
+        dancing.restartDance();
+        expect(inner(dancing).fadeFromIndex).toBe(-1);
+        expect(weightsOf(dancing)).toEqual({ lambada: 1, twist: 0, 'cabbage-patch': 0, salsa: 0 });
     });
 
     it('restartDance does nothing to a scene without dances', () => {

@@ -255,6 +255,43 @@ describe('createDanceDirector', () => {
         expect(s.out).toEqual({ active: 'a', next: null, switchNow: false });
     });
 
+    it('restart in Auto goes back to the initial dance and forgets a pending switch', () => {
+        const s = setup(ALL, AUTO_DANCE);
+        s.input.songChangeCount += 1;
+        s.bar();
+        expect(s.out.active).toBe('b');
+        s.input.songChangeCount += 1;
+        s.tick();
+        expect(s.out.next).toBe('c');
+        s.director.restart(s.out, 'a');
+        expect(s.out).toEqual({ active: 'a', next: null, switchNow: false });
+        s.tick();
+        expect(s.out).toEqual({ active: 'a', next: null, switchNow: false });
+        // The rotation counts bars afresh from the restart.
+        for (let i = 0; i < AUTO_ROTATE_BARS - 1; i++) s.bar();
+        expect(s.out.active).toBe('a');
+        s.bar();
+        expect(s.out.active).toBe('b');
+    });
+
+    it('restart keeps a manually chosen dance', () => {
+        const s = setup(ALL, 'c');
+        s.bar();
+        expect(s.out.active).toBe('c');
+        s.director.restart(s.out, 'a');
+        expect(s.out).toEqual({ active: 'c', next: null, switchNow: false });
+        s.tick();
+        s.bar();
+        expect(s.out.active).toBe('c');
+    });
+
+    it('restart before any update leaves the initial dance', () => {
+        const director = createDanceDirector<Id>(ALL);
+        const out = createDanceDirectorOutput<Id>('a');
+        director.restart(out, 'a');
+        expect(out).toEqual({ active: 'a', next: null, switchNow: false });
+    });
+
     it('reuses the output object and allocates nothing per update', () => {
         const s = setup();
         const out = s.out;

@@ -221,6 +221,7 @@ export function useDancingCharacterScene(
                     'barVetoes',
                     'lowEnd',
                     'gateBass',
+                    'beatsPerLoop',
                 ],
                 (out) => {
                     const gate = character.bassGate;
@@ -256,6 +257,7 @@ export function useDancingCharacterScene(
                     out[27] = analysis?.tempo.barVetoCount ?? 0;
                     out[28] = lowEnd;
                     out[29] = gateLevel;
+                    out[30] = character.timing.beatsPerLoop;
                 },
             );
         }
