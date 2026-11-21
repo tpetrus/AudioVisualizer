@@ -59,7 +59,8 @@ describe('measureSetDirector', () => {
     });
 
     it('is deterministic, and its transition times are in order and inside the track', () => {
-        // Bass pulses at 120 BPM, then a cut to a tenth of the level, then the pulses back at full level: a build and a drop.
+        // Bass pulses at 120 BPM, then a cut to a tenth of the level, then the pulses back at full level: a build and a
+        // drop.
         const pcm = new Float32Array(RATE * 40);
         for (let i = 0; i < pcm.length; i++) {
             const seconds = i / RATE;
