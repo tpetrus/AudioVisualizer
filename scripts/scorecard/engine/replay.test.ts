@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEST_SAMPLE_RATE, renderTrack, silence } from '../../../app/features/rhythm/testSignals';
+import { TEST_SAMPLE_RATE, concat, renderTrack, silence } from '../../../app/features/rhythm/testSignals';
 import { RENDER_HZ, replayPcm } from './replay';
 
 describe('replayPcm', () => {
@@ -16,6 +16,25 @@ describe('replayPcm', () => {
         expect(replay.softBoundaries).toBe(0);
         expect(replay.gate.firstOpenSeconds).not.toBeNull();
         expect(replay.gate.openShare).toBeGreaterThan(0.9);
+    });
+
+    it('reads the soft boundary of a real tempo change and the time of its song change from the analyzer', () => {
+        // 100 to 170 bpm is neither an octave nor a dotted ratio, so the tracker raises one soft boundary, some time
+        // after the change at 24 s.
+        const pcm = concat(
+            renderTrack({ seconds: 24, bpm: 100, beatsPerBar: 4 }).pcm,
+            renderTrack({ seconds: 30, bpm: 170, beatsPerBar: 4, clickHz: 2200 }).pcm,
+        );
+        const replay = replayPcm(pcm, TEST_SAMPLE_RATE);
+        expect(replay.softBoundaries).toBe(1);
+        expect(replay.songChangeCount).toBe(1);
+        expect(replay.songChanges).toHaveLength(1);
+        expect(replay.songChanges[0].time).toBeGreaterThan(24);
+        expect(replay.songChanges[0].time).toBeLessThan(54);
+    });
+
+    it('records no song change on a steady track', () => {
+        expect(replayPcm(click, TEST_SAMPLE_RATE).songChanges).toEqual([]);
     });
 
     it('sees nothing in silence', () => {

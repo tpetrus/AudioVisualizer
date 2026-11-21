@@ -126,7 +126,7 @@ export class RhythmAnalyzer {
         return this.boundary.softBoundaryCount;
     }
 
-    // The time in seconds of the newest frame analysed when the latest song change was counted, -Infinity before the
+    // The time in seconds of the newest frame analyzed when the latest song change was counted, -Infinity before the
     // first. Read it after each frame to get the time of every change.
     get lastSongChangeTime(): number {
         return this.changeTime;
