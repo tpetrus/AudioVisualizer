@@ -160,7 +160,8 @@ export function stepBassGate(
     if (songChanged) state.unplacedTimes.fill(NaN);
     // The clock the unplaced kicks are timed on is real time, so a frame longer than the step clamp does not squeeze
     // their spacing; only the envelopes below need the clamp.
-    state.clock += Math.max(dt, 0);
+    // A single non-finite step must not make the clock Infinity for good, which would disable the pre-lock placement.
+    state.clock += Number.isFinite(dt) ? Math.max(dt, 0) : 0;
     // The first call only records the counters, so a track already playing does not count as a new beat.
     const newBeat = state.initialized && rhythm.beatCount !== state.beatCount;
     state.songChangeCount = rhythm.songChangeCount;

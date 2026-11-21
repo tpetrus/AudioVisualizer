@@ -384,6 +384,23 @@ describe('stepBassGate before the lock', () => {
         expect(beatsToOpen(2 + PRELOCK_BEATS + 1, early)).toBe(beatsToOpen(8, silent));
     });
 
+    it('keeps placing the kicks heard before the lock after one non-finite step', () => {
+        const rhythm = createRhythmState();
+        const state = createBassGateState();
+        rhythm.bpm = BPM;
+        stepBassGate(0, rhythm, false, state, Infinity);
+        drive(8 * FRAMES_PER_BEAT, onBeatKick, { state, rhythm, locked: false });
+        expect(Number.isFinite(state.clock)).toBe(true);
+        const lockFrame = 8 * FRAMES_PER_BEAT;
+        // Placed kicks make the gate open within a beat of the lock, as in the spec on the kicks before the lock.
+        let opened = false;
+        for (let frame = lockFrame; frame <= lockFrame + FRAMES_PER_BEAT && !opened; frame++) {
+            drive(1, onBeatKick, { state, rhythm, start: frame });
+            opened = state.open;
+        }
+        expect(opened).toBe(true);
+    });
+
     it('drops the kicks heard before a song change', () => {
         const rhythm = createRhythmState();
         const state = createBassGateState();
