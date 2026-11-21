@@ -42,6 +42,7 @@ describe('parseArgs', () => {
             from: 0,
             shots: [],
             reselect: 1,
+            then: undefined,
             headless: false,
             noNormalize: false,
         });
@@ -56,6 +57,7 @@ describe('parseArgs', () => {
             from: 3,
             shots: [1, 5],
             reselect: 1,
+            then: undefined,
             headless: true,
             noNormalize: false,
         });
@@ -246,6 +248,36 @@ describe('parseArgs --reselect', () => {
 
     it('mentions --reselect in the usage text', () => {
         expect(USAGE).toContain('--reselect N');
+    });
+});
+
+describe('parseArgs --then', () => {
+    it('reads the second visualizer', () => {
+        expect(run(['--then', 'bass-ink']).then).toBe('bass-ink');
+        expect(run().then).toBeUndefined();
+    });
+
+    it('needs a value', () => {
+        expect(parseArgs([...base, '--then'])).toEqual({ kind: 'error', message: '--then needs a value.' });
+    });
+
+    it('cannot be combined with --reselect above 1', () => {
+        expect(parseArgs([...base, '--then', 'bass-ink', '--reselect', '2'])).toEqual({
+            kind: 'error',
+            message: '--then cannot be combined with --reselect above 1.',
+        });
+        expect(run(['--then', 'bass-ink', '--reselect', '1']).then).toBe('bass-ink');
+    });
+
+    it('must differ from --viz', () => {
+        expect(parseArgs([...base, '--then', 'cubes'])).toEqual({
+            kind: 'error',
+            message: '--then must name a different visualizer than --viz.',
+        });
+    });
+
+    it('is in the usage text', () => {
+        expect(USAGE).toContain('--then <viz>');
     });
 });
 

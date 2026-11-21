@@ -10,7 +10,7 @@ const MAX_RESELECT = 10;
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
 export const USAGE =
-    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--no-normalize] [--headless]';
+    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--then <viz>] [--no-normalize] [--headless]';
 
 export const SUMMARY_USAGE =
     'Usage: npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S] [--reaction <column>]';
@@ -25,6 +25,8 @@ export interface RunArgs {
     from: number;
     shots: number[];
     reselect: number; // how many times the track is played in one page, choosing it again each time
+    // A second visualizer to move to in the same page session (no reload) and play the track on again.
+    then: string | undefined;
     headless: boolean;
     // Turns the engine's volume normalization off for the run.
     noNormalize: boolean;
@@ -49,7 +51,9 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
             headless = true;
         } else if (arg === '--no-normalize') {
             noNormalize = true;
-        } else if (['--dir', '--track', '--viz', '--seconds', '--from', '--shots', '--reselect'].includes(arg)) {
+        } else if (
+            ['--dir', '--track', '--viz', '--seconds', '--from', '--shots', '--reselect', '--then'].includes(arg)
+        ) {
             const value = argv[i + 1];
             if (value === undefined || value.startsWith('--'))
                 return { kind: 'error', message: `${arg} needs a value.` };
@@ -97,6 +101,13 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     if (reselect > 1 && shots.length > 0) {
         return { kind: 'error', message: '--reselect above 1 cannot be combined with --shots.' };
     }
+    // --then is one extra play on another visualizer; it does not combine with a repeat count on the first.
+    const then = values.get('then');
+    if (then !== undefined) {
+        if (reselect > 1) return { kind: 'error', message: '--then cannot be combined with --reselect above 1.' };
+        if (then === values.get('viz'))
+            return { kind: 'error', message: '--then must name a different visualizer than --viz.' };
+    }
 
     return {
         kind: 'run',
@@ -108,6 +119,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
             from,
             shots: shots.filter((shot, index) => shots.indexOf(shot) === index),
             reselect,
+            then,
             headless,
             noNormalize,
         },
