@@ -1,5 +1,8 @@
 import { GateBassTap } from '~/features/audio/hub/gateBassTap';
 
+// The pre-hub bass envelope. No visualizer uses it any more (they read the hub's gateBass instead); it is kept as the
+// reference the hub's BassBump is tested against and that the scorecard replays for its pre-hub column.
+//
 // 0..1 bass envelope that bumps when the bass (and only the bass) gets louder than it has recently been.
 // Comparing against its own recent level means it works at any volume, and a busy mix doesn't trigger it. Its feature
 // is the hub's gate-input bass (GateBassTap): the same filters and window, from its own tap of the source.
