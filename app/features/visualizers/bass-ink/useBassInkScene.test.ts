@@ -8,6 +8,7 @@ import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
+import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
@@ -444,11 +445,17 @@ describe('useBassInkScene', () => {
             expect(gateScript.calls.at(-1)!.bass).toBe(0);
 
             hub.setGateBass(0.5);
-            // The envelope starts unseeded, so a sustained level reads as a bump while the slow follower catches up.
-            for (let i = 0; i < 10; i++) frame();
-            const raised = gateScript.calls.at(-1)!.bass;
-            expect(raised).toBeGreaterThan(0);
-            expect(readProbe()[17]).toBeCloseTo(raised, 5);
+            // The reference envelope sees the same input and delta, so a raw pulse passing straight through would differ.
+            const reference = new BassBump(GATE_BASS_BUMP);
+            let differsFromRaw = false;
+            for (let i = 0; i < 10; i++) {
+                frame();
+                const expected = reference.step(0.5, 0.016);
+                expect(readProbe()[17]).toBeCloseTo(expected, 6);
+                expect(gateScript.calls.at(-1)!.bass).toBeCloseTo(expected, 9);
+                if (Math.abs(expected - 0.5) > 1e-6) differsFromRaw = true;
+            }
+            expect(differsFromRaw).toBe(true);
         });
 
         it('feeds the gate nothing without a source even when the hub reports bass', () => {
@@ -465,13 +472,16 @@ describe('useBassInkScene', () => {
             const second = createAnalyser();
             const { frame, hub, rerender } = mountScene({ analyser: first.node });
             hub.setGateBass(0.5);
+            frame();
+            const firstFrame = gateScript.calls.at(-1)!.bass;
             for (let i = 0; i < 30; i++) frame();
             const settled = gateScript.calls.at(-1)!.bass;
+            expect(settled).not.toBeCloseTo(firstFrame, 6);
 
             rerender({ analyser: second.node, cameraLocked: true });
             frame();
-            // The old envelope had followed the level up; a fresh one has no history, so it responds differently.
-            expect(gateScript.calls.at(-1)!.bass).not.toBe(settled);
+            // A fresh envelope has no history, so its first frame matches the very first frame of the old one.
+            expect(gateScript.calls.at(-1)!.bass).toBeCloseTo(firstFrame, 9);
         });
 
         it('starts a fresh envelope when the source goes away and comes back', () => {

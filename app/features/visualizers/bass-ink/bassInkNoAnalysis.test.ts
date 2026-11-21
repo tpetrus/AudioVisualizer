@@ -18,7 +18,9 @@ const BANNED = [
 ];
 
 function sourceFiles(): string[] {
-    return readdirSync(folder).filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name));
+    return (readdirSync(folder, { recursive: true }) as string[]).filter(
+        (name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name),
+    );
 }
 
 describe('bass ink analysis', () => {
@@ -29,5 +31,9 @@ describe('bass ink analysis', () => {
     it.each(BANNED)('has no %s in any source file', (banned) => {
         const offenders = sourceFiles().filter((name) => readFileSync(join(folder, name), 'utf8').includes(banned));
         expect(offenders).toEqual([]);
+    });
+
+    it('reads the gate bass from the hub in the scene hook', () => {
+        expect(readFileSync(join(folder, 'useBassInkScene.ts'), 'utf8')).toContain('gateBass');
     });
 });
