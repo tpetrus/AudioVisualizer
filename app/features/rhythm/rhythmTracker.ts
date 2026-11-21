@@ -49,6 +49,11 @@ export class RhythmTracker {
         return this.analyzer;
     }
 
+    // DEV only: the worklet's running count of low-end phase onsets (see BandOnsets.phaseOnsetCount), from its latest
+    // batch, for the debug telemetry. It starts again at 0 with a new worklet node, that is, a new source. Always 0 in
+    // production, where the worklet does not send it.
+    phaseOnsets = 0;
+
     private readonly listeners = new Set<() => void>();
     // Raw worklet feature listeners (the audio hub), separate from the store because they hear every batch.
     private readonly featureListeners = new Set<FeatureListener>();
@@ -186,6 +191,9 @@ export class RhythmTracker {
     // Disconnects and forgets the current worklet node, and invalidates any bind that is still loading.
     private unbind(): void {
         this.generation++;
+        if (import.meta.env.DEV) {
+            this.phaseOnsets = 0;
+        }
         const node = this.node;
         this.node = undefined;
         if (!node) {
@@ -224,6 +232,9 @@ export class RhythmTracker {
             return;
         }
         const batch = event.data;
+        if (import.meta.env.DEV) {
+            this.phaseOnsets = (batch as FeatureBatch & { phaseOnsets?: number }).phaseOnsets ?? this.phaseOnsets;
+        }
         analyzer.pushBatch(batch.time0, batch.frames, batch.count);
         // Keeps the counters moving even when no visualizer is calling updatePhase(). It reads at the same render
         // time, so the counters never run ahead of what the visualizers show.

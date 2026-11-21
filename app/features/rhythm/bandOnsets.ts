@@ -101,6 +101,10 @@ const RING_MASK = RING - 1;
 export class BandOnsets {
     // Energy per hub band of the newest frame: the mean of the log magnitude over the band's bins.
     readonly energy = new Float32Array(HUB_BAND_COUNT);
+    // Phase onsets emitted since construction, never reset, so a reader can tell them from level onsets (the sink gets
+    // both as the same kind of event). Counted unconditionally: the offline tools bundle this file for node, where
+    // `import.meta.env` does not exist, so a development guard here would throw. It is a single increment.
+    phaseOnsetCount = 0;
 
     private readonly binHz: number;
     // Hub band b covers FFT bins [bandStart[b], bandEnd[b]).
@@ -297,6 +301,7 @@ export class BandOnsets {
         if (this.isPhaseOnset(candidate)) {
             const value = this.phaseValues[candidate & RING_MASK];
             const band = this.kickRangeRise(candidate) >= LOW_PHASE_KICK_RISE ? KICK : BASS;
+            this.phaseOnsetCount++;
             sink(band, this.times[candidate & RING_MASK], Math.min(1, value / this.phasePeak));
         }
     }
