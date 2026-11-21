@@ -784,6 +784,30 @@ describe('stepBassGate on the lock tick', () => {
         stepBassGate(0, rhythm, true, state, DT);
     }
 
+    // A frame longer than the gate's step clamp (a stalled tab, a slow device) must not squeeze the kicks heard in it
+    // together: the clamp keeps the envelopes from jumping, but a kick's age is real time.
+    it('spaces kicks heard in frames longer than the step clamp by real time when it places them', () => {
+        const state = createBassGateState();
+        // A frame every quarter second, a kick every other frame: half a second apart, a beat at 120 BPM.
+        const rhythm = driveUnlocked(12, (frame) => (frame % 2 === 0 ? 0.8 : 0), 0.25, state);
+        lockOn(state, rhythm, BPM);
+        const positions = placed(state);
+        expect(positions).toHaveLength(6);
+        for (let i = 1; i < positions.length; i++) expect(positions[i] - positions[i - 1]).toBeCloseTo(1, 6);
+    });
+
+    it('drops kicks older than the placement window by real time, however long the frames were', () => {
+        const state = createBassGateState();
+        // Kicks every half second for 4.5 s of quarter-second frames: only those within 3 s (six beats at 120 BPM) of the
+        // lock, which is at beat 40.5, are placed. The oldest allowed is exactly on the edge, so it is not counted on.
+        const rhythm = driveUnlocked(18, (frame) => (frame % 2 === 0 ? 0.8 : 0), 0.25, state);
+        lockOn(state, rhythm, BPM);
+        const positions = placed(state);
+        expect(positions.length).toBeGreaterThanOrEqual(BASS_GATE_PRELOCK_SECONDS * 2 - 1);
+        expect(positions.length).toBeLessThanOrEqual(BASS_GATE_PRELOCK_SECONDS * 2 + 1);
+        expect(positions[0]).toBeGreaterThanOrEqual(40.5 - BASS_GATE_PRELOCK_SECONDS * 2 - 1e-9);
+    });
+
     it('places nothing, and keeps no stale kicks, when the lock arrives with a tempo of 0', () => {
         const state = createBassGateState();
         const rhythm = driveUnlocked(FRAMES_PER_BEAT * 4, onBeatKick, DT, state);

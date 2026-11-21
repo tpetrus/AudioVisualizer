@@ -49,7 +49,7 @@ export interface BassGateState {
     peak: number;
     // True from an in-rhythm kick until re-arming, so its full rise is learned as the bump strength once it is known.
     measuring: boolean;
-    // Seconds the gate has run (its own clock, from dt), and the clock times of kicks heard with no beat to place them on
+    // Seconds the gate has run (its own clock, from dt without the step clamp), and the clock times of kicks heard with no beat to place them on
     // (a ring of BASS_GATE_KICK_HISTORY, NaN when unused), placed on the beat once there is one.
     clock: number;
     unplacedTimes: Float64Array;
@@ -155,7 +155,9 @@ export function stepBassGate(
     if (songChanged || state.unlockedSeconds > BASS_GATE_LOCK_GRACE_SECONDS) forgetBassline(state);
     // Kicks heard before a new song are not its bassline.
     if (songChanged) state.unplacedTimes.fill(NaN);
-    state.clock += step;
+    // The clock the unplaced kicks are timed on is real time, so a frame longer than the step clamp does not squeeze
+    // their spacing; only the envelopes below need the clamp.
+    state.clock += Math.max(dt, 0);
     // The first call only records the counters, so a track already playing does not count as a new beat.
     const newBeat = state.initialized && rhythm.beatCount !== state.beatCount;
     state.songChangeCount = rhythm.songChangeCount;
