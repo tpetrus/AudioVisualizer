@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import type { PerspectiveCamera, Scene } from 'three';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
@@ -9,6 +9,7 @@ import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
 import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
+import { getActivePlayback, type FilePlayback } from '~/features/audio/devFileSource';
 import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
@@ -23,6 +24,9 @@ vi.mock('three', async (importOriginal) => {
     return { ...(await importOriginal<typeof import('three')>()), ...threeFakes };
 });
 
+// The file playback the recording's clock reads from; a spec sets what it returns.
+vi.mock('~/features/audio/devFileSource', () => ({ getActivePlayback: vi.fn() }));
+
 // The recorder has its own spec; here only what the scene registers and when it ticks matters.
 const telemetry = vi.hoisted(() => ({ register: vi.fn(), unregister: vi.fn(), tick: vi.fn() }));
 vi.mock('~/features/audio/devTelemetry', () => ({
@@ -34,7 +38,10 @@ vi.mock('~/features/audio/devTelemetry', () => ({
 }));
 
 // The bass gate has its own spec; here it is scripted: a spec sets `pulse` to make it start one beat pulse.
-const gateScript = vi.hoisted(() => ({ pulse: false, calls: [] as { bass: number; locked: boolean }[] }));
+const gateScript = vi.hoisted(() => ({
+    pulse: false,
+    calls: [] as { bass: number; locked: boolean; dt: number }[],
+}));
 vi.mock('~/features/rhythm/bassGate', async (importOriginal) => {
     const actual = await importOriginal<typeof import('~/features/rhythm/bassGate')>();
     return {
@@ -44,8 +51,9 @@ vi.mock('~/features/rhythm/bassGate', async (importOriginal) => {
             _rhythm: unknown,
             locked: boolean,
             state: { bumpCount: number; bumpTarget: number; weight: number },
+            dt: number,
         ) => {
-            gateScript.calls.push({ bass, locked });
+            gateScript.calls.push({ bass, locked, dt });
             if (gateScript.pulse) {
                 gateScript.pulse = false;
                 state.bumpCount++;
@@ -131,7 +139,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(19);
+    const out = new Float32Array(20);
     probeRead()(out);
     return out;
 }
@@ -276,6 +284,21 @@ describe('useBassInkScene', () => {
             expect(currentCloud().update).toHaveBeenCalledTimes(4);
             // 16 ms, then a 5 s stall clamped to the maximum, then 16 ms again.
             expect(lastUpdate().time).toBeCloseTo(0.016 + bassInkSceneConfig.maxFrameDeltaSeconds + 0.016, 6);
+        });
+
+        it('steps the gate by the real frame gap, not the clamped one, and never by a negative or non-finite one', () => {
+            const { renderer } = mountScene();
+            gateScript.calls = [];
+
+            renderer.renderFrame(16);
+            renderer.renderFrame(5016);
+            // Everything else keeps the clamped delta.
+            expect(lastUpdate().time).toBeCloseTo(0.016 + bassInkSceneConfig.maxFrameDeltaSeconds, 6);
+            // A clock that goes backwards, and a time that is not a number: the gate gets 0 for both.
+            renderer.renderFrame(1000);
+            renderer.renderFrame(Number.NaN);
+
+            expect(gateScript.calls.map((call) => call.dt)).toEqual([0.016, 5, 0, 0]);
         });
 
         it('advances the rhythm phase and hands the cloud the director cue and the followed band levels', () => {
@@ -781,6 +804,7 @@ describe('useBassInkScene', () => {
                     'gateOpen',
                     'gateIn',
                     'gateRaw',
+                    'sceneBuiltAt',
                 ],
                 expect.any(Function),
             );
@@ -812,6 +836,49 @@ describe('useBassInkScene', () => {
             expect(row[15]).toBeGreaterThan(0);
             expect(row[16]).toBe(0);
             expect(row[17]).toBe(0);
+        });
+    });
+
+    describe('the scene build mark', () => {
+        let position = 12;
+        let clock: ReturnType<typeof vi.spyOn>;
+
+        beforeEach(() => {
+            position = 12;
+            vi.mocked(getActivePlayback).mockImplementation(
+                () => ({ position: () => position }) as unknown as FilePlayback,
+            );
+            clock = vi.spyOn(performance, 'now').mockReturnValue(100_000);
+        });
+
+        afterEach(() => {
+            vi.mocked(getActivePlayback).mockReset();
+            clock.mockRestore();
+        });
+
+        it('puts the scene build on the recording clock, before the track started when it was built earlier', () => {
+            const { frame } = mountScene();
+            // Built at page time 100 s; this row is read 2.5 s later, 12 s into the track: built 9.5 s into it.
+            clock.mockReturnValue(102_500);
+            frame();
+
+            expect(readProbe()[19]).toBeCloseTo(12 - 2.5, 6);
+            position = 1;
+            expect(readProbe()[19]).toBeCloseTo(1 - 2.5, 6);
+        });
+
+        it('uses the audio context clock when no file is playing, and NaN with no source at all', () => {
+            vi.mocked(getActivePlayback).mockReturnValue(undefined);
+            const { node, analyser } = createAnalyser();
+            const { frame } = mountScene({ analyser: node });
+            frame();
+            (analyser.context as unknown as { currentTime: number }).currentTime = 30;
+
+            expect(readProbe()[19]).toBeCloseTo(30, 6);
+
+            const bare = mountScene();
+            bare.frame();
+            expect(readProbe()[19]).toBeNaN();
         });
     });
 
