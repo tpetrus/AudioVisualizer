@@ -2,7 +2,7 @@
   "name": "audio-visualizer",
   "private": true,
   "type": "module",
-  "version": "0.18.3",
+  "version": "0.18.4",
   "engines": {
     "node": ">=24"
   },
