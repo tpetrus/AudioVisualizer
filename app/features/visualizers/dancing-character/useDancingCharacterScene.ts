@@ -177,6 +177,7 @@ export function useDancingCharacterScene(
         // One frame object reused every frame so the loop allocates nothing.
         const frame: DancingCharacterFrame = {
             dt: 0,
+            gateDt: 0,
             rhythm: rhythm.state,
             bass: 0,
             settings: valuesRef.current,
@@ -287,6 +288,8 @@ export function useDancingCharacterScene(
                 rhythm.updatePhase();
                 hub.update();
                 frame.dt = Math.min(delta / 1000, MAX_FRAME_DT);
+                // The gate keeps its own clock and needs the real gap (the scene makes it finite and at least 0).
+                frame.gateDt = delta / 1000;
                 frame.rhythm = rhythm.state;
                 // With no source the hub has nothing to read, so the gate sees silence.
                 lowEnd = source ? hubLowEnd(hub.snapshot.bands) : 0;

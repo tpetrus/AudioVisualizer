@@ -25,6 +25,19 @@ import { pickDances } from './dancingCharacterAssets';
 import { ClubSet } from './dancingCharacterClub';
 import { DancingCharacterScene, type DancingCharacterFrame } from './dancingCharacterScene';
 
+// The real gate, with its calls recorded: a spec below checks which dt the scene hands it.
+const gateSpy = vi.hoisted(() => ({ calls: [] as number[] }));
+vi.mock('~/features/rhythm/bassGate', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('~/features/rhythm/bassGate')>();
+    return {
+        ...actual,
+        stepBassGate: (...args: Parameters<typeof actual.stepBassGate>) => {
+            gateSpy.calls.push(args[4]);
+            return actual.stepBassGate(...args);
+        },
+    };
+});
+
 const DEFAULTS = Object.fromEntries(
     dancingCharacterControls.map((control) => [control.key, control.default]),
 ) as unknown as DancingCharacterSettings;
@@ -36,6 +49,7 @@ function settings(overrides: Partial<DancingCharacterSettings> = {}): DancingCha
 function makeFrame(overrides: Partial<DancingCharacterFrame> = {}): DancingCharacterFrame {
     return {
         dt: 1 / 60,
+        gateDt: overrides.dt ?? 1 / 60,
         rhythm: createRhythmState(),
         bass: 0,
         settings: settings(),
@@ -517,6 +531,21 @@ describe('dance', () => {
         dancing.update(makeFrame({ dt: 100 }));
         expect(clipPhase(dancing)).toBeLessThan(0.1);
         dancing.update(makeFrame({ dt: -1 }));
+    });
+
+    it('hands the bass gate the frame gap uncapped, made finite and at least 0, while the rest keeps the cap', () => {
+        const { dancing } = setup();
+        const { model } = makeModel();
+        dancing.setCharacter(model, makeDances());
+        gateSpy.calls.length = 0;
+
+        // A 5 s frame: the animation advances by at most MAX_FRAME_DT, the gate hears all 5 s.
+        dancing.update(makeFrame({ dt: 0.1, gateDt: 5 }));
+        expect(clipPhase(dancing)).toBeLessThan(0.1);
+        dancing.update(makeFrame({ dt: 0.1, gateDt: -1 }));
+        dancing.update(makeFrame({ dt: 0.1, gateDt: Number.NaN }));
+        dancing.update(makeFrame({ dt: 0.1, gateDt: Infinity }));
+        expect(gateSpy.calls).toEqual([5, 0, 0, 0]);
     });
 });
 

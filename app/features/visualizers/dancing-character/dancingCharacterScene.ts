@@ -35,8 +35,11 @@ import { orbitAngularSpeed } from './dancingCharacterOrbit';
 import { computeDanceTiming, createDanceTimingResult, createDanceTimingState } from './dancingCharacterSync';
 
 export interface DancingCharacterFrame {
-    // Seconds since the last frame.
+    // Seconds since the last frame, for the animation, the sync and the envelopes: the caller caps it at MAX_FRAME_DT.
     dt: number;
+    // The same gap as measured, not capped. The bass gate runs on the audio clock's real time, so a long frame has to
+    // reach it whole; it clamps nothing, and a value that is not finite counts as 0.
+    gateDt: number;
     // Read only; the caller has already called tracker.updatePhase().
     rhythm: RhythmState;
     // 0..1 from the audio hub's low end through the shared bass envelope (0 when there is no source).
@@ -396,7 +399,8 @@ export class DancingCharacterScene {
         // The raw bass is shown only once its kicks keep landing on the locked beat, so stray bass never moves anything.
         // Without a rig the timing result still says whether the tempo is locked (it stays undefined).
         const tempoLocked = timing.normalizedBpm !== undefined;
-        const bass = stepBassGate(frame.bass, rhythm, tempoLocked, this.bassGate, dt);
+        const gateDt = Number.isFinite(frame.gateDt) ? Math.max(frame.gateDt, 0) : 0;
+        const bass = stepBassGate(frame.bass, rhythm, tempoLocked, this.bassGate, gateDt);
         this.gateOutput = bass;
         this.gateTempoLocked = tempoLocked;
 

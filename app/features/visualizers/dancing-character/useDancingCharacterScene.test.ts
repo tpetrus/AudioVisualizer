@@ -513,6 +513,9 @@ describe('useDancingCharacterScene', () => {
             expect(character().update.mock.calls[1][0]).toBe(frame);
             expect(character().frames[0].dt).toBe(0);
             expect(character().frames[1].dt).toBe(0.1);
+            // The gate gets the gap as measured: the cap is for the animation, sync and envelopes only.
+            expect(character().frames[0].gateDt).toBe(0);
+            expect(character().frames[1].gateDt).toBe(5);
         });
 
         it('passes the camera lock to the frames as it changes', () => {
