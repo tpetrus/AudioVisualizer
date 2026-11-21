@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BassByteLevel, measureSetDirector } from './setDirector';
+import { BassByteLevel, DEFAULT_ENERGY_SOURCE, measureSetDirector } from './setDirector';
 
 const RATE = 44100;
 
@@ -73,6 +73,31 @@ describe('measureSetDirector', () => {
         expect(first.transitionTimes.length).toBeGreaterThanOrEqual(1);
         expect([...first.transitionTimes].sort((a, b) => a - b)).toEqual(first.transitionTimes);
         for (const time of first.transitionTimes) {
+            expect(time).toBeGreaterThanOrEqual(0);
+            expect(time).toBeLessThanOrEqual(40);
+        }
+    });
+    it('measures what the app reads by default: the analyser, since S5 kept the scene on it', () => {
+        const pcm = tone(55, 0.3, 6);
+        expect(DEFAULT_ENERGY_SOURCE).toBe('analyser');
+        expect(measureSetDirector('a.wav', pcm, RATE)).toEqual(
+            measureSetDirector('a.wav', pcm, RATE, { energy: 'analyser' }),
+        );
+    });
+
+    it('can feed the envelope from the hub low end instead, deterministically', () => {
+        // The cut track of the spec above. Only the comparison of FU-S9-bass-ink-energy needs this path.
+        const pcm = new Float32Array(RATE * 40);
+        for (let i = 0; i < pcm.length; i++) {
+            const seconds = i / RATE;
+            const beat = (seconds * 2) % 1;
+            const level = seconds >= 20 && seconds < 26 ? 0.04 : 0.5;
+            pcm[i] = level * Math.exp(-beat * 8) * Math.sin(2 * Math.PI * 55 * seconds);
+        }
+        const hub = measureSetDirector('cut.wav', pcm, RATE, { energy: 'hub' });
+        expect(measureSetDirector('cut.wav', pcm, RATE, { energy: 'hub' })).toEqual(hub);
+        expect(hub.track).toBe('cut.wav');
+        for (const time of hub.transitionTimes) {
             expect(time).toBeGreaterThanOrEqual(0);
             expect(time).toBeLessThanOrEqual(40);
         }

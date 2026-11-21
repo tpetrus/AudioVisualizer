@@ -134,7 +134,9 @@ governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `
 `kicks` (shockwaves started so far), `transitions` (formation changes started so far), `formation` (0 sphere, 1 torus,
 2 double helix, 3 galaxy disc), `tempoConf` and `beats` (the tracker's tempo confidence and beat counter), `mid` (the
 followed mid-band level that drives the swirl), `gateOpen` (1 while the shared bass gate has found the bassline) and
-`gateIn` (the `BassPulse` level fed to the gate).
+`gateIn` (the `BassPulse` level fed to the gate), `gateRaw` (the hub's gate bass before the envelope) and
+`sceneBuiltAt` (when this scene was built, on the recording's `t` clock exactly like the dancer's mark of that name, see
+"Dancer marks"; negative when it was built before the track started).
 
 Shockwaves come from the shared bass gate (`app/features/rhythm/bassGate.ts`, as in the dancing character), not from
 the raw kick onset. The onset also fires on syncopated bass notes, toms and claps: on the reference clips it fired 2.5
