@@ -182,6 +182,22 @@ describe('useFullscreen', () => {
             expect(result.current.mode).toBe('off');
         });
 
+        it('leaves on a second F that comes before the change event of the first', async () => {
+            setup('native');
+            // Holds back the browser's change event, like a busy frame does, so the hook still thinks it is off.
+            const holdBack = (event: Event) => event.stopImmediatePropagation();
+            document.addEventListener('fullscreenchange', holdBack);
+            const { result } = mount();
+            key({ key: 'f' });
+            await settle();
+            expect(fullscreen.element).toBe(target);
+            expect(result.current.mode).toBe('off');
+            key({ key: 'f' });
+            expect(fullscreen.exitCalls).toHaveBeenCalledTimes(1);
+            expect(fullscreen.requestCalls).toHaveBeenCalledTimes(1);
+            document.removeEventListener('fullscreenchange', holdBack);
+        });
+
         it('ignores F while a text input has focus but not a range input', async () => {
             setup('none');
             const { result } = mount();

@@ -26,15 +26,23 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
     // cannot read the target from there.
     const lastTargetRef = useRef<HTMLElement | null>(null);
 
+    // True while the browser already shows the target fullscreen. The browser sets its fullscreen element before the
+    // change event arrives (a frame later, longer under a heavy scene), so a second F press in that gap must count as
+    // leaving, not as a second request.
+    const browserFullscreen = useCallback(() => {
+        const target = lastTargetRef.current;
+        return target !== null && controller.isActive(target);
+    }, [controller]);
+
     const exit = useCallback(() => {
-        if (modeRef.current === 'native') void controller.exit();
+        if (modeRef.current === 'native' || browserFullscreen()) void controller.exit();
         else if (modeRef.current === 'pseudo') setMode('off');
-    }, [controller, modeRef]);
+    }, [browserFullscreen, controller, modeRef]);
 
     const toggle = useCallback(() => {
         const target = targetRef.current;
         if (!target) return;
-        if (modeRef.current !== 'off') {
+        if (modeRef.current !== 'off' || browserFullscreen()) {
             exit();
             return;
         }
@@ -46,7 +54,7 @@ export function useFullscreen(targetRef: RefObject<HTMLElement | null>): UseFull
         void controller.enter(target).then((accepted) => {
             if (!accepted && mountedRef.current) setMode('pseudo');
         });
-    }, [controller, exit, modeRef, targetRef]);
+    }, [browserFullscreen, controller, exit, modeRef, targetRef]);
 
     const toggleRef = useLatestRef(toggle);
     const exitRef = useLatestRef(exit);
