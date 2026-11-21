@@ -727,3 +727,67 @@ describe('stepBassGate evidence while closed', () => {
         expect(state.score).toBeGreaterThan(0);
     });
 });
+
+// The tick on which the tempo locks is the one on which kicks heard before it are placed on the beat. These specs pin
+// what the gate does there: with no tempo, and with more kicks than the history holds.
+describe('stepBassGate on the lock tick', () => {
+    // Steps the gate with no beat at all (the tracker reports no phase and no lock), `dt` seconds a frame.
+    function driveUnlocked(
+        frames: number,
+        bassAt: (frame: number) => number,
+        dt: number,
+        state: State,
+        rhythm = createRhythmState(),
+    ) {
+        for (let frame = 0; frame < frames; frame++) {
+            rhythm.beatPhase = undefined;
+            stepBassGate(bassAt(frame), rhythm, false, state, dt);
+        }
+        return rhythm;
+    }
+
+    // The gate's kick history, oldest first, without the unused slots.
+    const placed = (state: State) =>
+        Array.from(
+            { length: BASS_GATE_KICK_HISTORY },
+            (_, i) => state.kickTimes[(state.kickHead + i) % BASS_GATE_KICK_HISTORY],
+        ).filter((time) => !Number.isNaN(time));
+
+    // The lock tick for a gate that has heard kicks with no beat: the beat position and tempo the tracker reports then.
+    function lockOn(state: State, rhythm: ReturnType<typeof createRhythmState>, bpm: number) {
+        rhythm.beatPhase = 0.5;
+        rhythm.beatCount = 40;
+        rhythm.bpm = bpm;
+        stepBassGate(0, rhythm, true, state, DT);
+    }
+
+    it('places nothing, and keeps no stale kicks, when the lock arrives with a tempo of 0', () => {
+        const state = createBassGateState();
+        const rhythm = driveUnlocked(FRAMES_PER_BEAT * 4, onBeatKick, DT, state);
+        expect(state.unplacedTimes.some((time) => !Number.isNaN(time))).toBe(true);
+        lockOn(state, rhythm, 0);
+        expect(placed(state)).toEqual([]);
+        expect(state.phaseKnown).toBe(false);
+        expect(state.score).toBe(0);
+        expect(state.open).toBe(false);
+        expect(state.unplacedTimes.every((time) => Number.isNaN(time))).toBe(true);
+        // Nothing left over to be placed by a later lock either.
+        drive(FRAMES_PER_BEAT * 2, silent, { state, rhythm, locked: false, start: FRAMES_PER_BEAT * 8 });
+        lockOn(state, rhythm, BPM);
+        expect(placed(state)).toEqual([]);
+    });
+
+    it('places the newest BASS_GATE_KICK_HISTORY kicks, oldest first, when more were heard before the lock', () => {
+        const state = createBassGateState();
+        // A kick every 4 frames for the whole 3 s: 45 kicks, 13 more than the ring holds.
+        const frames = BASS_GATE_PRELOCK_SECONDS * 60;
+        const rhythm = driveUnlocked(frames, (frame) => (frame % 4 < 2 ? 0.8 : 0), DT, state);
+        expect(state.unplacedTimes.every((time) => !Number.isNaN(time))).toBe(true);
+        lockOn(state, rhythm, BPM);
+        const positions = placed(state);
+        expect(positions).toHaveLength(BASS_GATE_KICK_HISTORY);
+        // Four frames at 120 BPM is 2/15 of a beat; the newest kick is the last one heard, the oldest of them 31 kicks back.
+        for (let i = 1; i < positions.length; i++) expect(positions[i] - positions[i - 1]).toBeCloseTo(2 / 15, 6);
+        expect(state.unplacedTimes.every((time) => Number.isNaN(time))).toBe(true);
+    });
+});
