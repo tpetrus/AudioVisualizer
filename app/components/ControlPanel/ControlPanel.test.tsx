@@ -48,6 +48,8 @@ interface HarnessProps {
     onResetView?: () => void;
     viewChanged?: boolean;
     cameraLocked?: boolean;
+    fullscreenActive?: boolean;
+    onToggleFullscreen?: () => void;
 }
 
 // Holds the values the way a visualizer page does, so changes made through the panel show up in it.
@@ -57,6 +59,8 @@ function Harness({
     onResetView = () => {},
     viewChanged = false,
     cameraLocked = true,
+    fullscreenActive,
+    onToggleFullscreen,
 }: HarnessProps) {
     const { values, setValue, resetAll } = useControlValues(definitions);
     return (
@@ -72,6 +76,8 @@ function Harness({
             onCameraLockedChange={onCameraLockedChange}
             viewChanged={viewChanged}
             onResetView={onResetView}
+            fullscreenActive={fullscreenActive}
+            onToggleFullscreen={onToggleFullscreen}
         />
     );
 }
@@ -238,6 +244,55 @@ describe('ControlPanel', () => {
 
         await user.click(screen.getByRole('button', { name: 'Close' }));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('has no fullscreen button without a handler', () => {
+        renderWithProviders(<Harness />);
+        expect(screen.queryByRole('button', { name: /fullscreen/i })).not.toBeInTheDocument();
+    });
+
+    it('puts the fullscreen button right after the settings toggle and calls the handler', async () => {
+        const onToggleFullscreen = vi.fn();
+        const { user } = renderWithProviders(<Harness onToggleFullscreen={onToggleFullscreen} />);
+        const button = screen.getByRole('button', { name: 'Fullscreen (F)' });
+        expect(button).toHaveAttribute('title', 'Fullscreen (F)');
+        expect(button).toHaveAttribute('data-fullscreen-toggle', '');
+        expect(button).toHaveAttribute('type', 'button');
+        expect(screen.getByRole('button', { name: /settings/i }).nextElementSibling).toBe(button);
+
+        await user.click(button);
+        expect(onToggleFullscreen).toHaveBeenCalledTimes(1);
+    });
+
+    it('names the fullscreen button for leaving while fullscreen is active', () => {
+        renderWithProviders(<Harness fullscreenActive onToggleFullscreen={() => {}} />);
+        const button = screen.getByRole('button', { name: 'Exit fullscreen (F)', hidden: true });
+        expect(button).toHaveAttribute('title', 'Exit fullscreen (F)');
+    });
+
+    it('hides the panel and unmounts the overlays while fullscreen, then restores them', async () => {
+        const { user, rerender, engine } = renderWithProviders(<Harness onToggleFullscreen={() => {}} />);
+        engine.setAnalyser({} as AnalyserNode);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        await user.click(screen.getByRole('checkbox', { name: /performance stats/i }));
+        await user.click(screen.getByRole('checkbox', { name: /rhythm stats/i }));
+        await user.click(screen.getByRole('button', { name: 'Audio settings' }));
+        expect(screen.getByText('Rendering')).toBeInTheDocument();
+        expect(screen.getByText('Rhythm')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
+
+        rerender(<Harness fullscreenActive onToggleFullscreen={() => {}} />);
+        expect(screen.getByRole('checkbox', { name: /performance stats/i, hidden: true })).not.toBeVisible();
+        expect(screen.queryByText('Rendering')).not.toBeInTheDocument();
+        expect(screen.queryByText('Rhythm')).not.toBeInTheDocument();
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+        rerender(<Harness onToggleFullscreen={() => {}} />);
+        expect(screen.getByRole('checkbox', { name: /performance stats/i })).toBeChecked();
+        expect(screen.getByRole('checkbox', { name: /rhythm stats/i })).toBeChecked();
+        expect(screen.getByText('Rendering')).toBeInTheDocument();
+        expect(screen.getByText('Rhythm')).toBeInTheDocument();
+        expect(screen.getByRole('dialog', { name: 'Audio source' })).toBeInTheDocument();
     });
 });
 

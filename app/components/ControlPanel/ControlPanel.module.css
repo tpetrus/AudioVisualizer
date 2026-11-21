@@ -106,12 +106,14 @@
 }
 
 .panel .lock,
-.panel .resetView {
+.panel .resetView,
+.panel .fullscreen {
     flex: 0 0 auto;
     min-width: 34px;
 }
 
-.resetView svg {
+.resetView svg,
+.fullscreen svg {
     display: block;
     margin: 0 auto;
 }
