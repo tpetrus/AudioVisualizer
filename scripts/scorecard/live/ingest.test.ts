@@ -112,6 +112,30 @@ describe('choosing runs', () => {
     });
 });
 
+describe('order runs', () => {
+    it('are read with their then/after and left out of live grouping', () => {
+        const parent = makeDir();
+        const lead = writeRun(parent, 'cubes-a-2026-11-06T00-29-55-997Z-play1', 'cubes', 'a.wav');
+        writeFileSync(
+            join(lead, 'options.json'),
+            JSON.stringify({ viz: 'cubes', track: 'a.wav', from: 0, noNormalize: false, then: 'bass-ink' }),
+        );
+        const follow = writeRun(parent, 'bass-ink-a-2026-11-06T00-29-55-997Z-play2', 'bass-ink', 'a.wav');
+        writeFileSync(
+            join(follow, 'options.json'),
+            JSON.stringify({ viz: 'bass-ink', track: 'a.wav', from: 0, noNormalize: false, after: 'cubes' }),
+        );
+        const plain = writeRun(parent, 'cubes-a-2026-11-07T00-29-55-997Z', 'cubes', 'a.wav');
+        const described = [lead, follow, plain].map((path) => describeRunFolder(path)!);
+        expect(described[0].then).toBe('bass-ink');
+        expect(described[1].after).toBe('cubes');
+        expect(described[2].then).toBeUndefined();
+        const groups = groupRunFolders(described, 'cubes', undefined, 4);
+        expect(groups.get('a.wav')?.map((folder) => folder.path)).toEqual([plain]);
+        expect(groupRunFolders(described, 'bass-ink', undefined, 4).size).toBe(0);
+    });
+});
+
 describe('loading a run', () => {
     it('reads the telemetry and the run folder copy of the sidecar', () => {
         const parent = makeDir();

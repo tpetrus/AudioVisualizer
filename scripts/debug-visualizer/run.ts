@@ -118,6 +118,36 @@ interface PlayOptions {
     play: number;
     plays: number;
     noNormalize: boolean;
+    // The visualizer this page's first play was on, set on the play that follows it after --then.
+    after: string | undefined;
+    // The visualizer this page moves to next, set on the first play of a --then run.
+    then: string | undefined;
+}
+
+// Opens another visualizer without reloading the page: to the landing page, then the visualizer's own card, as a
+// user would. A window marker set beforehand proves the page and its audio engine survived, because a reload would
+// silently turn the run into two fresh page loads and defeat the order check it exists for.
+async function navigateTo(page: Page, origin: string, name: string): Promise<void> {
+    const title = VISUALIZATIONS.find((visualization) => visualization.to === `/${name}`)?.title;
+    if (title === undefined) throw new UserError(`Unknown visualizer "${name}".`);
+    const marker = Math.random().toString(36).slice(2);
+    await page.evaluate((value) => {
+        (window as unknown as { __orderMarker?: string }).__orderMarker = value;
+    }, marker);
+    // The first load was a direct URL, so the history has no landing page to go back to. Pushing "/" and raising the
+    // event the browser raises on back/forward makes the router navigate there itself, without a document load.
+    await page.evaluate(() => {
+        window.history.pushState(null, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await page.waitForURL(`${origin}/`);
+    await page.getByRole('link', { name: title, exact: true }).click();
+    await page.waitForURL(`${origin}/${name}`);
+    const kept = await page.evaluate(
+        (value) => (window as unknown as { __orderMarker?: string }).__orderMarker === value,
+        marker,
+    );
+    if (!kept) throw new UserError(`The page reloaded while navigating to ${name}.`);
 }
 
 // Waits for the playback to start, or throws the dialog's one-line failure. With `restartedFrom` it also needs the
@@ -148,9 +178,13 @@ async function closeSourceDialog(page: Page): Promise<void> {
 // dialog opens straight on the chooser and that button is absent; both cases are handled.
 async function chooseTrackAgain(page: Page, trackPath: string, previousPosition: number): Promise<void> {
     const dialog = page.getByRole('dialog', { name: 'Audio source' });
+    const settings = page.getByRole('button', { name: '☰ Settings' });
+    const audioSettings = page.getByRole('button', { name: 'Audio settings' });
+    // Just after a navigation (debug:viz --then) the page may not have rendered yet, so checking for the dialog at once
+    // would miss a source chooser that opens a moment later and then wait for a settings button that never appears.
+    await dialog.or(settings).or(audioSettings).first().waitFor({ state: 'visible' });
     let openedPanel = false;
     if (!(await dialog.count())) {
-        const settings = page.getByRole('button', { name: '☰ Settings' });
         if (await settings.count()) {
             await settings.click();
             openedPanel = true;
@@ -172,7 +206,20 @@ async function chooseTrackAgain(page: Page, trackPath: string, previousPosition:
 // Records one play of the track that is already running: resets the recorder, waits for the range to be played, then
 // writes the CSV and prints the summary. Returns the last playback position seen.
 async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
-    const { viz, track, requestedSeconds, from, shots, reference, beatsSidecar, play, plays, noNormalize } = options;
+    const {
+        viz,
+        track,
+        requestedSeconds,
+        from,
+        shots,
+        reference,
+        beatsSidecar,
+        play,
+        plays,
+        noNormalize,
+        after,
+        then,
+    } = options;
     await closeSourceDialog(page);
 
     const duration = await page.evaluate(() => window.__vizTelemetry?.playback()?.duration ?? 0);
@@ -196,7 +243,17 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
     // The folder keeps its own copy of the reference so debug:summary can judge it later without the music folder.
     if (reference !== undefined) writeFileSync(join(outDir, 'track.bpm'), `${reference}\n`);
     // What was switched for this run, read back by debug:summary so recordings can be told apart.
-    writeFileSync(join(outDir, 'options.json'), JSON.stringify({ viz, track, from, noNormalize }) + '\n');
+    writeFileSync(
+        join(outDir, 'options.json'),
+        JSON.stringify({
+            viz,
+            track,
+            from,
+            noNormalize,
+            ...(then === undefined ? {} : { then }),
+            ...(after === undefined ? {} : { after }),
+        }) + '\n',
+    );
     // The same for ground-truth beats, so debug:summary can print the alignment report.
     if (beatsSidecar !== undefined) copyFileSync(beatsSidecar, join(outDir, 'track.beats.json'));
 
@@ -294,7 +351,18 @@ async function main(): Promise<void> {
         return;
     }
     if (parsed.kind === 'error') fail(parsed.message);
-    const { dir, track, viz, seconds: requestedSeconds, from, shots, reselect, headless, noNormalize } = parsed.args;
+    const {
+        dir,
+        track,
+        viz,
+        seconds: requestedSeconds,
+        from,
+        shots,
+        reselect,
+        then,
+        headless,
+        noNormalize,
+    } = parsed.args;
 
     // Validate everything that needs no browser first, so a typo costs nothing.
     const dirPath = resolve(dir);
@@ -308,6 +376,9 @@ async function main(): Promise<void> {
     }
     const names = VISUALIZATIONS.map((visualization) => visualization.to.replace(/^\//, ''));
     if (!names.includes(viz)) fail(`Unknown visualizer "${viz}". Valid names: ${names.join(', ')}`);
+    if (then !== undefined && !names.includes(then)) {
+        fail(`Unknown visualizer "${then}". Valid names: ${names.join(', ')}`);
+    }
 
     // A sidecar beside the track gives the tempo the report is judged against. A bad one is a warning, not an error.
     const trackPath = join(dirPath, track);
@@ -389,8 +460,13 @@ async function main(): Promise<void> {
         }
 
         let lastPosition = 0;
-        for (let play = 1; play <= reselect; play++) {
-            if (play === 1) {
+        // --then is one more play, on the second visualizer, in the same page.
+        const plays = then === undefined ? reselect : 2;
+        for (let play = 1; play <= plays; play++) {
+            if (play === 2 && then !== undefined) {
+                await navigateTo(page, origin, then);
+                await chooseTrackAgain(page, trackPath, lastPosition);
+            } else if (play === 1) {
                 await page.getByLabel('Audio file').setInputFiles(trackPath);
                 await waitForPlaybackStart(page, undefined);
             } else {
@@ -398,7 +474,7 @@ async function main(): Promise<void> {
                 await chooseTrackAgain(page, trackPath, lastPosition);
             }
             lastPosition = await recordPlay(page, {
-                viz,
+                viz: play === 2 && then !== undefined ? then : viz,
                 track,
                 requestedSeconds,
                 from,
@@ -406,8 +482,10 @@ async function main(): Promise<void> {
                 reference,
                 beatsSidecar,
                 play,
-                plays: reselect,
+                plays,
                 noNormalize,
+                after: play === 2 && then !== undefined ? viz : undefined,
+                then: play === 1 ? then : undefined,
             });
         }
     } finally {
