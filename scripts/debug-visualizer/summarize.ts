@@ -8,6 +8,7 @@ import { summarizeTelemetry } from '../../app/features/audio/devTelemetrySummary
 import { alignmentReportLines } from './alignmentReport';
 import { parseCsv } from './csv';
 import { chooseReference, parseSummaryArgs, SUMMARY_USAGE } from './args';
+import { dancerMarksLines } from './dancerMarks';
 import { parseBpmSidecar, summarizeTempo } from './tempoReport';
 
 function fail(reason: string): never {
@@ -50,6 +51,7 @@ try {
     if (reference.warning) console.log(reference.warning);
     const lines = summarizeTelemetry(table, { maxLines: 20, windowSeconds: window });
     lines.push(...summarizeTempo(table, { referenceBpm: reference.bpm, windowSeconds: window }));
+    lines.push(...dancerMarksLines(table));
     // Ground truth the harness copied beside the CSV, when the track had a `.beats.json`.
     const beatsPath = join(dirname(path), 'track.beats.json');
     if (existsSync(beatsPath)) {

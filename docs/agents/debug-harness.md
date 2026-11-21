@@ -114,6 +114,18 @@ track's report prints its tap noise floor beside the beat error.
 - **Regression spec:** `scripts/ground-truth/alignment.test.ts` asserts what the pipeline meets today; the plan's targets
   are `it.fails` tests that start failing (and must lose `.fails`) once the pipeline reaches them.
 
+## Dancer marks
+The dancer's `sceneBuiltAt` and `modelParsedAt` columns exist so a recording can tell load timing from state left in the
+hub when a visualizer is opened after another (hub-followups S7, `FU-S10-order-hub-spread`). Both are on the
+recording's own `t` clock, which is the file playback's position (track time), or the audio context's time when no
+file is playing. A scene is built before its track starts (or, with `--then`, before the same track starts again), and
+the audio context may not exist yet, so the marks cannot be taken on the audio clock. They are taken with
+`performance.now()` and, on every row, converted by subtracting the mark's age from that row's `t`: the value is
+constant while the track plays and drifts only by the difference between the page clock and the audio clock, a frame
+at most over a run. A mark made 3 s before the track began reads -3. `npm run debug:summary` and the end of a
+`debug:viz` run print them with the two counters in one `Dancer marks:` line; a CSV recorded before these columns
+prints nothing there. `placedKicks` and `phaseOnsets` are running counters, so the last row is the run's total.
+
 ## Bass ink
 `npm run debug:viz -- --dir <folder> --track <file> --viz bass-ink` records the `bass-ink` probe: `in` (the bass level
 the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz, after the gain stage), `out` (the
@@ -350,6 +362,10 @@ accessors named below.
 | `lowEnd` | the hub's louder of the `sub` and `kick` bands this frame (`hubLowEnd`, normalized), 0 with no source: the gate's input until hub-regressions S4, now recorded only for comparison. Recordings made before it still load, but cannot be replayed through BassBump |
 | `gateBass` | the hub's gate-input bass this frame (`snapshot.gateBass.pulse`, contract C1: BassPulse's feature read by the hub's own tap at the render time, linear RMS), 0 with no source: what the dancer's `BassBump` is fed since S4, so `in` is its output. Recordings made before it still load |
 | `beatsPerLoop` | tracker beats one loop of the active clip spans this frame (`DanceTimingResult.beatsPerLoop`: while locked its own beats over the step multiple, times the tracker tempo over the dance tempo; its own beats otherwise), 0 before a rig is loaded. `clipPhase` times it is the dancer's place in tracker beats, which the scorecard's AC7 cell compares within the bar or the beat (hub-regressions S8, targets version 8). Last column. Recordings made before it still load, but have no AC7 cell |
+| `placedKicks` | `BassGateState.placedKickCount`: kicks the gate placed from before the lock (its S4 field), running, back to 0 with the gate's state. Recordings made before it still load |
+| `phaseOnsets` | `RhythmTracker.phaseOnsets`: the worklet's running count of low-end phase onsets (`BandOnsets.phaseOnsetCount`), from its latest batch; 0 until one arrives and with a new source. Development builds only: the worklet adds the count to its message there, so a production build records 0 |
+| `sceneBuiltAt` | when this dancer scene was built, in seconds on the recording's `t` clock (see "Dancer marks"); negative when it was built before the track started |
+| `modelParsedAt` | when the latest character model finished loading and parsing, on the same clock; NaN until one has |
 
 `rawBeatBpm`, `rawTempoBpm`, `heldTempoBpm`, `rivalBpm` and `gridEpoch` are read-only getters of those names on `RhythmAnalyzer`. The three counters are read through its read-only `beat` and `tempo` fields (`beat.phaseShiftCount`, `tempo.octaveHoldCount`, `tempo.barVetoCount`), because a forwarding getter each does not fit the production JS budget.
 `RhythmTracker` exposes the current analyzer through one read-only getter, `analysis`, which is `undefined` before a bind.
