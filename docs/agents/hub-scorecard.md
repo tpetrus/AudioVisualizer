@@ -835,11 +835,29 @@ second time, as the plan allows when S4 or S5 changed a live-scored visualizer.
 | `dancing-character` with `cubes` | 54 | 49 | 5 | `cubes`' latency on `imyourgirl`, lower after the dancer (41.5 against 49.6 ms) |
 | `bass-ink` with `dancing-character` | 54 | 44 | 10 | `bass-ink`'s latency and false fires on `drums-128` after the dancer |
 
-- **`bass-ink` after the dancer on `drums-128`**: two of its four runs ran at 32 fps instead of 57, the only two of the
-  192 plays under 50 fps; their dancer leads ran at full rate. Without those two sessions all three of its reaction
-  rows pass (latency 37.4 against 35.3 ms after itself, false fires 0.060 against 0.049). Neither pair's other runs
-  after the dancer slowed down (`cubes` 12 of 12, `bass-ink` on the other tracks 8 of 8), so the slowdown is recorded
-  as `FU-S7-order-half-fps` rather than as an order effect.
+- **`bass-ink` after the dancer on `drums-128`**: two of its four runs ran at 32 fps instead of 57 for nearly the whole
+  play (from 2 s and from the start), the only two plays of 192 whose median is under 50 fps. Without those two
+  sessions all three of its reaction rows pass (latency 37.4 against 35.3 ms after itself, false fires 0.060 against
+  0.049). Recorded as `FU-S7-order-half-fps` and settled below: it was the machine, not the order.
+
+### `FU-S7-order-half-fps`: the machine, not the dancer
+
+- **Per second, the slowdown was everywhere in that recording.** Counting frames in each second of track time, almost
+  every second play of both pairs (after itself as well as after the other visualizer, all three tracks) drops from 57
+  to 32 fps about 20 s in and stays there: a frame that takes just over one display interval is shown every other one.
+  Frame times are a steady 17.5 ms up to the drop, so it is a switch, not a growing cost. The two `bass-ink` plays
+  above are the same switch arriving early, and in one of those sessions the dancer's own lead play had already
+  dropped to 32 fps 12 s in, before `bass-ink` was loaded. The sessions were recorded between 17:00 and 18:25 UTC on
+  2026-11-22, while the machine was short of memory (background jobs were being stopped for it).
+- **Repeated with the memory free** (20:17 to 20:57 UTC): `scorecard:order -- --pair bass-ink,dancing-character
+  --tracks drums-128.wav --sessions 8`, 32 sessions and 64 plays. No play slows down in any order: every second of
+  every `bass-ink` play is at 59 fps or more, after the dancer as after itself, and the dancer's only slow second is
+  its first, while its model loads, in every order. All 18 order rows pass, the reaction rows included.
+- **A long page does not slow down by itself**: three plays of `drums-128` in one page (`debug:viz --reselect 3`, about
+  95 s on the page) stay at 59 fps throughout.
+- **So** nothing the dancer leaves behind slows the next visualizer, and the half-rate tail and the two slow plays came
+  from the machine at the time. A recording made while memory is short is not a measurement of the app: the per-second
+  frame rate (rows per second of `t`) shows it at once, where the median `fps` of a play hides a tail.
 - **The hub rows** that fail beyond the noise floor are the dancer's `gain` on `drums-128` and `syncopationbass2`
   (0.20 and 0.13 after `cubes`, 0.16 after `bass-ink`, against 0.05 to 0.07 after itself) and its input, which follows
   the gain. The rest are within 0.002 of their allowance.
