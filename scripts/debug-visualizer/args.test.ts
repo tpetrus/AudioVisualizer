@@ -43,6 +43,7 @@ describe('parseArgs', () => {
             shots: [],
             reselect: 1,
             then: undefined,
+            settle: 0,
             headless: false,
             noNormalize: false,
         });
@@ -58,6 +59,7 @@ describe('parseArgs', () => {
             shots: [1, 5],
             reselect: 1,
             then: undefined,
+            settle: 0,
             headless: true,
             noNormalize: false,
         });
@@ -248,6 +250,32 @@ describe('parseArgs --reselect', () => {
 
     it('mentions --reselect in the usage text', () => {
         expect(USAGE).toContain('--reselect N');
+    });
+});
+
+describe('parseArgs --settle', () => {
+    it('defaults to 0 and reads seconds with --then', () => {
+        expect(run(['--then', 'bass-ink']).settle).toBe(0);
+        expect(run(['--then', 'bass-ink', '--settle', '2.5']).settle).toBe(2.5);
+        expect(run(['--then', 'bass-ink', '--settle', '0']).settle).toBe(0);
+        expect(run(['--then', 'bass-ink', '--settle', '10']).settle).toBe(10);
+    });
+
+    it('rejects values outside 0 to 10', () => {
+        for (const bad of ['-1', '10.5', 'x', ' ']) {
+            expect(parseArgs([...base, '--then', 'bass-ink', '--settle', bad])).toEqual({
+                kind: 'error',
+                message: `--settle needs a number from 0 to 10, got "${bad}".`,
+            });
+        }
+    });
+
+    it('needs --then', () => {
+        expect(parseArgs([...base, '--settle', '3'])).toEqual({ kind: 'error', message: '--settle needs --then.' });
+    });
+
+    it('is in the usage text', () => {
+        expect(USAGE).toContain('--settle S');
     });
 });
 

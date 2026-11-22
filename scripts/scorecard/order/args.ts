@@ -5,6 +5,8 @@ import { LIVE_VISUALIZERS } from '../live/args';
 export const ORDER_DIR = '.debug-in';
 export const ORDER_TRACKS = ['drums-128.wav', 'imyourgirl.wav', 'syncopationbass2.wav'];
 export const DEFAULT_SESSIONS = 2;
+// The same range debug:viz --settle accepts, in seconds.
+export const MAX_SETTLE = 10;
 export const ORDER_OUT = 'docs/agents/hub-scorecard.order';
 
 export interface OrderArgs {
@@ -14,6 +16,9 @@ export interface OrderArgs {
     // Sessions per combination (A then B, B then A, A then A, B then B), per track.
     sessions: number;
     seconds: number | undefined;
+    // Seconds each session waits after moving to the second visualizer (debug:viz --settle); only sessions recorded
+    // with this value are reported.
+    settle: number;
     headless: boolean;
     ingest: string[];
     // Record only the planned sessions .debug-out does not already hold, then report from .debug-out.
@@ -23,7 +28,7 @@ export interface OrderArgs {
 }
 
 export const ORDER_USAGE = `Usage: npm run scorecard:order -- --pair A,B [--dir <folder>] [--tracks a.wav,b.wav] [--sessions N]
-                                   [--seconds S] [--headless] [--ingest <folder> ...] [--top-up] [--out <basename>]
+                                   [--seconds S] [--settle S] [--headless] [--ingest <folder> ...] [--top-up] [--out <basename>]
 
 A and B are two different visualizers from: ${LIVE_VISUALIZERS.join(', ')}.
 Records, per track (default ${ORDER_TRACKS.join(', ')}; the audio is read from <folder>, default ${ORDER_DIR}), N sessions
@@ -32,6 +37,8 @@ a time. A session is one page: the track plays on the first visualizer, the page
 one) without a reload, and the track plays again there (debug:viz --then). The same-visualizer sessions are the control:
 they show what the navigate and re-select path alone changes. Then it compares each visualizer's second play after the
 other visualizer with its second play after itself, against the spread of its first plays (AC11).
+--settle S (0 to 10, default 0) makes each session wait S seconds after the move before the track plays again; only sessions
+recorded with that value count, when recording, with --top-up and with --ingest (a folder without a recorded value is 0).
 --ingest reads existing debug:viz output folders instead of recording (the newest N sessions per track and combination).
 --top-up records only the sessions .debug-out lacks (the shortfall per track and combination up to N), then reports from
 .debug-out as --ingest .debug-out would.
@@ -64,6 +71,7 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
         tracks: ORDER_TRACKS,
         sessions: DEFAULT_SESSIONS,
         seconds: undefined,
+        settle: 0,
         headless: false,
         ingest: [],
         topUp: false,
@@ -94,6 +102,12 @@ export function parseOrderArgs(argv: readonly string[]): OrderArgs {
             const seconds = Number(valueOf(argv, i++));
             if (!(seconds > 0) || !Number.isFinite(seconds)) throw new Error('--seconds must be greater than 0');
             args.seconds = seconds;
+        } else if (arg === '--settle') {
+            const settle = Number(valueOf(argv, i++));
+            if (!Number.isFinite(settle) || settle < 0 || settle > MAX_SETTLE) {
+                throw new Error(`--settle needs a number from 0 to ${MAX_SETTLE}`);
+            }
+            args.settle = settle;
         } else if (arg === '--ingest') {
             // Every value up to the next flag is a folder, so `--ingest a b c` works as well as a repeated flag.
             const before = args.ingest.length;

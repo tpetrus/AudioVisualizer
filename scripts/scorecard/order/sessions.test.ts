@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RunFolder } from '../live/ingest';
-import { missingPlans, pairSessions, planSessions, selectSessions } from './sessions';
+import { missingPlans, pairSessions, planSessions, selectSessions, sessionsWithSettle } from './sessions';
 
 const PAIR: [string, string] = ['cubes', 'bass-ink'];
 
@@ -119,5 +119,21 @@ describe('selectSessions', () => {
         const control = [folder('cubes', 'a.wav', 55, 1, 'cubes'), folder('cubes', 'a.wav', 58, 2, 'cubes')];
         const both = selectSessions(pairSessions([...folders, ...control], PAIR), PAIR, ['a.wav'], 1);
         expect(both.get('a.wav')!.map((s) => s.kind)).toEqual(['control', 'cross', 'cross']);
+    });
+});
+
+describe('sessionsWithSettle', () => {
+    it('keeps only sessions whose follow play waited the requested seconds', () => {
+        const folders = [
+            folder('cubes', 'a.wav', 1, 1, 'bass-ink'),
+            folder('bass-ink', 'a.wav', 5, 2, 'cubes'),
+            folder('cubes', 'a.wav', 10, 1, 'bass-ink'),
+            folder('bass-ink', 'a.wav', 15, 2, 'cubes'),
+        ];
+        const sessions = pairSessions(folders, PAIR);
+        const settleOf = (f: RunFolder): number => (f.stamp.endsWith('15-000Z') ? 3 : 0);
+        expect(sessionsWithSettle(sessions, 0, settleOf).map((s) => s.lead.stamp)).toEqual([folders[0].stamp]);
+        expect(sessionsWithSettle(sessions, 3, settleOf).map((s) => s.lead.stamp)).toEqual([folders[2].stamp]);
+        expect(sessionsWithSettle(sessions, 5, settleOf)).toEqual([]);
     });
 });

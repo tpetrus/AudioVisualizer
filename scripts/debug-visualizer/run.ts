@@ -123,6 +123,8 @@ interface PlayOptions {
     after: string | undefined;
     // The visualizer this page moves to next, set on the first play of a --then run.
     then: string | undefined;
+    // Seconds waited between the navigation and choosing the track again, set on the follow play of a --then run.
+    settle: number;
 }
 
 // Opens another visualizer without reloading the page: to the landing page, then the visualizer's own card, as a
@@ -220,6 +222,7 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
         noNormalize,
         after,
         then,
+        settle,
     } = options;
     await closeSourceDialog(page);
 
@@ -253,6 +256,7 @@ async function recordPlay(page: Page, options: PlayOptions): Promise<number> {
             noNormalize,
             ...(then === undefined ? {} : { then }),
             ...(after === undefined ? {} : { after }),
+            ...(settle > 0 ? { settle } : {}),
         }) + '\n',
     );
     // The same for ground-truth beats, so debug:summary can print the alignment report.
@@ -362,6 +366,7 @@ async function main(): Promise<void> {
         shots,
         reselect,
         then,
+        settle,
         headless,
         noNormalize,
     } = parsed.args;
@@ -467,6 +472,9 @@ async function main(): Promise<void> {
         for (let play = 1; play <= plays; play++) {
             if (play === 2 && then !== undefined) {
                 await navigateTo(page, origin, then);
+                // Lets the new scene build and its model parse before the track starts, so that work does not overlap the
+                // volume normalization's first second.
+                if (settle > 0) await sleep(settle * 1000);
                 await chooseTrackAgain(page, trackPath, lastPosition);
             } else if (play === 1) {
                 await page.getByLabel('Audio file').setInputFiles(trackPath);
@@ -488,6 +496,7 @@ async function main(): Promise<void> {
                 noNormalize,
                 after: play === 2 && then !== undefined ? viz : undefined,
                 then: play === 1 ? then : undefined,
+                settle: play === 2 && then !== undefined ? settle : 0,
             });
         }
     } finally {
