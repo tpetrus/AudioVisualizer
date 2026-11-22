@@ -800,6 +800,74 @@ hit share passes; their run values are unchanged), and `bass-ink` not at all (it
 changes its cells). Under version 8 that selection reproduces the committed version 8 live file exactly; for `bass-ink`
 on `summer2000` the committed cells come from the 4 runs at 04:02 to 04:04 UTC on 2026-11-21, not the newest 4.
 
+## Hub follow-ups S7: the final live pass (targets version 9, measured on `4ab6eaf`)
+
+S3 to S5 changed two live-scored visualizers: the dancer (real frame time into its gate, the load marks) and `bass-ink`
+(raw frame time into its gate, the scene-build mark). Both were recorded again, 4 runs per applicable track, headless,
+one run at a time from the main checkout; `cubes` and `trio-color-wave` did not change and keep their runs. Then
+`scorecard:order` recorded 4 sessions of each order for both pairs (96 sessions), and the baseline was rewritten a
+second time, as the plan allows when S4 or S5 changed a live-scored visualizer.
+
+- **Offline: nothing moves.** All 369 offline cells equal the S6 baseline's; 13 blocking cells fail, each deferred as
+  listed under S10's close (drifting tempo now passes, S6).
+- **Live: 13 cells fail against 14 at S6, 190 pass against 184, 24 are unavailable against 26.** Against the S6
+  baseline, `scorecard:check` reports four advisory cells worse than their spread, which this rewrite takes:
+  - the dancer on `drums-100`: latency 20 to 31 ms (three runs at 31 ms, one at 20; `bass-ink` is at 31 ms on the same
+    track in all four) and false fires 0 to 0.013 (one stray fire in each of two runs). Both stay well inside the stretch
+    targets (46.7 ms, 0.1). The likeliest cause is S3's change of the gate to the real frame time (`687e401`) instead
+    of a clamped one; 11 ms is under one frame, and it was not traced further.
+  - the dancer's hit share on `high-bpm-dnb` (0.083 to 0.036) and `bass-ink`'s false fires there (0.939 to 0.957, now
+    unavailable): in half of the runs the tracker does not settle on this track, the runs split as S10 recorded, and
+    one or two runs per visualizer have nothing to measure. `bass-ink`'s hit share, false fires and latency on
+    `high-bpm-dnb` are unavailable for that reason.
+- **Better:** the dancer's clip on `syncopation-no-kick` passes (0.132, was 0.141), its gate after the lock on
+  `drums-150` passes (3.56 s, was 3.12 s and failing per run), and its clip on `high-bpm-dnb`, its hit share and false
+  fires on `high-bpm-dnb` and `low-bpm-rnb`, and its latency on `low-bpm-rnb` are available again. `bass-ink`'s latency
+  on `summer2000` is measurable on the new taps (228 ms, pass).
+- **Newly failing:** the dancer's latency on `summer2000`, 196 ms against 104 ms before the hub, measurable now that the
+  runs carry Trevor's third tap. Its hit share there was already failing (0 against 0.017): the gate fires on few of
+  this track's tapped beats, the S5 deferral.
+
+### Order independence, again (AC8)
+
+| Pair | Rows | Pass | Fail | Reaction rows failing |
+|---|---|---|---|---|
+| `dancing-character` with `cubes` | 54 | 49 | 5 | `cubes`' latency on `imyourgirl`, lower after the dancer (41.5 against 49.6 ms) |
+| `bass-ink` with `dancing-character` | 54 | 44 | 10 | `bass-ink`'s latency and false fires on `drums-128` after the dancer |
+
+- **`bass-ink` after the dancer on `drums-128`**: two of its four runs ran at 32 fps instead of 57, the only two of the
+  192 plays under 50 fps; their dancer leads ran at full rate. Without those two sessions all three of its reaction
+  rows pass (latency 37.4 against 35.3 ms after itself, false fires 0.060 against 0.049). Neither pair's other runs
+  after the dancer slowed down (`cubes` 12 of 12, `bass-ink` on the other tracks 8 of 8), so the slowdown is recorded
+  as `FU-S7-order-half-fps` rather than as an order effect.
+- **The hub rows** that fail beyond the noise floor are the dancer's `gain` on `drums-128` and `syncopationbass2`
+  (0.20 and 0.13 after `cubes`, 0.16 after `bass-ink`, against 0.05 to 0.07 after itself) and its input, which follows
+  the gain. The rest are within 0.002 of their allowance.
+- **The AC8 rule.** The dancer's model-parse mark does land later after a different visualizer: 0.18 to 0.20 s after
+  the track starts, against 0.08 to 0.11 s after itself, with a control spread of about 0.02 s (one control session
+  at 0.19 s). Its scene-build mark does not move (0.03 s either way), and nor does `bass-ink`'s (0.034 against 0.036 s).
+  The hub-signal spread does not follow the parse mark: the late control session has no extra gain distance (0.075),
+  and all the extra distance sits in the first 5 s of the track (0.37 to 0.56 after the other visualizer, 0.03 to 0.08
+  after itself), past which the two are equal. So the rule's condition fails and `FU-S10-order-hub-spread` is deferred,
+  with this data.
+- **What the data points to instead.** These tracks open on a second or two of near silence, over which the volume
+  normalization's gain (the `gain` column) holds the value it reached before the track started. After a fresh load
+  that is 1.00; after the dancer itself 1.1 to 1.3; after `cubes` 2.4 to 2.8. By 2 s every run is on the same gain. The
+  normalization raises its gain over silence, so the start value measures how long the input was quiet between the two
+  plays, which the parse mark only partly reflects. Telling the two apart needs that gap, or the gain at the moment the
+  track starts, in the recording; until then the hub rows compare a 2 s settling transient, and no reaction cell moves
+  because of it.
+
+### `FU-S8-manual-reselect`: intended
+
+With a dance chosen by hand, a fresh load starts on the calm dance and moves to the chosen one at the first bar line
+(the scene always starts on the calm dance, and a chosen dance takes over only on a bar line, fading over one beat),
+while choosing the track again keeps the chosen dance with
+no fade (`DanceDirector.restart` leaves a manual choice alone). That is the intent: a re-select is the same visitor
+asking for the same dance, and only Auto goes back to the dance a fresh load starts with. AC7's clip comparison
+records Auto, so it never sees the difference; a recording made with a manual dance would show its first bar on the
+calm dance after a fresh load and not after a re-select.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
