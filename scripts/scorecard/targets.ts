@@ -9,6 +9,10 @@ import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
 export const TARGETS_VERSION = 9;
 
+// The hit share cells' relative tolerance (version 9): a live or offline share may be at most this share of its pre-hub
+// value below it, and never more than its absolute 0.05.
+export const HIT_SHARE_RELATIVE_TOLERANCE = 0.1;
+
 export type MetricDirection = 'lower' | 'higher';
 export type MetricUnit = 'seconds' | 'ms' | 'fraction' | 'count' | 'beats';
 
@@ -30,6 +34,9 @@ export interface MetricTarget {
     // widened by it, tightened by `floor` if that is set too, as the live cells judge their pre-hub column; a cell with
     // a pre-hub value but no value of its own then fails.
     prehubTolerance?: number;
+    // When set (version 9), the tolerance is at most this share of the pre-hub value: min(prehubTolerance, share x
+    // pre-hub). See prehubSlack.
+    prehubRelativeTolerance?: number;
     // Whether the metric applies to a track of this class and kick flag.
     applies: (trackClass: TrackClass, kick: boolean) => boolean;
     // True when the value is measured against the track's .beats.json truth, so a missing sidecar makes the cell
@@ -175,7 +182,8 @@ export const METRICS: readonly MetricTarget[] = [
     {
         // AC8 offline (version 7, S4): the cubes' bass trigger is a pure function the scene calls (stepCubesBass), so
         // the replay runs it on every kick track with beats. Same fire-to-beat rule and tolerances as the live cell: no
-        // more than 0.05 below the pre-hub value (BassPulse's own pulse at the render time). 0.9 is the stretch.
+        // more than min(0.05, a tenth of the pre-hub value) below the pre-hub value (BassPulse's own pulse at the render
+        // time; version 9, prehubSlack). 0.9 is the stretch.
         id: 'cubes.hit.share50ms',
         description: 'Share of labeled beats with a cubes bass reaction from 20 ms before to 50 ms after, offline',
         direction: 'higher',
@@ -183,6 +191,7 @@ export const METRICS: readonly MetricTarget[] = [
         floor: null,
         stretch: 0.9,
         prehubTolerance: 0.05,
+        prehubRelativeTolerance: HIT_SHARE_RELATIVE_TOLERANCE,
         visualizer: 'cubes',
         blocking: true,
         applies: (trackClass, kick) => kick && hasBeat(trackClass),
@@ -311,6 +320,8 @@ export interface LiveMetricTarget {
     // How much worse than the pre-hub median a live median may be before it counts as worse than pre-hub. Browser runs
     // jitter, so an exact comparison would flap. null means the pre-hub value is shown but does not bound the floor.
     prehubTolerance: number | null;
+    // As on MetricTarget: caps the tolerance at this share of the pre-hub median (version 9).
+    prehubRelativeTolerance?: number;
     visualizers: readonly LiveVisualizer[];
     applies: (trackClass: TrackClass, kick: boolean) => boolean;
     // True when the metric is judged against the track's .beats.json; a missing sidecar makes the cell unavailable.
@@ -388,6 +399,7 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
         floor: null,
         stretch: 0.9,
         prehubTolerance: 0.05,
+        prehubRelativeTolerance: HIT_SHARE_RELATIVE_TOLERANCE,
         visualizers: ALL_LIVE,
         applies: kickWithBeat,
         needsBeats: true,
@@ -427,10 +439,24 @@ export const LIVE_METRICS: readonly LiveMetricTarget[] = [
     },
 ];
 
+// How much worse than the pre-hub value a metric may be: its absolute tolerance, capped by its relative one when it has
+// one. Version 9 (FU-S4-hitshare-relative-tolerance, Trevor's choice of min): an absolute 0.05 alone let a hit share whose
+// pre-hub value is under 0.05 drop to 0 and still pass, and let lonley's live share lose 58%; a tenth of the pre-hub value,
+// never more than 0.05, judges a low share by how much of it is lost.
+export function prehubSlack(
+    metric: { prehubTolerance?: number | null; prehubRelativeTolerance?: number },
+    prehub: number,
+): number {
+    const absolute = metric.prehubTolerance ?? 0;
+    const share = metric.prehubRelativeTolerance;
+    return share === undefined ? absolute : Math.min(absolute, share * Math.abs(prehub));
+}
+
 // The floor a live value is judged against: the AC floor, tightened by the pre-hub median widened by the tolerance.
 export function liveEffectiveFloor(metric: LiveMetricTarget, prehub: number | null): number | null {
     if (prehub === null || metric.prehubTolerance === null) return metric.floor;
-    const bound = metric.direction === 'lower' ? prehub + metric.prehubTolerance : prehub - metric.prehubTolerance;
+    const slack = prehubSlack(metric, prehub);
+    const bound = metric.direction === 'lower' ? prehub + slack : prehub - slack;
     if (metric.floor === null) return bound;
     return metric.direction === 'lower' ? Math.min(metric.floor, bound) : Math.max(metric.floor, bound);
 }
@@ -458,7 +484,8 @@ export function offlineEffectiveFloor(
     prehub: number | null,
 ): number | null {
     if (metric.prehubTolerance === undefined || prehub === null) return effectiveFloor(metric.direction, floor, prehub);
-    const bound = metric.direction === 'lower' ? prehub + metric.prehubTolerance : prehub - metric.prehubTolerance;
+    const slack = prehubSlack(metric, prehub);
+    const bound = metric.direction === 'lower' ? prehub + slack : prehub - slack;
     if (floor === null) return bound;
     return metric.direction === 'lower' ? Math.min(floor, bound) : Math.max(floor, bound);
 }
