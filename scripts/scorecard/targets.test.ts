@@ -47,7 +47,7 @@ const metric = (id: string) => {
 
 describe('targets', () => {
     it('has a version and unique metric ids', () => {
-        expect(TARGETS_VERSION).toBe(8);
+        expect(TARGETS_VERSION).toBe(9);
         const ids = [...METRICS, ...SCENARIO_TARGETS].map((entry) => entry.id);
         expect(new Set(ids).size).toBe(ids.length);
     });
@@ -183,6 +183,9 @@ describe('offlineEffectiveFloor', () => {
         expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, 0.8)).toBeCloseTo(0.75, 12);
         expect(offlineEffectiveFloor(metric('cubes.reaction.latencyMs'), null, 30)).toBeCloseTo(30 + 1000 / 60, 12);
         expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, null)).toBeNull();
+        // Version 9: the tolerance is relative below 0.5 (a tenth of the pre-hub value), 0.05 at most.
+        expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, 0.138)).toBeCloseTo(0.1242, 12);
+        expect(offlineEffectiveFloor(metric('cubes.hit.share50ms'), null, 0)).toBe(0);
     });
 
     it('takes the stricter of an AC floor and the widened pre-hub value', () => {
@@ -253,6 +256,11 @@ describe('live metrics', () => {
         // Hit share has no absolute floor: pre-hub minus 0.05 is the bound, and without pre-hub it is report-only.
         expect(liveEffectiveFloor(live('live.hit.share50ms'), null)).toBeNull();
         expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.5)).toBeCloseTo(0.45);
+        // Version 9: the hit share may lose at most a tenth of its pre-hub value, and never more than 0.05, so a low
+        // pre-hub share is no longer a cell that cannot fail.
+        expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.2)).toBeCloseTo(0.18, 12);
+        expect(liveEffectiveFloor(live('live.hit.share50ms'), 0.017)).toBeCloseTo(0.0153, 12);
+        expect(liveEffectiveFloor(live('live.hit.share50ms'), 0)).toBe(0);
         // Latency may be one 60 Hz frame later than pre-hub, the step a reaction moves by from run to run.
         expect(liveEffectiveFloor(live('live.reaction.latencyMs'), 28)).toBeCloseTo(28 + 1000 / 60);
         // False fires and clip phase show pre-hub without being bounded by it.
