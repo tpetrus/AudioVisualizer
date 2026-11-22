@@ -23,7 +23,8 @@ function createOnset(): HubOnset {
 }
 
 export interface AudioHubOptions {
-    // Reads the gate-input bass level instead of tapping the tracker's source: the offline replay's reader, or a test's.
+    // Reads the gate-input bass level instead of tapping the tracker's source: the offline replay's reader, or a
+    // test's.
     gateBass?: GateBassLevel;
 }
 
@@ -279,8 +280,9 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         (this.snapshot.gateBass as HubGateBass).lowEnd = this.frameLowEnd[slot];
     }
 
-    // The gate-input bass level now (the newest audio, not shifted by the sync offset), 0 with no source. A new source gets a new tap and the old one is disconnected, so
-    // the old source's audio never reaches the level; this allocates only then.
+    // The gate-input bass level now (the newest audio, not shifted by the sync offset), 0 with no source. A new source
+    // gets a new tap and the old one is disconnected, so the old source's audio never reaches the level; this allocates
+    // only then.
     private readGateBassLevel(): number {
         if (this.fixedGateBass) {
             return finiteOrZero(this.fixedGateBass.level());
