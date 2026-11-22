@@ -6,6 +6,8 @@ export interface OrderHeader {
     targetsVersion: number;
     revision: string;
     created: string;
+    // Seconds the sessions waited after moving to the second visualizer (debug:viz --settle).
+    settle: number;
     // header.revision of hub-scorecard.live.json, the build the reaction cells were measured on; null without that file.
     liveRevision: string | null;
 }
@@ -38,7 +40,7 @@ export function renderMarkdown(report: OrderReport): string {
     const lines = [
         '# Order scorecard (AC11)',
         '',
-        `Targets version ${header.targetsVersion}, revision ${header.revision}, created ${header.created}, live cells from ${header.liveRevision ?? 'no live file'}.`,
+        `Targets version ${header.targetsVersion}, revision ${header.revision}, created ${header.created}, settle ${header.settle} s, live cells from ${header.liveRevision ?? 'no live file'}.`,
         '',
         `${rows.length} rows: ${counts.pass} pass, ${counts.fail} fail, ${counts.unjudged} not judged.`,
         '',

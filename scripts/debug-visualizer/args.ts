@@ -7,10 +7,13 @@ import { join } from 'node:path';
 // Each play is a full recording of the track, so more than 10 in one page is almost certainly a typo.
 const MAX_RESELECT = 10;
 
+// Seconds. Longer than this is a typo: the wait only lets the second visualizer finish building its scene.
+export const MAX_SETTLE = 10;
+
 export const AUDIO_EXTENSIONS = ['.mp3', '.wav', '.flac', '.ogg', '.m4a'];
 
 export const USAGE =
-    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--then <viz>] [--no-normalize] [--headless]';
+    'Usage: npm run debug:viz -- --dir <folder> --track <file> --viz <name> [--seconds N] [--from T] [--shots t1,t2] [--reselect N] [--then <viz> [--settle S]] [--no-normalize] [--headless]';
 
 export const SUMMARY_USAGE =
     'Usage: npm run debug:summary -- <telemetry.csv> [--bpm N] [--window S] [--reaction <column>]';
@@ -27,6 +30,8 @@ export interface RunArgs {
     reselect: number; // how many times the track is played in one page, choosing it again each time
     // A second visualizer to move to in the same page session (no reload) and play the track on again.
     then: string | undefined;
+    // Seconds to wait after moving to the --then visualizer before the track is chosen again; 0 means no wait.
+    settle: number;
     headless: boolean;
     // Turns the engine's volume normalization off for the run.
     noNormalize: boolean;
@@ -52,7 +57,17 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         } else if (arg === '--no-normalize') {
             noNormalize = true;
         } else if (
-            ['--dir', '--track', '--viz', '--seconds', '--from', '--shots', '--reselect', '--then'].includes(arg)
+            [
+                '--dir',
+                '--track',
+                '--viz',
+                '--seconds',
+                '--from',
+                '--shots',
+                '--reselect',
+                '--then',
+                '--settle',
+            ].includes(arg)
         ) {
             const value = argv[i + 1];
             if (value === undefined || value.startsWith('--'))
@@ -107,6 +122,18 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
         if (reselect > 1) return { kind: 'error', message: '--then cannot be combined with --reselect above 1.' };
     }
 
+    // The wait only has a meaning between the navigation and the second play, so it needs --then.
+    let settle = 0;
+    if (values.has('settle')) {
+        if (then === undefined) return { kind: 'error', message: '--settle needs --then.' };
+        const text = values.get('settle') ?? '';
+        const parsed = text.trim() === '' ? NaN : Number(text);
+        if (!Number.isFinite(parsed) || parsed < 0 || parsed > MAX_SETTLE) {
+            return { kind: 'error', message: `--settle needs a number from 0 to ${MAX_SETTLE}, got "${text}".` };
+        }
+        settle = parsed;
+    }
+
     return {
         kind: 'run',
         args: {
@@ -118,6 +145,7 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
             shots: shots.filter((shot, index) => shots.indexOf(shot) === index),
             reselect,
             then,
+            settle,
             headless,
             noNormalize,
         },

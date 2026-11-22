@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { parseOutputFolders, sessionArgs } from './record';
 
+describe('record helpers settle', () => {
+    it('passes --settle only above 0', () => {
+        const base = { dir: 'd', track: 't.wav', lead: 'cubes', then: 'bass-ink', seconds: undefined, headless: false };
+        expect(sessionArgs({ ...base, settle: 0 })).not.toContain('--settle');
+        expect(sessionArgs({ ...base, settle: 3 })).toEqual([...sessionArgs(base), '--settle', '3']);
+    });
+});
+
 describe('record helpers', () => {
     it('builds the debug:viz arguments', () => {
         expect(

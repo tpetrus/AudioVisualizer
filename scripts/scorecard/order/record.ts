@@ -11,6 +11,8 @@ export interface SessionOptions {
     lead: string;
     then: string;
     seconds: number | undefined;
+    // Seconds debug:viz waits after moving to the second visualizer; 0 passes nothing.
+    settle?: number;
     headless: boolean;
 }
 
@@ -23,6 +25,7 @@ export function parseOutputFolders(stdout: string): string[] {
 export function sessionArgs(options: SessionOptions): string[] {
     const args = ['--dir', options.dir, '--track', options.track, '--viz', options.lead, '--then', options.then];
     if (options.seconds !== undefined) args.push('--seconds', String(options.seconds));
+    if (options.settle !== undefined && options.settle > 0) args.push('--settle', String(options.settle));
     if (options.headless) args.push('--headless');
     return args;
 }
