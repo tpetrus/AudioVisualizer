@@ -874,7 +874,34 @@ second time, as the plan allows when S4 or S5 changed a live-scored visualizer.
   normalization raises its gain over silence, so the start value measures how long the input was quiet between the two
   plays, which the parse mark only partly reflects. Telling the two apart needs that gap, or the gain at the moment the
   track starts, in the recording; until then the hub rows compare a 2 s settling transient, and no reaction cell moves
-  because of it.
+  because of it. (Settled below: the gap is not it either.)
+
+### `FU-S10-order-hub-spread`: the volume normalization before the first beat
+
+- **The test.** `debug:viz --settle S` (and `scorecard:order --settle S`) waits S seconds after the move to the second
+  visualizer before choosing the track again, so its scene build and model parse are over before the track starts.
+  The dancer with `cubes` was recorded twice, 4 sessions per order each, with memory free: without the wait (21:14 to
+  22:16 UTC, 2026-11-22) and with 3 s (22:16 to 23:18 UTC).
+- **The wait changes nothing.** Both reports have 51 of 54 rows passing, and the same three fail: the dancer's `gain`
+  on `syncopationbass2` (0.156 after `cubes` against 0.078 after itself without the wait, 0.151 against 0.069 with
+  it) and its input on `drums-128` and `imyourgirl`, by less than 0.01 over the allowance. The dancer's gain on its
+  first row is the same in both: 2.2 to 3.5 after `cubes` against 1.1 to 1.3 after itself on `drums-128`, 2.5 to 3.0
+  against 2.5 to 2.8 on `syncopationbass2`. So it is not load timing.
+- **Where the spread is.** Split at 2 s, the dancer's gain distance to its lead runs after `cubes` and after itself is
+  the same past 2 s on every track (`drums-128` 0.069 and 0.068, `syncopationbass2` 0.066 and 0.077, `imyourgirl`
+  0.007 and 0.006, without the wait; the same with it). All of the extra distance is in the first 2 s (1.06 against
+  0.17 on `drums-128`, 0.88 against 0.06 on `syncopationbass2`). `drums-128` is silent until its first kick at 1.45 s;
+  over that silence `bassRaw` is 0 and the gain wanders between 1 and 5 depending on the run, and within a frame or
+  two of the first kick every run is at the same gain (0.95 to 1.0).
+- **It is not the gap or state left behind either.** Every new source gets a fresh gain node at 1 and a cleared peak
+  envelope (`AudioEngine.startSource` and `teardown`), and the 3 s wait lengthens the quiet gap without moving the
+  start gain. What still differs by order is where in the lead-in the recording starts: the first row is about 0.93 s
+  into the track after the dancer itself and 1.3 s after `cubes`, so the two compare different stretches of a gain
+  that is only moving while nothing plays.
+- **Closed as documented.** The spread is the normalization's gain over silence before the music starts, which no
+  visualizer shows (there is no bass to scale) and which every run leaves at the first beat. No reaction row moves
+  in any recording since S10, and every hub row past the first 2 s is within its control. A later order check could
+  compare from the first beat instead of the first row; that is not needed for AC11.
 
 ### `FU-S8-manual-reselect`: intended
 

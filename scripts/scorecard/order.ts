@@ -13,7 +13,15 @@ import { orderRows, type LiveCellLookup, type LoadedSession, type OrderRun } fro
 import { ORDER_USAGE, parseOrderArgs, type OrderArgs } from './order/args';
 import { recordSession } from './order/record';
 import { renderMarkdown, summaryLine, type OrderReport } from './order/report';
-import { missingPlans, pairSessions, planSessions, selectSessions, type OrderSession } from './order/sessions';
+import {
+    missingPlans,
+    pairSessions,
+    planSessions,
+    selectSessions,
+    sessionsWithSettle,
+    type OrderSession,
+} from './order/sessions';
+import { folderSettle } from './order/settle';
 
 const DEBUG_OUT = '.debug-out';
 
@@ -73,7 +81,13 @@ async function record(args: OrderArgs, existing: readonly OrderSession[]): Promi
             continue;
         }
         const started = Date.now();
-        const result = await recordSession({ dir, ...plan, seconds: args.seconds, headless: args.headless });
+        const result = await recordSession({
+            dir,
+            ...plan,
+            seconds: args.seconds,
+            settle: args.settle,
+            headless: args.headless,
+        });
         const seconds = ((Date.now() - started) / 1000).toFixed(1);
         if (result.code !== 0 || result.folders.length < 2) {
             console.log(`${plan.track} ${plan.lead} then ${plan.then}: failed after ${seconds} s (${result.tail})`);
@@ -108,12 +122,17 @@ async function main(): Promise<void> {
     let folders: RunFolder[];
     if (args.topUp) {
         // Count what .debug-out already holds, record the shortfall, then read .debug-out again for the report.
-        await record(args, pairSessions(describeAll([DEBUG_OUT]), pair));
+        await record(args, sessionsWithSettle(pairSessions(describeAll([DEBUG_OUT]), pair), args.settle, folderSettle));
         folders = describeAll([DEBUG_OUT]);
     } else folders = args.ingest.length > 0 ? describeAll(args.ingest) : await record(args, []);
     const dir = existsSync(resolve(args.dir)) ? resolve(args.dir) : undefined;
 
-    const selected = selectSessions(pairSessions(folders, pair), pair, args.tracks, args.sessions);
+    const selected = selectSessions(
+        sessionsWithSettle(pairSessions(folders, pair), args.settle, folderSettle),
+        pair,
+        args.tracks,
+        args.sessions,
+    );
     const sessionsByTrack = new Map<string, LoadedSession[]>();
     for (const [track, sessions] of selected) {
         const loaded: LoadedSession[] = [];
@@ -137,6 +156,7 @@ async function main(): Promise<void> {
             targetsVersion: TARGETS_VERSION,
             revision: revision(),
             created: new Date().toISOString(),
+            settle: args.settle,
             liveRevision: live?.header?.revision ?? null,
         },
         rows: orderRows(pair, sessionsByTrack, cellOf),

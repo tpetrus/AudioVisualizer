@@ -474,7 +474,11 @@ export function formatRepeatReport(comparison: RepeatComparison, targets?: Parti
   landing page and opens `<name>` from its card without a reload (a window marker set first must survive, or the run
   fails), chooses the track again and records a second play there. Play 1's `options.json` gets `then`, play 2's
   `after`; `scorecard:live` ignores both, since its cells are fresh page loads. It cannot be combined with `--reselect`
-  above 1. `npm run scorecard:order` drives it.
+  above 1. `npm run scorecard:order` drives it. `--settle S` (0 to 10 seconds, default 0, only with `--then`) waits S
+  seconds after the navigation before the track is chosen again, so the second visualizer's scene build and model
+  parse (the dancer does both in its first second) no longer overlap the track's start and its early volume
+  normalization gain. Play 2's `options.json` gets `settle: S` only when S is above 0; `scorecard:order --settle S`
+  passes it on and reports only the sessions recorded with that value (a folder with no `settle` counts as 0).
 - With `--from 0` the harness no longer seeks after the upload, because restarting the track a moment after it began feeds
   the tracker a discontinuity of a different length on every run. It resets the recorder only, so the first row's `t` is
   slightly above 0.

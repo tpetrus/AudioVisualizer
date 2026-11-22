@@ -64,6 +64,15 @@ export function missingPlans(plans: readonly SessionPlan[], existing: readonly O
     });
 }
 
+// The sessions whose follow play waited `settle` seconds, per `settleOf` (0 for a folder that recorded none).
+export function sessionsWithSettle(
+    sessions: readonly OrderSession[],
+    settle: number,
+    settleOf: (folder: RunFolder) => number,
+): OrderSession[] {
+    return sessions.filter((session) => settleOf(session.follow) === settle);
+}
+
 const inPair = (name: string, pair: readonly [string, string]): boolean => name === pair[0] || name === pair[1];
 
 // The sessions among `folders` that belong to `pair` (cross and control), oldest first. A lead with no follower (its second play failed) and
