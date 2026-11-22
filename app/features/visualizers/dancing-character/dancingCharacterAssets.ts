@@ -1,5 +1,6 @@
+import { LoaderUtils } from 'three';
 import type * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFLoader, type GLTF } from 'three/addons/loaders/GLTFLoader.js';
 import { disposeScene } from '~/lib/three/disposeScene';
 import { DANCE_REQUIRED_BONES, DANCES, NATIVE_BPM, type DanceId } from './dancingCharacterConfig';
 import { CHARACTER_REGISTRY } from './characterRegistry';
@@ -48,6 +49,15 @@ export function pickDances(animations: readonly THREE.AnimationClip[]): Map<Danc
     return dances;
 }
 
+// Fetches one GLB with the caller's signal, so an abort cancels the transfer itself instead of only being noticed after
+// it finishes (GLTFLoader.loadAsync takes no signal), then parses it. The base URL lets relative resources resolve.
+async function loadGltf(loader: GLTFLoader, url: string, signal: AbortSignal): Promise<GLTF> {
+    const response = await fetch(url, { signal });
+    if (!response.ok) throw new Error(`Failed to load ${url}: HTTP ${response.status}`);
+    const buffer = await response.arrayBuffer();
+    return loader.parseAsync(buffer, LoaderUtils.extractUrlBase(url));
+}
+
 // Loads the dancer and its dances in parallel. The dances are optional: if that file fails, the model still resolves
 // with an empty map. On abort whatever did load is disposed here, because the caller never receives it and would
 // otherwise leak the GPU-bound objects.
@@ -58,7 +68,10 @@ export async function loadDancingCharacterAssets(
     if (signal.aborted) throw createAbortError();
 
     const loader = new GLTFLoader();
-    const [model, dances] = await Promise.allSettled([loader.loadAsync(urls.model), loader.loadAsync(urls.dances)]);
+    const [model, dances] = await Promise.allSettled([
+        loadGltf(loader, urls.model, signal),
+        loadGltf(loader, urls.dances, signal),
+    ]);
 
     if (signal.aborted) {
         if (model.status === 'fulfilled') disposeModel(model.value.scene);
