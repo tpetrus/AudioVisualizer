@@ -1,9 +1,9 @@
 {
   "header": {
-    "targetsVersion": 8,
-    "revision": "f3e3cea",
-    "created": "2026-11-21T16:24:45.564Z",
-    "liveRevision": "5dda495"
+    "targetsVersion": 9,
+    "revision": "4ab6eaf",
+    "created": "2026-11-22T17:17:28.554Z",
+    "liveRevision": "4ab6eaf"
   },
   "rows": [
     {
@@ -12,10 +12,10 @@
       "visualizer": "dancing-character",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.054870180575843246,
-      "second": 0.06608143375529629,
-      "allowed": 0.23345594063340996,
-      "pass": true
+      "first": 0.053722203667797515,
+      "second": 0.20106935163619824,
+      "allowed": 0.17021020353816357,
+      "pass": false
     },
     {
       "pair": "dancing-character,cubes",
@@ -23,9 +23,9 @@
       "visualizer": "dancing-character",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.02243236609376368,
-      "second": 0.025104405699869797,
-      "allowed": 0.02773348786664053,
+      "first": 0.020625947913507206,
+      "second": 0.019133959539567348,
+      "allowed": 0.028694189214506925,
       "pass": true
     },
     {
@@ -34,9 +34,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.10226328554778714,
-      "second": 0.10672393104425375,
-      "allowed": 0.135664496126623,
+      "first": 0.11050204363981597,
+      "second": 0.10817026693635251,
+      "allowed": 0.13454080857954678,
       "pass": true
     },
     {
@@ -45,9 +45,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.11508772066465965,
-      "second": 0.11925937190581813,
-      "allowed": 0.15178844889263476,
+      "first": 0.12764588028070628,
+      "second": 0.12288449183368846,
+      "allowed": 0.15148207079039694,
       "pass": true
     },
     {
@@ -56,9 +56,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.12536815584015082,
-      "second": 0.13043934452913067,
-      "allowed": 0.1583851128371606,
+      "first": 0.1358706367916388,
+      "second": 0.13178593657868842,
+      "allowed": 0.16107461081081387,
       "pass": true
     },
     {
@@ -67,10 +67,10 @@
       "visualizer": "dancing-character",
       "signal": "dancing-character.in",
       "kind": "hub",
-      "first": 0.059343477760575705,
-      "second": 0.06472115362117176,
-      "allowed": 0.10081029792594222,
-      "pass": true
+      "first": 0.04989904901766105,
+      "second": 0.0756031232954204,
+      "allowed": 0.0612891874264932,
+      "pass": false
     },
     {
       "pair": "dancing-character,cubes",
@@ -78,9 +78,9 @@
       "visualizer": "dancing-character",
       "signal": "live.hit.share50ms",
       "kind": "reaction",
-      "first": 0.7983870967741935,
-      "second": 0.8265027322404372,
-      "allowed": 0.13870056497175143,
+      "first": 0.8114754098360656,
+      "second": 0.819672131147541,
+      "allowed": 0.043010752688172116,
       "pass": true
     },
     {
@@ -89,9 +89,9 @@
       "visualizer": "dancing-character",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 35.75000000000106,
-      "second": 34.1875000000007,
-      "allowed": 6.875000000000853,
+      "first": 32.68749999999932,
+      "second": 31.874999999999876,
+      "allowed": 5.250000000000199,
       "pass": true
     },
     {
@@ -102,7 +102,7 @@
       "kind": "reaction",
       "first": 0.01,
       "second": 0,
-      "allowed": 0.14893617021276595,
+      "allowed": 0.02,
       "pass": true
     },
     {
@@ -111,9 +111,9 @@
       "visualizer": "cubes",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.3739040922123126,
-      "second": 0.24414904215815897,
-      "allowed": 0.3739040922123126,
+      "first": 0.36039242652140135,
+      "second": 0.22255114097639145,
+      "allowed": 0.36039242652140135,
       "pass": true
     },
     {
@@ -122,9 +122,9 @@
       "visualizer": "cubes",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.0214433855184306,
-      "second": 0.01982919642139507,
-      "allowed": 0.027027249822533864,
+      "first": 0.020609263885468188,
+      "second": 0.02230681116352168,
+      "allowed": 0.028141135369954936,
       "pass": true
     },
     {
@@ -133,9 +133,9 @@
       "visualizer": "cubes",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.12980687038397737,
-      "second": 0.08065692786961023,
-      "allowed": 0.12980687038397737,
+      "first": 0.1214480031546971,
+      "second": 0.10882859016238,
+      "allowed": 0.13937478102742004,
       "pass": true
     },
     {
@@ -144,9 +144,9 @@
       "visualizer": "cubes",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.1383590093447381,
-      "second": 0.08735261506270989,
-      "allowed": 0.1383590093447381,
+      "first": 0.1333958182408187,
+      "second": 0.11959253048373597,
+      "allowed": 0.15708671913731467,
       "pass": true
     },
     {
@@ -155,9 +155,9 @@
       "visualizer": "cubes",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.14307588244109926,
-      "second": 0.09985388197724686,
-      "allowed": 0.1460445938701889,
+      "first": 0.13637306063345994,
+      "second": 0.12996236549662515,
+      "allowed": 0.16324797397245705,
       "pass": true
     },
     {
@@ -166,9 +166,9 @@
       "visualizer": "cubes",
       "signal": "cubes.in",
       "kind": "hub",
-      "first": 0.04364938335618654,
-      "second": 0.028164500195311734,
-      "allowed": 0.04364938335618654,
+      "first": 0.04218934472998105,
+      "second": 0.029117065501256895,
+      "allowed": 0.04218934472998105,
       "pass": true
     },
     {
@@ -179,7 +179,7 @@
       "kind": "reaction",
       "first": 0.2698412698412698,
       "second": 0.2704918032786885,
-      "allowed": 0.007546187874056698,
+      "allowed": 0.02341920374707257,
       "pass": true
     },
     {
@@ -188,9 +188,9 @@
       "visualizer": "cubes",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 27.674999999999894,
-      "second": 28.50000000000108,
-      "allowed": 5.499999999999616,
+      "first": 28.824999999999655,
+      "second": 28.42500000000081,
+      "allowed": 5.000000000000782,
       "pass": true
     },
     {
@@ -199,9 +199,9 @@
       "visualizer": "cubes",
       "signal": "live.falseFire.share",
       "kind": "reaction",
-      "first": 0.6220355731225297,
-      "second": 0.6371980676328503,
-      "allowed": 0.036077235772357774,
+      "first": 0.6046511627906976,
+      "second": 0.6158008658008658,
+      "allowed": 0.09207403891789268,
       "pass": true
     },
     {
@@ -210,9 +210,9 @@
       "visualizer": "dancing-character",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.007679707084607963,
-      "second": 0.0069233291809556105,
-      "allowed": 0.010244993624013252,
+      "first": 0.006060833102621941,
+      "second": 0.005936598456512945,
+      "allowed": 0.008010062388377667,
       "pass": true
     },
     {
@@ -221,9 +221,9 @@
       "visualizer": "dancing-character",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.009310823327808441,
-      "second": 0.015036260532578644,
-      "allowed": 0.01602084505987488,
+      "first": 0.01374685382313977,
+      "second": 0.012674660553052,
+      "allowed": 0.0160497818449235,
       "pass": true
     },
     {
@@ -232,9 +232,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.13261626901979787,
-      "second": 0.13848755806300797,
-      "allowed": 0.1413726575613377,
+      "first": 0.12904147512246728,
+      "second": 0.1294350176927936,
+      "allowed": 0.1475694036542636,
       "pass": true
     },
     {
@@ -243,9 +243,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.12793800941979158,
-      "second": 0.1290464765544891,
-      "allowed": 0.1521368958581994,
+      "first": 0.12068205751831657,
+      "second": 0.11672711384243845,
+      "allowed": 0.15058944497368984,
       "pass": true
     },
     {
@@ -254,9 +254,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.12731368438079307,
-      "second": 0.12675730830691528,
-      "allowed": 0.1501422479205255,
+      "first": 0.12048909721189374,
+      "second": 0.11997799015913083,
+      "allowed": 0.14606460152382594,
       "pass": true
     },
     {
@@ -265,9 +265,9 @@
       "visualizer": "dancing-character",
       "signal": "dancing-character.in",
       "kind": "hub",
-      "first": 0.021501424003459335,
-      "second": 0.037885551848736355,
-      "allowed": 0.02727779974195571,
+      "first": 0.026613223012583627,
+      "second": 0.035342450300752254,
+      "allowed": 0.02937572228455155,
       "pass": false
     },
     {
@@ -276,9 +276,9 @@
       "visualizer": "dancing-character",
       "signal": "live.hit.share50ms",
       "kind": "reaction",
-      "first": 0.3881578947368421,
-      "second": 0.39473684210526316,
-      "allowed": 0.13157894736842107,
+      "first": 0.39473684210526316,
+      "second": 0.4013157894736842,
+      "allowed": 0.1447368421052631,
       "pass": true
     },
     {
@@ -287,9 +287,9 @@
       "visualizer": "dancing-character",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 51.83333333333407,
+      "first": 51.666666666669414,
       "second": 51.750000000000625,
-      "allowed": 2.6666666666637084,
+      "allowed": 2.999999999997449,
       "pass": true
     },
     {
@@ -298,9 +298,9 @@
       "visualizer": "dancing-character",
       "signal": "live.falseFire.share",
       "kind": "reaction",
-      "first": 0.5461538461538462,
-      "second": 0.53125,
-      "allowed": 0.1629807692307692,
+      "first": 0.5419580419580419,
+      "second": 0.5270432692307692,
+      "allowed": 0.16923076923076924,
       "pass": true
     },
     {
@@ -309,10 +309,10 @@
       "visualizer": "cubes",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.007396416346276823,
-      "second": 0.008128991866466928,
-      "allowed": 0.007396416346276823,
-      "pass": false
+      "first": 0.007748069603495743,
+      "second": 0.006554720422032775,
+      "allowed": 0.010622462580795522,
+      "pass": true
     },
     {
       "pair": "dancing-character,cubes",
@@ -320,9 +320,9 @@
       "visualizer": "cubes",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.01413461648098778,
-      "second": 0.008682178904269446,
-      "allowed": 0.01552325469957965,
+      "first": 0.012583867453975647,
+      "second": 0.013208605156036026,
+      "allowed": 0.016150206404317108,
       "pass": true
     },
     {
@@ -331,9 +331,9 @@
       "visualizer": "cubes",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.13304267512198367,
-      "second": 0.12501437589552988,
-      "allowed": 0.14216072950968836,
+      "first": 0.13843803254036785,
+      "second": 0.13450793616937803,
+      "allowed": 0.15588964299334623,
       "pass": true
     },
     {
@@ -342,9 +342,9 @@
       "visualizer": "cubes",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.13121306602593474,
-      "second": 0.11887872263852903,
-      "allowed": 0.1493126255365151,
+      "first": 0.1316923328049211,
+      "second": 0.11737375762556487,
+      "allowed": 0.15166415079906054,
       "pass": true
     },
     {
@@ -353,9 +353,9 @@
       "visualizer": "cubes",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.12728866398551086,
-      "second": 0.11708997372179197,
-      "allowed": 0.14301137387032076,
+      "first": 0.12655685866244942,
+      "second": 0.11559207740826993,
+      "allowed": 0.14620563406190962,
       "pass": true
     },
     {
@@ -364,9 +364,9 @@
       "visualizer": "cubes",
       "signal": "cubes.in",
       "kind": "hub",
-      "first": 0.012271699708902262,
-      "second": 0.010928249842992474,
-      "allowed": 0.012271699708902262,
+      "first": 0.012257382323815205,
+      "second": 0.011878024385729763,
+      "allowed": 0.013700450053085135,
       "pass": true
     },
     {
@@ -375,9 +375,9 @@
       "visualizer": "cubes",
       "signal": "live.hit.share50ms",
       "kind": "reaction",
-      "first": 0.5263157894736843,
-      "second": 0.5789473684210527,
-      "allowed": 0.1578947368421052,
+      "first": 0.5526315789473685,
+      "second": 0.5657894736842105,
+      "allowed": 0.09210526315789469,
       "pass": true
     },
     {
@@ -386,10 +386,10 @@
       "visualizer": "cubes",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 51.166666666666586,
+      "first": 49.583333333333755,
       "second": 41.50000000000187,
-      "allowed": 9.999999999998899,
-      "pass": true
+      "allowed": 2.6999999999999247,
+      "pass": false
     },
     {
       "pair": "dancing-character,cubes",
@@ -397,9 +397,9 @@
       "visualizer": "cubes",
       "signal": "live.falseFire.share",
       "kind": "reaction",
-      "first": 0.5531210986267165,
-      "second": 0.5027451481103167,
-      "allowed": 0.14134320735444333,
+      "first": 0.5280303030303031,
+      "second": 0.5168539325842697,
+      "allowed": 0.08193979933110362,
       "pass": true
     },
     {
@@ -408,9 +408,9 @@
       "visualizer": "dancing-character",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.0708783941650068,
-      "second": 0.11533709389172059,
-      "allowed": 0.08291700910606505,
+      "first": 0.06759098902837188,
+      "second": 0.1253164599281157,
+      "allowed": 0.08321683923134199,
       "pass": false
     },
     {
@@ -419,9 +419,9 @@
       "visualizer": "dancing-character",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.013203973602726906,
-      "second": 0.011391093502493493,
-      "allowed": 0.013203973602726906,
+      "first": 0.01374872463498326,
+      "second": 0.014067580619187666,
+      "allowed": 0.01594660628087581,
       "pass": true
     },
     {
@@ -430,10 +430,10 @@
       "visualizer": "dancing-character",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.10994008489964335,
-      "second": 0.15008068191254387,
-      "allowed": 0.1486305651104094,
-      "pass": false
+      "first": 0.14084156690452426,
+      "second": 0.1427090567070911,
+      "allowed": 0.14573612169687503,
+      "pass": true
     },
     {
       "pair": "dancing-character,cubes",
@@ -441,9 +441,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.08723092888683373,
-      "second": 0.09755437135033221,
-      "allowed": 0.12521662632484368,
+      "first": 0.11613354730414552,
+      "second": 0.09920314268608582,
+      "allowed": 0.11613354730414552,
       "pass": true
     },
     {
@@ -452,9 +452,9 @@
       "visualizer": "dancing-character",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.10365246637227332,
-      "second": 0.09913897735286385,
-      "allowed": 0.14002900712543642,
+      "first": 0.13011651060063112,
+      "second": 0.11464732827708185,
+      "allowed": 0.1313153314394966,
       "pass": true
     },
     {
@@ -463,9 +463,9 @@
       "visualizer": "dancing-character",
       "signal": "dancing-character.in",
       "kind": "hub",
-      "first": 0.08707972560596106,
-      "second": 0.04692613299472624,
-      "allowed": 0.08707972560596106,
+      "first": 0.08558762110103102,
+      "second": 0.05773286278437129,
+      "allowed": 0.08558762110103102,
       "pass": true
     },
     {
@@ -474,9 +474,9 @@
       "visualizer": "dancing-character",
       "signal": "live.hit.share50ms",
       "kind": "reaction",
-      "first": 0.45161290322580644,
-      "second": 0.45081967213114754,
-      "allowed": 0.19946236559139785,
+      "first": 0.43548387096774194,
+      "second": 0.4180327868852459,
+      "allowed": 0.14754098360655737,
       "pass": true
     },
     {
@@ -485,9 +485,9 @@
       "visualizer": "dancing-character",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 48.00000000000182,
-      "second": 49.333333333335894,
-      "allowed": 11.00000000000012,
+      "first": 49.333333333335446,
+      "second": 49.50000000000365,
+      "allowed": 8.000000000000895,
       "pass": true
     },
     {
@@ -496,9 +496,9 @@
       "visualizer": "dancing-character",
       "signal": "live.falseFire.share",
       "kind": "reaction",
-      "first": 0.42283163265306123,
-      "second": 0.43239795918367346,
-      "allowed": 0.22319566124322066,
+      "first": 0.4315159574468085,
+      "second": 0.4574468085106383,
+      "allowed": 0.15688775510204084,
       "pass": true
     },
     {
@@ -507,9 +507,9 @@
       "visualizer": "cubes",
       "signal": "gain",
       "kind": "hub",
-      "first": 0.0567959272162145,
-      "second": 0.05305263907563916,
-      "allowed": 0.11391900135505177,
+      "first": 0.06893484882515238,
+      "second": 0.07285894577880137,
+      "allowed": 0.08429966368695879,
       "pass": true
     },
     {
@@ -518,9 +518,9 @@
       "visualizer": "cubes",
       "signal": "bassRaw",
       "kind": "hub",
-      "first": 0.014777608057870649,
-      "second": 0.014100145897675742,
-      "allowed": 0.015959605893891102,
+      "first": 0.014039223904702839,
+      "second": 0.014493195416438637,
+      "allowed": 0.016750667897945628,
       "pass": true
     },
     {
@@ -529,9 +529,9 @@
       "visualizer": "cubes",
       "signal": "onsetKick",
       "kind": "hub",
-      "first": 0.11815692793807589,
-      "second": 0.11464484423520817,
-      "allowed": 0.15443682635247988,
+      "first": 0.15714412482270895,
+      "second": 0.20140465213723746,
+      "allowed": 0.2122617342746226,
       "pass": true
     },
     {
@@ -540,9 +540,9 @@
       "visualizer": "cubes",
       "signal": "onsetMid",
       "kind": "hub",
-      "first": 0.11321073959259406,
-      "second": 0.09819399505002402,
-      "allowed": 0.12227155205511069,
+      "first": 0.13393421115663784,
+      "second": 0.119564181590171,
+      "allowed": 0.1368021830028531,
       "pass": true
     },
     {
@@ -551,9 +551,9 @@
       "visualizer": "cubes",
       "signal": "onsetHigh",
       "kind": "hub",
-      "first": 0.12017833236446895,
-      "second": 0.11626209786973152,
-      "allowed": 0.14695682249512143,
+      "first": 0.12739401901045988,
+      "second": 0.12775533909652081,
+      "allowed": 0.1501710051101397,
       "pass": true
     },
     {
@@ -562,9 +562,9 @@
       "visualizer": "cubes",
       "signal": "cubes.in",
       "kind": "hub",
-      "first": 0.015512847411603484,
-      "second": 0.014763383287492406,
-      "allowed": 0.01898692606367644,
+      "first": 0.016528712189238893,
+      "second": 0.017418825064228413,
+      "allowed": 0.026076948143517586,
       "pass": true
     },
     {
@@ -573,9 +573,9 @@
       "visualizer": "cubes",
       "signal": "live.hit.share50ms",
       "kind": "reaction",
-      "first": 0.6451612903225806,
-      "second": 0.6586462189317821,
-      "allowed": 0.09227921734531996,
+      "first": 0.6612903225806451,
+      "second": 0.6290322580645161,
+      "allowed": 0.11898466419883658,
       "pass": true
     },
     {
@@ -584,9 +584,9 @@
       "visualizer": "cubes",
       "signal": "live.reaction.latencyMs",
       "kind": "reaction",
-      "first": 49.150000000001356,
-      "second": 41.333333333336775,
-      "allowed": 10.14999999999899,
+      "first": 47.833333333336725,
+      "second": 47.425000000000495,
+      "allowed": 10.483333333333618,
       "pass": true
     },
     {
@@ -595,9 +595,9 @@
       "visualizer": "cubes",
       "signal": "live.falseFire.share",
       "kind": "reaction",
-      "first": 0.3835583984837716,
-      "second": 0.3412698412698413,
-      "allowed": 0.1275878671160327,
+      "first": 0.3643578643578643,
+      "second": 0.37106427270361697,
+      "allowed": 0.1603483606557377,
       "pass": true
     }
   ]
