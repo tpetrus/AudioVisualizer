@@ -11,6 +11,7 @@ describe('parseOrderArgs', () => {
             tracks: ORDER_TRACKS,
             sessions: DEFAULT_SESSIONS,
             seconds: undefined,
+            settle: 0,
             headless: false,
             ingest: [],
             topUp: false,
@@ -77,5 +78,22 @@ describe('parseOrderArgs', () => {
         [[...base, '--bogus'], 'Unexpected argument'],
     ])('rejects %j', (argv, message) => {
         expect(() => parseOrderArgs(argv)).toThrow(message);
+    });
+});
+
+describe('parseOrderArgs --settle', () => {
+    it('reads seconds from 0 to 10', () => {
+        expect(parseOrderArgs([...base, '--settle', '3']).settle).toBe(3);
+        expect(parseOrderArgs([...base, '--settle', '10']).settle).toBe(10);
+    });
+
+    it('rejects values outside the range', () => {
+        expect(() => parseOrderArgs([...base, '--settle', '-1'])).toThrow('--settle needs a number from 0 to 10');
+        expect(() => parseOrderArgs([...base, '--settle', '11'])).toThrow('--settle needs a number from 0 to 10');
+        expect(() => parseOrderArgs([...base, '--settle', 'x'])).toThrow('--settle needs a number from 0 to 10');
+    });
+
+    it('is in the usage text', () => {
+        expect(ORDER_USAGE).toContain('--settle S');
     });
 });
