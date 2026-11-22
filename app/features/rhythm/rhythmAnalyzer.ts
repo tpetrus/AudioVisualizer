@@ -69,7 +69,6 @@ export class RhythmAnalyzer {
 
     private framesSinceTempo = 0;
     private latestTime = 0;
-    private changeTime = -Infinity;
     private frames = 0;
     private seenGridEpoch = 0;
 
@@ -124,12 +123,6 @@ export class RhythmAnalyzer {
     // has acted on. The state's songChangeCount counts these together with the hard ones, so this tells them apart.
     get softBoundaryCount(): number {
         return this.boundary.softBoundaryCount;
-    }
-
-    // The time in seconds of the newest frame analyzed when the latest song change was counted, -Infinity before the
-    // first. Read it after each frame to get the time of every change.
-    get lastSongChangeTime(): number {
-        return this.changeTime;
     }
 
     // Number of frames analysed over this analyzer's whole life (resets do not clear it); 0 means nothing was heard yet.
@@ -239,7 +232,6 @@ export class RhythmAnalyzer {
 
     private countSongChange(): void {
         this.state.songChangeCount++;
-        this.changeTime = this.latestTime;
     }
 
     // Forgets everything learned (a new source, or the music ended). `countAsSongChange` increments songChangeCount.

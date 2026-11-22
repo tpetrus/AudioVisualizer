@@ -21,11 +21,10 @@ S4 measurement (`npm run probe:gate-inputs`; the figures are in the plan's amend
   S9); `BassPulse` is the tap plus its envelope, kept only as the pre-hub reference for `BassBump`'s spec and the
   scorecard's pre-hub column.
 - `gateBass.pulse` is that level, linear and not normalized. It is the newest audio and is not shifted by the user's
-  sync offset (`bands`, `lowEnd` and `beat` are). It reads 0 when the tracker has no source, and the tap is then
-  disconnected; a render time that is briefly undefined with the same source keeps the tap and the reading. `update(now)`
-  with an explicit time behaves as before. `gateBass.lowEnd` is the louder of the
-  `sub` and `kick` band energies before the hub's peak scaling, from the same frame as `bands` (the newest at or before
-  the render time). Both are written in place, 0 before the first update and after a reset. The existing fields and
+  sync offset (`bands`, `onsets`, `lowEnd` and `beat` are). It reads 0 when the tracker has no source, and the tap is
+  then disconnected; a render time that is briefly undefined with the same source keeps the tap and the reading.
+  `update(now)` with an explicit time behaves as before. `gateBass.lowEnd` is the louder of the `sub` and `kick` band
+  energies before the hub's peak scaling, from the same frame as `bands` (the newest at or before the render time). Both are written in place, 0 before the first update and after a reset. The existing fields and
   their meaning are unchanged.
 - Consumers run their own envelope over `pulse` (the dancer's gate and the cubes' bump use `BassPulse`'s fast and slow
   followers, per second rather than per frame).

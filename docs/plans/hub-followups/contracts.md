@@ -12,7 +12,9 @@ behaves as before. Wording is updated in `docs/plans/hub-regressions/contracts.m
 and the hub class comment in `app/features/audio/hub/audioHub.ts`. Owner: S2.
 
 ## C2: Analyzer counters
-`RhythmAnalyzer` and `BoundaryDetector` expose read-only counters for soft boundaries and song-change times.
+`RhythmAnalyzer` and `BoundaryDetector` expose a read-only soft-boundary counter; the replay takes song-change times
+from its own loop, at each rise of `songChangeCount` (the analyzer's unread last song-change time was removed in the
+follow-up `HF-S2-last-song-change-time`).
 `RhythmState` is unchanged. The scorecard engine (`scripts/scorecard/engine/boundaryProbe.ts`, `songChanges.ts`) reads
 the counters and no longer wraps prototype methods. Offline scorecard cells stay identical. Owner: S2.
 
