@@ -290,7 +290,7 @@ export function useDancingCharacterScene(
                 const locked = cameraLockedRef.current;
                 orbit.setLocked(locked);
                 // Locking again puts the camera back on the dancer, so it also returns to its starting spot, exactly as
-                // Reset view does; otherwise a dragged pose would stay while the button that undoes it is hidden.
+                // Reset view does; otherwise the dragged pose would stay and Reset view would still show.
                 if (locked && !wasLocked) resetCamera();
                 wasLocked = locked;
 
