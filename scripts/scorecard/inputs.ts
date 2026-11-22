@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { BeatSidecar } from '../../app/features/rhythm/eval/evalTypes';
 import { parseBeatSidecar } from '../../app/features/rhythm/eval/sidecar';
 import { GROUND_TRUTH_TRACKS, renderGroundTruthTrack } from '../ground-truth/render';
+import { measureSetDirector, type SetDirectorMeasure } from './engine/setDirector';
 import { readWav } from '../rhythm-tools/wav';
 import { measureTrack } from './engine/measureTrack';
 import { LIVE_FILE } from './live/args';
@@ -130,8 +131,9 @@ export function loadTracks(dir: string): LoadedTracks {
 export function measureSources(
     sources: readonly TrackSource[],
     onTrack?: (name: string, seconds: number) => void,
-): Pick<ScorecardInput, 'measures' | 'sidecarHashes' | 'available'> {
+): Pick<ScorecardInput, 'measures' | 'sidecarHashes' | 'available' | 'setDirector'> {
     const measures: TrackMeasures[] = [];
+    const setDirector: SetDirectorMeasure[] = [];
     const sidecarHashes: Record<string, string> = {};
     const available: ScorecardInput['available'] = [];
     for (const source of sources) {
@@ -146,12 +148,15 @@ export function measureSources(
                 bpm: source.bpm,
             }),
         );
+        // bass-ink's set director, advisory (AC6): only on real music, the only tracks setDirectorCells reports.
+        if (source.class !== 'synthetic')
+            setDirector.push(measureSetDirector(source.name, source.pcm, source.sampleRate));
         available.push({ track: source.name, hasBeats: source.sidecar !== undefined });
         // Generated tracks have a sidecar too, but it is not a file the user can change, so it is not hashed.
         if (source.sidecarHash !== undefined) sidecarHashes[source.name] = source.sidecarHash;
         onTrack?.(source.name, (Date.now() - started) / 1000);
     }
-    return { measures, sidecarHashes, available };
+    return { measures, sidecarHashes, available, setDirector };
 }
 
 // The one-line summary the runner prints; the same counts the markdown report opens with.

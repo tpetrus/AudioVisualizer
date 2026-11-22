@@ -1,10 +1,10 @@
 # Scorecard
 
-Targets version 8, revision e076338, created 2026-11-21T15:26:56.843Z.
+Targets version 9, revision 86a802c, created 2026-11-22T01:46:46.063Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 426: 377 passing, 24 failing, 25 unavailable. Blocking failures: 14.
+Applicable cells 443: 390 passing, 27 failing, 26 unavailable. Blocking failures: 13.
 
 ## ac9
 
@@ -35,7 +35,7 @@ Applicable cells 426: 377 passing, 24 failing, 25 unavailable. Blocking failures
 | beat.errorMedianMs | low-bpm-rnb.wav | tapped | 183.4 | 40.0 | - | - | fail |
 | beat.errorMedianMs | no-kick-124.wav | synthetic | 1.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | pad-lead-groove-110.wav | synthetic | 1.6 | 20.0 | - | - | pass |
-| beat.errorMedianMs | summer2000.wav | tapped | 150.5 | 40.0 | - | - | fail |
+| beat.errorMedianMs | summer2000.wav | tapped | 153.4 | 40.0 | - | - | fail |
 | beat.errorMedianMs | syncopation-no-kick.wav | tapped | 29.9 | 40.0 | - | - | pass |
 | beat.errorMedianMs | syncopationbass.wav | tapped | 35.7 | 40.0 | - | - | pass |
 | beat.errorMedianMs | syncopationbass2.wav | tapped | 18.7 | 40.0 | - | - | pass |
@@ -65,7 +65,7 @@ Applicable cells 426: 377 passing, 24 failing, 25 unavailable. Blocking failures
 | cubes.hit.share50ms | low-bpm-rnb.wav | tapped | 0.171 | - | 0.900 | 0.171 | pass |
 | cubes.hit.share50ms | no-kick-124.wav | synthetic | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | pad-lead-groove-110.wav | synthetic | - | - | 0.900 | - | n/a |
-| cubes.hit.share50ms | summer2000.wav | tapped | 0.296 | - | 0.900 | 0.296 | pass |
+| cubes.hit.share50ms | summer2000.wav | tapped | 0.034 | - | 0.900 | 0.034 | pass |
 | cubes.hit.share50ms | syncopation-no-kick.wav | tapped | - | - | 0.900 | - | n/a |
 | cubes.hit.share50ms | syncopationbass.wav | tapped | 0.179 | - | 0.900 | 0.179 | pass |
 | cubes.hit.share50ms | syncopationbass2.wav | tapped | 0.629 | - | 0.900 | 0.629 | pass |
@@ -90,7 +90,7 @@ Applicable cells 426: 377 passing, 24 failing, 25 unavailable. Blocking failures
 | cubes.reaction.latencyMs | low-bpm-rnb.wav | tapped | 16.7 | - | 46.7 | 16.7 | pass |
 | cubes.reaction.latencyMs | no-kick-124.wav | synthetic | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | pad-lead-groove-110.wav | synthetic | - | - | 46.7 | - | n/a |
-| cubes.reaction.latencyMs | summer2000.wav | tapped | 45.3 | - | 46.7 | 45.3 | pass |
+| cubes.reaction.latencyMs | summer2000.wav | tapped | 163.3 | - | 46.7 | 163.3 | pass |
 | cubes.reaction.latencyMs | syncopation-no-kick.wav | tapped | - | - | 46.7 | - | n/a |
 | cubes.reaction.latencyMs | syncopationbass.wav | tapped | 74.7 | - | 46.7 | 74.7 | pass |
 | cubes.reaction.latencyMs | syncopationbass2.wav | tapped | 46.0 | - | 46.7 | 46.0 | pass |
@@ -202,8 +202,8 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.clip.maxDeviationBeats | low-bpm-rnb.wav | dancing-character | tapped | - | 0.000 | 0 | 0.200 | - | - | unavailable (advisory) |
 | live.clip.maxDeviationBeats | no-kick-124.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.200 | - | - | n/a |
 | live.clip.maxDeviationBeats | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.200 | - | - | n/a |
-| live.clip.maxDeviationBeats | summer2000.wav | dancing-character | tapped | 0.038 | 0.062 | 4 | 0.200 | - | - | pass (advisory) |
-| live.clip.maxDeviationBeats | syncopation-no-kick.wav | dancing-character | tapped | 0.219 | 0.346 | 4 | 0.200 | - | - | fail (advisory) |
+| live.clip.maxDeviationBeats | summer2000.wav | dancing-character | tapped | - | 0.000 | 0 | 0.200 | - | - | unavailable (advisory) |
+| live.clip.maxDeviationBeats | syncopation-no-kick.wav | dancing-character | tapped | 0.141 | 0.205 | 4 | 0.200 | - | - | fail (advisory) |
 | live.clip.maxDeviationBeats | syncopationbass.wav | dancing-character | tapped | - | 0.000 | 0 | 0.200 | - | - | unavailable (advisory) |
 | live.clip.maxDeviationBeats | syncopationbass2.wav | dancing-character | tapped | 0.040 | 0.257 | 4 | 0.200 | - | - | pass (advisory) |
 | live.clip.maxDeviationBeats | trap-2to1-double-90.wav | dancing-character | synthetic | - | 0.000 | 0 | 0.200 | - | - | n/a |
@@ -347,7 +347,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | drums-150.wav | dancing-character | synthetic | 0.770 | 0.196 | 4 | - | 0.900 | 0.757 | pass (advisory) |
 | live.hit.share50ms | drums-150.wav | trio-color-wave | synthetic | 0.260 | 0.000 | 4 | - | 0.900 | 0.260 | pass (advisory) |
 | live.hit.share50ms | half-time-shuffle.wav | bass-ink | tapped | 0.189 | 0.081 | 4 | - | 0.900 | - | pass (advisory) |
-| live.hit.share50ms | half-time-shuffle.wav | cubes | tapped | 0.338 | 0.054 | 4 | - | 0.900 | 0.365 | pass (advisory) |
+| live.hit.share50ms | half-time-shuffle.wav | cubes | tapped | 0.338 | 0.054 | 4 | - | 0.900 | 0.365 | fail (advisory) |
 | live.hit.share50ms | half-time-shuffle.wav | dancing-character | tapped | 0.135 | 0.081 | 4 | - | 0.900 | 0.135 | pass (advisory) |
 | live.hit.share50ms | half-time-shuffle.wav | trio-color-wave | tapped | 0.405 | 0.081 | 4 | - | 0.900 | 0.405 | pass (advisory) |
 | live.hit.share50ms | high-bpm-dnb.wav | bass-ink | tapped | 0.024 | 0.000 | 3 | - | 0.900 | - | pass (advisory) |
@@ -361,7 +361,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | lonley.wav | bass-ink | tapped | 0.000 | 0.000 | 4 | - | 0.900 | - | pass (advisory) |
 | live.hit.share50ms | lonley.wav | cubes | tapped | 0.169 | 0.031 | 4 | - | 0.900 | 0.114 | pass (advisory) |
 | live.hit.share50ms | lonley.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.293 | fail (advisory) |
-| live.hit.share50ms | lonley.wav | trio-color-wave | tapped | 0.154 | 0.000 | 4 | - | 0.900 | 0.171 | pass (advisory) |
+| live.hit.share50ms | lonley.wav | trio-color-wave | tapped | 0.154 | 0.000 | 4 | - | 0.900 | 0.171 | fail (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | bass-ink | tapped | 0.229 | 0.114 | 2 | - | 0.900 | - | unavailable (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | cubes | tapped | 0.157 | 0.029 | 4 | - | 0.900 | 0.157 | pass (advisory) |
 | live.hit.share50ms | low-bpm-rnb.wav | dancing-character | tapped | 0.171 | 0.057 | 2 | - | 0.900 | 0.000 | unavailable (advisory) |
@@ -372,14 +372,14 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | live.hit.share50ms | pad-lead-groove-110.wav | dancing-character | synthetic | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | summer2000.wav | bass-ink | tapped | 0.000 | 0.000 | 4 | - | 0.900 | - | pass (advisory) |
 | live.hit.share50ms | summer2000.wav | cubes | tapped | 0.269 | 0.056 | 4 | - | 0.900 | 0.034 | pass (advisory) |
-| live.hit.share50ms | summer2000.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.017 | pass (advisory) |
+| live.hit.share50ms | summer2000.wav | dancing-character | tapped | 0.000 | 0.000 | 4 | - | 0.900 | 0.017 | fail (advisory) |
 | live.hit.share50ms | summer2000.wav | trio-color-wave | tapped | 0.148 | 0.037 | 4 | - | 0.900 | 0.119 | pass (advisory) |
 | live.hit.share50ms | syncopation-no-kick.wav | cubes | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopation-no-kick.wav | dancing-character | tapped | - | 0.000 | 0 | - | 0.900 | - | n/a |
 | live.hit.share50ms | syncopationbass.wav | bass-ink | tapped | 0.170 | 0.089 | 4 | - | 0.900 | - | pass (advisory) |
 | live.hit.share50ms | syncopationbass.wav | cubes | tapped | 0.161 | 0.036 | 4 | - | 0.900 | 0.161 | pass (advisory) |
 | live.hit.share50ms | syncopationbass.wav | dancing-character | tapped | 0.189 | 0.185 | 4 | - | 0.900 | 0.036 | pass (advisory) |
-| live.hit.share50ms | syncopationbass.wav | trio-color-wave | tapped | 0.089 | 0.018 | 4 | - | 0.900 | 0.107 | pass (advisory) |
+| live.hit.share50ms | syncopationbass.wav | trio-color-wave | tapped | 0.089 | 0.018 | 4 | - | 0.900 | 0.107 | fail (advisory) |
 | live.hit.share50ms | syncopationbass2.wav | bass-ink | tapped | 0.508 | 0.081 | 4 | - | 0.900 | - | pass (advisory) |
 | live.hit.share50ms | syncopationbass2.wav | cubes | tapped | 0.648 | 0.055 | 4 | - | 0.900 | 0.629 | pass (advisory) |
 | live.hit.share50ms | syncopationbass2.wav | dancing-character | tapped | 0.483 | 0.199 | 4 | - | 0.900 | 0.431 | pass (advisory) |
@@ -608,6 +608,28 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | onset.f50.snare | trap-2to1-half-140.wav | synthetic | - | 0.900 | - | - | n/a |
 | onset.f50.snare | trap-4to3-120.wav | synthetic | 1.000 | 0.900 | - | - | pass |
 
+## setDirector
+
+| Metric | Track | Class | Value | Floor | Stretch | Pre-hub | Status |
+|---|---|---|---|---|---|---|---|
+| setDirector.transitionSeconds.01 | 6-8-time.wav | tapped | 17.533 | - | - | - | pass (report-only) |
+| setDirector.transitionSeconds.01 | lonley.wav | tapped | 10.783 | - | - | - | pass (report-only) |
+| setDirector.transitionSeconds.01 | summer2000.wav | tapped | 23.567 | - | - | - | pass (report-only) |
+| setDirector.transitionSeconds.01 | syncopationbass.wav | tapped | 21.733 | - | - | - | pass (report-only) |
+| setDirector.transitionSeconds.02 | syncopationbass.wav | tapped | 31.200 | - | - | - | pass (report-only) |
+| setDirector.transitions | 6-8-time.wav | tapped | 1.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | beatless.wav | beatless | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | drifting-tempo.wav | drifting | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | half-time-shuffle.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | high-bpm-dnb.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | imyourgirl.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | lonley.wav | tapped | 1.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | low-bpm-rnb.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | summer2000.wav | tapped | 1.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | syncopation-no-kick.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | syncopationbass.wav | tapped | 2.000 | - | - | - | pass (report-only) |
+| setDirector.transitions | syncopationbass2.wav | tapped | 0.000 | - | - | - | pass (report-only) |
+
 ## tempo
 
 | Metric | Track | Class | Value | Floor | Stretch | Pre-hub | Status |
@@ -694,7 +716,7 @@ Median over the runs; spread is max minus min; advisory (decision D13).
 | tempo.maxErrorAfterLock | click-140.wav | synthetic | 0.003 | 0.020 | - | - | pass |
 | tempo.maxErrorAfterLock | click-174.wav | synthetic | 0.001 | 0.020 | - | - | pass |
 | tempo.maxErrorAfterLock | click-90.wav | synthetic | 0.002 | 0.020 | - | - | pass |
-| tempo.maxErrorAfterLock | drifting-tempo.wav | drifting | 0.028 | 0.020 | - | - | fail |
+| tempo.maxErrorAfterLock | drifting-tempo.wav | drifting | 0.017 | 0.020 | - | - | pass |
 | tempo.maxErrorAfterLock | drums-100.wav | synthetic | 0.000 | 0.020 | - | - | pass |
 | tempo.maxErrorAfterLock | drums-128.wav | synthetic | 0.003 | 0.020 | - | - | pass |
 | tempo.maxErrorAfterLock | drums-150.wav | synthetic | 0.000 | 0.020 | - | - | pass |

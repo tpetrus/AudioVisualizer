@@ -8,6 +8,7 @@ import { TARGETS_VERSION } from '../targets';
 import type { BeatSidecar } from '../../../app/features/rhythm/eval/evalTypes';
 import type { LiveArgs } from './args';
 import { measureRuns, type MeasuredRun } from './collect';
+import { clipReport, clipSkippedShare, clipSpanShare } from './measures';
 import { discoverRunFolders, describeRunFolder, groupRunFolders, loadRun, readSidecar, type RunFolder } from './ingest';
 import { mergeLiveFile, liveMetricsFor, type LiveFile, type RunValue, type TrackUpdate } from './liveCells';
 import { planJobs, type JobResult, type RecordJob, type RecordOptions } from './record';
@@ -126,6 +127,16 @@ function measuredUpdate(
     const sidecar = loaded.find((run) => run.sidecar !== undefined)?.sidecar;
     if (loaded.length > 0 && sidecar === undefined) {
         deps.log(`${track}: no .beats.json found; the metrics that need beats are unavailable`);
+    }
+    // The clip metric (dancer only) compares within the bar only where enough runs are meter-locked on loops of a bar or
+    // more; say how much of it fell back to the beat and how much of the span was scored, so a thin cell can be seen.
+    if (viz === 'dancing-character' && loaded.length > 1) {
+        const report = clipReport(loaded.map((run) => run.table));
+        if (report.spanSamples > 0) {
+            deps.log(
+                `${track}: clip scored ${Math.round(100 * clipSpanShare(report))}% of the span, ${Math.round(100 * clipSkippedShare(report))}% of that on the beat unit (bar comparison skipped)`,
+            );
+        }
     }
     return updateFrom(
         track,

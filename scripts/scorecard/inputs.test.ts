@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { renderTrack, TEST_SAMPLE_RATE } from '../../app/features/rhythm/testSignals';
 import { writeWav } from '../rhythm-tools/wav';
-import { buildScorecard } from './cells';
+import { buildScorecard, SET_DIRECTOR_COUNT_METRIC } from './cells';
 import {
     DEFAULT_DIR,
     DEFAULT_OUT,
@@ -126,8 +126,19 @@ describe('measureSources', () => {
         expect(seen).toEqual(['lonley.wav']);
         expect(result.sidecarHashes).toEqual({ 'lonley.wav': 'h' });
         expect(result.available).toEqual([{ track: 'lonley.wav', hasBeats: false }]);
+        // The set director is measured on the real track, so its advisory cells reach the scorecard.
+        expect(result.setDirector?.map((measure) => measure.track)).toEqual(['lonley.wav']);
         const scorecard = buildScorecard({ revision: 'r', created: 'c', scenarios: [], ...result });
         expect(summaryLine(scorecard)).toMatch(/^Applicable cells \d+: \d+ passing, \d+ failing, \d+ unavailable\./);
+        expect(scorecard.cells.some((cell) => cell.metric === SET_DIRECTOR_COUNT_METRIC)).toBe(true);
+    });
+
+    it('does not measure the set director on a synthetic track', () => {
+        const click = renderTrack({ seconds: 4, bpm: 120, beatsPerBar: 4 });
+        const result = measureSources([
+            { name: 'click-120.wav', class: 'synthetic', pcm: click.pcm, sampleRate: TEST_SAMPLE_RATE, bpm: 120 },
+        ]);
+        expect(result.setDirector).toEqual([]);
     });
 });
 
