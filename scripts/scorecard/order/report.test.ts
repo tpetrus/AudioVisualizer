@@ -25,7 +25,13 @@ describe('report', () => {
 
     it('renders a table with the counts', () => {
         const markdown = renderMarkdown({
-            header: { targetsVersion: 8, revision: 'abc', created: '2026-11-21T00:00:00.000Z', liveRevision: null },
+            header: {
+                targetsVersion: 8,
+                revision: 'abc',
+                created: '2026-11-21T00:00:00.000Z',
+                settle: 0,
+                liveRevision: null,
+            },
             rows,
         });
         expect(markdown).toContain('3 rows: 1 pass, 1 fail, 1 not judged.');
