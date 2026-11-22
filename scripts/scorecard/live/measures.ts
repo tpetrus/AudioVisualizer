@@ -111,19 +111,49 @@ export function circularMedian(values: readonly number[]): number {
     return arc <= 0.5 ? low + arc / 2 : wrap(high + (1 - arc) / 2);
 }
 
-// AC7 (targets version 8): each run's largest distance, in beats, between its place in the dance and the median of all
+// AC7 (targets version 9): each run's largest distance, in beats, between its place in the dance and the median of all
 // runs, sampled every 0.25 s of track time. The dancer aligns its clip within the beat, and within the bar once its meter
 // locks, but by design not which beat or bar of a longer loop it is on (dancingCharacterSync.ts), so runs are compared
-// in that unit: the place within the bar at a sample where every run is meter-locked, within the beat otherwise. A run's
-// place is its clip phase times its beats per loop (the beatsPerLoop column), and its row at a sample is its last at or
-// before it. Sampling starts at the latest run's first meterLocked, or the latest first tempoLocked when no run
-// meter-locks, and ends where the shortest run ends. A sample within CLIP_SETTLE_SECONDS after any run's tempo or meter
-// lock (each time it locks) is skipped: the dancer then slides onto the beat or into the bar at its capped correction
-// rate rather than jumping, which is how it is meant to move, not a disagreement between runs. null for every run when no run locks, a
-// column is missing (a recording from before version 8 has no beatsPerLoop) or the samples left cover less than
-// CLIP_MIN_SAMPLED_SECONDS, so a late lock near the end of the recording cannot pass on a moment.
+// in that unit. At a sample the unit is the bar only when at least CLIP_MIN_BAR_RUNS runs are meter-locked and every one
+// of them has CLIP_MIN_BAR_BEATS or more beats per loop; only those runs are compared, in their place within the bar. A
+// loop shorter than a bar has no bar to be in, and one run that has not locked (or whose lock flickers) no longer drags
+// the others down to the beat. Otherwise every run is compared in its place within the beat. A run's place is its clip
+// phase times its beats per loop (the beatsPerLoop column), and its row at a sample is its last at or before it.
+// Sampling starts at the latest run's first meterLocked, or the latest first tempoLocked when no run meter-locks, and
+// ends where the shortest run ends. A sample within CLIP_SETTLE_SECONDS after any run's tempo or meter lock (each time
+// it locks) is skipped: the dancer then slides onto the beat or into the bar at its capped correction rate rather than
+// jumping, which is how it is meant to move, not a disagreement between runs. The values are null for every run when no
+// run locks, a column is missing (a recording from before version 8 has no beatsPerLoop), the samples left cover less
+// than CLIP_MIN_SAMPLED_SECONDS (so a late lock near the end of the recording cannot pass on a moment), or they are
+// fewer than CLIP_MIN_SPAN_SHARE of the span from the first sample to the end (lock flicker and settling can leave a
+// handful of moments that say nothing about the whole track).
+export const CLIP_MIN_BAR_RUNS = 3;
+export const CLIP_MIN_BAR_BEATS = 4;
+export const CLIP_MIN_SPAN_SHARE = 0.5;
+
+// What a clip measurement looked at, reported beside the values so a cell that rests on little can be seen as such.
+export interface ClipReport {
+    values: (number | null)[];
+    // Sample moments from the start to the end, and how many of them were scored (not settling, something to compare).
+    spanSamples: number;
+    scoredSamples: number;
+    // Scored samples compared in the beat unit instead of the bar.
+    beatUnitSamples: number;
+}
+
+export const clipSpanShare = (report: ClipReport): number =>
+    report.spanSamples === 0 ? 0 : report.scoredSamples / report.spanSamples;
+
+// The share of scored samples where the bar comparison was skipped (fewer than 3 meter-locked runs, or a loop under a bar).
+export const clipSkippedShare = (report: ClipReport): number =>
+    report.scoredSamples === 0 ? 0 : report.beatUnitSamples / report.scoredSamples;
+
 export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | null)[] {
-    const none = tables.map(() => null);
+    return clipReport(tables).values;
+}
+
+export function clipReport(tables: readonly TelemetryTable[]): ClipReport {
+    const none: ClipReport = { values: tables.map(() => null), spanSamples: 0, scoredSamples: 0, beatUnitSamples: 0 };
     const meterLocks = tables.map((table) => firstSetSeconds(table, METER_LOCK_COLUMN)).filter((time) => time !== null);
     const tempoLocks = tables.map((table) => lockSeconds(table)).filter((time) => time !== null);
     const locks = meterLocks.length > 0 ? meterLocks : tempoLocks;
@@ -149,15 +179,18 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
 
     const worst = tables.map(() => 0);
     let samples = 0;
+    let spanSamples = 0;
+    let beatUnitSamples = 0;
     // Each run's index of its last row at or before the sample; samples only move forward, so it only moves forward.
     const at = runs.map(() => -1);
     // Each run's latest tempo and meter lock (a row where the flag turns on) at or before the sample.
     const tempoLockedAt = runs.map(() => -Infinity);
     const lockedAt = runs.map(() => -Infinity);
     const places = runs.map(() => NaN);
+    const barRun = runs.map(() => false);
     for (let k = 0; start + k * CLIP_SAMPLE_STEP_SECONDS <= end + 1e-9; k++) {
+        spanSamples++;
         const sampleT = start + k * CLIP_SAMPLE_STEP_SECONDS;
-        let allMeter = true;
         let settling = false;
         runs.forEach((s, run) => {
             while (at[run] + 1 < s.t.length && s.t[at[run] + 1] <= sampleT) {
@@ -171,22 +204,33 @@ export function clipMaxDeviations(tables: readonly TelemetryTable[]): (number | 
             if (row >= 0 && s.tempo[row] && sampleT - tempoLockedAt[run] < CLIP_SETTLE_SECONDS) settling = true;
             const usable = row >= 0 && Number.isFinite(s.phase[row]) && s.beats[row] > 0;
             places[run] = usable ? s.phase[row] * s.beats[row] : NaN;
-            if (usable && !s.meter[row]) allMeter = false;
+            barRun[run] = usable && s.meter[row];
         });
         if (settling) continue;
-        const unitBeats = allMeter ? BEATS_PER_BAR : 1;
-        const fractions = places.map((place) => place / unitBeats);
-        const usable = fractions.filter((fraction) => Number.isFinite(fraction));
-        if (usable.length === 0) continue;
+        // The bar unit needs enough meter-locked runs, each with a whole bar in its loop.
+        const locked = runs.flatMap((s, run) => (barRun[run] ? [run] : []));
+        const bar =
+            locked.length >= CLIP_MIN_BAR_RUNS && locked.every((run) => runs[run].beats[at[run]] >= CLIP_MIN_BAR_BEATS);
+        const unitBeats = bar ? BEATS_PER_BAR : 1;
+        const compared = bar ? locked : runs.flatMap((s, run) => (Number.isFinite(places[run]) ? [run] : []));
+        if (compared.length === 0) continue;
         samples++;
-        const median = circularMedian(usable);
-        fractions.forEach((fraction, run) => {
-            if (Number.isFinite(fraction)) {
-                worst[run] = Math.max(worst[run], circularDistance(fraction, median) * unitBeats);
-            }
+        if (!bar) beatUnitSamples++;
+        const fractions = compared.map((run) => places[run] / unitBeats);
+        const median = circularMedian(fractions);
+        compared.forEach((run, i) => {
+            worst[run] = Math.max(worst[run], circularDistance(fractions[i], median) * unitBeats);
         });
     }
-    return samples * CLIP_SAMPLE_STEP_SECONDS < CLIP_MIN_SAMPLED_SECONDS - 1e-9 ? none : worst;
+    const enough =
+        samples * CLIP_SAMPLE_STEP_SECONDS >= CLIP_MIN_SAMPLED_SECONDS - 1e-9 &&
+        samples >= CLIP_MIN_SPAN_SHARE * spanSamples - 1e-9;
+    return {
+        values: enough ? worst : none.values,
+        spanSamples,
+        scoredSamples: samples,
+        beatUnitSamples,
+    };
 }
 
 // One run's columns for clipMaxDeviations.
