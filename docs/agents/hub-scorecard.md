@@ -760,6 +760,46 @@ and its reaction cell does not drop across the move.
   and a reaction a frame late misses the 50 ms window, so those two stretches measure onset selectivity and tap
   jitter as much as the visualizers (S3's reading, unchanged). Raising them needs a design, not a retune.
 
+## Hub follow-ups S6: targets version 9
+
+Version 9 (contract C4 of `docs/plans/hub-followups/contracts.md`) changes three definitions, adds the set-director cells
+and takes Trevor's third tap of `summer2000`. The version bump is its own first commit; each rule's effect below was
+measured against a scratch scorecard of that commit, and the committed baseline is rewritten once, at the end.
+
+- **Drifting truth** (`FU-S7-drifting-truth`, `engine/tempoTruth.ts`): `drifting-tempo` is scored against a quadratic
+  least-squares fit of the tapped beat times instead of the tempo of each 8-beat window of taps, which strayed up to
+  2% from the fit (tap jitter, as large as the 2% tolerance). One cell changes: `tempo.maxErrorAfterLock` on
+  `drifting-tempo` goes from 0.028 (fail) to 0.017 (pass).
+- **Clip unit** (`FU-S8-clip-unit`, `live/measures.ts`): a sample is compared within the bar only when at least 3 runs
+  are meter-locked and each of them has a loop of 4 beats or more, and then only those runs are compared; otherwise all
+  runs are compared within the beat. A cell needs the scored samples to cover at least half of the span from its first
+  sample (`CLIP_MIN_SPAN_SHARE`, 0.5) or it is unavailable: lock flicker and settling can leave a few moments that say
+  nothing about the whole track, and half is the share below which the moments left are a minority of the span.
+  `scorecard:live` logs the span share and the share compared on the beat unit. Two dancer cells change: `summer2000`
+  from 0.038 (pass) to unavailable (too little of the span left), `syncopation-no-kick` from 0.219 to 0.141 (still
+  failing: the cell is judged per run, and two of its four runs are at 0.202 and 0.205 beat, just over the 0.2 floor).
+- **Hit share tolerance** (`FU-S4-hitshare-relative-tolerance`, `prehubSlack` in `targets.ts`): the hit share cells,
+  offline and live, may be at most `min(0.05, 0.1 x pre-hub)` below their pre-hub value. The plan's contract said
+  `max`, which is never tighter than 0.05 and could not fix what the follow-up was opened for; Trevor chose `min` on
+  2026-11-21. Offline nothing changes (every offline cubes share equals its pre-hub value). Live, four cells now fail:
+  `dancing-character` on `summer2000` (0 against 0.017 pre-hub), `trio-color-wave` on `lonley` (0.154 against 0.171)
+  and `syncopationbass` (0.089 against 0.107), and `cubes` on `half-time-shuffle` (one of its four runs, 0.324, is below
+  the new floor of 0.328).
+- **Set-director cells** (`FU-S9-bass-ink-energy`): `npm run scorecard` now measures `bass-ink`'s set director on every
+  real track (17 advisory, non-blocking cells: the transition count and the time of each transition).
+- **`summer2000` third tap** (`FU-S8-summer2000-gaps`): 58 beats instead of 54, residual against a straight fit 55 ms
+  instead of 68 ms, largest 127 ms instead of 256 ms; the mean beat phase moves by 21 ms. Offline it changes three
+  cells, all still with the same status: `beat.errorMedianMs` 150.5 to 153.4 ms (fail, deferred), and the cubes' hit
+  share 0.296 to 0.034 and latency 45 to 163 ms (both pass: the pre-hub values move the same way, so the bound moves
+  with them). The live cells keep scoring against the sidecar copy each run folder carries, the S8 taps, until those
+  visualizers are recorded again (S7).
+
+**Live cells** were recomputed with `npm run scorecard:live -- --ingest` from the recorded runs, not re-recorded: the
+dancer from the newest 4 runs per track, `cubes` and `trio-color-wave` on the tracks they had runs for (to recompute the
+hit share passes; their run values are unchanged), and `bass-ink` not at all (it has no pre-hub values, so no v9 rule
+changes its cells). Under version 8 that selection reproduces the committed version 8 live file exactly; for `bass-ink`
+on `summer2000` the committed cells come from the 4 runs at 04:02 to 04:04 UTC on 2026-11-21, not the newest 4.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
