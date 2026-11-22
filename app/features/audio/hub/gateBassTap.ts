@@ -3,9 +3,10 @@
 // lowest bass notes). The filters isolate the bass, so mids and drums don't leak in the way they do into the coarse low
 // FFT bins.
 //
-// It is read from the audio graph at the render time, not carried in the worklet's frames: a frame is up to a batch old
-// when it reaches the main thread, and live that made the cubes and the dancer react 10 to 20 ms later than the same
-// feature read here (S4's live measurement, docs/agents/hub-scorecard.md).
+// It is read from the audio graph at each update, not carried in the worklet's frames, and is the newest audio rather
+// than the render time's (the sync offset does not shift it): a frame is up to a batch old when it reaches the main
+// thread, and live that made the cubes and the dancer react 10 to 20 ms later than the same feature read here (S4's
+// live measurement, docs/agents/hub-scorecard.md).
 export const GATE_BASS_CUTOFF_HZ = 120;
 export const GATE_BASS_WINDOW = 2048;
 
