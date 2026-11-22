@@ -692,7 +692,7 @@ describe('RhythmAnalyzer first-lock tie', () => {
 });
 
 describe('RhythmAnalyzer song-change counters', () => {
-    it('counts a soft boundary and stamps it with the time of the frame that raised it', () => {
+    it('counts a soft boundary as one song change', () => {
         // 100 to 170 bpm is neither an octave nor a dotted ratio, so the tracker raises one soft boundary.
         const pcm = concat(
             renderTrack({ seconds: 24, bpm: 100, beatsPerBar: 4 }).pcm,
@@ -702,27 +702,25 @@ describe('RhythmAnalyzer song-change counters', () => {
         expect(analyzer.softBoundaryCount).toBe(1);
         expect(analyzer.state.songChangeCount).toBe(1);
         expect(songChangeEvents).toHaveLength(1);
-        expect(analyzer.lastSongChangeTime).toBeCloseTo(songChangeEvents[0], 6);
     });
 
-    it('stamps a hard boundary (silence) without counting it as soft', () => {
+    it('counts a hard boundary (silence) as a song change but not as soft', () => {
         const pcm = concat(renderTrack({ seconds: 12, bpm: 120, beatsPerBar: 4 }).pcm, silence(4));
         const { analyzer, songChangeEvents } = runPipeline(pcm);
         expect(analyzer.softBoundaryCount).toBe(0);
         expect(analyzer.state.songChangeCount).toBe(1);
-        expect(analyzer.lastSongChangeTime).toBeCloseTo(songChangeEvents[0], 6);
+        expect(songChangeEvents).toHaveLength(1);
     });
 
-    it('reads no change before the first, and stamps a reset with the newest frame time', () => {
+    it('counts a reset as a song change only when asked', () => {
         const analyzer = new RhythmAnalyzer(100);
-        expect(analyzer.lastSongChangeTime).toBe(-Infinity);
         expect(analyzer.softBoundaryCount).toBe(0);
+        expect(analyzer.state.songChangeCount).toBe(0);
         const frame = new Float32Array(FRAME_STRIDE);
         analyzer.pushFrame(3, frame, 0);
         analyzer.hardReset(false);
-        expect(analyzer.lastSongChangeTime).toBe(-Infinity);
+        expect(analyzer.state.songChangeCount).toBe(0);
         analyzer.hardReset(true);
-        expect(analyzer.lastSongChangeTime).toBe(3);
         expect(analyzer.state.songChangeCount).toBe(1);
     });
 });
