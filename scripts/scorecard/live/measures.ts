@@ -209,7 +209,8 @@ export function clipReport(tables: readonly TelemetryTable[]): ClipReport {
         if (settling) continue;
         // The bar unit needs enough meter-locked runs, each with a whole bar in its loop.
         const locked = runs.flatMap((s, run) => (barRun[run] ? [run] : []));
-        const bar = locked.length >= CLIP_MIN_BAR_RUNS && locked.every((run) => runs[run].beats[at[run]] >= CLIP_MIN_BAR_BEATS);
+        const bar =
+            locked.length >= CLIP_MIN_BAR_RUNS && locked.every((run) => runs[run].beats[at[run]] >= CLIP_MIN_BAR_BEATS);
         const unitBeats = bar ? BEATS_PER_BAR : 1;
         const compared = bar ? locked : runs.flatMap((s, run) => (Number.isFinite(places[run]) ? [run] : []));
         if (compared.length === 0) continue;
