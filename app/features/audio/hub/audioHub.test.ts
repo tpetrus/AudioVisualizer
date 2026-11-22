@@ -41,7 +41,9 @@ interface FrameSpec {
 }
 // A source whose context builds stub nodes: each analyser reports `level` in every sample of its window, so a tap
 // reads `level` as its RMS. `nodes` records what was built and `disconnected` what was disconnected.
-function stubSource(level: number) {
+function stubSource(initialLevel: number) {
+    // Mutable so a spec can change what the tap reads between updates.
+    let level = initialLevel;
     const nodes: Record<string, unknown>[] = [];
     const disconnected: unknown[] = [];
     const node = (fields: Record<string, unknown>) => {
@@ -59,7 +61,10 @@ function stubSource(level: number) {
             node({ fftSize: 2048, getFloatTimeDomainData: (target: Float32Array) => target.fill(level) }),
     };
     const source = node({ context }) as unknown as AnalyserNode;
-    return { source, nodes, disconnected };
+    const setLevel = (next: number) => {
+        level = next;
+    };
+    return { source, nodes, disconnected, setLevel };
 }
 
 interface OnsetSpec {
@@ -411,17 +416,29 @@ describe('AudioHub', () => {
         });
 
         it('keeps the tap and the pulse across a transiently undefined render time with the same source', () => {
-            const { source, nodes, disconnected } = stubSource(0.25);
+            const { source, nodes, disconnected, setLevel } = stubSource(0.25);
             tracker.source = source;
             hub.update();
             const built = nodes.length;
+            const { bands, onsets, beat, section } = structuredClone({
+                bands: Array.from(hub.snapshot.bands),
+                onsets: hub.snapshot.onsets,
+                beat: hub.snapshot.beat,
+                section: hub.snapshot.section,
+            });
             tracker.now = undefined;
+            // The tap is still read: a new level shows up as the new pulse.
+            setLevel(0.6);
             hub.update();
-            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.25, 6);
+            expect(hub.snapshot.gateBass.pulse).toBeCloseTo(0.6, 6);
             expect(nodes.length).toBe(built);
             expect(disconnected.length).toBe(0);
             // The rest of the snapshot is left alone without a render time.
             expect(hub.snapshot.time).toBe(10);
+            expect(Array.from(hub.snapshot.bands)).toEqual(bands);
+            expect(hub.snapshot.onsets).toEqual(onsets);
+            expect(hub.snapshot.beat).toEqual(beat);
+            expect(hub.snapshot.section).toEqual(section);
         });
 
         it('does nothing without a render time or a started tracker', () => {
