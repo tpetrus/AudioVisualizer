@@ -32,5 +32,5 @@ live recordings happen in the main checkout.
 ## C4: Scorecard targets v9
 `TARGETS_VERSION` 9: drifting tracks are scored against a quadratic fit of tapped beat times; clip is compared within
 the bar only when at least 3 runs are meter-locked and every compared run has `beatsPerLoop` of 4 or more, with the
-skipped share reported and a minimum span share; hit-share tolerance is `max(0.05, 0.1 × pre-hub)`. Live v8 files are
+skipped share reported and a minimum span share; hit-share tolerance is `min(0.05, 0.1 × pre-hub)` (amended 2026-11-21 by Trevor in S6: the plan's `max` is never tighter than 0.05 and could not fix `FU-S4-hitshare-relative-tolerance`). Live v8 files are
 recomputed by `npm run scorecard:live -- --ingest`. Owner: S6; consumed by S7.

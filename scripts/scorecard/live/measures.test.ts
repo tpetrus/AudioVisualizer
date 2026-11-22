@@ -6,7 +6,13 @@ import {
     circularMedian,
     CLIP_MIN_SAMPLED_SECONDS,
     CLIP_SETTLE_SECONDS,
+    CLIP_MIN_BAR_BEATS,
+    CLIP_MIN_BAR_RUNS,
+    CLIP_MIN_SPAN_SHARE,
     clipMaxDeviations,
+    clipReport,
+    clipSkippedShare,
+    clipSpanShare,
     falseFireShare,
     gateFirstOpenSeconds,
     gateSecondsAfterLock,
@@ -182,22 +188,69 @@ describe('clipMaxDeviations', () => {
 
     it('starts the settle window again when a run locks its meter again', () => {
         // The meter drops at 6 s and locks again at 6.5 s; the run is a beat off until 9 s, inside the new window.
-        const relock = table(
-            columns,
-            times(16).map((t) => [
-                t,
-                1,
-                t >= 2 && (t < 6 || t >= 6.5) ? 1 : 0,
-                (((t + (t >= 6 && t < 9 ? 0.125 : 0)) % 1) + 1) % 1,
-                8,
-            ]),
-        );
-        const steady = (lock: number) =>
+        const relock = (seconds: number) =>
             table(
                 columns,
-                times(16).map((t) => [t, 1, t >= lock ? 1 : 0, t % 1, 8]),
+                times(seconds).map((t) => [
+                    t,
+                    1,
+                    t >= 2 && (t < 6 || t >= 6.5) ? 1 : 0,
+                    (((t + (t >= 6 && t < 9 ? 0.125 : 0)) % 1) + 1) % 1,
+                    8,
+                ]),
             );
-        expect(allZero(clipMaxDeviations([steady(2), relock, steady(2)]))).toBe(true);
+        const steady = (lock: number, seconds: number) =>
+            table(
+                columns,
+                times(seconds).map((t) => [t, 1, t >= lock ? 1 : 0, t % 1, 8]),
+            );
+        expect(allZero(clipMaxDeviations([steady(2, 30), relock(30), steady(2, 30)]))).toBe(true);
+        // The same flicker in a short recording leaves under CLIP_MIN_SPAN_SHARE of the span: unavailable, not passing.
+        expect(CLIP_MIN_SPAN_SHARE).toBe(0.5);
+        const short = clipReport([steady(2, 16), relock(16), steady(2, 16)]);
+        expect(short.values).toEqual([null, null, null]);
+        expect(clipSpanShare(short)).toBeLessThan(CLIP_MIN_SPAN_SHARE);
+        expect(clipSpanShare(clipReport([steady(2, 30), relock(30), steady(2, 30)]))).toBeGreaterThanOrEqual(
+            CLIP_MIN_SPAN_SHARE,
+        );
+    });
+
+    it('leaves a run that has not locked out of the bar comparison instead of moving the others to the beat', () => {
+        // Three runs are meter-locked, so they are compared within the bar: half a loop is a bar, no error. The fourth has
+        // not locked and is not compared in the bar (before version 9 it put every run on the beat).
+        const values = clipMaxDeviations([run(2, 0), run(2, 0.5), run(2, 0), run(2, 0.3, false)]);
+        expect(allZero(values)).toBe(true);
+        // A quarter loop is two beats, half a bar, and is seen now that the others are in the bar unit.
+        expect(clipMaxDeviations([run(2, 0), run(2, 0.25), run(2, 0), run(2, 0.3, false)])[1]).toBeCloseTo(2);
+    });
+
+    it('compares within the beat when fewer than CLIP_MIN_BAR_RUNS runs are meter-locked', () => {
+        expect(CLIP_MIN_BAR_RUNS).toBe(3);
+        // Two locked runs half a loop apart are a bar apart, but two runs are too few to call a bar: they are a beat unit.
+        const two = clipReport([run(2, 0), run(2, 0.25), run(2, 0, false)]);
+        expect(two.values[1]).toBeCloseTo(0);
+        expect(clipSkippedShare(two)).toBe(1);
+    });
+
+    it('compares within the beat when a meter-locked run loops over fewer than CLIP_MIN_BAR_BEATS beats', () => {
+        expect(CLIP_MIN_BAR_BEATS).toBe(4);
+        // A 2-beat loop a half loop on is a beat on: the same place in the beat, and not a bar of anything.
+        const short = clipReport([run(2, 0, true, 2), run(2, 0.5, true, 2), run(2, 0, true, 2)]);
+        expect(allZero(short.values)).toBe(true);
+        expect(clipSkippedShare(short)).toBe(1);
+        // One short loop among 8-beat ones is enough to leave the bar unit for everyone.
+        const mixed = clipReport([run(2, 0), run(2, 0.5, true, 2), run(2, 0)]);
+        expect(clipSkippedShare(mixed)).toBe(1);
+    });
+
+    it('reports how much of the scored span was compared in the bar', () => {
+        const bar = clipReport([run(2, 0), run(2, 0), run(2, 0)]);
+        expect(clipSkippedShare(bar)).toBe(0);
+        expect(bar.scoredSamples).toBeGreaterThan(0);
+        expect(bar.spanSamples).toBeGreaterThanOrEqual(bar.scoredSamples);
+        expect(clipSpanShare(bar)).toBeGreaterThan(CLIP_MIN_SPAN_SHARE);
+        expect(clipSkippedShare({ ...bar, scoredSamples: 0 })).toBe(0);
+        expect(clipSpanShare({ ...bar, spanSamples: 0 })).toBe(0);
     });
 
     it('is null when the samples left cover less than CLIP_MIN_SAMPLED_SECONDS', () => {
