@@ -1,4 +1,5 @@
-// The checks every shipped dance clip must pass (docs/plans/natural-dance/contracts.md, C2 and Amendments 3 and 4), run against
+// The checks every shipped dance clip must pass (C2 and Amendments 3 and 4 of the natural-dance contracts, now only in
+// history: `git show 41d8b8a:docs/plans/natural-dance/contracts.md`), run against
 // the clips as GLTFLoader loads them back from the GLB, and the reproduction check against the approved spike clips.
 // Hard rules come back as `failures`; the 40 ms contact rule comes back as `warnings`.
 
