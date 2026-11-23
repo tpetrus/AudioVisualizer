@@ -26,8 +26,10 @@ const FIXED_LINES = 5;
 const REQUIRED_COLUMNS = ['t', 'fps', 'bassRaw', 'gain'];
 
 function significant(value: number, digits: number): string {
-    // Non-finite values stay visible so a broken probe is not hidden as a quiet one.
-    if (!Number.isFinite(value)) return 'NaN';
+    // Non-finite values stay visible, each in its own spelling, so a broken probe is not hidden as a quiet one and an
+    // Infinity (such as a probe that reports "never") reads back as one.
+    if (Number.isNaN(value)) return 'NaN';
+    if (!Number.isFinite(value)) return value > 0 ? 'Infinity' : '-Infinity';
     // Number() drops the trailing zeros toPrecision adds.
     return String(Number(value.toPrecision(digits)));
 }
@@ -56,8 +58,8 @@ export function parseTelemetryCsv(text: string): TelemetryTable {
             throw new Error(`CSV line ${i + 1} has ${cells.length} values, expected ${columns.length}`);
         }
         const row = cells.map((cell) => (cell.trim() === '' ? NaN : Number(cell)));
-        // A literal NaN cell is data written by the recorder; anything else non-numeric is a corrupt file.
-        const bad = row.findIndex((value, c) => !Number.isFinite(value) && cells[c].trim() !== 'NaN');
+        // A literal NaN or infinite cell is data written by the recorder; anything else non-numeric is a corrupt file.
+        const bad = row.findIndex((value, c) => Number.isNaN(value) && !['', 'NaN'].includes(cells[c].trim()));
         if (bad >= 0) throw new Error(`CSV line ${i + 1}, column "${columns[bad]}" is not a number: "${cells[bad]}"`);
         rows.push(row);
     }

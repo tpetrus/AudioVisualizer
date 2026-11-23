@@ -32,9 +32,9 @@ describe('CSV', () => {
         });
     });
 
-    it('writes non-finite values as NaN and respects rowCount', () => {
-        const csv = formatTelemetryCsv(['a'], [NaN, Infinity, 7], 2);
-        expect(csv).toBe('a\nNaN\nNaN\n');
+    it('writes each non-finite value under its own name and respects rowCount', () => {
+        const csv = formatTelemetryCsv(['a'], [NaN, Infinity, -Infinity], 2);
+        expect(csv).toBe('a\nNaN\nInfinity\n');
     });
 
     it('parses CRLF and ignores trailing blank lines; a header alone has no rows', () => {
@@ -48,7 +48,8 @@ describe('CSV', () => {
         expect(() => parseTelemetryCsv('a,,c\n1,2,3')).toThrow('empty column name');
         expect(() => parseTelemetryCsv('a,b\n1,2\n3')).toThrow('line 3 has 1 values, expected 2');
         expect(() => parseTelemetryCsv('a,b\n1,x')).toThrow('line 2, column "b" is not a number: "x"');
-        expect(() => parseTelemetryCsv('a,b\n1,')).toThrow('not a number');
+        // An empty cell is a missing value, read as NaN like a literal NaN, not a corrupt file.
+        expect(parseTelemetryCsv('a,b\n1,').rows[0][1]).toBeNaN();
         for (const bad of ['', 'a,b\n1,2\n3', 'a\nx']) {
             try {
                 parseTelemetryCsv(bad);
@@ -177,12 +178,14 @@ describe('summarizeTelemetry', () => {
         expect(labels[1].trim()).toMatch(/^5-7\.98\s/);
     });
 
-    it('writes non-finite values as NaN and reads them back', () => {
-        const csv = formatTelemetryCsv(['a', 'b', 'c'], [NaN, Infinity, 1.5], 1);
-        expect(csv).toBe('a,b,c\nNaN,NaN,1.5\n');
+    it('round-trips NaN, Infinity and -Infinity', () => {
+        const csv = formatTelemetryCsv(['a', 'b', 'c', 'd'], [NaN, Infinity, -Infinity, 1.5], 1);
+        expect(csv).toBe('a,b,c,d\nNaN,Infinity,-Infinity,1.5\n');
         const table = parseTelemetryCsv(csv);
         expect(table.rows[0][0]).toBeNaN();
-        expect(table.rows[0][2]).toBe(1.5);
+        expect(table.rows[0][1]).toBe(Infinity);
+        expect(table.rows[0][2]).toBe(-Infinity);
+        expect(table.rows[0][3]).toBe(1.5);
         expect(() => parseTelemetryCsv('a\nabc\n')).toThrow('not a number');
     });
 
