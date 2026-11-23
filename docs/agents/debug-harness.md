@@ -172,6 +172,37 @@ misses every kick while the gate is closed; recording the onset as its own colum
   `warmupSeconds` exists because the first seconds of a track (or a fade-in) otherwise read as a surge. Real DJ mixes
   with labeled drops are the next step; check both missed drops and false drops in long grooves when retuning.
 
+## Beat trace and tracker benchmark (dev only)
+Two offline tools for the rhythm tracker; neither touches `app/`.
+
+`npm run trace:beats -- <wav> [--set NAME=VALUE]... [--from S] [--to S] [--window S] [--json <file>]` runs the pipeline as
+`npm run scorecard` does (AGC, whole batches of frames, `.beats.json` and `.bpm` read from beside the WAV) and prints one
+row per declared beat: the time, the error against the nearest tap (beat minus tap, ms), the phase check's best place (bin
+and fraction of a beat from the grid) and its ratio (best 3-bin window over the grid's), `phaseWins`, `phaseBeats` (a `*`
+marks a reset to 0), the offset in ms of the onset the correction chose (blank on a miss), the period, `phaseShiftCount`,
+`gridEpoch`, the move a phase shift made (`mv`), and the scorecard's own beat for the row (`sc_dt`, `sc_err`). The header
+gives the tracker's lock time, the dancer gate's first opening and `dancerLockSeconds` from `replayPcm`, and
+`beat.errorMedianMs` computed as `measureTrack` does, so at default constants it equals the scorecard's cell. A table of the
+median error per window (default 5 s) shows when the grid settles. `--set` overrides `rhythmConfig.ts` constants through the
+same bundle-time plugin as `ablate:rhythm`, and the gate, lock and median figures then follow the override too.
+
+- The tracker's private fields (`pendingBeat`, `missedBeats`, `phaseBins`, ...) are read through a typed cast, and its
+  `push` is wrapped on the instance, because nothing public exposes them. A rename in `beatTracker.ts` breaks the tool and its
+  spec rather than printing wrong numbers.
+- The rows are the tracker's declared beats (`lastBeatTime`). The scorecard instead derives its beats from the rise of the
+  beat counter and the phase (`replay.ts`), and the two differ on some beats: on `summer2000` 40 of 47 differ, several by
+  about a period, so its `beat.errorMedianMs` is a median over those. The header says how many differ, and `sc_dt` is the gap.
+  `sc_err` is the scorecard's beats against the nearest tap; the summary runs from each tap to the nearest scorecard beat
+  after the lock at the true tempo (the other way round for a half-time lock), so it is close to the median of `sc_err` but
+  not the same sum. `err` is the declared beats' own.
+
+`npm run bench:tracker -- [--dir <folder>] [--tracks a.wav,b.wav] [--runs N] [--base <git ref>]` extracts the base ref's `app/`
+with `git archive` into `node_modules/.cache`, bundles it and the working tree, precomputes each track's packed feature frames
+once (not timed), then alternates base and working tree N times per track and prints the median ns per frame of each, the
+median of the per-pair ratios and the same overall. With the working tree equal to the base the ratio sits within a few
+percent of 1.0. It is advisory: a shared machine is noisy, and nothing in CI runs it. The two must share the frame layout
+(`FRAME_STRIDE`); the tool stops if they do not.
+
 ## Frozen contracts
 
 These were frozen before implementation. Change them only deliberately, and update every consumer in the same change.
