@@ -253,10 +253,15 @@ tempo items are the 6/8 meter, `low-bpm-rnb`'s syncopated kick, `beatless`'s 140
 ## The tracker plan D11 (2026-11-23)
 The tempo and beat items deferred above went to their own plan, `docs/plans/rhythm-tracker/rhythm-tracker-d11.plan.md`.
 Each cell's before, after and status is in `docs/agents/hub-scorecard.md`, under "Tracker plan D11: status of the request's
-failing cells". The beat place on `summer2000` and `low-bpm-rnb` went back to planning: the tracker's phase evidence
-(every flux band, and the summed onset) does not favor the tapped beat on either track. The worklet's kick events
-come nearest, but feeding them to today's phase check does not hold the grid there.
-
+failing cells". In short:
+- **Fixed:** `low-bpm-rnb`'s beat (183 to 24 ms): a halving of the tempo now searches the phase again rather than
+  keeping half of a double-time grid that sat a sixteenth early. Also fixed: the dotted 100 to 150 change, which is
+  counted once the old beat stops finding its onsets.
+- **Back to planning:** `summer2000`'s beat (153 ms). Its phase evidence (every flux band, and the summed onset) does
+  not favor the tapped beat. The worklet's kick events come nearest, but feeding them to today's phase check does not
+  hold the grid there.
+- **Attempted and recorded (stretch):** `beatless` (no presence signal tried separates it), and `6-8-time` and
+  `half-time-shuffle` (picking the beat level needs evidence of the bar).
 ## How to reproduce
 
 ```
