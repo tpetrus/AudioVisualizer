@@ -455,6 +455,22 @@ describe('BeatTracker phase check', () => {
         tracker.setTempo(60);
         expect(phaseWins(tracker)).toBe(0);
     });
+
+    // The block seen on summer2000 (hub-scorecard.md, "Tracker plan D11, S1"): the first alignment lands on the
+    // off-beat, and then the summed onset keeps an off-beat layer (hats, bass at beat + 0.5) stronger than the on-beat
+    // kick. The grid's own place never loses the envelope contest, so the phase check stays silent and the grid stays
+    // on the off-beat, although the kick, and so the beat a listener taps, is on the other place. Envelope-only input
+    // cannot tell these apart; the fix needs the worklet's kick events as a tracker input (the plan's S3). When that
+    // lands, this spec passes, and `.fails` has to come off.
+    it.fails('moves a grid that aligned on the off-beat onto a weaker on-beat kick (needs the kick events)', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const run = driveEnvelope(tracker, 60, offBeatStart(0.6, 1));
+        // The grid really did start on the off-beat.
+        expect(distanceToPlace(run.beatTimes[0], 0)).toBeGreaterThan(0.2);
+        for (const time of run.beatTimes.slice(-8)) {
+            expect(distanceToPlace(time, 0)).toBeLessThan(0.03);
+        }
+    });
 });
 
 describe('BeatTracker with unusual tempo estimates', () => {
@@ -501,5 +517,128 @@ describe('BeatTracker with unusual tempo estimates', () => {
         tracker.setTempo(135);
         pushFlat(tracker, 3.09);
         expect(tracker.locked).toBe(true);
+    });
+});
+
+// Phase moves on input with no beat to find (AC10, tracker plan D11). The source comment on the phase check quotes move
+// counts over 16 seeds of 120 s at 120 BPM; this is the harness that measures them, and the counts below are what the
+// tracker does now. A later change to the phase check must not move more often than these.
+//
+// Each case yields, per frame, a pair (onset, kick). BeatTracker.push takes only the onset today, so the specs feed the
+// onset alone; the kick stream is generated and kept for the tracker that takes it (plan S3), so the same harness can
+// then run kick-fed against these bounds. The kick stream models the low-band share of each onset: a kick hit on a beat
+// carries KICK_SHARE_ON_BEAT of its onset, every other hit KICK_SHARE_OFF_BEAT, and the floor KICK_SHARE_OFF_BEAT as
+// well. Real low-band flux is correlated with the envelope in just this way: strong on drum beats, weak on hats and
+// off-beat notes.
+describe('BeatTracker phase moves on input with no beat', () => {
+    const SEEDS = 16;
+    const SECONDS = 120;
+    const BEAT_FRAMES = 50;
+    const FLOOR = 0.05;
+    const KICK_SHARE_ON_BEAT = 0.6;
+    const KICK_SHARE_OFF_BEAT = 0.1;
+    // Sparse noise: about one frame in 25 holds a hit (about two per beat at 120 BPM) of random strength.
+    const NOISE_HIT_PROBABILITY = 0.04;
+    // Equal eighths: the off-beat layer's lean is drawn again every 16 beats.
+    const LEAN_BEATS = 16;
+
+    type CaseName = 'sparse noise' | 'equal eighths' | 'kick-only noise';
+
+    interface Stream {
+        onset: Float32Array;
+        kick: Float32Array;
+    }
+
+    function generate(name: CaseName, seed: number): Stream {
+        const random = createRandom(seed);
+        const frames = SECONDS * FRAME_RATE;
+        const onset = new Float32Array(frames);
+        const kick = new Float32Array(frames);
+        // A random start place, so the seeds do not all share one phase against the tracker's frame clock.
+        const start = Math.floor(random() * BEAT_FRAMES);
+        let lean = 1;
+        for (let frame = 0; frame < frames; frame++) {
+            const floor = FLOOR * (0.5 + random());
+            onset[frame] = floor;
+            kick[frame] = floor * KICK_SHARE_OFF_BEAT;
+            if (name === 'sparse noise') {
+                if (random() < NOISE_HIT_PROBABILITY) {
+                    onset[frame] = 0.3 + 0.7 * random();
+                    // A random hit is a kick-like hit about half of the time.
+                    kick[frame] = onset[frame] * (random() < 0.5 ? KICK_SHARE_ON_BEAT : KICK_SHARE_OFF_BEAT);
+                }
+            } else if (name === 'equal eighths') {
+                // Equal strength on every eighth note, give or take 30 percent of hit-to-hit variation and a lean of
+                // the whole off-beat layer (seeded, 0.85 to 1.25 of the on-beat level, as a player leans on the "and");
+                // only the ones on the beat are kicks. Exactly equal hits, or hit-to-hit variation alone, never beat
+                // the grid's own place by the ratio over 20 beats of memory (no move in 16 seeds), so the harness
+                // would pin nothing.
+                const place = (frame + start) % (BEAT_FRAMES / 2);
+                if (place === 0) {
+                    const isBeat = (frame + start) % BEAT_FRAMES === 0;
+                    if (isBeat && Math.floor((frame + start) / BEAT_FRAMES) % LEAN_BEATS === 0) {
+                        lean = 0.85 + 0.4 * random();
+                    }
+                    onset[frame] = (0.7 + 0.6 * random()) * (isBeat ? 1 : lean);
+                    const share = (frame + start) % BEAT_FRAMES === 0 ? KICK_SHARE_ON_BEAT : KICK_SHARE_OFF_BEAT;
+                    kick[frame] = onset[frame] * share;
+                }
+            } else if (random() < NOISE_HIT_PROBABILITY) {
+                // Random kicks over a flat envelope: no onset structure at all.
+                kick[frame] = 0.3 + 0.7 * random();
+            }
+        }
+        return { onset, kick };
+    }
+
+    function moveCount(name: CaseName, seed: number): number {
+        const tracker = new BeatTracker(FRAME_RATE);
+        tracker.setTempo(120);
+        const { onset } = generate(name, seed);
+        for (let frame = 0; frame < onset.length; frame++) {
+            tracker.push(frame / FRAME_RATE, onset[frame]);
+        }
+        return tracker.phaseShiftCount;
+    }
+
+    function totalMoves(name: CaseName): number {
+        let total = 0;
+        for (let seed = 1; seed <= SEEDS; seed++) {
+            total += moveCount(name, seed);
+        }
+        return total;
+    }
+
+    // phaseShiftCount summed over the 16 seeds, measured on main (v0.19.2) as it stands. The comment on the phase check
+    // quotes 63 (sparse noise) and 15 (eighths) from an earlier, differently built generator that was not committed;
+    // these streams are another draw (a sparser noise model, and eighths whose strength varies hit to hit and in a
+    // lean that changes every 16 beats), so the counts differ. Only this harness's own counts can bound a change to it.
+    // The kick-only case has a flat envelope, so an onset-fed tracker has nothing to move on and holds at 0.
+    const MAIN_MOVES: Record<CaseName, number> = {
+        'sparse noise': 31,
+        'equal eighths': 3,
+        'kick-only noise': 0,
+    };
+
+    it.each(Object.keys(MAIN_MOVES) as CaseName[])('moves no more than main does on %s', (name) => {
+        expect(totalMoves(name)).toBeLessThanOrEqual(MAIN_MOVES[name]);
+    });
+
+    it('generates a kick stream that follows the stated share model', () => {
+        const { onset, kick } = generate('equal eighths', 1);
+        let onBeat = 0;
+        let offBeat = 0;
+        for (let frame = 0; frame < onset.length; frame++) {
+            // Hits are the frames well above the floor; their kick is the on-beat or off-beat share of their onset.
+            if (onset[frame] > 0.5) {
+                const share = kick[frame] / onset[frame];
+                if (Math.abs(share - KICK_SHARE_ON_BEAT) < 1e-4) onBeat++;
+                else if (Math.abs(share - KICK_SHARE_OFF_BEAT) < 1e-4) offBeat++;
+            }
+        }
+        expect(onBeat).toBe(offBeat);
+        expect(onBeat).toBeGreaterThan(100);
+        // The same seed gives the same stream.
+        expect(generate('equal eighths', 1).onset).toEqual(onset);
     });
 });
