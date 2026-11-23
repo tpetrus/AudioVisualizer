@@ -60,6 +60,9 @@ export class BeatTracker {
     private meanEnvelope = 0;
 
     private tempoPeriod = 0;
+    // Twice the grid period when a halving unaligned the grid, until the search has run: a tempo estimate that drops to
+    // 0 in that window must not strand the grid, so the search falls back on this period.
+    private halvingPeriod = 0;
     private period = 0;
     private pendingBeat = 0;
     private aligned = false;
@@ -143,6 +146,7 @@ export class BeatTracker {
                 // runs on the next retry, as the first alignment does, so it also sees the onsets of the frames just
                 // after the change: searching at once put `syncopationbass` (195.7 to 98) 3 ms further off.
                 this.aligned = false;
+                this.halvingPeriod = this.period * 2;
             } else if (Math.abs(ratio * 2 - 1) <= BEAT_OCTAVE_TOLERANCE) {
                 this.doubleTempo();
             } else if (Math.abs(ratio - 1) > BEAT_REINIT_TEMPO_RATIO) {
@@ -162,10 +166,14 @@ export class BeatTracker {
         const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
         this.period *= 0.5;
         this.pendingBeat = base + this.period;
-        // The bins are fractions of the old period, so they say nothing about places in the new one.
+        // The bins are fractions of the old period, so they say nothing about places in the new one, and the same goes
+        // for the share of beats that found an onset: misses counted against the old period must not read as the new
+        // grid failing.
         this.phaseBins.fill(0);
         this.phaseWins = 0;
         this.phaseBeats = 0;
+        // The hits were counted against the old period too, and the grid now keeps every beat of the music it had.
+        this.hitShare = 1;
     }
 
     // Advances to the frame at `time` (seconds, strictly increasing) with onset-envelope value `onset`. Returns true
@@ -181,7 +189,7 @@ export class BeatTracker {
 
         if (!this.aligned) {
             if (
-                this.tempoPeriod > 0 &&
+                (this.tempoPeriod > 0 || this.halvingPeriod > 0) &&
                 this.count >= this.initMinFrames &&
                 ++this.framesSinceInitTry >= INIT_RETRY_FRAMES
             ) {
@@ -208,6 +216,7 @@ export class BeatTracker {
         this.framesSinceInitTry = 0;
         this.meanEnvelope = 0;
         this.tempoPeriod = 0;
+        this.halvingPeriod = 0;
         this.period = 0;
         this.pendingBeat = 0;
         this.aligned = false;
@@ -226,7 +235,8 @@ export class BeatTracker {
     // Finds the beat phase for the current tempo by sliding a comb of pulses, one tempo period apart, over the
     // recent envelope and keeping the offset where it collects the most onset energy.
     private align(): void {
-        const periodFrames = Math.round(this.tempoPeriod * this.frameRate);
+        const gridPeriod = this.tempoPeriod > 0 ? this.tempoPeriod : this.halvingPeriod;
+        const periodFrames = Math.round(gridPeriod * this.frameRate);
         if (periodFrames < 2) {
             return;
         }
@@ -239,7 +249,7 @@ export class BeatTracker {
         for (let offset = 0; offset < periodFrames; offset++) {
             let sum = 0;
             for (let j = 0; j < pulses; j++) {
-                const back = offset + Math.round(j * this.tempoPeriod * this.frameRate);
+                const back = offset + Math.round(j * gridPeriod * this.frameRate);
                 if (back >= this.count) {
                     break;
                 }
@@ -250,7 +260,8 @@ export class BeatTracker {
                 bestOffset = offset;
             }
         }
-        this.period = this.tempoPeriod;
+        this.period = gridPeriod;
+        this.halvingPeriod = 0;
         this.pendingBeat = this.times[this.ringIndex(bestOffset)];
         this.phaseBins.fill(0);
         this.phaseWins = 0;

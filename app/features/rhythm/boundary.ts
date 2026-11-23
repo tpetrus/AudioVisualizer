@@ -127,9 +127,11 @@ export class BoundaryDetector {
     // Feeds a tempo estimate (BPM, 0..1 confidence) at `time` seconds. Reports a soft boundary when the tempo has
     // stayed on a different value (not just a half or double of the reference) for several seconds. `gridSupport` is
     // the beat grid's recent hit share (BeatTracker.gridHitShare), which decides whether a dotted move is a new song.
-    pushTempo(time: number, rawBpm: number, confidence: number, gridSupport = 1): BoundaryKind {
+    pushTempo(time: number, rawBpm: number, confidence: number, gridSupport: number): BoundaryKind {
+        // Every path that ends a streak of jump readings also ends the dotted one, so a stale start never shortens the wait.
         if (rawBpm <= 0 || confidence < TEMPO_JUMP_MIN_CONFIDENCE) {
             this.jumpStart = -1;
+            this.dottedStart = -1;
             return BOUNDARY_NONE;
         }
         if (this.referenceBpm === 0) {
@@ -142,6 +144,7 @@ export class BoundaryDetector {
         // Tempo trackers flip between half and double speed on one and the same song; that is not a new song.
         if (Math.abs(octaves - Math.round(octaves)) < TEMPO_JUMP_OCTAVE_TOLERANCE && octaves > 0.5) {
             this.jumpStart = -1;
+            this.dottedStart = -1;
             return BOUNDARY_NONE;
         }
         // Nor is the pulse that dotted notes make against the beat, while the old beat still sounds on its grid. Once it
