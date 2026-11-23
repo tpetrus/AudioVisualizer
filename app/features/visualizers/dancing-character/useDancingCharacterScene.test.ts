@@ -974,6 +974,39 @@ describe('useDancingCharacterScene', () => {
             expect(character().resetOrbit).toHaveBeenCalledTimes(1);
         });
 
+        it('resets the camera to its starting pose and reports an unchanged view when the lock comes back', () => {
+            const { renderer, rerender, onViewChanged } = mountScene({ cameraLocked: false });
+            renderer.renderFrame(0);
+            const camera = character().camera;
+            // The orbit view remembered the camera where it was built; the mocked character scene never placed it.
+            const start = camera.position.clone();
+            // Zooming needs a distance to change, so move the camera away first, then zoom to report a moved view.
+            camera.position.set(0, 0, 10);
+            renderer.domElement.dispatchEvent(
+                new WheelEvent('wheel', { deltaY: 1000, bubbles: true, cancelable: true }),
+            );
+            expect(onViewChanged).toHaveBeenLastCalledWith(true);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            renderer.renderFrame(16);
+
+            expect(camera.position.distanceTo(start)).toBeLessThan(1e-9);
+            expect(character().resetOrbit).toHaveBeenCalledTimes(1);
+            expect(onViewChanged).toHaveBeenLastCalledWith(false);
+        });
+
+        it('does not reset the camera while it stays locked or when it is unlocked', () => {
+            const { renderer, rerender } = mountScene({ cameraLocked: true });
+
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+            rerender({ analyser: undefined, cameraLocked: false });
+            renderer.renderFrame(32);
+            renderer.renderFrame(48);
+
+            expect(character().resetOrbit).not.toHaveBeenCalled();
+        });
+
         it('reports a moved view once the unlocked camera is scrolled', () => {
             const { renderer, onViewChanged } = mountScene({ cameraLocked: false });
             renderer.renderFrame(0);
