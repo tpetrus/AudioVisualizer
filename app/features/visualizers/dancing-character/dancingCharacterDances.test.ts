@@ -1,39 +1,18 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { DANCE_REQUIRED_BONES } from './dancingCharacterConfig';
+import { stubGltfImageElement } from './loadDancerGlb.testing';
+import { DANCE_REQUIRED_BONES, DANCES } from './dancingCharacterConfig';
 
 // Loads the committed MakeHumanDances.glb with GLTFLoader and checks the hard rules of the dance clips
 // (C2 and Amendments 3 and 4 of the natural-dance contracts) on the file the app will ship. The contracts are now only
 // in history: `git show 41d8b8a:docs/plans/natural-dance/contracts.md`.
 
-// The dances and their length in beats (Amendment 3); the registry that names them is a later task.
-const EXPECTED = [
-    { id: 'lambada', beats: 8 },
-    { id: 'twist', beats: 8 },
-    { id: 'cabbage-patch', beats: 4 },
-    { id: 'salsa', beats: 4 },
-];
-
 async function load(file: string) {
     // The loader decodes embedded textures through an <img> element, which the node environment lacks; the garment
     // file needs this stand-in and the dance file does not hurt by having it (setup.ts unstubs it after each test).
-    vi.stubGlobal('self', globalThis);
-    vi.stubGlobal('document', {
-        createElementNS: () => {
-            const listeners = new Map<string, () => void>();
-            return {
-                width: 1,
-                height: 1,
-                addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
-                removeEventListener: (type: string) => listeners.delete(type),
-                set src(_value: string) {
-                    queueMicrotask(() => listeners.get('load')?.());
-                },
-            };
-        },
-    });
+    stubGltfImageElement();
     const bytes = readFileSync(new URL(`./assets/${file}`, import.meta.url));
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
     return new GLTFLoader().parseAsync(buffer, '');
@@ -46,10 +25,10 @@ const track = (clip: THREE.AnimationClip, name: string): THREE.KeyframeTrack => 
 };
 
 describe('vendored MakeHumanDances.glb', () => {
-    it('has exactly the four dance clips, each beats * 0.5 s long', async () => {
+    it('has exactly the dance clips of the registry, each beats * 0.5 s long', async () => {
         const { animations } = await load('MakeHumanDances.glb');
-        expect(animations.map((clip) => clip.name).sort()).toEqual(EXPECTED.map((d) => d.id).sort());
-        for (const { id, beats } of EXPECTED) {
+        expect(animations.map((clip) => clip.name).sort()).toEqual(DANCES.map((d) => d.id).sort());
+        for (const { id, beats } of DANCES) {
             const clip = animations.find((c) => c.name === id) as THREE.AnimationClip;
             expect(Math.abs(clip.duration - beats * 0.5), id).toBeLessThan(1e-6);
         }

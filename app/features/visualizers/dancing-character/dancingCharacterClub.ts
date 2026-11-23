@@ -23,7 +23,7 @@ import {
     CLUB_FRAME_HEIGHT,
     CLUB_FRAME_WIDTH,
     CLUB_LIGHT_COLORS,
-    CLUB_MAX_FLASHES_PER_SECOND,
+    CLUB_MIN_FLASH_INTERVAL_SECONDS,
     CLUB_PATTERN_BEATS,
     CLUB_PATTERN_COUNT,
     CLUB_PATTERN_DRIFT,
@@ -65,12 +65,12 @@ export function createFlashLimiter(): FlashLimiterState {
 }
 
 // Advances the limiter by `dt` seconds. `trigger` is the bass level (0..1); a flash starts only when it reaches the
-// threshold AND at least 1 / CLUB_MAX_FLASHES_PER_SECOND seconds have passed since the last one, so the rate is capped
+// threshold AND at least CLUB_MIN_FLASH_INTERVAL_SECONDS seconds have passed since the last one, so the rate is capped
 // whatever the tempo or the bass does. Returns true on the frame a flash starts.
 export function stepFlashLimiter(state: FlashLimiterState, trigger: number, dt: number): boolean {
     state.sinceLast += dt;
     state.level *= Math.exp(-dt / CLUB_FLASH_DECAY_SECONDS);
-    if (trigger >= CLUB_FLASH_BASS_THRESHOLD && state.sinceLast >= 1 / CLUB_MAX_FLASHES_PER_SECOND) {
+    if (trigger >= CLUB_FLASH_BASS_THRESHOLD && state.sinceLast >= CLUB_MIN_FLASH_INTERVAL_SECONDS) {
         state.sinceLast = 0;
         state.level = Math.max(state.level, Math.min(1, trigger));
         return true;

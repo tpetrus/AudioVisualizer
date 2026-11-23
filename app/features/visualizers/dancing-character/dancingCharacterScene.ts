@@ -115,6 +115,8 @@ export class DancingCharacterScene {
     // The dance a fresh load starts with, which a restart in Auto returns to.
     private initialIndex = 0;
     private fadeFromIndex = -1;
+    // A switch asked for while a fade runs, started when that fade ends (-1 when none), so the weights never jump.
+    private pendingIndex = -1;
     // 0..1 of the cross-fade that is running; the weights are 1 - fadeProgress and fadeProgress.
     private fadeProgress = 1;
     // The one clock every clip is read from, in seconds of clip time, wrapping at DANCE_CLOCK_SECONDS (the longest clip,
@@ -200,6 +202,8 @@ export class DancingCharacterScene {
         dances: ReadonlyMap<DanceId, THREE.AnimationClip> = new Map(),
         bodyMaterialNames: readonly string[] = BODY_MATERIAL_NAMES,
     ): { danced: boolean; missing: string[] } {
+        // Like dispose(), a call after disposal does nothing, so a late load cannot put a figure back into a dead scene.
+        if (this.disposed) return { danced: false, missing: [] };
         this.disposeCharacter();
 
         // The loader's materials may be shared with the caller, so tint copies, never the originals.
@@ -265,6 +269,7 @@ export class DancingCharacterScene {
         this.director = null;
         this.directorOut = null;
         this.fadeFromIndex = -1;
+        this.pendingIndex = -1;
         this.fadeProgress = 1;
         this.danceTime = 0;
         const loaded = DANCES.filter((dance) => dances.has(dance.id));
@@ -389,6 +394,10 @@ export class DancingCharacterScene {
                 if (this.fadeProgress >= 1) {
                     this.fadeProgress = 1;
                     this.fadeFromIndex = -1;
+                    // The dance asked for during the fade starts now, from full weight, so nothing pops.
+                    const pending = this.pendingIndex;
+                    this.pendingIndex = -1;
+                    this.startFade(pending);
                 }
             }
             // The mocap dances always play at full combined weight: blending toward the rest pose would pull the arms
@@ -434,9 +443,15 @@ export class DancingCharacterScene {
     }
 
     // Begins a cross-fade from the dance now at full weight to `to`. A fade still running (switches are at least a bar
-    // apart and fades under a second, so only an odd tempo gets here) is finished at once rather than chained.
+    // apart and fades under a second, so only an odd tempo gets here) is left to finish and the switch waits for it:
+    // restarting from the active dance would drop the fading-out dance's weight at once.
     private startFade(to: number): void {
-        if (to < 0 || to === this.activeIndex) return;
+        if (to < 0) return;
+        if (this.fadeFromIndex >= 0) {
+            this.pendingIndex = to === this.activeIndex ? -1 : to;
+            return;
+        }
+        if (to === this.activeIndex) return;
         this.fadeFromIndex = this.activeIndex;
         this.activeIndex = to;
         this.fadeProgress = 0;

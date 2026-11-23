@@ -26,6 +26,37 @@ function cueWith(overrides: Partial<DirectorCue>): DirectorCue {
 }
 
 describe('BrightnessMix', () => {
+    it('keeps a slot for the drop when kicks and core steps crowd the window', () => {
+        const mix = new BrightnessMix();
+        const cue = cueWith({});
+        let now = 0;
+        const grants: number[] = [];
+        const step = (kick: boolean) => {
+            const before = mix.grantCount;
+            mix.update(cue, kick, 1, now, DT, 1);
+            for (let i = before; i < mix.grantCount; i++) {
+                grants.push(now);
+            }
+            now += 0.05;
+        };
+        // Kicks and a core step land in the same second, then the drop.
+        cue.tension = 0;
+        step(true);
+        cue.tension = 0.9;
+        step(true);
+        step(true);
+        expect(mix.deniedCount).toBeGreaterThan(0);
+        cue.dropAt = now;
+        const before = mix.level;
+        mix.update(cue, false, 0, now, 0, 1);
+        expect(mix.level).toBeCloseTo(Math.max(before, config.dropBurst));
+        expect(mix.level).toBeGreaterThanOrEqual(config.dropBurst);
+        grants.push(now);
+        for (const t of grants) {
+            expect(grants.filter((g) => g >= t && g < t + 1).length).toBeLessThanOrEqual(3);
+        }
+    });
+
     it('flashes on a kick, scaled by strength, then decays toward 0', () => {
         const mix = new BrightnessMix();
         const cue = cueWith({});
@@ -70,11 +101,13 @@ describe('BrightnessMix', () => {
         at(0.4);
         expect(mix.grantCount).toBe(1);
         at(1);
-        // 0.5, 0.75 and 1 are all crossed at once: three more requests.
-        expect(mix.grantCount).toBe(4);
+        // 0.5, 0.75 and 1 are all crossed at once: three requests, of which the shared cap of core steps and kick
+        // flashes grants two, so a drop in the same second still finds a slot.
+        expect(mix.grantCount).toBe(3);
+        expect(mix.deniedCount).toBe(1);
         at(0);
         at(0.3);
-        expect(mix.grantCount).toBe(5);
+        expect(mix.grantCount).toBe(4);
     });
 
     it('keeps one governor slot free from kick trains for a drop', () => {

@@ -23,6 +23,10 @@ export class KickRing implements KickRingView {
     update(gate: KickSource, nowSeconds: number): boolean {
         // A counter, not a level, so a pulse is never missed or counted twice whatever the frame rate. The first call
         // only records it, so a gate that has been running does not count as a kick.
+        // A non-finite pulse counter or time would poison the slots, so such a frame records nothing.
+        if (!Number.isFinite(gate.bumpCount) || !Number.isFinite(nowSeconds)) {
+            return false;
+        }
         const fresh = this.seenBumps !== undefined && gate.bumpCount !== this.seenBumps;
         this.seenBumps = gate.bumpCount;
         if (!fresh) {
@@ -31,7 +35,8 @@ export class KickRing implements KickRingView {
         // The gate's weight eases in as it opens, so the first pulses of a newly found bassline are gentle.
         const slot = this.count % KICK_SLOTS;
         this.times[slot] = nowSeconds;
-        this.strengths[slot] = Math.min(1, Math.max(0, gate.bumpTarget * gate.weight));
+        const strength = gate.bumpTarget * gate.weight;
+        this.strengths[slot] = Number.isFinite(strength) ? Math.min(1, Math.max(0, strength)) : 0;
         this.count++;
         return true;
     }

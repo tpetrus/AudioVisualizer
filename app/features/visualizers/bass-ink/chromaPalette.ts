@@ -101,17 +101,70 @@ function writeHsl(out: Float32Array, hueDegrees: number, saturation: number, lig
     out[2] = srgbToLinear(b + m);
 }
 
+function luminance(rgb: Float32Array): number {
+    return 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+}
+
+const scratch = new Float32Array(3);
+
+// Relative luminance (Rec. 709 weights on linear RGB) of an HSL color.
+function luminanceOf(hueDegrees: number, saturation: number, lightness: number): number {
+    writeHsl(scratch, hueDegrees, saturation, lightness);
+    return luminance(scratch);
+}
+
+function hueOf(pitchClass: number): number {
+    return (((pitchClass * 7) % 12) / 12) * 360;
+}
+
+// The same HSL lightness is far from the same brightness across hues (yellow is about seven times as luminous as blue),
+// and the palette cross-fades on every transition, so a plain lightness would make the scene pulse with the key. The
+// target is the mean luminance the nominal look has over the 12 classes, which keeps the scene as bright on average as
+// before; each class then gets the lightness that lands on it. Luminance rises with lightness, so a bisection finds it.
+const targets = new WeakMap<ChromaConfig, { core: number; edge: number }>();
+
+function targetsFor(config: ChromaConfig): { core: number; edge: number } {
+    let found = targets.get(config);
+    if (!found) {
+        let core = 0;
+        let edge = 0;
+        for (let pc = 0; pc < BINS; pc++) {
+            const hue = hueOf(pc);
+            core += luminanceOf(hue, config.coreSaturation, config.coreLightness);
+            edge += luminanceOf(hue + config.edgeHueShiftDegrees, config.edgeSaturation, config.edgeLightness);
+        }
+        found = { core: core / BINS, edge: edge / BINS };
+        targets.set(config, found);
+    }
+    return found;
+}
+
+function writeEvenHsl(out: Float32Array, hue: number, saturation: number, target: number): void {
+    let low = 0;
+    let high = 1;
+    for (let i = 0; i < 24; i++) {
+        const mid = (low + high) / 2;
+        if (luminanceOf(hue, saturation, mid) < target) {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    writeHsl(out, hue, saturation, (low + high) / 2);
+}
+
 // Maps a pitch class onto the circle of fifths so that harmonically close keys get close hues; -1 (no tonal content
-// yet) gives a calm neutral blue-gray.
+// yet) gives a calm neutral blue-gray. Every class has the same luminance, so only the hue tells them apart.
 export function writePalette(pitchClass: number, out: PalettePair, config: ChromaConfig = bassInkConfig.chroma): void {
     if (pitchClass < 0) {
         writeHsl(out.core, 215, 0.2, 0.7);
         writeHsl(out.edge, 215, 0.2, 0.3);
         return;
     }
-    const hue = (((pitchClass * 7) % 12) / 12) * 360;
-    writeHsl(out.core, hue, config.coreSaturation, config.coreLightness);
-    writeHsl(out.edge, hue + config.edgeHueShiftDegrees, config.edgeSaturation, config.edgeLightness);
+    const hue = hueOf(pitchClass);
+    const target = targetsFor(config);
+    writeEvenHsl(out.core, hue, config.coreSaturation, target.core);
+    writeEvenHsl(out.edge, hue + config.edgeHueShiftDegrees, config.edgeSaturation, target.edge);
 }
 
 // Linear blend of two palettes (t 0 gives a, 1 gives b).
