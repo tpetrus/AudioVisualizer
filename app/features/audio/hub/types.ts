@@ -69,7 +69,7 @@ export interface AudioHubSnapshot {
     time: number;
     // HUB_BAND_COUNT values in HUB_BANDS order, 0..1: the band's energy from the newest frame at or before `time`
     // (the oldest held frame if `time` is earlier than all of them), scaled so 1 is the band's loudest of the last few
-    // seconds. Silence reads 0; before the first frame and after a reset all are 0; with no source the last values stay.
+    // seconds. Silence reads 0; before the first frame, after a reset and with no source all are 0.
     bands: Float32Array;
     // Keyed by FEATURE_ONSET_BANDS. Valid without a tempo lock. `strength` is on one of two scales, and they are not
     // normalized to each other: a phase onset's (a re-struck low note, reported as bass or kick) is relative to the phase
@@ -87,8 +87,8 @@ export interface AudioHubSnapshot {
 export interface AudioHubReader {
     readonly snapshot: AudioHubSnapshot;
     // Brings `snapshot` up to `now` (AudioContext seconds). Without an argument it reads at the tracker's render time
-    // (audio clock minus display delay and user sync offset, contract C6); with no bound source it leaves the snapshot
-    // unchanged. Calling it again with the same time does nothing, so every consumer may call it once per frame. It
+    // (audio clock minus display delay and user sync offset, contract C6); with no bound source it puts the snapshot at
+    // rest (contract C5: bands, gate bass and onset strengths 0, the beat unlocked, the counters kept). Calling it again with the same time does nothing, so every consumer may call it once per frame. It
     // allocates nothing.
     update(now?: number): void;
 }
