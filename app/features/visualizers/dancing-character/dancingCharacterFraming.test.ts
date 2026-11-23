@@ -6,8 +6,8 @@ const FOV = 45;
 const AZIMUTHS = [0, Math.PI / 4, Math.PI / 2, Math.PI, (5 * Math.PI) / 4];
 const ASPECTS = [16 / 9, 9 / 16, 1];
 
-// About the size of the robot, deliberately off-center so the test proves the box center is used.
-function robotBox(): Box3 {
+// About the size of the dancer, deliberately off-center so the test proves the box center is used.
+function dancerBox(): Box3 {
     return new Box3(new Vector3(-0.6, -0.1, -0.4), new Vector3(0.9, 4.4, 0.8));
 }
 
@@ -39,7 +39,7 @@ describe('computeFraming', () => {
     for (const aspect of ASPECTS) {
         for (const azimuth of AZIMUTHS) {
             it(`keeps every corner in view at aspect ${aspect.toFixed(2)}, azimuth ${azimuth.toFixed(2)}`, () => {
-                const worst = maxNdc(robotBox(), aspect, azimuth, 1);
+                const worst = maxNdc(dancerBox(), aspect, azimuth, 1);
                 expect(worst).toBeLessThanOrEqual(1);
                 // The fit is not wastefully loose either: the margin is 15 %, so the widest corner uses most of the view.
                 expect(worst).toBeGreaterThan(0.5);
@@ -49,7 +49,7 @@ describe('computeFraming', () => {
 
     it('writes the box center into out', () => {
         const out = new Vector3();
-        computeFraming(robotBox(), FOV, 1, 1, out);
+        computeFraming(dancerBox(), FOV, 1, 1, out);
         expect(out.x).toBeCloseTo(0.15, 10);
         expect(out.y).toBeCloseTo(2.15, 10);
         expect(out.z).toBeCloseTo(0.2, 10);
@@ -57,11 +57,11 @@ describe('computeFraming', () => {
 
     it('halves the distance at zoom 2 and keeps the zoomed-out view framed', () => {
         const target = new Vector3();
-        const one = computeFraming(robotBox(), FOV, 16 / 9, 1, target);
-        const two = computeFraming(robotBox(), FOV, 16 / 9, 2, target);
+        const one = computeFraming(dancerBox(), FOV, 16 / 9, 1, target);
+        const two = computeFraming(dancerBox(), FOV, 16 / 9, 2, target);
         expect(two).toBeCloseTo(one / 2, 10);
-        expect(computeFraming(robotBox(), FOV, 16 / 9, 0.5, target)).toBeCloseTo(one * 2, 10);
-        expect(maxNdc(robotBox(), 16 / 9, 0.3, 0.5)).toBeLessThanOrEqual(1);
+        expect(computeFraming(dancerBox(), FOV, 16 / 9, 0.5, target)).toBeCloseTo(one * 2, 10);
+        expect(maxNdc(dancerBox(), 16 / 9, 0.3, 0.5)).toBeLessThanOrEqual(1);
     });
 
     it('needs more distance for a narrower view when the width decides, and fits a wide box', () => {

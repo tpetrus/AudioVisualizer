@@ -38,6 +38,8 @@ export class SetDirector {
     private pendingDeadline = -1;
     // Scene time sound was first heard, or -1 before; builds and drops wait for the warm-up after it.
     private soundSince = -1;
+    // Scene time the fast envelope dropped under the silence floor without a break, or -1 while sound holds.
+    private silentSince = -1;
     // Scene time the bass dip started holding without a break, or -1 while it does not hold.
     private dipSince = -1;
     // Same for the softer, longer cut.
@@ -83,6 +85,18 @@ export class SetDirector {
             this.transitioning = false;
             cue.formationIndex = cue.nextFormationIndex;
             cue.nextFormationIndex = this.pick(cue.formationIndex);
+        }
+
+        // A long silence ends the sound, so the warm-up applies again to the music that follows it.
+        if (energy.fast > config.silenceFloor) {
+            this.silentSince = -1;
+        } else {
+            if (this.silentSince < 0) {
+                this.silentSince = nowSeconds;
+            }
+            if (nowSeconds - this.silentSince >= config.restartSilenceSeconds) {
+                this.soundSince = -1;
+            }
         }
 
         this.trackSongChange(state.songChangeCount, nowSeconds);

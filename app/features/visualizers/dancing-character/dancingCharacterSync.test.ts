@@ -9,12 +9,11 @@ import { createRhythmState, type RhythmState } from '~/features/rhythm/types';
 import {
     CALM_DANCE_WEIGHT,
     CALM_TIME_SCALE,
-    DANCE_CLIP_DURATION,
+    DANCE_CLIP_BEATS,
     DANCE_WEIGHT_RATE,
     MAX_PHASE_NUDGE_PER_SECOND,
     MAX_TIME_SCALE_CHANGE_PER_SECOND,
     MIN_TIME_SCALE,
-    NATIVE_BEATS_PER_LOOP,
     MAX_DANCE_BPM,
     MAX_DANCE_BPM_RELEASE,
     NATIVE_BPM,
@@ -31,7 +30,9 @@ import {
 } from './dancingCharacterSync';
 
 const DT = 1 / 60;
-const CLIP_BEATS = NATIVE_BEATS_PER_LOOP;
+const CLIP_BEATS = DANCE_CLIP_BEATS;
+// One bar of clip time in seconds, derived from the config constants.
+const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
 
 interface RhythmOverrides {
     bpm?: number;

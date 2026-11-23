@@ -9,6 +9,9 @@ export const bassInkConfig = {
         slowTauSeconds: 8,
         // Below this RMS the slow envelope is treated as silence, so a quiet gap does not turn into a huge ratio.
         silenceFloor: 0.005,
+        // After the fast envelope has stayed under the silence floor this long, the tracker forgets its history: the slow
+        // envelope has decayed by then, and music resuming would read as a surge or drop.
+        reseedSilenceSeconds: 3,
         // The envelopes follow the bass below this frequency: a DJ builds tension by pulling the bass out and drops by
         // bringing it back, which shows far more clearly in the bass than in the full-band loudness. Same cutoff as
         // the debug harness's bassRaw column, so recordings can be replayed against these rules.
@@ -70,6 +73,8 @@ export const bassInkConfig = {
         // No build or drop is read until there has been sound for this long: the slow envelope needs time to learn
         // the level, and a track fading in would otherwise look like a huge surge.
         warmupSeconds: 6,
+        // Silence this long (the energy tracker reseeds at the same point) restarts the warm-up for the music after it.
+        restartSilenceSeconds: 3,
         // A drop out of a quiet intro has no cut before it: the bass simply arrives at twice its level or more and
         // stays. Held this long it is a drop on its own, which also keeps one loud hit from counting.
         surgeRatio: 1.6,

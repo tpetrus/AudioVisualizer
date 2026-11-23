@@ -5,7 +5,10 @@
 
 import { Quaternion, Vector3 } from 'three';
 import type { AnimationClip } from 'three';
-import { DANCE_REQUIRED_BONES } from '../../app/features/visualizers/dancing-character/dancingCharacterConfig';
+import {
+    DANCE_REQUIRED_BONES,
+    FOOT_SKATE_MAX_METERS,
+} from '../../app/features/visualizers/dancing-character/dancingCharacterConfig';
 import { CLIP_FPS } from './clip';
 import type { PoseTrack } from './clip';
 import { measureClearance } from './clearance';
@@ -15,10 +18,9 @@ import { KEYS_PER_BEAT, quatAngleDegrees } from './loop';
 import { createFk } from './retarget';
 import type { TargetRig } from './rig';
 
-// Mirrors FOOT_SKATE_MAX_METERS in dancingCharacterConfig.ts (added there with the dance registry). It is a proxy for
-// visible sliding, set just above the approved clips (the approved twist measures 0.153 m) instead of tuning a clip the
-// human already approved (Amendment 4).
-export const FOOT_SKATE_MAX_METERS = 0.16;
+// The limit lives in dancingCharacterConfig.ts (app code must never import from scripts); it is re-exported here so the
+// build script and its specs keep one import point.
+export { FOOT_SKATE_MAX_METERS };
 // The root bone keeps the pelvis centered over the rig, so its X/Z swing with the hips' rotation; "no travel" means every
 // key stays within this distance (meters) of the root's rest X/Z, and the loop's first and last keys match within 1 mm.
 const ROOT_XZ_MAX_METERS = 0.1;

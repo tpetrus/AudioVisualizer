@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { stubGltfImageElement } from './loadDancerGlb.testing';
 import { createRhythmState } from '~/features/rhythm/types';
 import type { RhythmState } from '~/features/rhythm/types';
 import { dancingCharacterControls, type DancingCharacterSettings } from './dancingCharacterControls';
@@ -740,6 +741,37 @@ describe('dances', () => {
         expect(dancing.timingState.danceWeight).toBe(weight);
     });
 
+    it('lets a switch asked for mid-fade wait for the running fade, so no weight ever jumps', () => {
+        const { dancing } = loaded();
+        const start = (index: number) => (dancing as unknown as { startFade(to: number): void }).startFade(index);
+        let previous = weightsOf(dancing);
+        const checkSmooth = () => {
+            const weights = weightsOf(dancing);
+            let sum = 0;
+            for (const id of Object.keys(weights)) {
+                sum += weights[id];
+                expect(Math.abs(weights[id] - previous[id]), id).toBeLessThan(0.1);
+            }
+            expect(sum).toBeCloseTo(1, 9);
+            previous = weights;
+        };
+        start(1);
+        for (let frame = 0; frame < 10; frame++) {
+            step(dancing, frame, CALM_DANCE_ID);
+            checkSmooth();
+        }
+        // Mid-fade (lambada to twist): asking for salsa changes no weight at once.
+        expect(weightsOf(dancing).twist).toBeGreaterThan(0);
+        expect(weightsOf(dancing).twist).toBeLessThan(1);
+        start(3);
+        checkSmooth();
+        for (let frame = 10; frame < 80; frame++) {
+            step(dancing, frame, CALM_DANCE_ID);
+            checkSmooth();
+        }
+        expect(weightsOf(dancing)).toEqual({ lambada: 0, twist: 0, 'cabbage-patch': 0, salsa: 1 });
+    });
+
     it('restartDance in Auto cross-fades back to the dance a fresh load starts with', () => {
         const { dancing } = loaded();
         // A song change rotates Auto to the next dance on the bar line at frame 120, as in a long first track.
@@ -1093,6 +1125,14 @@ describe('club', () => {
 });
 
 describe('dispose', () => {
+    it('ignores setCharacter after dispose and adds nothing to the scene', () => {
+        const { scene, dancing } = setup();
+        dancing.dispose();
+        const { model } = makeModel();
+        expect(dancing.setCharacter(model, makeDances())).toEqual({ danced: false, missing: [] });
+        expect(scene.children).toHaveLength(0);
+    });
+
     it('frees geometries, materials, skeletons and the mixer cache and removes everything it added', () => {
         const { scene, dancing } = setup();
         const clubDispose = vi.spyOn(ClubSet.prototype, 'dispose');
@@ -1155,21 +1195,7 @@ describe('real MakeHumanDancer.glb', () => {
         const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
         // GLTFLoader decodes the garment textures through an <img> element, which the node environment lacks. This
         // stand-in answers "loaded", so the loader builds its Texture objects; it is removed again right after.
-        vi.stubGlobal('self', globalThis);
-        vi.stubGlobal('document', {
-            createElementNS: () => {
-                const listeners = new Map<string, () => void>();
-                return {
-                    width: 1,
-                    height: 1,
-                    addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
-                    removeEventListener: (type: string) => listeners.delete(type),
-                    set src(_value: string) {
-                        queueMicrotask(() => listeners.get('load')?.());
-                    },
-                };
-            },
-        });
+        stubGltfImageElement();
         try {
             // A fresh parse per use, because the scene takes ownership and disposes the model.
             return (await new GLTFLoader().parseAsync(bytes, '')).scene;

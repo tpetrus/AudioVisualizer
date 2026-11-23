@@ -26,6 +26,8 @@ import { createOrbitView } from '~/lib/three/orbitView';
 // Frequency data: 2048 samples gives bins of about 23 Hz, so the bass below 120 Hz spans about five of them.
 // useThreeScene renders at most at this pixel ratio, and gl_PointSize is in drawing-buffer pixels.
 const MAX_PIXEL_RATIO = 2;
+// The density slider must rest this long before the cloud is rebuilt.
+const DENSITY_SETTLE_SECONDS = 0.25;
 
 interface BassInkSceneOptions {
     // Still owned for the spectrum field and the energy level; the gate's bass comes from the hub.
@@ -110,6 +112,9 @@ export function useBassInkScene(
         const cue = director.cue;
 
         let cloud = new InkCloud(pointCountFor(valuesRef.current.density, software), formationSeed, pointSizeLimit);
+        // The point count the slider asks for and how long it has held, for the rebuild's wait.
+        let pendingPoints = cloud.pointCount;
+        let pendingSeconds = 0;
         // Kept current by resize, for clouds built later.
         let viewHeight = size.height;
         cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
@@ -256,13 +261,27 @@ export function useBassInkScene(
                 }
                 director.update(state, energy, now);
 
-                // A density change is rare (the settings are used before the set), so it simply rebuilds the cloud.
+                // A density change rebuilds the cloud, but only once the slider has rested, so dragging it does not
+                // recompile the shader on every step. The wait counts scene time, so no timer outlives the scene. A
+                // fade in progress is never cut: the rebuild waits for it, which keeps its formation and its timing.
                 const wantedPoints = pointCountFor(values.density, software);
-                if (wantedPoints !== cloud.pointCount) {
+                if (wantedPoints !== pendingPoints) {
+                    pendingPoints = wantedPoints;
+                    pendingSeconds = 0;
+                } else {
+                    pendingSeconds += dt;
+                }
+                if (
+                    wantedPoints !== cloud.pointCount &&
+                    pendingSeconds >= DENSITY_SETTLE_SECONDS &&
+                    !cloud.transitioning
+                ) {
                     const turned = cloud.object.rotation.y;
+                    // The new cloud is built before the old one is freed, so the shader program is reused.
+                    const next = new InkCloud(wantedPoints, formationSeed, pointSizeLimit);
                     scene.remove(cloud.object);
                     cloud.dispose();
-                    cloud = new InkCloud(wantedPoints, formationSeed, pointSizeLimit);
+                    cloud = next;
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                     cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt, turned, 0);
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.

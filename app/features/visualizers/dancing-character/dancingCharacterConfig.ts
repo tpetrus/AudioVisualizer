@@ -18,10 +18,6 @@ export const DANCE_CLIP_BEATS = 4;
 // Tempo at which a clip plays at timeScale 1. 120 BPM sits in the middle of the range that popular music uses, so the
 // clip is rarely sped up or slowed down by much; a beat is 0.5 s of clip time.
 export const NATIVE_BPM = 120;
-// Length of one bar of clip time in seconds (2 s).
-export const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
-// The number of beats in a bar, under the name the timing spec uses.
-export const NATIVE_BEATS_PER_LOOP = DANCE_CLIP_BEATS;
 // Where in the loop (0..1 of one beat) the beat lands: the clips are built with beat 1 at t = 0.
 export const STEP_PHASE_OFFSET = 0;
 // Materials the body color tints: the model's single skin material.
@@ -221,6 +217,9 @@ export const CLUB_FLOOR_FLASH_LIFT = 0.25;
 // Photosensitivity limit: a large-area brightness jump (a spotlight flash or the floor's bass lift) may start at most
 // this many times per second, whatever the tempo or the bass does.
 export const CLUB_MAX_FLASHES_PER_SECOND = 3;
+// The shortest gap between two flash starts: a little over 1 / CLUB_MAX_FLASHES_PER_SECOND (one 60 Hz frame), so that
+// four starts can never fit in a closed one-second window [t, t + 1].
+export const CLUB_MIN_FLASH_INTERVAL_SECONDS = 1 / CLUB_MAX_FLASHES_PER_SECOND + 1 / 60;
 // Flash strength under reduced motion (1 is full strength).
 export const CLUB_REDUCED_MOTION_FLASH_STRENGTH = 0.3;
 // Bass level (0..1) that starts a flash.
