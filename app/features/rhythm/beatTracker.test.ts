@@ -125,22 +125,22 @@ describe('BeatTracker', () => {
         return beats;
     }
 
-    it('keeps the grid across a halved tempo and keeps every second beat', () => {
+    it('searches the phase again when the tempo halves, numbering on from the old count in the same epoch', () => {
         const tracker = new BeatTracker(FRAME_RATE);
         drive(tracker, 196, 15);
         expect(tracker.locked).toBe(true);
         const epoch = tracker.gridEpoch;
         const countBefore = tracker.beatCount;
         tracker.setTempo(98);
-        expect(tracker.locked).toBe(true);
-        expect(tracker.gridEpoch).toBe(epoch);
-        expect(tracker.periodSeconds).toBeCloseTo(2 * (60 / 196), 1);
         const beats = continuePulses(tracker, 196, 15, 8);
-        // Beats land on pulses of the old grid, two old periods apart, and are numbered on from the old count.
+        // The grid is back within one retry, on pulses of the music, two old periods apart.
+        expect(tracker.locked).toBe(true);
+        expect(tracker.periodSeconds).toBeCloseTo(2 * (60 / 196), 1);
         for (let i = 1; i < beats.length; i++) {
             expect(beats[i].time - beats[i - 1].time).toBeCloseTo(120 / 196, 1);
             expect(beats[i].count).toBe(beats[i - 1].count + 1);
         }
+        // No beat is declared twice and none is skipped in the count, and the epoch (the meter's evidence) is kept.
         expect(beats[0].count).toBe(countBefore + 1);
         expect(tracker.gridEpoch).toBe(epoch);
     });
@@ -453,6 +453,8 @@ describe('BeatTracker phase check', () => {
         driveEnvelope(tracker, 24, offBeatStart(1, 0.6), () => phaseWins(tracker) === 3);
         expect(phaseWins(tracker)).toBe(3);
         tracker.setTempo(60);
+        // A halving searches the phase again on the next frames, which starts the evidence afresh.
+        for (let i = 0; i < 20; i++) tracker.push(100 + i / FRAME_RATE, 0.05);
         expect(phaseWins(tracker)).toBe(0);
     });
 
