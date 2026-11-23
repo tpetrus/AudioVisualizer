@@ -7,7 +7,8 @@
 // Without <input-dir> the CMU inputs (about 25 MB) are downloaded into memory on every run and never written to disk; with
 // it they are read from that local directory instead. Either way every input is verified against its pinned sha256
 // before it is parsed. The output is deterministic (two runs are byte-identical). The built file is loaded back with
-// GLTFLoader and checked against the hard rules of docs/plans/natural-dance/contracts.md (C2, Amendments 3 and 4); the 40 ms
+// GLTFLoader and checked against the hard rules of the natural-dance contracts (C2, Amendments 3 and 4; now only in
+// history: `git show 41d8b8a:docs/plans/natural-dance/contracts.md`); the 40 ms
 // contact rule is printed as warnings. With --approved the clips are also compared with the clips approved in the S0g
 // spike (lambada=55_02_loop, twist=15_04_twist_soft_loop, cabbage-patch=15_04_cabbage_loop, salsa=60_02_grounded_loop).
 // --model defaults to the MakeHuman model; for another character the output defaults to dances.glb beside it, and

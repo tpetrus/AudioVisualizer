@@ -2,7 +2,9 @@
 // the loop) and every processing parameter. The CMU files are pinned by sha256; raw mocap is never committed.
 //
 // The beat tables and parameters reproduce the loops that were approved by eye in the S0g spike (see
-// docs/plans/natural-dance/contracts.md, Amendment 3). Changing a number here changes how the dance looks.
+// Amendment 3 of the natural-dance contracts, now only in history:
+// `git show 41d8b8a:docs/plans/natural-dance/contracts.md`).
+// Changing a number here changes how the dance looks.
 
 import type { AmplitudeGroup } from './amplitude';
 
@@ -97,7 +99,8 @@ export const SHOULDERS_AND_ARMS = [
 ];
 export const SPINE_AND_HEAD = ['spine05', 'spine04', 'spine03', 'spine02', 'spine01', 'neck02', 'head'];
 
-// The order is the Auto rotation order (docs/plans/natural-dance/contracts.md, Amendment 3).
+// The order is the Auto rotation order (Amendment 3 of the natural-dance contracts,
+// `git show 41d8b8a:docs/plans/natural-dance/contracts.md`).
 export const MANIFESTS: readonly DanceManifest[] = [
     {
         id: 'lambada',
