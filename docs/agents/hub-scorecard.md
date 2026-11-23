@@ -1170,6 +1170,137 @@ none of the 4x and 8x lags reaches), which belongs with the re-planned tracker.
 | `tempo.lockSeconds` (first lock) | `syncopation-no-kick` | 8.02 s | unchanged | stretch-open (not touched by any shipped rule) |
 | 3/4 click at 180 reads 90 (`it.fails`) | synthetic | fails | still fails | stretch-open |
 
+## Tracker replan, S0: the post-merge baseline (2026-11-23, on `7b602b8`)
+The replan (`docs/plans/rhythm-tracker-replan/`) starts on `main` once every D11 PR has merged (#127 to #134). These are
+its before values. `npm run scorecard` gives 446 applicable cells: 400 pass, 22 fail, 24 unavailable, 11 blocking
+failures. `scorecard:check` against the D11 baseline passes, and the baseline is rewritten from this run.
+
+| Guard (AC2) | Before |
+|---|---|
+| `beat.errorMedianMs`, `summer2000` | 153.4 ms (fail) |
+| `beat.errorMedianMs`, `low-bpm-rnb` | 24.2 ms |
+| `ac9.dottedChangeCounted` | 1 |
+| `beat.errorMedianMs`, synthetic tracks | 0.8 to 3.6 ms (`drifting-tempo` 38.0) |
+| `beat.errorMedianMs`, `syncopation-no-kick`, `syncopationbass`, `high-bpm-dnb` | 29.9, 35.5, 21.5 ms |
+| `tempo.lockSeconds`, `syncopation-no-kick`, `syncopationbass`, `high-bpm-dnb`, synthetic | 8.02, 3.02, 8.02 s; 3.02 s (`trap-4to3-120` 8.02) |
+| `6-8-time` | never locks to the truth; 1 false song change |
+| `gate.secondsAfterLock`, passing | `imyourgirl` 0.15, `trap-2to1-half-140` and `trap-4to3-120` 0.77, `syncopationbass` 1.73, `syncopationbass2` 1.80, `high-bpm-dnb` 1.93, `drums-128` 2.82, `drums-150` 3.00, `trap-2to1-double-90` 3.07, `drums-100` 3.38, `drifting-tempo` 3.40, `bassline-kick-120` 3.83 s |
+| `gate.secondsAfterLock`, failing (reported only) | `summer2000` 6.10, `half-time-shuffle` 7.18, `lonley` 10.83, `low-bpm-rnb` 14.92 s |
+| `sweep:gate` false opens | 3 of 300 at 120 beats, 15 of 300 at 400; 12 of 16 kick tracks within 4 s, 6 within 2 s |
+| Total JS | 338.12 kB (limit 338.5) |
+
+**The kick lead, on the delivered stream.** Measured with a scratch script over `replayPcm` (not committed): every truth
+beat is paired with the nearest BandOnsets kick event within 150 ms, and the event's own timestamp is compared with it.
+
+| Tracks | Pairs | Median | Quartiles |
+|---|---|---|---|
+| Synthetic (exact sidecar beats) | 575 | -0.2 ms | -1.6, +4.1 |
+| Tapped | 352 | -0.7 ms | -22.7, +28.7 |
+| `summer2000` alone | 42 of 58 | -31.0 ms | -72.7, +22.7 |
+
+The two classes agree within 10 ms, and both leads are about 0, so `KICK_LEAD_SECONDS` stays 0 (C3). `summer2000`'s own
+31 ms lead is that track's spread, not a lead of the detector. Its kick events are also widely spread on the
+tracker's grid: folded into 16 bins from the lock on, the best 3-bin window holds only 0.28 of them (bin 12, a quarter
+beat before the grid). The synthetic kick tracks hold 0.84 to 1.00, and `syncopationbass2` 0.84. Attempt A's support
+floor has to sit below that 0.28, or the model never acts on the track it is for.
+
+**The stretch check (S6 and S7 are canceled).** The plan made both conditional on the kick events carrying evidence
+they lack today.
+- **`beatless` (S6).** It has 53 kick events. Their autocorrelation peaks at 0.42 s, the tracker's period there
+  (412 ms), and folded on its grid the best 3-bin window holds 0.41 of them. That is more kick support than six
+  tapped kick tracks have on theirs: `summer2000` 0.28, `syncopation-no-kick` and `6-8-time` 0.30, `high-bpm-dnb` 0.31,
+  `lonley` 0.35, `low-bpm-rnb` 0.37. Any floor that stops `beatless` locking would stop those, so kick support does not
+  separate a beat from `beatless`'s periodicity, as D11's S6 found for the autocorrelation.
+- **`6-8-time` and `half-time-shuffle` (S7).** `6-8-time` has 47 kick events, and only 20 of its 62 taps have one within
+  150 ms. Their autocorrelation is weak everywhere (at most 0.15, at 1.16 s), with no peak at the 6-eighth bar (1.94 s
+  at 62 bpm) or at its beat (0.97 s). The kick events carry no bar pattern to choose a beat level from. On
+  `half-time-shuffle` (truth 81 bpm, held at 163 to 169), the kick autocorrelation is as high at the held beat (0.37 s,
+  0.26) as at the true one (0.74 s, 0.23), so the kicks do not prefer the true level either.
+
+**Live (`dancing-character`, 4 runs per track, headless, one at a time from the main checkout, 48.5 min, and
+`high-bpm-dnb` again, see below).** 71 of 86 applicable cells pass, 9 fail and 6 are unavailable. With the live cells
+merged, the baseline has 401 passing, 24 failing and 21 unavailable cells, and 11 blocking failures, the same as
+offline. Before values for AC8, against the D11 recording on `6fd6611`:
+
+| Track | `live.clip.maxDeviationBeats` (`6fd6611` → `7b602b8`) | `live.gate.secondsAfterLock` (`6fd6611` → `7b602b8`) |
+|---|---|---|
+| `summer2000` | unavailable → unavailable | 6.44 → 6.44 s (fail) |
+| `low-bpm-rnb` | unavailable → 0.875 (fail) | 16.26 → 15.05 s (fail) |
+| `syncopation-no-kick` | 0.132 → 0.121 | n/a |
+| `6-8-time` | unavailable → 0.306 (fail) | n/a |
+| `high-bpm-dnb` | 0.058 → 0.081 | 2.20 → 2.52 s (fail, floor 2 s) |
+| `syncopationbass` | unavailable → unavailable | 1.56 → 1.56 s |
+| `half-time-shuffle` | 0.029 → 0.042 | 10.38 → 10.36 s (fail) |
+| `lonley` | 0.024 → 0.027 | 5.31 → 5.30 s (fail) |
+
+`low-bpm-rnb` and `6-8-time` now have clip cells, because the dancer locks there since S4b, but both fail. In the
+first full recording, the dancer's gate on `high-bpm-dnb` opened in only one of four runs (12.78 s), and its clip, hit
+and false-fire cells were unavailable. Offline its gate opens 1.93 s after the lock, so the track was recorded again
+alone, 4 runs on an idle machine. The gate opened in three of the four, at 2.52 s, and every other cell came back. The
+re-recording replaced the outlier in `hub-scorecard.live.json`. Elsewhere, `live.hit.share50ms` on `summer2000` went
+from fail to pass, and `live.lock.spreadSeconds` on `drifting-tempo` from pass to fail.
+
+**Kick delivery.** The worklet decides a kick 2 frames after it sounds and posts 2-frame batches, so the analyzer sees
+an event 2 to 3 frames after its timestamp. That is why C2 delivers events in arrival order with their own timestamp.
+Folding uses the timestamp, so the delay does not move the lead above.
+
+## Tracker replan, S1 to S4: the kick input and both attempts (2026-11-23)
+- **S1 (the kick input path, `refactor(rhythm)`).** `RhythmAnalyzer.pushKicks` takes each batch's onset events before its
+  frames, from `RhythmTracker.onMessage` and from every offline runner. `KickQueue` hands the band-0 events to
+  `BeatTracker.pushKick` at the batch's first frame, in arrival order with their own timestamps. Nothing reads them yet:
+  golden digests taken at `7b602b8` and all 717 scorecard cells are unchanged. Total JS 338.12 → 338.56 kB.
+  `bench:tracker` against `7b602b8`: 1.000 without kicks, 1.004 with them.
+- **S2 (both models behind off-by-default constants).** Attempt A (`kickPhase.ts` in `BeatTracker`): a decayed kick
+  histogram over the beat that vetoes envelope corrections pointing away from the kicks, holds the correction through a
+  fill, moves the grid onto the kicks after `KICK_MOVE_BEATS` beats of margin, and gives way to a sustained envelope
+  phase. Attempt B (`kickOffset.ts` in the analyzer): the median offset between the kicks and the grid, applied to the
+  anchor. With the defaults every offline cell is unchanged. Together they add 1.77 kB (340.33 kB, limit raised to
+  340.5).
+
+**The pre-registered grids, full offline scorecard per point** (fixed before running; base summer2000 153.4 ms,
+low-bpm-rnb 24.2 ms, 11 blocking failures):
+
+| Attempt | Grid | summer2000 `beat.errorMedianMs` | Blocking failures | What breaks |
+|---|---|---|---|---|
+| A | `KICK_SUPPORT_FLOOR` 0.2, 0.25 × `KICK_VETO_MARGIN` 0.05, 0.1, 0.15 × `KICK_MOVE_BEATS` 2, 4 × `KICK_PHASE_DECAY` 0.85, 0.9 × `KICK_FILL_CV` 0.25, 0.4 (48 points) | 142.7 to 161.2 | 13 to 16 | `low-bpm-rnb` 153.7 to 183.0 ms on every point; `drifting-tempo`, `lonley`, `syncopation-no-kick` or `high-bpm-dnb` on most |
+| B | `KICK_OFFSET_RING` 8, 16, 32 × `KICK_OFFSET_HYSTERESIS` 0.01, 0.03 (6 points) | 92.7 to 165.8 (best: ring 16, 0.01) | 15 to 18 | `low-bpm-rnb` 172 to 175 ms and `lonley` 124 to 186 ms on every point, `high-bpm-dnb` 49 to 137 ms |
+
+No point of either grid meets the go/no-go (summer2000 at most 40 ms with AC2 green), so S3 and S4 enable nothing and
+are recorded as misses.
+
+**Why A misses (`trace:beats` on summer2000 at the floor 0.2, margin 0.05, 2 move beats, decay 0.9, fill CV 0.25).**
+The model does what the plan asked of it at first. Its first kick-driven move is at 10.79 s, before the fill, and it
+puts the grid on the taps (-13.8 ms at 11.4 s). But the fill hold is on at every beat from the lock to 22.7 s, not only
+during the fill. summer2000's kicks are syncopated throughout, so the spread of their intervals over 4 beats is above
+both `KICK_FILL_CV` values all the time. The hold freezes the per-beat correction, so the period stays at 470 ms against
+the tapped 467 ms. That drifts the grid 3 ms a beat, back to 145 to 185 ms off by 16 to 19 s. A hold measured by the
+kick intervals alone cannot tell a syncopated groove from a fill. On `low-bpm-rnb`, whose kicks are sparse (13 of 35
+taps have one), the same hold and the kick moves pull a grid that was right (24 ms) off the beat.
+
+**Why B misses.** The median kick offset on summer2000 is roughly the right shift (92.7 ms at best). But on
+`low-bpm-rnb`, `lonley` and `high-bpm-dnb` the kicks are not on the beat the taps mark, and their median offset moves
+grids that were right. One constant relationship between kicks and beat does not hold across these tracks.
+
+**Outcome (decision D4).** Both attempts missed their pre-registered grids, so `summer2000` `beat.errorMedianMs` is
+accepted at 153.4 ms. The S2 code stays off. Whether it ships off, or waits on a branch for a re-design, is Trevor's
+call (see the PR). Question Q3 of the plan, whether summer2000 needs a multi-hypothesis tracker, is open for Trevor.
+The trace points at a narrower next step that the plan did not register: during the hold, keep a correction that
+follows the nearest kick event instead of freezing.
+
+**S5 to S7.** No tracker change is enabled, so there are no after values to record and no live run: the S0 values
+stand, and the `it.fails` spec of the disagreeing envelope plus a fill stays `.fails`. S6 and S7 are canceled by S0's
+check (above).
+
+| Cell | Track | Before (`7b602b8`) | After | Status |
+|---|---|---|---|---|
+| `beat.errorMedianMs` | `summer2000` | 153.4 ms | 153.4 ms | accepted (D4: attempts A and B missed) |
+| `beat.errorMedianMs` | `low-bpm-rnb` | 24.2 ms | 24.2 ms | fixed (D11 S4b), kept |
+| `ac9.dottedChangeCounted` | dotted 100 to 150 | 1 | 1 | fixed (D11 S7), kept |
+| `live.clip.maxDeviationBeats` | request's tracks | see S0 | unchanged | accepted (no tracker change enabled) |
+| `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83, 14.92 s | unchanged | accepted, reported under D6 |
+| `tempo.beatlessNeverLocks` | `beatless` | locks | locks | stretch-open (S6 canceled: kick support does not separate it) |
+| `beat.errorMedianMs`, tempo cells | `6-8-time`, `half-time-shuffle` beat level | never locks to the truth | unchanged | stretch-open (S7 canceled: no bar pattern in the kicks) |
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
