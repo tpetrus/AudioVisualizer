@@ -5,7 +5,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DANCE_REQUIRED_BONES } from './dancingCharacterConfig';
 
 // Loads the committed MakeHumanDances.glb with GLTFLoader and checks the hard rules of the dance clips
-// (docs/plans/natural-dance/contracts.md, C2 and Amendments 3 and 4) on the file the app will ship.
+// (C2 and Amendments 3 and 4 of the natural-dance contracts) on the file the app will ship. The contracts are now only
+// in history: `git show 41d8b8a:docs/plans/natural-dance/contracts.md`.
 
 // The dances and their length in beats (Amendment 3); the registry that names them is a later task.
 const EXPECTED = [
