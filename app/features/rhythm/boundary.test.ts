@@ -166,7 +166,7 @@ describe('BoundaryDetector tempo cue', () => {
     ): BoundaryKind[] {
         const results: BoundaryKind[] = [];
         for (let t = from; t < from + seconds; t += 0.25) {
-            results.push(detector.pushTempo(t, bpm, confidence));
+            results.push(detector.pushTempo(t, bpm, confidence, 1));
         }
         return results;
     }
@@ -201,7 +201,7 @@ describe('BoundaryDetector tempo cue', () => {
         const random = createRandom(2);
         let kinds: BoundaryKind[] = [];
         for (let t = 0; t < 60; t += 0.25) {
-            kinds = kinds.concat(detector.pushTempo(t, 100 * (1 + (random() * 2 - 1) * 0.03), 0.8));
+            kinds = kinds.concat(detector.pushTempo(t, 100 * (1 + (random() * 2 - 1) * 0.03), 0.8, 1));
         }
         expect(count(kinds, BOUNDARY_SOFT)).toBe(0);
     });
@@ -219,18 +219,18 @@ describe('BoundaryDetector tempo jumps on syncopation', () => {
         'does not call a sustained tempo at %f of the reference a new song',
         (ratio) => {
             const detector = new BoundaryDetector(100);
-            for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 98, 1);
+            for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 98, 1, 1);
             for (let t = 10; t < 20; t += 0.25) {
-                expect(detector.pushTempo(t, 98 * ratio, 1)).toBe(BOUNDARY_NONE);
+                expect(detector.pushTempo(t, 98 * ratio, 1, 1)).toBe(BOUNDARY_NONE);
             }
         },
     );
 
     it('still calls another sustained tempo a new song', () => {
         const detector = new BoundaryDetector(100);
-        for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 100, 1);
+        for (let t = 0; t < 10; t += 0.25) detector.pushTempo(t, 100, 1, 1);
         const kinds: BoundaryKind[] = [];
-        for (let t = 10; t < 20; t += 0.25) kinds.push(detector.pushTempo(t, 140, 1));
+        for (let t = 10; t < 20; t += 0.25) kinds.push(detector.pushTempo(t, 140, 1, 1));
         expect(kinds).toContain(BOUNDARY_SOFT);
     });
 });
@@ -258,6 +258,22 @@ describe('BoundaryDetector dotted tempo once the old beat has stopped', () => {
         expect(kinds.indexOf(BOUNDARY_SOFT) * 0.25).toBeGreaterThanOrEqual(4);
         // The new tempo is the reference now, so it does not count again.
         expect(count(feed(detector, 20, 30, 150, 1), BOUNDARY_SOFT)).toBe(0);
+    });
+
+    // A stale dotted start must not shorten the wait: it is cleared when the dotted streak is broken by an octave
+    // reading or by unconfident ones, as the jump start is.
+    it.each([
+        ['octave readings', 200, 1, 10],
+        ['unconfident readings', 150, 0.1, 5],
+    ])('restarts the dotted wait after %s', (_name, bpm, confidence, seconds) => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        feed(detector, 10, 10.25, 150, 0.5);
+        for (let t = 10.25; t < 10.25 + seconds; t += 0.25) detector.pushTempo(t, bpm, confidence, 0.5);
+        const from = 10.25 + seconds;
+        const kinds = feed(detector, from, from + 10, 150, 0.5);
+        expect(count(kinds, BOUNDARY_SOFT)).toBe(1);
+        expect(kinds.indexOf(BOUNDARY_SOFT) * 0.25).toBeGreaterThanOrEqual(4);
     });
 
     it('keeps a dotted tempo quiet while the old beat still sounds on its grid', () => {
