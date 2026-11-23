@@ -14,6 +14,10 @@ export class BrightnessGovernor {
     // Returns the granted amount (strength x intensity, both clamped to 0..1), or 0 when nothing is granted. A zero
     // request does not use a slot, so silence or intensity 0 never blocks a later real flash.
     request(strength: number, nowSeconds: number, intensity: number): number {
+        // NaN would pass the clamps below and break the window arithmetic, so it grants nothing.
+        if (!Number.isFinite(strength) || !Number.isFinite(nowSeconds) || !Number.isFinite(intensity)) {
+            return 0;
+        }
         const amount = Math.min(1, Math.max(0, strength)) * Math.min(1, Math.max(0, intensity));
         if (amount <= 0) {
             return 0;
