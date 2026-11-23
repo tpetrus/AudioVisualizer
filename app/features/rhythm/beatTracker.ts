@@ -1,6 +1,7 @@
 import {
     BEAT_ENVELOPE_MEAN_SMOOTHING,
     BEAT_HISTORY_SECONDS,
+    BEAT_HIT_SHARE_RATE,
     BEAT_INIT_MIN_SECONDS,
     BEAT_INIT_PERIODS,
     BEAT_LOST_BEATS,
@@ -75,6 +76,7 @@ export class BeatTracker {
     private phaseWins = 0;
     private phaseShifts = 0;
     private phaseBeats = 0;
+    private hitShare = 1;
     private readonly phaseScratch = new Float32Array(PHASE_BINS);
 
     constructor(frameRate: number) {
@@ -119,6 +121,13 @@ export class BeatTracker {
     // How often the phase check moved the grid since the last reset. Read-only: for specs and DEV telemetry.
     get phaseShiftCount(): number {
         return this.phaseShifts;
+    }
+
+    // The recent share of beats whose window held an onset, 1 without a grid (nothing says the beat stopped). It says
+    // whether the beat still sounds at its own grid places, which an autocorrelation peak cannot: a beat buried under a
+    // louder 3:2 layer keeps hitting, while after a real change to 3/2 of the tempo only every other old beat does.
+    get gridHitShare(): number {
+        return this.aligned ? this.hitShare : 1;
     }
 
     // Tells the tracker the current tempo estimate in BPM (0 = unknown). A large change rebuilds the grid.
@@ -213,6 +222,7 @@ export class BeatTracker {
         this.epoch = 0;
         this.missedBeats = 0;
         this.phaseShifts = 0;
+        this.hitShare = 1;
         // A reset tracker must not carry energy or a streak of wins from the music it was following before.
         this.phaseBins.fill(0);
         this.phaseWins = 0;
@@ -258,6 +268,7 @@ export class BeatTracker {
                 this.pendingBeat += this.period;
             }
         }
+        this.hitShare = 1;
         this.aligned = true;
     }
 
@@ -285,8 +296,10 @@ export class BeatTracker {
             beatTime += BEAT_PHASE_GAIN * error;
             this.period += BEAT_PERIOD_GAIN * error;
             this.missedBeats = 0;
+            this.hitShare += (1 - this.hitShare) * BEAT_HIT_SHARE_RATE;
         } else {
             this.missedBeats++;
+            this.hitShare -= this.hitShare * BEAT_HIT_SHARE_RATE;
         }
         // The tempo estimate is the better long-term reference; the onsets only steer the period between estimates.
         if (this.tempoPeriod > 0) {

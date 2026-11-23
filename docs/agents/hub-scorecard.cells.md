@@ -1,16 +1,16 @@
 # Scorecard
 
-Targets version 9, revision 6fd6611, created 2026-11-23T01:52:50.428Z.
+Targets version 9, revision 2f20ccb, created 2026-11-23T04:42:50.867Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 446: 398 passing, 24 failing, 24 unavailable. Blocking failures: 13.
+Applicable cells 446: 399 passing, 23 failing, 24 unavailable. Blocking failures: 12.
 
 ## ac9
 
 | Metric | Track | Class | Value | Floor | Stretch | Pre-hub | Status |
 |---|---|---|---|---|---|---|---|
-| ac9.dottedChangeCounted | scenario:dotted-100-150 | synthetic | 0 | 1 | - | - | fail |
+| ac9.dottedChangeCounted | scenario:dotted-100-150 | synthetic | 1 | 1 | - | - | pass |
 | ac9.dottedPassageQuiet | scenario:dotted-passage | synthetic | 0 | 0 | - | - | pass |
 
 ## beat
