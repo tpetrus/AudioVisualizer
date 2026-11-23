@@ -1083,13 +1083,13 @@ Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.pl
 | `beat.errorMedianMs` | `summer2000` | 153.4 ms | 153.4 ms | re-plan | S1 diagnosis: no phase evidence the tracker has favors the taps; S3 recorded as a miss |
 | `beat.errorMedianMs` | `low-bpm-rnb` | 183.4 ms | 24.2 ms | fixed | S4's rival was dropped (S1); a halving now searches the phase again (S4b, found while measuring S8) |
 | `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83 s, never | 6.10, 7.18, 10.83, 14.92 s | re-plan (with the beat), reported under D9 | follows the tracker's beat; `low-bpm-rnb`'s gate now opens (S4b) |
-| `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | see S8 | see S8 | S8 |
-| `tempo.falseSongChanges` | `6-8-time` | 1 | see S8 | see S8 | S8 |
+| `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | unchanged | stretch-open | S8 |
+| `tempo.falseSongChanges` | `6-8-time` | 1 | 1 | stretch-open | S8 |
 | `tempo.beatlessNeverLocks` | `beatless` | locks (1) | locks (1) | stretch-open | S6: no presence signal tried separates it; reverted |
 | `ac9.dottedChangeCounted` | dotted 100 to 150 | 0 | 1 | fixed | S7: a dotted move counts once the old beat stops sounding on its grid |
 | `onset.f50.kick` / `.bass` | `bassline-kick-120` | 0.808 / 0.768 | unchanged | accepted (a non-goal: a finer low-end spectrum is a separate onset project) | plan non-goals |
 | `live.clip.maxDeviationBeats` (AC7 dance-clip consistency) | `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb`, `syncopationbass` | 0.163, unavailable, 1.793, unavailable, unavailable | unchanged | re-plan (with the beat level and phase) | no required tracker change merged, so the live cells were not re-recorded |
-| `tempo.lockSeconds` (AC5 of the audio-alignment plan) | `syncopation-no-kick` | 8.02 s | see S8 | see S8 | S8 |
+| `tempo.lockSeconds` (AC5 of the audio-alignment plan) | `syncopation-no-kick` | 8.02 s | 8.02 s | stretch-open | S8 |
 
 **S5 (the close of the required cells).** S3 and S4 were recorded as misses (see "Tracker plan D11, S1"), so no
 required tracker change merged. There is no improvement to record, and so no baseline rewrite and no live run:
@@ -1152,6 +1152,23 @@ beat is declared twice, and `gridEpoch` is not bumped (C1).
 - Two specs that described the old halving (keep every second beat, lock held through the call) now describe the new
   one: the grid is back within one retry, on the music's pulses, numbered on in the same epoch.
 - Budget: total JS 338.09 kB (smaller than before; the keep-every-second-beat code is gone). `bench:tracker`: 0.999.
+
+**S8 (stretch: bar-level beat for `6-8-time` and `half-time-shuffle`), attempted, not shipped.** `6-8-time` (truth 62
+bpm) first locks at 184 (3x), while its raw estimate moves between 121 and 124 (2x, which the scorecard accepts as an
+octave) and 184. The bar-length evidence of the first-lock tie (`TEMPO_TIE_MULTIPLES` 3, 6 and 12 next to 4 and 8) changes
+nothing alone, because a 3/2 rival is not one of the tie's rivals. With the 3/2 rivals added, `6-8-time` holds 122 to
+124 from 9.5 s, but it wanders again after 20 s (beat error 134 ms, two false song changes). Every tie ratio tried
+(0.4 to 0.9) breaks other blocking cells, and `half-time-shuffle` (truth 81, held 163 to 169) does not move to its beat
+level with any of them. Removing the third-of-a-lag rule (`TEMPO_FASTER_DIVISORS=[2]`) or changing its ratio does not
+move `6-8-time`'s lock either. Choosing the beat level needs evidence of the bar itself (a 6/8 bar is 6 eighths, which
+none of the 4x and 8x lags reaches), which belongs with the re-planned tracker.
+
+| Cell | Track | Before | After | Status |
+|---|---|---|---|---|
+| `beat.errorMedianMs`, `tempo.maxErrorAfterLock`, `tempo.falseSongChanges` | `6-8-time` | none, none, 1 | unchanged | stretch-open |
+| `gate.secondsAfterLock` | `half-time-shuffle` | 7.18 s | unchanged | stretch-open |
+| `tempo.lockSeconds` (first lock) | `syncopation-no-kick` | 8.02 s | unchanged | stretch-open (not touched by any shipped rule) |
+| 3/4 click at 180 reads 90 (`it.fails`) | synthetic | fails | still fails | stretch-open |
 
 ## Follow-ups outside the fast lane
 
