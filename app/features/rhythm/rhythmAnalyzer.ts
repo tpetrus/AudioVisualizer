@@ -1,5 +1,6 @@
 import { BeatTracker } from './beatTracker';
 import { BOUNDARY_HARD, BOUNDARY_NONE, BOUNDARY_SOFT, BoundaryDetector, type BoundaryKind } from './boundary';
+import { KickQueue } from './kickQueue';
 import { MeterEstimator } from './meter';
 import {
     BAND_COUNT,
@@ -14,6 +15,8 @@ import {
     FRAME_CHROMA_OFFSET,
     FRAME_FLUX_OFFSET,
     FRAME_STRIDE,
+    KICK_ONSET_BAND,
+    KICK_QUEUE_CAPACITY,
     METER_GRID_RESET_KEEP,
     NOVELTY_DISPLAY_DECAY,
     NOVELTY_RECENT_SECONDS,
@@ -66,6 +69,9 @@ export class RhythmAnalyzer {
     private featureKick = 0;
     private featureTotal = 0;
     private featureChroma = 0;
+
+    // Kick events of the worklet that arrived with a batch and wait for that batch's first frame.
+    private readonly kickQueue = new KickQueue(KICK_QUEUE_CAPACITY);
 
     private framesSinceTempo = 0;
     private latestTime = 0;
@@ -130,6 +136,23 @@ export class RhythmAnalyzer {
         return this.frames;
     }
 
+    // Kick events dropped because more arrived than the queue holds before a frame; the offline trace tool reports it.
+    get kickOverflowCount(): number {
+        return this.kickQueue.overflowCount;
+    }
+
+    // Takes the onset events of one worklet batch; call it once per batch, before that batch's frames. Only the kick
+    // band's events are kept. They are handed on, each once and in arrival order with their own timestamps, at the start
+    // of the next pushFrame. No order by time is imposed: the worklet decides an onset a couple of frames late, so an
+    // event is often older than the batch that carries it.
+    pushKicks(band: Uint8Array, time: Float64Array, strength: Float32Array, count: number): void {
+        for (let i = 0; i < count; i++) {
+            if (band[i] === KICK_ONSET_BAND) {
+                this.kickQueue.push(time[i], strength[i]);
+            }
+        }
+    }
+
     // Processes `count` packed frames whose first frame is centred at `time0` seconds.
     pushBatch(time0: number, frames: Float32Array, count: number): void {
         for (let i = 0; i < count; i++) {
@@ -139,6 +162,13 @@ export class RhythmAnalyzer {
 
     // Processes one packed frame (rhythmConfig.ts layout) starting at `offset`, centred at `time` seconds.
     pushFrame(time: number, frames: Float32Array, offset: number): void {
+        // The worklet restarts its time base after skipped blocks, which shows as a frame that is not one frame after
+        // the previous one. Kick times from before it are on the old clock, so they go; the events that came with
+        // this batch are still queued and survive.
+        if (this.frames > 0 && Math.abs(time - (this.latestTime + 1 / this.frameRate)) > 0.5 / this.frameRate) {
+            this.beat.clearKicks();
+        }
+        this.kickQueue.drainTo(this.beat);
         this.latestTime = time;
         this.frames++;
         this.storeFrame(frames, offset);
@@ -247,6 +277,8 @@ export class RhythmAnalyzer {
     // The detector that reported a hard boundary has already reset itself and is waiting for the silence to end, so it
     // must not be reset again by the clear it caused.
     private clear(resetBoundary: boolean): void {
+        // BeatTracker.reset() clears its stored kicks; the queue is cleared here.
+        this.kickQueue.clear();
         this.tempo.reset();
         this.beat.reset();
         this.meter.reset();

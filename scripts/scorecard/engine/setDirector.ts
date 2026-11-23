@@ -132,7 +132,9 @@ export function measureSetDirector(
     // The hub gets the same batches the tracker does, as replay.ts feeds it. Only its low end is read here, so it has no
     // gate-input reader and the band onsets exist only to give the frames their band energies.
     const hub = new AudioHub({ gateBass: { level: () => 0, dispose: () => {} } });
-    const bandOnsets = useHub ? new BandOnsets(sampleRate, extractor.frameRate) : undefined;
+    // The band onsets give the hub its band energies, and their events are the kick events the tracker is given, so
+    // they run whichever energy source is chosen.
+    const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
     const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
     const batch: FeatureBatch = {
         version: FEATURE_MESSAGE_VERSION,
@@ -175,8 +177,22 @@ export function measureSetDirector(
     const frames = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
     const times = new Float64Array(BATCH_FRAMES);
     let queued = 0;
+    // The events of the batch being filled. The hub's batch above carries none, as before; these are for the tracker.
+    const kickBand = new Uint8Array(onsetCapacity);
+    const kickTime = new Float64Array(onsetCapacity);
+    const kickStrength = new Float32Array(onsetCapacity);
+    let kicks = 0;
+    const onOnset = (band: number, eventTime: number, strength: number): void => {
+        if (kicks >= onsetCapacity) return;
+        kickBand[kicks] = band;
+        kickTime[kicks] = eventTime;
+        kickStrength[kicks] = strength;
+        kicks++;
+    };
     const deliver = (arrival: number): void => {
         while (tick * dt < arrival) renderTick();
+        analyzer.pushKicks(kickBand, kickTime, kickStrength, kicks);
+        kicks = 0;
         for (let i = 0; i < queued; i++) {
             analyzer.pushFrame(times[i], frames, i * FRAME_STRIDE);
             analyzer.updatePhase(times[i]);
@@ -194,10 +210,8 @@ export function measureSetDirector(
             const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
             packFrame(frame, frames, queued * FRAME_STRIDE);
             times[queued] = time;
-            if (bandOnsets) {
-                bandOnsets.push(frame, time, () => {});
-                batch.bandEnergy.set(bandOnsets.energy, queued * HUB_BAND_COUNT);
-            }
+            bandOnsets.push(frame, time, onOnset);
+            batch.bandEnergy.set(bandOnsets.energy, queued * HUB_BAND_COUNT);
             if (++queued === BATCH_FRAMES) deliver(time);
         });
     }
