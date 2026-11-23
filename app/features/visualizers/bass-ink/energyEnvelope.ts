@@ -1,7 +1,6 @@
 import { bassInkConfig, type EnergyConfig } from './bassInkConfig';
 import type { EnergyEnvelope } from './bassInkTypes';
 
-// Root-mean-square level of a time-domain buffer (0 for an empty one).
 // Number of FFT bins from bin 1 (bin 0 is the DC offset) up to `cutoffHz`, at least 1.
 export function bassBinCount(sampleRate: number, fftSize: number, cutoffHz: number): number {
     const binHz = sampleRate / fftSize;
@@ -47,6 +46,8 @@ export class EnergyTracker implements EnergyEnvelope {
     private seeded = false;
     // Seconds of signal since seeding, while it is still shorter than the slow time constant.
     private heardSeconds = 0;
+    // Seconds the fast envelope has stayed under the silence floor without a break.
+    private silentSeconds = 0;
     private readonly config: EnergyConfig;
 
     constructor(config: EnergyConfig = bassInkConfig.energy) {
@@ -80,6 +81,16 @@ export class EnergyTracker implements EnergyEnvelope {
             this.slow += (rms - this.slow) * Math.min(1, slowStep);
         }
         this.ratio = this.slow > config.silenceFloor ? this.fast / this.slow : 1;
+        // A long silence lets the slow envelope decay, so the music that follows would look like a surge. Starting over
+        // makes the next sound seed both followers again.
+        if (this.fast <= config.silenceFloor) {
+            this.silentSeconds += Math.max(0, dtSeconds);
+            if (this.silentSeconds >= config.reseedSilenceSeconds) {
+                this.reset();
+            }
+        } else {
+            this.silentSeconds = 0;
+        }
     }
 
     reset(): void {
@@ -88,5 +99,6 @@ export class EnergyTracker implements EnergyEnvelope {
         this.ratio = 1;
         this.seeded = false;
         this.heardSeconds = 0;
+        this.silentSeconds = 0;
     }
 }

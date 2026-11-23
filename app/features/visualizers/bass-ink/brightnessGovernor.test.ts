@@ -2,6 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { BrightnessGovernor } from './brightnessGovernor';
 
 describe('BrightnessGovernor', () => {
+    it('grants nothing for non-finite input and keeps its slots', () => {
+        const governor = new BrightnessGovernor();
+        expect(governor.request(Number.NaN, 0, 1)).toBe(0);
+        expect(governor.request(1, Number.NaN, 1)).toBe(0);
+        expect(governor.request(1, 0, Number.POSITIVE_INFINITY)).toBe(0);
+        expect(governor.request(1, 0, 1)).toBe(1);
+        expect(governor.request(1, 0.1, 1)).toBe(1);
+        expect(governor.request(1, 0.2, 1)).toBe(1);
+    });
+
     it('grants clamped strength times clamped intensity', () => {
         const governor = new BrightnessGovernor();
         expect(governor.request(0.8, 0, 0.5)).toBeCloseTo(0.4);

@@ -12,9 +12,11 @@ export class BrightnessMix {
     grantCount = 0;
     private lastDropAt = -1;
     private lastTension = 0;
-    // Times of recent granted kick flashes, newest overwriting oldest, for the per-second kick cap.
-    private readonly kickGrants: Float64Array;
-    private kickHead = 0;
+    // Requests the governor or the soft cap turned down, for telemetry and tests.
+    deniedCount = 0;
+    // Times of recent granted kick flashes and core steps, newest overwriting oldest, for their shared per-second cap.
+    private readonly softGrants: Float64Array;
+    private softHead = 0;
     private readonly config: BrightnessConfig;
     private readonly governor: BrightnessGovernor;
 
@@ -24,7 +26,7 @@ export class BrightnessMix {
     ) {
         this.config = config;
         this.governor = governor;
-        this.kickGrants = new Float64Array(config.kickFlashMaxPerSecond).fill(-Infinity);
+        this.softGrants = new Float64Array(config.kickFlashMaxPerSecond).fill(-Infinity);
     }
 
     update(
@@ -51,20 +53,30 @@ export class BrightnessMix {
         const steps = config.coreStepTension;
         for (let i = 0; i < steps.length; i++) {
             if (this.lastTension < steps[i] && cue.tension >= steps[i]) {
-                this.grant(config.coreStepGain, nowSeconds, intensity);
+                this.grantSoft(config.coreStepGain, nowSeconds, intensity);
             }
         }
         this.lastTension = cue.tension;
 
-        // The slot about to be overwritten holds the oldest kick grant: if it is under a second old, the cap is reached.
-        if (kickFired && nowSeconds - this.kickGrants[this.kickHead] >= 1) {
-            const amount = config.kickFlash * Math.min(1, Math.max(0, kickStrength));
-            if (this.grant(amount, nowSeconds, intensity)) {
-                this.kickGrants[this.kickHead] = nowSeconds;
-                this.kickHead = (this.kickHead + 1) % this.kickGrants.length;
-            }
+        if (kickFired) {
+            this.grantSoft(config.kickFlash * Math.min(1, Math.max(0, kickStrength)), nowSeconds, intensity);
         }
         return this.level;
+    }
+
+    // Core steps and kick flashes share one cap below the governor's limit, so the drop burst always finds a slot. The
+    // slot about to be overwritten holds the oldest such grant: if it is under a second old, the cap is reached.
+    private grantSoft(amount: number, nowSeconds: number, intensity: number): boolean {
+        if (nowSeconds - this.softGrants[this.softHead] < 1) {
+            this.deniedCount++;
+            return false;
+        }
+        if (this.grant(amount, nowSeconds, intensity)) {
+            this.softGrants[this.softHead] = nowSeconds;
+            this.softHead = (this.softHead + 1) % this.softGrants.length;
+            return true;
+        }
+        return false;
     }
 
     private grant(amount: number, nowSeconds: number, intensity: number): boolean {
@@ -73,6 +85,10 @@ export class BrightnessMix {
             this.level = Math.max(this.level, granted);
             this.grantCount++;
             return true;
+        }
+        // A zero amount (silence, intensity 0) is not a denial.
+        if (amount > 0) {
+            this.deniedCount++;
         }
         return false;
     }

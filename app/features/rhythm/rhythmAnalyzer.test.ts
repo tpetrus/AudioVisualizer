@@ -566,6 +566,44 @@ describe('RhythmAnalyzer publishes the held tempo as state.bpm', () => {
         }
         expect(stoodIn).toBeGreaterThan(0);
     });
+
+    it('follows the beat period, not the lost estimate, while onsets keep steering the grid', () => {
+        // The spec above stops the beats, so nothing corrects the period and the stand-in equals the stale estimate;
+        // removing it would go unnoticed. Here the estimate is lost while kicks go on 4% slower (every 52 frames): with
+        // no estimate the grid stops following the tempo and only the onsets move its period, so the beat period
+        // drifts from the stale estimate, and state.bpm must follow it. Losing the estimate takes TEMPO_LOSE_ESTIMATES
+        // weak updates in real audio, which steady kicks never give, so the held tempo is forced to 0 at 20 s.
+        const SLOW_FRAMES = 52;
+        const count = 4000;
+        const frames = decoratedFrames(2000);
+        const analyzer = new RhythmAnalyzer(FRAME_RATE);
+        let heldBefore = 0;
+        let followed = 0;
+        for (let i = 0; i < count; i++) {
+            const time = i / FRAME_RATE;
+            if (i < 2000) {
+                analyzer.pushFrame(time, frames, i * FRAME_STRIDE);
+            } else {
+                if (i === 2000) {
+                    heldBefore = analyzer.heldTempoBpm;
+                    const tempo = (analyzer as unknown as { tempo: object }).tempo;
+                    Object.defineProperty(tempo, 'bpm', { get: () => 0 });
+                }
+                const frame = new Float32Array(FRAME_STRIDE);
+                frame[0] = (i - 2000) % SLOW_FRAMES === 0 ? 1 : 0.02;
+                frame[FRAME_RMS_OFFSET] = 0.2;
+                analyzer.pushFrame(time, frame, 0);
+            }
+            analyzer.updatePhase(time);
+            // Once the period has had time to move, the published tempo must be the beat period's, off the stale one.
+            if (i >= 3000 && analyzer.rawBeatBpm > 0 && Math.abs(analyzer.rawBeatBpm - heldBefore) > 1) {
+                followed++;
+                expect(analyzer.state.bpm).toBeCloseTo(analyzer.rawBeatBpm, 6);
+            }
+        }
+        expect(heldBefore).toBeCloseTo(120, 0);
+        expect(followed).toBeGreaterThan(100);
+    });
 });
 
 // Measured on the tracker before any stability fix: a steadier tempo must not cost any of this.

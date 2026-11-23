@@ -1,7 +1,8 @@
 # Dancing character assets
 
-MakeHumanDancer.glb is CC0 1.0 (body and outfit alike) (public domain dedication): no attribution is required, but its
-source is recorded here so it can be checked. MakeHumanDances.glb is built from the CMU Graphics Lab Motion Capture
+MakeHumanDancer.glb is dedicated to the public domain under CC0 1.0 (body and outfit alike): no attribution is
+required, but its source is recorded here so it can be checked. Its textures are resized with sharp 0.35.5 (the version
+in package-lock.json). MakeHumanDances.glb is built from the CMU Graphics Lab Motion Capture
 Database and is under the CMU terms recorded below, not CC0. Both are imported with `?url`, so the build emits them
 hashed under `/assets/` with immutable caching.
 

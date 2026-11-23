@@ -527,13 +527,14 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
 - **`FU-S6-three-halves-change`**: shelved (2026-11-16), see "3/2 tempo changes: shelved" below. A real 100 to 150
   BPM change is still never followed within 30 s, and neither is a 4/3 change down (128 to 96). A 128 to 170 change
   follows after 11.25 s and a 140 to 70 change after 6.75 s.
-- **`FU-boundary-dotted`**: BoundaryDetector can swallow a sustained dotted-ratio tempo change forever. Give it a
-  longer, confidence-gated jump time that refreshes its reference.
-- **`FU-dotted-leaky`**: replace the hard challenger reset for dotted rivals below 0.5 confidence with a leaky counter.
-  Then a real change at a dotted ratio with middling confidence is not held off forever. Tried with the 3/2 work: half
-  a win per weak dotted estimate followed a noisy 4/3 change after 35.75 s and kept an 8 s weak burst out, but it gave 2
-  extra switches in 1296 noisy on-and-off dotted figures (0.15%), and alone it changes nothing a listener hears while
-  the bar veto still blocks 3/2. Not shipped; worth redoing only together with a working 3/2 rule.
+- **`FU-boundary-dotted`** (moved to the D11 tracker plan, 2026-11-23): BoundaryDetector can swallow a sustained
+  dotted-ratio tempo change forever. Give it a longer, confidence-gated jump time that refreshes its reference.
+- **`FU-dotted-leaky`** (moved to the D11 tracker plan, 2026-11-23): replace the hard challenger reset for dotted rivals
+  below 0.5 confidence with a leaky counter. Then a real change at a dotted ratio with middling confidence is not held
+  off forever. Tried with the 3/2 work: half a win per weak dotted estimate followed a noisy 4/3 change after 35.75 s
+  and kept an 8 s weak burst out, but it gave 2 extra switches in 1296 noisy on-and-off dotted figures (0.15%), and
+  alone it changes nothing a listener hears while the bar veto still blocks 3/2. Not shipped; worth redoing only
+  together with a working 3/2 rule.
 - **`FU-S10-basspulse-time-based`**: BassPulse smooths per frame, so its speed depends on the frame rate. Make its
   envelopes time-based, with the same behavior at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It
   changes three visualizers through one shared class, so check with Trevor before routing it.
@@ -549,14 +550,16 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
     hub-regressions S6; see "S6 findings" in `hub-scorecard.md`)
 
 ### Rhythm specs and dev tools (small, fast lane)
-- **`FU-pin-state-bpm`**: add analyzer specs pinning `state.bpm` to the held tempo when the grid is locked, and the
-  `60 / lastBeatPeriod` fallback when the held tempo is 0.
-- **`FU-state-bpm-standin-spec`**: removing the `handleBeat` stand-in (`state.bpm = 60 / period` while `tempo.bpm` is
-  0) leaves every spec passing, because the 0.5 BPM tolerance accepts the stale value. Make one fail. It owns the same
-  file as `FU-pin-state-bpm`, so do the two together.
-- **`FU-app-csv-infinity`** (supersedes **`FU-csv-infinity`**): `scripts/debug-visualizer/csv.ts` round-trips Infinity,
-  but `formatTelemetryCsv` and `parseTelemetryCsv` in `devTelemetrySummary.ts` still write it as NaN. Fold them into
-  one implementation.
+- **`FU-pin-state-bpm`** (done in #67): add analyzer specs pinning `state.bpm` to the held tempo when the grid is
+  locked, and the `60 / lastBeatPeriod` fallback when the held tempo is 0.
+- **`FU-state-bpm-standin-spec`** (fixed in the 2026-11-23 follow-up drain; the stand-in is not dead: it is what moves
+  `state.bpm` while onsets steer the grid after the estimate is lost, and a spec now fails without it): removing the
+  `handleBeat` stand-in (`state.bpm = 60 / period` while `tempo.bpm` is 0) leaves every spec passing, because the 0.5
+  BPM tolerance accepts the stale value. Make one fail. It owns the same file as `FU-pin-state-bpm`, so do the two
+  together.
+- **`FU-app-csv-infinity`** (supersedes **`FU-csv-infinity`**; fixed in the 2026-11-23 follow-up drain, an empty cell
+  reads as NaN): `scripts/debug-visualizer/csv.ts` round-trips Infinity, but `formatTelemetryCsv` and
+  `parseTelemetryCsv` in `devTelemetrySummary.ts` still write it as NaN. Fold them into one implementation.
 - **`FU-report-rounding`**: print enough digits in tempo verdict failures that a value below the target never reads as
   "0.99 < 0.99" (`scripts/debug-visualizer/tempoReport.ts`).
 - **`FU-reselect-harden`**: fix `waitForPlaybackStart` after a very short previous play, and cap `--reselect`
@@ -568,44 +571,57 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
 - **`DCR-FU6`** and **`FU4`** (fixed in #120; there is no skybox download any more): abort the GLB fetch and parse when
   the load signal aborts, not only check the signal after `loadAsync`, keeping the existing load semantics (AbortError,
   late arrivals disposed).
-- **`DCR-FU3`**: send the bass-driven rim light and bass ring through the club flash limiter and the reduced-motion
-  flash strength, so no bass-driven brightness jump starts more than 3 times a second. Add a 6 Hz bass spec.
-- **`DCR-FU4`**: make the flash cap hold for any closed 1 s window: a minimum interval slightly above 1/3 s, and a
-  tighter test.
-- **`FU-octave-fold-after-dotted-lock`**: keep the dance octave stable when the tracker corrects a first lock at a 4/3
-  pulse, so one track does not dance at 70 on one play and 140 on another (`dancingCharacterSync.ts`).
-- **`ND-F1`**: validate the committed `MakeHumanDances.glb` against the build's hard rules in a unit test.
-- **`ND-F2`**: keep one source for `FOOT_SKATE_MAX_METERS`, and remove the dead `collectBones` and the test-only
-  `DANCE_CLIP_DURATION` and `NATIVE_BEATS_PER_LOOP`.
-- **`ND-F3`**: when `startFade` is called during a running fade, finish the running fade first (or fix the comment),
-  with a test.
-- **`ND-F4`**: DEV `console.warn` when the dances file fails to load or a clip is rejected.
-- **`ND-F5`**: include the salsa helper bones in the cross-fade bound test.
-- **`DCR-FU2`**: move the duplicated GLTFLoader image stand-in in three specs into one test-only helper.
-- **`DCR-FU5`**: cleanups:
+- **`DCR-FU3`** (won't do, Trevor, 2026-11-23): send the bass-driven rim light and bass ring through the club flash
+  limiter and the reduced-motion flash strength, so no bass-driven brightness jump starts more than 3 times a second.
+  Tried in the follow-up drain and reverted before merging: behind the limiter the rim light jumps only on loud bass
+  peaks, at most 3 a second, and stops following every bass bump, which is the DJ-set feel it is there for. The rim
+  light lights the dancer's edge, not a large area of the screen, so it keeps reading the gated bass directly.
+- **`DCR-FU4`** (fixed in the 2026-11-23 follow-up drain): make the flash cap hold for any closed 1 s window: a minimum
+  interval slightly above 1/3 s, and a tighter test.
+- **`FU-octave-fold-after-dotted-lock`** (done in #72: a dotted correction re-seeds the octave): keep the dance octave
+  stable when the tracker corrects a first lock at a 4/3 pulse, so one track does not dance at 70 on one play and 140 on
+  another (`dancingCharacterSync.ts`).
+- **`ND-F1`** (fixed in the 2026-11-23 follow-up drain): validate the committed `MakeHumanDances.glb` against the
+  build's hard rules in a unit test.
+- **`ND-F2`** (fixed in the 2026-11-23 follow-up drain; `collectBones` was not dead and stays): keep one source for
+  `FOOT_SKATE_MAX_METERS`, and remove the dead `collectBones` and the test-only `DANCE_CLIP_DURATION` and
+  `NATIVE_BEATS_PER_LOOP`.
+- **`ND-F3`** (fixed in the 2026-11-23 follow-up drain; a switch asked for mid-fade waits for the fade): when
+  `startFade` is called during a running fade, finish the running fade first (or fix the comment), with a test.
+- **`ND-F4`** (fixed in the 2026-11-23 follow-up drain): DEV `console.warn` when the dances file fails to load or a clip
+  is rejected.
+- **`ND-F5`** (fixed in the 2026-11-23 follow-up drain; the salsa helper bones already turn about 12.6 degrees a frame
+  in the approved clip, so they get a 14 degree ceiling and the others keep 12): include the salsa helper bones in the
+  cross-fade bound test.
+- **`DCR-FU2`** (fixed in the 2026-11-23 follow-up drain; four specs, not three): move the duplicated GLTFLoader image
+  stand-in in three specs into one test-only helper.
+- **`DCR-FU5`** (fixed in the 2026-11-23 follow-up drain): cleanups:
   - guard `setCharacter` after dispose
   - rename the shadowing `target` in `computeDanceTiming`
   - rename `dancingCharacterClip.test.ts` and the `robotBox` variable
   - fix the CREDITS.md intro and note the sharp version
-- **`DCR-FU1`, `ND-F6`** (docs and hygiene):
+- **`DCR-FU1`, `ND-F6`** (docs and hygiene; fixed in the 2026-11-23 follow-up drain, except the 1.5 s wait in the
+  character e2e loop, which stays because the page exposes no load signal):
   - AGENTS.md rows for regenerating the model and for the dance fetch and build
   - use `DANCES` instead of a hard-coded list in the dances spec
   - no `waitForTimeout` in the e2e select spec
   - `fileURLToPath` in `pipeline.test.ts`
 
 ### Bass ink
-- **`BI-F2`**: normalize the relative luminance of the core and edge colors across the 12 pitch classes in
-  `writePalette`, so that max over min is below 1.2.
-- **`BI-F4`**: debounce the density rebuild (about 250 ms of stable value), and build the new cloud before disposing
-  the old one. That keeps the program, the seed and an in-flight fade.
-- **`BI-F5`**: reseed EnergyTracker and restart the SetDirector warm-up after 3 s under the silence floor, so music
-  after a long gap does not read as a drop.
-- **`BI-F6`**: cap core steps plus kick flashes at 2 grants a second combined so the drop always has a slot. Add a
-  denied counter for the telemetry probe.
-- **`BI-F8`**: coalesce the fill upload into one update range per fill, or record why one small object per chunk is
-  acceptable.
-- **`BI-F9F10`**: fix the stale comment above `bassBinCount`, and reject non-finite input in `KickRing.update` and
-  `BrightnessGovernor.request`.
+- **`BI-F2`** (fixed in the 2026-11-23 follow-up drain): normalize the relative luminance of the core and edge colors
+  across the 12 pitch classes in `writePalette`, so that max over min is below 1.2.
+- **`BI-F4`** (fixed in the 2026-11-23 follow-up drain; a rebuild also waits for a running fade): debounce the density
+  rebuild (about 250 ms of stable value), and build the new cloud before disposing the old one. That keeps the program,
+  the seed and an in-flight fade.
+- **`BI-F5`** (fixed in the 2026-11-23 follow-up drain): reseed EnergyTracker and restart the SetDirector warm-up after
+  3 s under the silence floor, so music after a long gap does not read as a drop.
+- **`BI-F6`** (fixed in the 2026-11-23 follow-up drain; a tension jump that crosses three steps at once now grants two):
+  cap core steps plus kick flashes at 2 grants a second combined so the drop always has a slot. Add a denied counter for
+  the telemetry probe.
+- **`BI-F8`** (fixed in the 2026-11-23 follow-up drain): coalesce the fill upload into one update range per fill, or
+  record why one small object per chunk is acceptable.
+- **`BI-F9F10`** (fixed in the 2026-11-23 follow-up drain): fix the stale comment above `bassBinCount`, and reject
+  non-finite input in `KickRing.update` and `BrightnessGovernor.request`.
 
 ### Landing page
 - **`FU5`** (fixed in #121): the "More coming soon" tile sat alone on a row of the 3-column grid. The cards are now

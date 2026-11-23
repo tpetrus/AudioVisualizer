@@ -132,6 +132,51 @@ describe('loadDancingCharacterAssets', () => {
         expect(assets.dances.size).toBe(0);
     });
 
+    it('warns in dev, with the reason, when the dances file fails or a clip is rejected', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.stubEnv('DEV', true);
+        try {
+            serve({ 'model.glb': makeModel(), 'dances.glb': new Error('no dances') });
+            await loadDancingCharacterAssets(new AbortController().signal, URLS);
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(String(warn.mock.calls[0][0])).toContain('dances file');
+            expect(warn.mock.calls[0][1]).toEqual(new Error('no dances'));
+
+            warn.mockClear();
+            const bad = clipFor('salsa', 4);
+            bad.duration = 5;
+            const noBones = clipFor(
+                'salsa',
+                4,
+                DANCE_REQUIRED_BONES.filter((bone) => bone !== 'head'),
+            );
+            serve({ 'model.glb': makeModel(), 'dances.glb': makeDances([bad]) });
+            await loadDancingCharacterAssets(new AbortController().signal, URLS);
+            serve({ 'model.glb': makeModel(), 'dances.glb': makeDances([noBones]) });
+            await loadDancingCharacterAssets(new AbortController().signal, URLS);
+            expect(warn.mock.calls.map((call) => String(call[0]))).toEqual([
+                expect.stringContaining('"salsa" rejected: length 5'),
+                expect.stringContaining('"salsa" rejected: it does not drive every required bone'),
+            ]);
+        } finally {
+            vi.unstubAllEnvs();
+            warn.mockRestore();
+        }
+    });
+
+    it('does not warn outside dev', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.stubEnv('DEV', false);
+        try {
+            serve({ 'model.glb': makeModel(), 'dances.glb': new Error('no dances') });
+            await loadDancingCharacterAssets(new AbortController().signal, URLS);
+            expect(warn).not.toHaveBeenCalled();
+        } finally {
+            vi.unstubAllEnvs();
+            warn.mockRestore();
+        }
+    });
+
     it('uses the bundled asset url by default', async () => {
         serve({});
         mocks.gltfParseAsync.mockImplementation(() => Promise.resolve({ ...makeModel(), animations: [] }));
