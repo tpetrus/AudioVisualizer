@@ -936,7 +936,8 @@ Trevor confirmed every decision above that was recorded "to confirm at review", 
   `syncopation-no-kick`'s first lock (AC5 of the audio alignment plan).
 - **Not accepted, still open:** the dancer's live hit share and latency on `lonley` (0 against 0.293 pre-hub, 249
   against 53 ms) and `summer2000` (0 against 0.017, 196 against 104 ms), AC8. S5 handed `lonley` to S8, which did not
-  close it.
+  close it. `lonley` is fixed since 2026-11-23 and `summer2000` joins the tracker plan; see "The dancer's kick place on
+  `lonley` (AC8)" below.
 
 ### Tap spread of the S1 tracks
 
@@ -956,6 +957,40 @@ any of them.
 
 `6-8-time` was tapped at about twice its 62 bpm label. `half-time-shuffle` is the noisiest, at almost three times the
 noise floor.
+
+## The dancer's kick place on `lonley` (AC8, 2026-11-23, measured on `6fd6611`)
+- **Cause.** `lonley`'s bassline lands, per 4-beat bar, at about +0.6, +0.6 and +0.33 of a beat and then at +0.07 on
+  beat 4 (kicks read from the gate input of six live runs against the S8 taps). The gate opens at about 13.5 s, before
+  the first kick on beat 4 has played, so `bestSupportedPlace` finds no repeated place on the beat and opens on the
+  off-beat one (0.55). Once open, the place only adapted toward kicks within `BASS_GATE_PHASE_WINDOW` of it, so it
+  stayed there: every bump landed half a beat after the tapped beat. This is S5's "no place on the beat to learn" and
+  the audit's finding 3; the tracker's beat on `lonley` sits on the taps.
+- **The change** (`app/features/rhythm/bassGate.ts`). While open, on each kick heard on the grid, a gate whose place is
+  off the beat moves to the place `bestSupportedPlace` picks when that place is on the beat, the choice it would have
+  made at opening; the kick at the new place counts as in rhythm. A place already on the beat, and a bassline with no
+  repeated kick on the beat, never move. It applies to the dancer and `bass-ink`, which share the gate.
+- **Offline.** `sweep:gate`: false opens, opening times and no-kick openings identical to `main` (3 and 15, 12 of 16
+  within 4 s). `scorecard` cells identical, `scorecard:check` passes. A replay of 88 recorded dancer runs through the
+  new gate: the six `lonley` runs go from a hit share of 0 to 0.67 to 0.83 (latency 31 to 38 ms), 81 are identical,
+  and one `summer2000` run from 2026-11-21 loses hits (0.19 to 0.10 on the current taps).
+- **Live** (4 runs per track and visualizer, `scorecard:live --tracks`):
+
+| Cell | Before | After | Pre-hub |
+|---|---|---|---|
+| dancer `lonley` hit share | 0 | 0.49 | 0.29 |
+| dancer `lonley` latency | 249 ms | 38.7 ms | 53 ms |
+| dancer `lonley` false fires | 1 | 0.20 | 0.47 |
+| `bass-ink` `lonley` hit share | 0 | 0.49 | - |
+| `bass-ink` `lonley` latency | 239 ms | 38.8 ms | - |
+| `bass-ink` `lonley` false fires | 1 | 0.23 | - |
+| dancer `summer2000` hit share | 0 | 0 | 0.017 |
+| dancer `summer2000` latency | 196 ms | 226 ms (spread 11) | 104 ms |
+
+- **`summer2000` stays open and moves to the tracker plan.** The tracker's beat there sits 0.3 to 0.7 of a beat from the
+  taps (its beat error, 150 ms), so the gate's place on the tracker's beat is off the tapped beat whichever rule picks
+  it, and its kicks spread over the whole beat, so they give no other place. The rule above makes that place the
+  tracker's beat on more runs, which is the run that lost hits offline. It is the `summer2000` beat error already
+  deferred under D11 to the tracker plan.
 
 ## Follow-ups outside the fast lane
 
