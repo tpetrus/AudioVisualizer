@@ -480,6 +480,95 @@ describe('stepBassGate learning the place to pulse at', () => {
     });
 });
 
+describe('stepBassGate moving an open gate onto the beat', () => {
+    // A kick (4 frames at 0.8) in each beat of each bar from bar `fromBar` to bar `toBar`, at the place in the beat
+    // that `places` gives for the beat of the bar; NaN is no kick.
+    function bassline(places: readonly number[], fromBar: number, toBar: number) {
+        const starts: number[] = [];
+        for (let bar = fromBar; bar < toBar; bar++) {
+            for (let beat = 0; beat < 4; beat++)
+                if (!Number.isNaN(places[beat]))
+                    starts.push(Math.round((bar * 4 + beat + places[beat]) * FRAMES_PER_BEAT));
+        }
+        return (frame: number) => (starts.some((start) => frame >= start && frame < start + 4) ? 0.8 : 0);
+    }
+
+    const near = (place: number, target: number) => Math.abs(wrapDelta(place - target)) < BASS_GATE_PHASE_WINDOW;
+    const wrapDelta = (delta: number) => delta - Math.round(delta);
+
+    // The real track lonley: in each bar kicks at 0.6, 0.6, 0.33 and 0.07 of a beat. Before the gate opens the kick at
+    // 0.07 has not played, so it opens on an off-beat place and used to keep it for good.
+    it('moves a gate that opened on an off-beat place onto the beat once the bars show a kick there', () => {
+        const without = bassline([0.6, 0.6, 0.33, NaN], 0, 8);
+        const { state } = drive(8 * 4 * FRAMES_PER_BEAT, without);
+        expect(state.open).toBe(true);
+        expect(near(state.kickPhase, 0.6) || near(state.kickPhase, 0.33)).toBe(true);
+        const full = bassline([0.6, 0.6, 0.33, 0.07], 0, 20);
+        drive(12 * 4 * FRAMES_PER_BEAT, full, { state, start: 8 * 4 * FRAMES_PER_BEAT });
+        expect(state.open).toBe(true);
+        expect(near(state.kickPhase, 0.07)).toBe(true);
+    });
+
+    it('counts the kick that moves the place as in rhythm', () => {
+        const state = createBassGateState();
+        const rhythm = createRhythmState();
+        let head = 0;
+        for (let bar = 0; bar < 2; bar++) {
+            state.kickTimes[head++] = bar * 4 + 3.07 - 4;
+            state.kickTimes[head++] = bar * 4 + 0.6;
+        }
+        state.kickHead = head;
+        state.kickPhase = 0.6;
+        state.phaseKnown = true;
+        state.open = true;
+        state.score = 3;
+        state.beatsSinceOnBeat = 3;
+        // The kick at 0.07 of beat 11 is the third on the beat, so the place moves there and the kick counts.
+        drive(1, () => 0.8, { state, rhythm, start: Math.round(11.07 * FRAMES_PER_BEAT) });
+        expect(near(state.kickPhase, 0.07)).toBe(true);
+        expect(state.beatsSinceOnBeat).toBe(0);
+        expect(state.measuring).toBe(true);
+        expect(state.score).toBe(4);
+    });
+
+    it('moves the place on a kick away from the new place without counting that kick as in rhythm', () => {
+        const state = createBassGateState();
+        let head = 0;
+        for (let bar = 0; bar < 2; bar++) {
+            state.kickTimes[head++] = bar * 4 + 0.07;
+            state.kickTimes[head++] = bar * 4 + 2.07;
+        }
+        state.kickHead = head;
+        state.kickPhase = 0.6;
+        state.phaseKnown = true;
+        state.open = true;
+        state.score = 3;
+        state.beatsSinceOnBeat = 3;
+        // A kick at 0.3 of beat 9, near neither place, finds the place on the beat in the bars before it.
+        drive(1, () => 0.8, { state, start: Math.round(9.3 * FRAMES_PER_BEAT) });
+        expect(near(state.kickPhase, 0.07)).toBe(true);
+        expect(state.beatsSinceOnBeat).toBe(3);
+        expect(state.score).toBe(3);
+    });
+
+    it('keeps an open gate whose bassline has no kick on the beat at its off-beat place', () => {
+        const state = drive(16 * 4 * FRAMES_PER_BEAT, bassline([0.5, 0.5, 0.5, 0.5], 0, 16)).state;
+        expect(state.open).toBe(true);
+        expect(near(state.kickPhase, 0.5)).toBe(true);
+    });
+
+    it('does not move a place that is already on the beat', () => {
+        const state = drive(12 * 4 * FRAMES_PER_BEAT, bassline([0.05, 0.05, 0.05, 0.05], 0, 12)).state;
+        const before = state.kickPhase;
+        // An off-beat accent does not pull the place off the beat kicks.
+        drive(4 * FRAMES_PER_BEAT, bassline([0.05, 0.05, 0.6, 0.05], 12, 13), {
+            state,
+            start: 12 * 4 * FRAMES_PER_BEAT,
+        });
+        expect(Math.abs(state.kickPhase - before)).toBeLessThan(BASS_GATE_PHASE_WINDOW);
+    });
+});
+
 describe('stepBassGate evidence while closed', () => {
     // A kick (4 frames at 0.8) at each given beat position, which must fall on a whole frame.
     function kicksAt(beats: readonly number[]) {
