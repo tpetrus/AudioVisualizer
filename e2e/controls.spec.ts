@@ -122,7 +122,6 @@ test.describe('Dancing character dance select', () => {
         for (const label of ['Twist', 'Cabbage Patch', 'Salsa', 'Lambada', 'Auto']) {
             await select.selectOption({ label });
             await expect(select.locator('option:checked')).toHaveText(label);
-            await page.waitForTimeout(300);
             await expect(page.locator('canvas')).toHaveCount(1);
         }
     });

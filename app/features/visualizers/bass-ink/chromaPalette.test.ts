@@ -116,6 +116,40 @@ describe('writePalette', () => {
         expect(out.core[2]).toBeGreaterThanOrEqual(out.core[0]);
     });
 
+    it('keeps the luminance within 1.2x across the 12 classes, at the nominal look mean level', () => {
+        const luminance = (c: Float32Array) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+        const cores: number[] = [];
+        const edges: number[] = [];
+        for (let pc = 0; pc < 12; pc++) {
+            const out = pair();
+            writePalette(pc, out);
+            cores.push(luminance(out.core));
+            edges.push(luminance(out.edge));
+        }
+        for (const values of [cores, edges]) {
+            expect(Math.max(...values) / Math.min(...values)).toBeLessThan(1.2);
+        }
+        const mean = cores.reduce((a, b) => a + b) / 12;
+        expect(mean).toBeGreaterThan(0.25);
+        expect(mean).toBeLessThan(0.45);
+    });
+
+    it('keeps the 12 palettes distinct by color distance', () => {
+        const outs = Array.from({ length: 12 }, (_, pc) => {
+            const out = pair();
+            writePalette(pc, out);
+            return out;
+        });
+        for (let i = 0; i < 12; i++) {
+            for (let j = i + 1; j < 12; j++) {
+                for (const part of ['core', 'edge'] as const) {
+                    const d = Math.hypot(...Array.from(outs[i][part], (v, k) => v - outs[j][part][k]));
+                    expect(d).toBeGreaterThan(0.02);
+                }
+            }
+        }
+    });
+
     it('covers every hue sector', () => {
         // Circle-of-fifths hues land in all six 60-degree sectors across the 12 classes plus the edge shift.
         const out = pair();

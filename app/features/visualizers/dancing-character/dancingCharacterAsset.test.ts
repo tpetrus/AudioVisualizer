@@ -1,10 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { stubGltfImageElement } from './loadDancerGlb.testing';
 import {
     BODY_MATERIAL_NAMES,
-    DANCE_CLIP_DURATION,
+    DANCE_CLIP_BEATS,
     DANCE_CLOCK_SECONDS,
     DANCE_REQUIRED_BONES,
     DANCES,
@@ -15,25 +16,13 @@ import {
 // constants that describe the asset are checked against the real file.
 
 const BONE_COUNT = 163;
+// One bar of clip time in seconds (2 s), derived from the config constants.
+const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
 
 async function loadModel() {
     // GLTFLoader decodes the garment textures through an <img> element, which the node environment lacks. This
     // stand-in answers "loaded", so the loader builds its Texture objects (setup.ts unstubs it after each test).
-    vi.stubGlobal('self', globalThis);
-    vi.stubGlobal('document', {
-        createElementNS: () => {
-            const listeners = new Map<string, () => void>();
-            return {
-                width: 1,
-                height: 1,
-                addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
-                removeEventListener: (type: string) => listeners.delete(type),
-                set src(_value: string) {
-                    queueMicrotask(() => listeners.get('load')?.());
-                },
-            };
-        },
-    });
+    stubGltfImageElement();
     const file = readFileSync(new URL('./assets/MakeHumanDancer.glb', import.meta.url));
     const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     const gltf = await new GLTFLoader().parseAsync(bytes, '');

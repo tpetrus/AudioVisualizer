@@ -185,7 +185,7 @@ export function computeDanceTiming(
         state.meterLocked = true;
     }
 
-    let target: number;
+    let targetTimeScale: number;
     let nudge = 0;
     let beatsPerLoop = clipBeats;
     // (A locked state always has a beat phase; the check is ordered so the types narrow.)
@@ -203,7 +203,7 @@ export function computeDanceTiming(
         // (The floor only guards against a non-finite tempo; timeScale is clamped to MIN_TIME_SCALE below anyway.)
         while (normalized * multiple > limit && multiple > MIN_TIME_SCALE / 1024) multiple /= 2;
         state.overSpeedLimit = multiple < chosen;
-        target = (normalized / NATIVE_BPM) * multiple;
+        targetTimeScale = (normalized / NATIVE_BPM) * multiple;
         // The beat and bar phases are the tracker's, at its raw tempo, which the normalized dance tempo can be an
         // octave away from (165 BPM danced at 82.5). So the clip's place is counted in the tracker's beats: compared in
         // dance beats, one dance beat would span two tracker beats and the phase could hold no fixed offset, leaving
@@ -229,11 +229,11 @@ export function computeDanceTiming(
     } else {
         // Nothing to stay on the beat with, so the setting scales the rate freely, but never past what a person
         // dances at.
-        target = Math.min(CALM_TIME_SCALE * settings.danceSpeed, MAX_DANCE_BPM / NATIVE_BPM);
+        targetTimeScale = Math.min(CALM_TIME_SCALE * settings.danceSpeed, MAX_DANCE_BPM / NATIVE_BPM);
         out.normalizedBpm = undefined;
     }
 
-    state.timeScale = Math.max(MIN_TIME_SCALE, slew(state.timeScale, Math.max(MIN_TIME_SCALE, target), step));
+    state.timeScale = Math.max(MIN_TIME_SCALE, slew(state.timeScale, Math.max(MIN_TIME_SCALE, targetTimeScale), step));
 
     // An exponential approach, so the weight never jumps and never leaves [CALM_DANCE_WEIGHT, 1].
     const weightTarget = state.locked ? 1 : CALM_DANCE_WEIGHT;

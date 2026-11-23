@@ -255,8 +255,14 @@ export class InkCloud {
         const start = this.fillCursor;
         const end = Math.min(this.pointCount, start + bassInkSceneConfig.points.fillChunkPoints);
         writeFormation(this.prepared, this.fillSeed, side.array as Float32Array, this.pointCount, start, end);
-        // Only the written range goes to the GPU.
-        side.addUpdateRange(start * 3, (end - start) * 3);
+        // Only the written range goes to the GPU. Chunks that land before the renderer uploads are one growing range,
+        // updated in place, so a fill allocates only when the previous range has already been uploaded and cleared.
+        const ranges = side.updateRanges;
+        if (ranges.length === 1 && ranges[0].start + ranges[0].count === start * 3) {
+            ranges[0].count += (end - start) * 3;
+        } else {
+            side.addUpdateRange(start * 3, (end - start) * 3);
+        }
         side.needsUpdate = true;
         this.fillCursor = end;
         if (end >= this.pointCount && this.phase === 'pending') {

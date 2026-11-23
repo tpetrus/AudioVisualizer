@@ -1,29 +1,16 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { stubGltfImageElement } from './loadDancerGlb.testing';
 import { applyRelaxedHands } from './dancingCharacterHands';
 
 // Measured on the real rig: for every finger of both hands, curling moves the tip toward the palm, keeps the fingers
 // in order across the hand, and shortens the wrist-to-tip distance by a relaxed amount (not a fist).
 
 async function loadModel(path = './assets/MakeHumanDancer.glb'): Promise<THREE.Group> {
-    // Same stand-in image element as dancingCharacterClip.test.ts: GLTFLoader decodes textures through it.
-    vi.stubGlobal('self', globalThis);
-    vi.stubGlobal('document', {
-        createElementNS: () => {
-            const listeners = new Map<string, () => void>();
-            return {
-                width: 1,
-                height: 1,
-                addEventListener: (type: string, listener: () => void) => listeners.set(type, listener),
-                removeEventListener: (type: string) => listeners.delete(type),
-                set src(_value: string) {
-                    queueMicrotask(() => listeners.get('load')?.());
-                },
-            };
-        },
-    });
+    // Same stand-in image element as dancingCharacterAsset.test.ts: GLTFLoader decodes textures through it.
+    stubGltfImageElement();
     const file = readFileSync(new URL(path, import.meta.url));
     const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     return (await new GLTFLoader().parseAsync(bytes, '')).scene;

@@ -712,6 +712,7 @@ describe('useBassInkScene', () => {
 
             valuesRef.current = { ...valuesRef.current, density: 0.5 };
             frame();
+            for (let i = 0; i < 5; i++) frame(100);
 
             expect(allClouds()).toHaveLength(2);
             expect(old.dispose).toHaveBeenCalledTimes(1);
@@ -720,8 +721,45 @@ describe('useBassInkScene', () => {
             expect(scene.children).toContain(next.object);
             expect(next.pointCount).toBe(pointCountFor(0.5, false));
             expect(next.showFormation).toHaveBeenCalledWith(2, bassInkConfig.director.formationSeed);
-            expect(next.object.rotation.y).toBeCloseTo(1.25, 2);
+            // The old cloud keeps turning while the rebuild waits, so the new one carries on from where it stood.
+            expect(next.object.rotation.y).toBeGreaterThanOrEqual(1.25);
+            expect(next.object.rotation.y).toBeCloseTo(old.object.rotation.y, 1);
             expect(next.update).toHaveBeenCalled();
+        });
+
+        it('rebuilds once after a drag settles, keeping the seed and disposing the old cloud once', () => {
+            const { frame, valuesRef } = mountScene();
+            const old = currentCloud();
+            for (const density of [0.3, 0.35, 0.4, 0.45, 0.5]) {
+                valuesRef.current = { ...valuesRef.current, density };
+                frame(40);
+            }
+            expect(allClouds()).toHaveLength(1);
+            expect(old.dispose).not.toHaveBeenCalled();
+
+            for (let i = 0; i < 5; i++) frame(100);
+
+            expect(allClouds()).toHaveLength(2);
+            expect(old.dispose).toHaveBeenCalledTimes(1);
+            expect(currentCloud().pointCount).toBe(pointCountFor(0.5, false));
+            expect(currentCloud().showFormation).toHaveBeenCalledWith(
+                expect.any(Number),
+                bassInkConfig.director.formationSeed,
+            );
+        });
+
+        it('waits for a running fade before rebuilding', () => {
+            const { frame, valuesRef } = mountScene();
+            const old = currentCloud();
+            old.transitioning = true;
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            for (let i = 0; i < 3; i++) frame(100);
+            for (let i = 0; i < 3; i++) frame(100);
+            expect(allClouds()).toHaveLength(1);
+
+            old.transitioning = false;
+            frame();
+            expect(allClouds()).toHaveLength(2);
         });
 
         it('keeps the cloud while the density stays put', () => {

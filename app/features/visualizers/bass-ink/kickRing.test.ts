@@ -7,6 +7,16 @@ function gate(bumpCount: number, bumpTarget = 1, weight = 1): KickSource {
 }
 
 describe('KickRing', () => {
+    it('records no kick for a non-finite counter, time or strength', () => {
+        const ring = new KickRing();
+        ring.update(gate(0), 0);
+        expect(ring.update(gate(Number.NaN), 1)).toBe(false);
+        expect(ring.update(gate(1), Number.POSITIVE_INFINITY)).toBe(false);
+        expect(ring.count).toBe(0);
+        expect(ring.update(gate(1, Number.NaN), 2)).toBe(true);
+        expect(ring.strengths[0]).toBe(0);
+    });
+
     it('starts with empty slots', () => {
         const ring = new KickRing();
         expect(ring.count).toBe(0);

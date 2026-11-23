@@ -462,6 +462,29 @@ describe('SetDirector', () => {
             expect(director.cue.phase).toBe('groove');
         });
 
+        it('applies the warm-up again after a 10 s silence, so steady music after it reads no drop', () => {
+            const director = new SetDirector();
+            const state = createRhythmState();
+            state.bandOnsets[0] = 0.8;
+            const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
+            let drops = 0;
+            let seen = director.cue.dropAt;
+            for (let f = 1; f <= Math.round(40 / DT); f++) {
+                const t = f * DT;
+                const silent = t > 10 && t < 20;
+                energy.fast = silent ? 0 : 0.2;
+                // The slow envelope has decayed during the silence, so the first music reads as a big surge.
+                energy.ratio = t > 20 && t < 20 + config.warmupSeconds - 1 ? 3 : 1;
+                director.update(state, energy, t);
+                if (director.cue.dropAt !== seen) {
+                    seen = director.cue.dropAt;
+                    drops++;
+                    console.log('DROP', t, director.cue.phase);
+                }
+            }
+            expect(drops).toBe(0);
+        });
+
         it('drops when the bass comes back after a cut of a bar or two', () => {
             const director = new SetDirector();
             // Steady, a 2 s cut at 10 s, the bass back at 12 s.

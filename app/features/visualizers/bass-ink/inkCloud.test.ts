@@ -100,7 +100,11 @@ describe('InkCloud', () => {
             expect(attribute.version).toBe(version + 1);
             expect(attribute.updateRanges).toEqual([{ start: 0, count: CHUNK * 3 }]);
             frame();
-            expect(attribute.updateRanges[1]).toEqual({ start: CHUNK * 3, count: CHUNK * 3 });
+            // Two chunks before an upload are one growing range, not two.
+            expect(attribute.updateRanges).toEqual([{ start: 0, count: CHUNK * 6 }]);
+            attribute.clearUpdateRanges();
+            frame();
+            expect(attribute.updateRanges).toMatchObject([{ start: CHUNK * 6 }]);
         });
 
         it('asking again for what is prepared or being filled changes nothing', () => {
