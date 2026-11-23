@@ -195,8 +195,14 @@ The types are the contract: `app/features/audio/hub/types.ts` (`AudioHubSnapshot
   batch: a positive (later) offset delays them (onset events stamped later than the render time are held until it
   reaches them), while at 0 or a negative offset they are the newest frame and every event received. Amended after the
   S7 review, which found the first wording claimed more than the data allows.
-- With no bound source `update()` leaves the snapshot at its last values (bands are 0 only before the first frame and
-  after a reset). Whether it should fall to rest instead is follow-up `FU-S7-hub-no-source`.
+- With no bound source (the tracker has no render time and `getSource()` is undefined, as after a stopped capture)
+  `update()` puts the snapshot at rest, so a reader never sees music that has stopped: every `bands` value, `gateBass`
+  `pulse` and `lowEnd` read 0, each onset's `strength` is 0 and `sinceSeconds` Infinity, and the beat is unlocked
+  (`phase` and `barPhase` undefined, `tempo` and `confidence` 0, `locked` and `barLocked` false, `beatsPerBar`
+  undefined). Every counter (`count`, `beatCount`, `downbeatCount`, `changeCount`), `time`, `lastTime` and
+  `lastChangeTime` keep their values, because consumers detect events by comparing counts. A render time that is
+  briefly undefined while the same source is still bound changes nothing but the gate pulse (C1), as before. Amended
+  with Trevor on 2026-11-22 (follow-up `FU-S7-hub-no-source`).
 - `update` with the same time twice does nothing: the analysis runs once, whatever the number of readers.
 - Lifetime: `RhythmProvider` loads the hub module with a dynamic import the first time the engine has a source, starts
   it on the app's `RhythmTracker`, and keeps it attached across source changes and navigation until the provider
