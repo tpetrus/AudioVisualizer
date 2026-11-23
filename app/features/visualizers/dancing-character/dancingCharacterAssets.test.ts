@@ -4,7 +4,7 @@ import { DANCE_REQUIRED_BONES, DANCES } from './dancingCharacterConfig';
 import { disposeDancingCharacterAssets, isAbortError, loadDancingCharacterAssets } from './dancingCharacterAssets';
 
 const mocks = vi.hoisted(() => ({
-    gltfLoadAsync: vi.fn(),
+    gltfParseAsync: vi.fn(),
     gltfConstructed: vi.fn(),
 }));
 
@@ -13,7 +13,7 @@ vi.mock('three/addons/loaders/GLTFLoader.js', () => ({
         constructor() {
             mocks.gltfConstructed();
         }
-        loadAsync = mocks.gltfLoadAsync;
+        parseAsync = mocks.gltfParseAsync;
     },
 }));
 
@@ -50,17 +50,28 @@ function makeDances(clips: THREE.AnimationClip[] = DANCES.map((d) => clipFor(d.i
     return { scene: new THREE.Group(), animations: clips };
 }
 
-// Answers each url with its own gltf; a url mapped to an Error rejects.
+const fetchMock = vi.fn();
+
+// Each url downloads its own buffer; parsing that buffer yields the url's gltf, and an Error value fails the download
+// (a rejected parse stands in for a corrupt file, see the HTTP specs for transfer failures).
 function serve(files: Record<string, unknown>) {
-    mocks.gltfLoadAsync.mockImplementation((url: string) => {
-        const file = files[url];
+    const buffers = new Map<ArrayBuffer, unknown>();
+    fetchMock.mockImplementation((url: string) => {
+        const buffer = new ArrayBuffer(1);
+        buffers.set(buffer, files[url]);
+        return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(buffer) });
+    });
+    mocks.gltfParseAsync.mockImplementation((buffer: ArrayBuffer) => {
+        const file = buffers.get(buffer);
         return file instanceof Error ? Promise.reject(file) : Promise.resolve(file);
     });
 }
 
 beforeEach(() => {
     vi.clearAllMocks();
-    mocks.gltfLoadAsync.mockReset();
+    mocks.gltfParseAsync.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
     serve({ 'model.glb': makeModel(), 'dances.glb': makeDances() });
 });
 
@@ -72,8 +83,8 @@ describe('loadDancingCharacterAssets', () => {
         const assets = await loadDancingCharacterAssets(new AbortController().signal, URLS);
 
         expect(assets.model).toBe(gltf.scene);
-        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith('model.glb');
-        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith('dances.glb');
+        expect(fetchMock).toHaveBeenCalledWith('model.glb', expect.anything());
+        expect(fetchMock).toHaveBeenCalledWith('dances.glb', expect.anything());
     });
 
     it('returns every valid dance by id', async () => {
@@ -122,14 +133,13 @@ describe('loadDancingCharacterAssets', () => {
     });
 
     it('uses the bundled asset url by default', async () => {
-        mocks.gltfLoadAsync.mockImplementation((url: string) =>
-            Promise.resolve(url.includes('Dances') ? makeDances() : makeModel()),
-        );
+        serve({});
+        mocks.gltfParseAsync.mockImplementation(() => Promise.resolve({ ...makeModel(), animations: [] }));
 
         await loadDancingCharacterAssets(new AbortController().signal);
 
-        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith(expect.stringContaining('MakeHumanDancer'));
-        expect(mocks.gltfLoadAsync).toHaveBeenCalledWith(expect.stringContaining('MakeHumanDances'));
+        expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('MakeHumanDancer'), expect.anything());
+        expect(fetchMock).toHaveBeenCalledWith(expect.stringContaining('MakeHumanDances'), expect.anything());
     });
 
     it('rejects immediately and starts no load when already aborted', async () => {
@@ -140,16 +150,18 @@ describe('loadDancingCharacterAssets', () => {
 
         expect(isAbortError(error)).toBe(true);
         expect(mocks.gltfConstructed).not.toHaveBeenCalled();
-        expect(mocks.gltfLoadAsync).not.toHaveBeenCalled();
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     it('disposes the model when aborted while loading', async () => {
         const controller = new AbortController();
         const gltf = makeModel();
         const model = deferred<ReturnType<typeof makeModel>>();
-        mocks.gltfLoadAsync.mockImplementation((url: string) =>
-            url === 'model.glb' ? model.promise : Promise.resolve(makeDances()),
-        );
+        serve({ 'model.glb': gltf, 'dances.glb': makeDances() });
+        mocks.gltfParseAsync.mockImplementation((buffer: ArrayBuffer) => {
+            void buffer;
+            return mocks.gltfParseAsync.mock.calls.length === 1 ? model.promise : Promise.resolve(makeDances());
+        });
         const geometryDispose = vi.spyOn(gltf.geometry, 'dispose');
         const materialDispose = vi.spyOn(gltf.material, 'dispose');
 
@@ -203,6 +215,78 @@ describe('loadDancingCharacterAssets', () => {
         serve({ 'model.glb': failure, 'dances.glb': makeDances() });
 
         await expect(loadDancingCharacterAssets(new AbortController().signal, URLS)).rejects.toBe(failure);
+    });
+});
+
+describe('loadDancingCharacterAssets transfers', () => {
+    it('passes the given signal and the url base to fetch and the parser', async () => {
+        const controller = new AbortController();
+        serve({ '/a/b/model.glb': makeModel(), 'dances.glb': makeDances() });
+        await loadDancingCharacterAssets(controller.signal, { model: '/a/b/model.glb', dances: 'dances.glb' });
+
+        expect(fetchMock).toHaveBeenCalledWith('/a/b/model.glb', { signal: controller.signal });
+        expect(fetchMock).toHaveBeenCalledWith('dances.glb', { signal: controller.signal });
+        expect(mocks.gltfParseAsync).toHaveBeenCalledWith(expect.any(ArrayBuffer), '/a/b/');
+        expect(mocks.gltfParseAsync).toHaveBeenCalledWith(expect.any(ArrayBuffer), './');
+    });
+
+    it('rejects with an AbortError when the abort cancels the fetch', async () => {
+        const controller = new AbortController();
+        fetchMock.mockImplementation(
+            (_url: string, init: RequestInit) =>
+                new Promise((_resolve, reject) => {
+                    init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+                }),
+        );
+
+        const caught = loadDancingCharacterAssets(controller.signal, URLS).catch((e: unknown) => e);
+        controller.abort();
+
+        expect(isAbortError(await caught)).toBe(true);
+        expect(mocks.gltfParseAsync).not.toHaveBeenCalled();
+    });
+
+    it('disposes both parsed scenes when aborted after they parsed', async () => {
+        const controller = new AbortController();
+        const gltf = makeModel();
+        const geometryDispose = vi.spyOn(gltf.geometry, 'dispose');
+        const dances = makeDances();
+        const traverse = vi.spyOn(dances.scene, 'traverse');
+        serve({ 'model.glb': gltf, 'dances.glb': dances });
+
+        const caught = loadDancingCharacterAssets(controller.signal, URLS).catch((e: unknown) => e);
+        controller.abort();
+
+        expect(isAbortError(await caught)).toBe(true);
+        expect(geometryDispose).toHaveBeenCalled();
+        expect(traverse).toHaveBeenCalled();
+    });
+
+    it('fails with the status and url when the model response is not ok', async () => {
+        serve({ 'dances.glb': makeDances() });
+        fetchMock.mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }));
+
+        const error = await loadDancingCharacterAssets(new AbortController().signal, URLS).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(Error);
+        expect((error as Error).message).toContain('404');
+        expect((error as Error).message).toContain('model.glb');
+    });
+
+    it('resolves the model with no dances when the dances response is not ok', async () => {
+        const gltf = makeModel();
+        serve({ 'model.glb': gltf });
+        fetchMock.mockImplementation((url: string) =>
+            url === 'dances.glb'
+                ? Promise.resolve({ ok: false, status: 500 })
+                : Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) }),
+        );
+        mocks.gltfParseAsync.mockResolvedValue(gltf);
+
+        const assets = await loadDancingCharacterAssets(new AbortController().signal, URLS);
+
+        expect(assets.model).toBe(gltf.scene);
+        expect(assets.dances.size).toBe(0);
     });
 });
 
