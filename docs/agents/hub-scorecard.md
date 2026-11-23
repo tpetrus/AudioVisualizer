@@ -992,6 +992,36 @@ noise floor.
   tracker's beat on more runs, which is the run that lost hits offline. It is the `summer2000` beat error already
   deferred under D11 to the tracker plan.
 
+### Why the tracker's beat misses `summer2000` (offline diagnosis, 2026-11-23, on `4c06881`, for the tracker plan)
+- **The tempo is right and the phase is not.** The tracker locks at 8.0 s on 127.66 bpm, the taps' tempo (ratio 1.001),
+  and never rebuilds its grid. Beat by beat against the S8 taps, its beats sit 170 to 230 ms from them from the lock to
+  about 18.5 s, close to half a beat (235 ms), on either side as the nearest-beat match flips. From 18.5 s it drifts
+  toward the taps (20 to 160 ms) and does not settle. `eval:rhythm --alignment`: median 146 ms, bias +76 ms.
+- **The kicks are on the taps.** The nearest kick onset is within 75 ms of a tap on two thirds of the beats after the
+  lock (31 of 46), mostly just before it. Kick onsets fall in the last quarter of the tapped beat or on it, not near its middle. Before
+  the lock the kick is sparse, and the bass onsets sit 0.1 to 0.4 of a beat after the taps.
+- **The first phase is wrong, and nothing pulls it back.** An onset corrects a predicted beat only within
+  `BEAT_WINDOW_FRACTION` (0.2 of a beat, about 94 ms here), so kicks half a beat away never reach the grid. The phase is
+  searched again only after `BEAT_LOST_BEATS` (8) beats with no onset near the prediction, which the track's dense
+  onsets (1.6 kick events a beat) never allow.
+- **No single constant fixes it** (median distance from the taps in ms, 8 to 14 s, 14 to 20 s, 20 to 30 s, whole
+  track; one `rhythmConfig` override each through the `ablate:rhythm` override plugin):
+
+| Override | 8-14 s | 14-20 s | 20-30 s | All |
+|---|---|---|---|---|
+| none | 193 | 188 | 77 | 149 |
+| `BEAT_WINDOW_FRACTION=0.3` | 169 | 198 | 44 | 132 |
+| `BEAT_WINDOW_FRACTION=0.45` | 169 | 180 | 49 | 160 |
+| `BEAT_LOST_BEATS=4` | 193 | 188 | 105 | 171 |
+| `BEAT_PHASE_GAIN=0.6` | 192 | 188 | 77 | 144 |
+| `BEAT_INIT_PERIODS=16`, `BEAT_INIT_MIN_SECONDS=6` or `BEAT_HISTORY_SECONDS=10` | 193 | 188 | 77 | 149 |
+
+- **For the tracker plan.** The initial phase alignment settles on an off-beat place from the intro's envelope, and
+  how many beats or seconds it sums over does not change that. The candidates are a different phase evidence (one that
+  weighs the kick band, or keeps several phase hypotheses, as `low-bpm-rnb` already needs) or a re-search that does not
+  wait for the onsets to stop. Each changes how the tracker works on every track, so each belongs in that plan with the
+  full scorecard, not here.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
