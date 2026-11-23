@@ -418,9 +418,7 @@ export class DancingCharacterScene {
         this.club.update(rhythm.beatPhase, bass, this.mixer ? timing.danceWeight : CALM_DANCE_WEIGHT, dt);
 
         // 2. Bass.
-        // The rim light follows the club's flash level, so it shares the limiter (at most 3 jumps a second) and the
-        // reduced-motion strength instead of jumping on every bass bump.
-        const bump = Math.min(Math.max(this.club.flashLevel * settings.bassStrength, 0), MAX_BASS_BUMP);
+        const bump = Math.min(Math.max(bass * settings.bassStrength, 0), MAX_BASS_BUMP);
         this.rimLight.intensity = RIM_BASE_INTENSITY + bump * RIM_FLASH_INTENSITY;
         if (this.model) {
             this.fadeElapsed += dt;

@@ -571,9 +571,11 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
 - **`DCR-FU6`** and **`FU4`** (fixed in #120; there is no skybox download any more): abort the GLB fetch and parse when
   the load signal aborts, not only check the signal after `loadAsync`, keeping the existing load semantics (AbortError,
   late arrivals disposed).
-- **`DCR-FU3`** (fixed in the 2026-11-23 follow-up drain; the rim light reads the club's flash level): send the
-  bass-driven rim light and bass ring through the club flash limiter and the reduced-motion flash strength, so no
-  bass-driven brightness jump starts more than 3 times a second. Add a 6 Hz bass spec.
+- **`DCR-FU3`** (won't do, Trevor, 2026-11-23): send the bass-driven rim light and bass ring through the club flash
+  limiter and the reduced-motion flash strength, so no bass-driven brightness jump starts more than 3 times a second.
+  Tried in the follow-up drain and reverted before merging: behind the limiter the rim light jumps only on loud bass
+  peaks, at most 3 a second, and stops following every bass bump, which is the DJ-set feel it is there for. The rim
+  light lights the dancer's edge, not a large area of the screen, so it keeps reading the gated bass directly.
 - **`DCR-FU4`** (fixed in the 2026-11-23 follow-up drain): make the flash cap hold for any closed 1 s window: a minimum
   interval slightly above 1/3 s, and a tighter test.
 - **`FU-octave-fold-after-dotted-lock`** (done in #72: a dotted correction re-seeds the octave): keep the dance octave
