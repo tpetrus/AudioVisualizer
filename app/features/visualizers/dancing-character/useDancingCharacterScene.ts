@@ -85,10 +85,15 @@ export function useDancingCharacterScene(
             locked: cameraLockedRef.current,
             onViewChanged: (changed) => onViewChangedRef.current(changed),
         });
-        resetViewRef.current = () => {
+        // Reset view and relocking share this: the orbit view goes back to its starting pose and the character's own
+        // azimuth and distance follow it.
+        const resetCamera = () => {
             orbit.reset();
             character.resetOrbit();
         };
+        resetViewRef.current = resetCamera;
+        // The lock as of the previous frame, to notice the moment it goes from unlocked to locked.
+        let wasLocked = cameraLockedRef.current;
 
         // The character on screen, the one being loaded or last asked for, and one whose load just failed. Plain locals:
         // the render loop compares them with the control value every frame without touching React state.
@@ -282,7 +287,12 @@ export function useDancingCharacterScene(
             camera,
 
             update: (_time, delta) => {
-                orbit.setLocked(cameraLockedRef.current);
+                const locked = cameraLockedRef.current;
+                orbit.setLocked(locked);
+                // Locking again puts the camera back on the dancer, so it also returns to its starting spot, exactly as
+                // Reset view does; otherwise the dragged pose would stay and Reset view would still show.
+                if (locked && !wasLocked) resetCamera();
+                wasLocked = locked;
 
                 // A different character chosen in the panel: start loading it. The old one stays on screen until the
                 // new one is ready. A choice that just failed is skipped until the control has been put back.
