@@ -53,6 +53,15 @@ export const HUB_BAND_EDGES_HZ = [20, 60, 130, 300, 800, 4000, 16000] as const;
 // Kinds of onset event the worklet emits, in the order of their index in a feature batch.
 export const FEATURE_ONSET_BANDS = ['kick', 'bass', 'snare', 'highs'] as const;
 export const FEATURE_ONSET_BAND_COUNT = FEATURE_ONSET_BANDS.length;
+// Index of the kick band in FEATURE_ONSET_BANDS: the only band whose events the beat tracker is given.
+export const KICK_ONSET_BAND = 0;
+// Kick events the analyzer holds between a batch's arrival and its first frame. The worklet cannot post more than one
+// event per band per frame, so one batch carries at most this many events of all bands together; a queue that size
+// cannot overflow while every batch is followed by its frames.
+export const KICK_QUEUE_CAPACITY = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+// Kick events the beat tracker remembers, the newest ones. At 200 beats per minute with a kick on every eighth note
+// that is about 20 seconds, far more than any decision made from the recent kicks will look back.
+export const KICK_STORE_CAPACITY = 128;
 // Frames the onset detectors may look ahead before deciding that a frame holds an onset. Each frame of look-ahead
 // delays every event by one hop (10 ms), so this is capped at 2 by the 30 ms reaction target.
 export const ONSET_LOOKAHEAD_FRAMES = 2;

@@ -1,7 +1,14 @@
 import type { BeatSidecar } from '../../app/features/rhythm/eval/evalTypes';
+import { BandOnsets } from '../../app/features/rhythm/bandOnsets';
 import { OnsetExtractor, packFrame, type OnsetFrame } from '../../app/features/rhythm/onsetExtractor';
 import { RhythmAnalyzer } from '../../app/features/rhythm/rhythmAnalyzer';
-import { BATCH_FRAMES, BEAT_PHASE_GAIN, FFT_SIZE, FRAME_STRIDE } from '../../app/features/rhythm/rhythmConfig';
+import {
+    BATCH_FRAMES,
+    BEAT_PHASE_GAIN,
+    FEATURE_ONSET_BAND_COUNT,
+    FFT_SIZE,
+    FRAME_STRIDE,
+} from '../../app/features/rhythm/rhythmConfig';
 import { applyAgc } from '../scorecard/engine/agc';
 import { scorecardBeatErrorMs, trackerOctave } from '../scorecard/engine/beatError';
 import { tempoFigures } from '../scorecard/engine/measureTrack';
@@ -67,7 +74,23 @@ export function traceBeats(input: TraceInput): TraceRow[] {
     const batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
     let count = 0;
     let time0 = 0;
+    // The onset events of the batch being filled, as the worklet would post them. Only the kick band reaches the tracker.
+    const bandOnsets = new BandOnsets(input.sampleRate, extractor.frameRate);
+    const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+    const onsetBand = new Uint8Array(onsetCapacity);
+    const onsetTime = new Float64Array(onsetCapacity);
+    const onsetStrength = new Float32Array(onsetCapacity);
+    let onsetCount = 0;
+    const onOnset = (band: number, eventTime: number, strength: number): void => {
+        if (onsetCount >= onsetCapacity) return;
+        onsetBand[onsetCount] = band;
+        onsetTime[onsetCount] = eventTime;
+        onsetStrength[onsetCount] = strength;
+        onsetCount++;
+    };
     const deliver = (): void => {
+        analyzer.pushKicks(onsetBand, onsetTime, onsetStrength, onsetCount);
+        onsetCount = 0;
         for (let i = 0; i < count; i++) {
             const time = time0 + i / analyzer.frameRate;
             analyzer.pushFrame(time, batch, i * FRAME_STRIDE);
@@ -80,6 +103,7 @@ export function traceBeats(input: TraceInput): TraceRow[] {
         const time = (frame.endSample - FFT_SIZE / 2) / input.sampleRate;
         if (count === 0) time0 = time;
         packFrame(frame, batch, count * FRAME_STRIDE);
+        bandOnsets.push(frame, time, onOnset);
         if (++count === BATCH_FRAMES) deliver();
     };
     for (let offset = 0; offset < audio.length; offset += 128) {
