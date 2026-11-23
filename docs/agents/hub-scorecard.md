@@ -913,6 +913,50 @@ asking for the same dance, and only Auto goes back to the dance a fresh load sta
 records Auto, so it never sees the difference; a recording made with a manual dance would show its first bar on the
 calm dance after a fresh load and not after a re-select.
 
+## Review decisions (Trevor, 2026-11-22)
+
+Trevor confirmed every decision above that was recorded "to confirm at review", and settled the open ones:
+- **AC7's clip floor** is 0.2 beat (targets version 8, S8), not the plan's 0.05 loop.
+- **S7's `high-bpm-dnb` exception** stands: the S6 baseline's 2.17 s gate was a lucky recording.
+- **The D11 deferrals of S7 and S8** stand: `low-bpm-rnb`'s beat error and gate, `summer2000`'s beat error,
+  `beatless`'s lock, `half-time-shuffle`'s gate, and AC7 on `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`,
+  `low-bpm-rnb` and `syncopationbass`.
+- **S9's scope** stands: the spectrum displays keep their owned analyser, and `bass-ink`'s set energy stays on it
+  (`FU-S9-bass-ink-energy`).
+- **The stretch targets** (Q4, D10) stay as they are: hit share 0.9, false fires 0.1, the gate within 2 s of the lock,
+  latency 30 ms plus a frame. They are reported, not required.
+- **The live hit share of `trio-color-wave`** on `lonley`, `low-bpm-rnb` and `syncopationbass`, and of `cubes` on
+  `half-time-shuffle`, is accepted as it is under the version 9 tolerance: no fix is planned, and the cells stay as
+  measured.
+- **AC2 for `beatless`**: its no-beat truth is the track class in `scripts/scorecard/tracks.ts`, not a `.beats.json`.
+  A track with no beat has nothing to tap, so that is the accepted form.
+- **The tracker work D11 deferred is its own plan**, made with the double-diamond workflow in a fresh session: the
+  `6-8-time` cells, `low-bpm-rnb`, `summer2000`'s beat error, `beatless`, `half-time-shuffle`'s gate, the dotted 100 to
+  150 change (`ac9.dottedChangeCounted`, the shelved `FU-S6-three-halves-change`), the `bassline-kick-120` onsets, and
+  `syncopation-no-kick`'s first lock (AC5 of the audio alignment plan).
+- **Not accepted, still open:** the dancer's live hit share and latency on `lonley` (0 against 0.293 pre-hub, 249
+  against 53 ms) and `summer2000` (0 against 0.017, 196 against 104 ms), AC8. S5 handed `lonley` to S8, which did not
+  close it.
+
+### Tap spread of the S1 tracks
+
+S1 asked for the spread of each new tap, which was recorded only for `summer2000` (above). The table fits each
+committed `.beats.json` with a straight line on the beat index (a quadratic for `drifting-tempo`, whose tempo moves)
+and gives the taps' distance from it. The tap calibration's noise floor on `click-120` is 26 ms. No beat was missed in
+any of them.
+
+| Track | Taps | Mean gap, ms (bpm) | Residual RMS, ms | Largest, ms |
+| ----- | ---- | ------------------ | ---------------- | ----------- |
+| `summer2000` | 58 | 467 (128.5) | 55 | 127 |
+| `high-bpm-dnb` | 85 | 346 (173.6) | 30 | 90 |
+| `low-bpm-rnb` | 35 | 737 (81.4) | 28 | 81 |
+| `6-8-time` | 62 | 482 (124.5) | 53 | 226 |
+| `half-time-shuffle` | 37 | 724 (82.8) | 73 | 178 |
+| `drifting-tempo` (quadratic) | 56 | 524 (114.5) | 22 | 64 |
+
+`6-8-time` was tapped at about twice its 62 bpm label. `half-time-shuffle` is the noisiest, at almost three times the
+noise floor.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
