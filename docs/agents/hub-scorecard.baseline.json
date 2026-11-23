@@ -39,12 +39,12 @@
       "blocking": true,
       "applicable": true,
       "prehub": null,
-      "value": 0,
+      "value": 1,
       "spread": 0,
       "runs": 1,
       "source": "offline",
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "ac9.dottedPassageQuiet",

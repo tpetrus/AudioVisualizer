@@ -173,7 +173,9 @@ export class RhythmAnalyzer {
                 // The boundary's reference tempo is seeded by the first estimate it sees, so it waits for the decided one.
                 if (
                     !this.tempo.deferring &&
-                    this.applyBoundary(this.boundary.pushTempo(time, this.tempo.rawBpm, this.tempo.confidence))
+                    this.applyBoundary(
+                        this.boundary.pushTempo(time, this.tempo.rawBpm, this.tempo.confidence, this.beat.gridHitShare),
+                    )
                 ) {
                     return;
                 }

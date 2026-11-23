@@ -524,12 +524,12 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
 - **`FU-S6-slow-octave`**: closed as intended behavior. 65 BPM with eighth notes reads 130 and 75 BPM reads 150, which
   is the tempo a dance floor steps to (see "Which octave the tracker leans toward" above). The `it.fails` pins in
   `tempo.test.ts` are now plain specs.
-- **`FU-S6-three-halves-change`**: shelved (2026-11-16), see "3/2 tempo changes: shelved" below. A real 100 to 150
+- **`FU-S6-three-halves-change`**: done in the D11 tracker plan's S7 (2026-11-23). A gapless 100 to 150 change now counts as a song change 8.8 s after it, once the old beat stops finding its onsets (`BeatTracker.gridHitShare`), and the tempo follows; see "Tracker plan D11" in `hub-scorecard.md`. Shelved before that (2026-11-16), see "3/2 tempo changes: shelved" below. A real 100 to 150
   BPM change is still never followed within 30 s, and neither is a 4/3 change down (128 to 96). A 128 to 170 change
   follows after 11.25 s and a 140 to 70 change after 6.75 s.
-- **`FU-boundary-dotted`** (moved to the D11 tracker plan, 2026-11-23): BoundaryDetector can swallow a sustained
+- **`FU-boundary-dotted`** (done in D11 S7, 2026-11-23, by the grid hit share rather than a longer jump time): BoundaryDetector can swallow a sustained
   dotted-ratio tempo change forever. Give it a longer, confidence-gated jump time that refreshes its reference.
-- **`FU-dotted-leaky`** (moved to the D11 tracker plan, 2026-11-23): replace the hard challenger reset for dotted rivals
+- **`FU-dotted-leaky`** (not needed after D11 S7, 2026-11-23: the boundary rule follows the 3/2 change without it): replace the hard challenger reset for dotted rivals
   below 0.5 confidence with a leaky counter. Then a real change at a dotted ratio with middling confidence is not held
   off forever. Tried with the 3/2 work: half a win per weak dotted estimate followed a noisy 4/3 change after 35.75 s
   and kept an 8 s weak burst out, but it gave 2 extra switches in 1296 noisy on-and-off dotted figures (0.15%), and

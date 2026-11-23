@@ -13,6 +13,10 @@ import {
     NOVELTY_THRESHOLD,
     SILENCE_FLOOR_RMS,
     SILENCE_TIMEOUT_SECONDS,
+    TEMPO_DOTTED_GRID_SUPPORT,
+    TEMPO_DOTTED_JUMP_MIN_CONFIDENCE,
+    TEMPO_DOTTED_JUMP_SECONDS,
+    TEMPO_DOTTED_REFERENCE_ESTIMATES,
     TEMPO_JUMP_MIN_CONFIDENCE,
     TEMPO_JUMP_OCTAVE_TOLERANCE,
     TEMPO_JUMP_RATIO,
@@ -55,6 +59,9 @@ export class BoundaryDetector {
 
     private referenceBpm = 0;
     private jumpStart = -1;
+    private dottedStart = -1;
+    // Estimates that agreed with the reference since it was last set.
+    private referenceSupport = 0;
 
     private noveltyValue = 0;
     // Soft boundaries reported over the detector's whole life (reset() does not clear it), for offline measurement.
@@ -118,14 +125,16 @@ export class BoundaryDetector {
     }
 
     // Feeds a tempo estimate (BPM, 0..1 confidence) at `time` seconds. Reports a soft boundary when the tempo has
-    // stayed on a different value (not just a half or double of the reference) for several seconds.
-    pushTempo(time: number, rawBpm: number, confidence: number): BoundaryKind {
+    // stayed on a different value (not just a half or double of the reference) for several seconds. `gridSupport` is
+    // the beat grid's recent hit share (BeatTracker.gridHitShare), which decides whether a dotted move is a new song.
+    pushTempo(time: number, rawBpm: number, confidence: number, gridSupport = 1): BoundaryKind {
         if (rawBpm <= 0 || confidence < TEMPO_JUMP_MIN_CONFIDENCE) {
             this.jumpStart = -1;
             return BOUNDARY_NONE;
         }
         if (this.referenceBpm === 0) {
             this.referenceBpm = rawBpm;
+            this.referenceSupport = 0;
             return BOUNDARY_NONE;
         }
         const ratio = rawBpm / this.referenceBpm;
@@ -135,14 +144,37 @@ export class BoundaryDetector {
             this.jumpStart = -1;
             return BOUNDARY_NONE;
         }
-        // Nor is the pulse that dotted notes make against the beat.
+        // Nor is the pulse that dotted notes make against the beat, while the old beat still sounds on its grid. Once it
+        // has stopped (see TEMPO_DOTTED_GRID_SUPPORT) a sustained dotted tempo is a new song like any other jump.
         if (isSyncopationRatio(rawBpm, this.referenceBpm)) {
             this.jumpStart = -1;
-            return BOUNDARY_NONE;
+            if (
+                gridSupport >= TEMPO_DOTTED_GRID_SUPPORT ||
+                confidence < TEMPO_DOTTED_JUMP_MIN_CONFIDENCE ||
+                this.referenceSupport < TEMPO_DOTTED_REFERENCE_ESTIMATES
+            ) {
+                this.dottedStart = -1;
+                return BOUNDARY_NONE;
+            }
+            if (this.dottedStart < 0) {
+                this.dottedStart = time;
+                return BOUNDARY_NONE;
+            }
+            if (time - this.dottedStart < TEMPO_DOTTED_JUMP_SECONDS) {
+                return BOUNDARY_NONE;
+            }
+            this.referenceBpm = rawBpm;
+            this.referenceSupport = 0;
+            this.dottedStart = -1;
+            this.keepOnlyRecent();
+            this.softBoundaries++;
+            return BOUNDARY_SOFT;
         }
+        this.dottedStart = -1;
         if (Math.abs(ratio - 1) <= TEMPO_JUMP_RATIO) {
             this.jumpStart = -1;
             this.referenceBpm += (rawBpm - this.referenceBpm) * TEMPO_REFERENCE_FOLLOW;
+            this.referenceSupport++;
             return BOUNDARY_NONE;
         }
         if (this.jumpStart < 0) {
@@ -153,6 +185,7 @@ export class BoundaryDetector {
             return BOUNDARY_NONE;
         }
         this.referenceBpm = rawBpm;
+        this.referenceSupport = 0;
         this.jumpStart = -1;
         this.keepOnlyRecent();
         this.softBoundaries++;
@@ -169,6 +202,8 @@ export class BoundaryDetector {
         this.silenceReported = false;
         this.referenceBpm = 0;
         this.jumpStart = -1;
+        this.dottedStart = -1;
+        this.referenceSupport = 0;
         this.noveltyValue = 0;
     }
 
