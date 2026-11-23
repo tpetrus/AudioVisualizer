@@ -87,7 +87,9 @@ visualizer render loop: hub.update() ─▶ hub.snapshot (one preallocated objec
   it. Bands and onsets can only be read from frames that have arrived, which are a few tens of milliseconds old (half
   the analysis window plus one batch): at offset 0 or an earlier (negative) offset they are the newest frame and every
   onset received, and only a later (positive) offset delays them. A second
-  call at the same time does nothing, so several readers in one frame cost nothing. It allocates nothing.
+  call at the same time does nothing, so several readers in one frame cost nothing. It allocates nothing. With no
+  source (a stopped capture) it puts the snapshot at rest: bands, gate bass and onset strengths 0, the beat unlocked,
+  the counters kept.
 
 `hub.snapshot` (types in `hub/types.ts`; never copy it into React state):
 

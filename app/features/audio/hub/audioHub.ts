@@ -36,7 +36,8 @@ export interface AudioHubOptions {
 // level (contract C1) is not in the frames: the hub reads it from its own tap of the tracker's source (GateBassTap),
 // which it rebuilds when the source changes and disconnects when there is none (the pulse then reads 0). That level is
 // the newest audio: unlike `bands`, `lowEnd` and `beat`, it is not shifted by the user's sync offset, and it is read
-// even in an update with no render time. Nothing else here allocates after the constructor.
+// even in an update with no render time. With no source at all the snapshot is put at rest (contract C5). Nothing else
+// here allocates after the constructor.
 export class AudioHub implements AudioHubReader, FeatureListener {
     // Updated in place for the hub's whole life; consumers may hold on to it.
     readonly snapshot: AudioHubSnapshot;
@@ -117,7 +118,8 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.removeListener = tracker.addFeatureListener(this);
     }
 
-    // Stops listening. The snapshot stays readable, frozen at its last values.
+    // Stops listening. The snapshot stays readable at its last values; an update without a time then puts it at rest,
+    // as with no source.
     public dispose(): void {
         this.removeListener?.();
         this.removeListener = undefined;
@@ -136,10 +138,13 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         if (time === undefined) {
             // No render time: the source is gone (a stopped capture) or the time is briefly unavailable. The pulse is
             // the newest audio and needs no render time, so it is still read: that frees the tap and zeroes the level
-            // when the source is gone, and leaves no gap in it when the same source is still there. The rest of the
-            // snapshot keeps its last values.
+            // when the source is gone, and leaves no gap in it when the same source is still there. With the same
+            // source still bound the rest of the snapshot keeps its last values; with none it is put at rest.
             if (tracker) {
                 (this.snapshot.gateBass as HubGateBass).pulse = this.readGateBassLevel();
+            }
+            if (!tracker?.getSource()) {
+                this.rest();
             }
             return;
         }
@@ -200,6 +205,30 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         }
         this.snapshot.section.lastChangeTime = -Infinity;
         // The next update must read again even at the same time, as the held frames are gone.
+        this.lastUpdateTime = Number.NaN;
+    }
+
+    // Contract C5: with no source the snapshot reads as silence, so a reader never keeps showing music that has
+    // stopped. Only the values that describe the music now are cleared; the counters, the snapshot time and the last
+    // event times stay, because consumers detect events by comparing counts with the ones they saw last.
+    private rest(): void {
+        this.snapshot.bands.fill(0);
+        const gateBass = this.snapshot.gateBass as HubGateBass;
+        gateBass.pulse = 0;
+        gateBass.lowEnd = 0;
+        for (const onset of this.onsetByIndex) {
+            onset.strength = 0;
+            onset.sinceSeconds = Infinity;
+        }
+        const beat = this.snapshot.beat;
+        beat.phase = undefined;
+        beat.barPhase = undefined;
+        beat.tempo = 0;
+        beat.confidence = 0;
+        beat.locked = false;
+        beat.beatsPerBar = undefined;
+        beat.barLocked = false;
+        // The next update with a render time must read again, even at the time it last read.
         this.lastUpdateTime = Number.NaN;
     }
 
