@@ -1289,10 +1289,10 @@ that were right. The longest ring (32) hurts the fewest tracks, but `low-bpm-rnb
 improves only to 137 ms. No single offset between the kicks and the beat holds across these tracks.
 
 **Outcome (decision D4).** Both attempts missed their pre-registered grids, so `summer2000` `beat.errorMedianMs` is
-accepted at 153.4 ms. The S2 code stays off. Whether it ships off, or waits on a branch for a re-design, is Trevor's
-call (see the PR). Question Q3 of the plan, whether summer2000 needs a multi-hypothesis tracker, is open for Trevor.
-The trace points at a narrower next step that the plan did not register: during the hold, keep a correction that
-follows the nearest kick event instead of freezing.
+accepted at 153.4 ms for this plan. The S2 code is not merged: it waits on the local branch `replan/s2-kick-model`
+(`5eaddde`, on top of S1) for the next design (Trevor, 2026-11-23). Question Q3 of the plan, answered by Trevor: one
+more design attempt, planned separately. The trace points at a narrower next step than this plan registered: during
+the hold, keep a correction that follows the nearest kick event instead of freezing.
 
 **S5 to S7.** No tracker change is enabled, so there are no after values to record and no live run: the S0 values
 stand, and the `it.fails` spec of the disagreeing envelope plus a fill stays `.fails`. S6 and S7 are canceled by S0's
