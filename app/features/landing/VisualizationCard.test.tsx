@@ -22,7 +22,10 @@ describe('VisualizationCard', () => {
             '/cubes-640.avif 640w, /cubes-1200.avif 1200w',
             '/cubes-640.webp 640w, /cubes-1200.webp 1200w',
         ]);
-        expect(sources.map((source) => source.getAttribute('sizes'))).toEqual(['33vw', '33vw']);
+        expect(sources.map((source) => source.getAttribute('sizes'))).toEqual([
+            '(min-width: 640px) 50vw, 100vw',
+            '(min-width: 640px) 50vw, 100vw',
+        ]);
         expect(container.querySelector('picture > img')).toBe(screen.getByRole('img', { name: 'Cubes' }));
     });
 
@@ -41,6 +44,15 @@ describe('VisualizationCard', () => {
         const img = screen.getByRole('img', { name: 'Cubes' });
         expect(img).toHaveAttribute('fetchpriority', 'high');
         expect(img).toHaveAttribute('loading', 'eager');
+    });
+
+    it('shows the title as a caption that is hidden from assistive technology', () => {
+        renderWithProviders(<VisualizationCard to="/cubes" title="Cubes" image="/cubes.png" />);
+
+        const caption = screen.getByText('Cubes', { selector: 'span' });
+        expect(caption).toBeVisible();
+        expect(caption).toHaveAttribute('aria-hidden', 'true');
+        expect(screen.getAllByRole('link', { name: 'Cubes' })).toHaveLength(1);
     });
 
     it('leaves the default loading behaviour for a non-priority image', () => {

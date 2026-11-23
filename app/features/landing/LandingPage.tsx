@@ -34,12 +34,15 @@ export function LandingPage() {
                 </button>
             </div>
 
-            {/* Three columns, as CARD_COLUMNS in ComingSoonCard says, so the last tile can fill the row. */}
-            <div className="grid grid-cols-3">
+            {/* One column below sm and two from sm up, so an even number of cards makes full rows; the coming-soon
+                strip sits under the grid instead of in it. */}
+            <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2">
                 {VISUALIZATIONS.map((visualization) => (
                     <VisualizationCard key={visualization.to} {...visualization} />
                 ))}
-                <ComingSoonCard cardCount={VISUALIZATIONS.length} />
+            </div>
+            <div className="px-2 pb-2">
+                <ComingSoonCard />
             </div>
         </main>
     );
