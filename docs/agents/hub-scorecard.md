@@ -1072,6 +1072,30 @@ planning (Q1). The measurements above point at a tracker that takes the worklet'
 against an envelope that disagrees, and copes with fills. That is a multi-hypothesis design, not a constant in today's
 phase check.
 
+## Tracker plan D11: status of the request's failing cells (S5 and later slices)
+Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.plan.md`) adds its cells here. "Before" is
+`npm run scorecard` on `ee76875` (targets version 9); "after" is the value once the plan's slices are merged. Statuses:
+**fixed**, **stretch-open** (a stretch slice was attempted and recorded), **re-plan** (back to planning), and
+**accepted** (as measured, or out of the plan's scope).
+
+| Cell | Track | Before | After | Status | Where |
+|---|---|---|---|---|---|
+| `beat.errorMedianMs` | `summer2000` | 153.4 ms | 153.4 ms | re-plan | S1 diagnosis: no phase evidence the tracker has favors the taps; S3 recorded as a miss |
+| `beat.errorMedianMs` | `low-bpm-rnb` | 183.4 ms | 183.4 ms | re-plan (Q1) | S1: no rival stays on the taps, so S4's precondition fails; dropped under D8 |
+| `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83 s, never | unchanged | re-plan (with the beat), reported under D9 | follows the tracker's beat; no tracker change landed for these |
+| `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | see S8 | see S8 | S8 |
+| `tempo.falseSongChanges` | `6-8-time` | 1 | see S8 | see S8 | S8 |
+| `tempo.beatlessNeverLocks` | `beatless` | locks (1) | see S6 | see S6 | S6 |
+| `ac9.dottedChangeCounted` | dotted 100 to 150 | 0 | see S7 | see S7 | S7 |
+| `onset.f50.kick` / `.bass` | `bassline-kick-120` | 0.808 / 0.768 | unchanged | accepted (a non-goal: a finer low-end spectrum is a separate onset project) | plan non-goals |
+| `live.clip.maxDeviationBeats` (AC7 dance-clip consistency) | `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb`, `syncopationbass` | 0.163, unavailable, 1.793, unavailable, unavailable | unchanged | re-plan (with the beat level and phase) | no required tracker change merged, so the live cells were not re-recorded |
+| `tempo.lockSeconds` (AC5 of the audio-alignment plan) | `syncopation-no-kick` | 8.02 s | see S8 | see S8 | S8 |
+
+**S5 (the close of the required cells).** S3 and S4 were recorded as misses (see "Tracker plan D11, S1"), so no
+required tracker change merged. There is no improvement to record, and so no baseline rewrite and no live run:
+`scorecard:check` against the current baseline is unchanged by S1, S2 and S5, which change no shipped code. The
+`it.fails` specs added in S2 stay `.fails`.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
