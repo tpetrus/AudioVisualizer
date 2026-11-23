@@ -178,6 +178,8 @@ export const BEAT_ENVELOPE_MEAN_SMOOTHING = 0.02;
 // The phase is searched again after this many consecutive beats without an onset near the prediction. Long enough to ride
 // through a two second break with no drums at a usual tempo, because the tempo carries on through one.
 export const BEAT_LOST_BEATS = 8;
+// How fast the share of beats that found an onset (BeatTracker.gridHitShare) follows each beat: a memory of about 8 beats.
+export const BEAT_HIT_SHARE_RATE = 0.125;
 // The grid is rebuilt when the tempo estimate and the beat period differ by more than this fraction.
 export const BEAT_REINIT_TEMPO_RATIO = 0.12;
 
@@ -244,6 +246,18 @@ export const TEMPO_JUMP_OCTAVE_TOLERANCE = 0.06;
 export const TEMPO_JUMP_MIN_CONFIDENCE = 0.3;
 // Fraction of the gap the reference tempo closes per estimate while the tempo is steady (0..1).
 export const TEMPO_REFERENCE_FOLLOW = 0.1;
+// A move of the tempo to a dotted ratio of the reference (3/2, 4/3 or their inverses) is usually the dotted notes of the
+// same song, so the tempo cue ignores it. It counts as a new song only once the old beat has stopped sounding at its own
+// grid places: fewer than TEMPO_DOTTED_GRID_SUPPORT of recent beats found an onset, at TEMPO_DOTTED_JUMP_MIN_CONFIDENCE
+// or more, for TEMPO_DOTTED_JUMP_SECONDS. After a real 100 to 150 change only every other old beat meets a note (0.5 to
+// 0.6), while a beat under a 3:2 layer still meets one every time. The reference must first have been confirmed by
+// TEMPO_DOTTED_REFERENCE_ESTIMATES estimates (4 s): a reference seeded by a brief reading of the dotted rival (160 on a
+// 120 track) would otherwise make the true tempo look like the jump. Every value of the grid support from 0.6 to 0.9
+// scored the same on the scorecard.
+export const TEMPO_DOTTED_GRID_SUPPORT = 0.75;
+export const TEMPO_DOTTED_JUMP_MIN_CONFIDENCE = 0.6;
+export const TEMPO_DOTTED_JUMP_SECONDS = 4;
+export const TEMPO_DOTTED_REFERENCE_ESTIMATES = 16;
 // A soft reset keeps this fraction of the accumulated evidence (0..1).
 export const SOFT_RESET_KEEP = 0.2;
 

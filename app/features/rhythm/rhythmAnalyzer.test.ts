@@ -762,3 +762,45 @@ describe('RhythmAnalyzer song-change counters', () => {
         expect(analyzer.state.songChangeCount).toBe(1);
     });
 });
+
+describe('RhythmAnalyzer on a tempo move by 3/2', () => {
+    it('counts a gapless change from 100 to 150 BPM as a new song and follows the new tempo', () => {
+        // The scorecard's dotted song change (ac9.dottedChangeCounted): nothing is silent, so only the tempo cue can tell.
+        const first = renderTrack({ seconds: 24, bpm: 100, beatsPerBar: 4 });
+        const second = renderTrack({ seconds: 36, bpm: 150, beatsPerBar: 4, clickHz: 2200 });
+        const result = runPipeline(concat(first.pcm, second.pcm), { sampleEvery: 0.25 });
+        report('dotted 100->150', { change: result.songChangeEvents[0], bpm: last(result).bpm });
+        expect(result.songChangeEvents).toHaveLength(1);
+        expect(result.songChangeEvents[0]).toBeGreaterThan(24);
+        expect(result.songChangeEvents[0]).toBeLessThan(40);
+        expect(last(result).bpm).toBeGreaterThan(147);
+        expect(last(result).bpm).toBeLessThan(153);
+    });
+
+    // A beat that keeps sounding under a 3:2 layer is the same song, however loud the layer and wherever it falls
+    // against the beat: the beat still finds its onsets, so the grid's hit share stays up.
+    it.each([
+        [1, 0],
+        [1, 0.1],
+        [2, 0.2],
+        [2, 0.3],
+    ])(
+        'raises no song change when a 3:2 layer at level %f and offset %f s joins a steady 100 BPM beat',
+        (level, offset) => {
+            const beat = renderTrack({ seconds: 45, bpm: 100, beatsPerBar: 4 });
+            const layer = renderTrack({
+                seconds: 30,
+                bpm: 150,
+                beatsPerBar: 4,
+                clickHz: 2200,
+                accent: 0,
+                firstBeat: offset,
+            });
+            const pcm = beat.pcm.slice();
+            const start = 15 * 44100;
+            for (let i = 0; i < layer.pcm.length && start + i < pcm.length; i++) pcm[start + i] += level * layer.pcm[i];
+            const result = runPipeline(pcm);
+            expect(last(result).songChangeCount).toBe(0);
+        },
+    );
+});
