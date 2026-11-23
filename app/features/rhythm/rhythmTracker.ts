@@ -235,6 +235,8 @@ export class RhythmTracker {
         if (import.meta.env.DEV) {
             this.phaseOnsets = (batch as FeatureBatch & { phaseOnsets?: number }).phaseOnsets ?? this.phaseOnsets;
         }
+        // The kick events go first so that they reach the beat tracker before the batch's first frame.
+        analyzer.pushKicks(batch.onsetBand, batch.onsetTime, batch.onsetStrength, batch.onsetCount);
         analyzer.pushBatch(batch.time0, batch.frames, batch.count);
         // Keeps the counters moving even when no visualizer is calling updatePhase(). It reads at the same render
         // time, so the counters never run ahead of what the visualizers show.

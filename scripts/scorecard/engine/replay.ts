@@ -144,6 +144,22 @@ export function replayPcm(pcm: Float32Array, sampleRate: number, options: Replay
     return run(audio, sampleRate, options.lockedTempo, options.gateTrace);
 }
 
+// Gives the analyzer one batch the way RhythmTracker.onMessage does: the batch's kick events first, then its frames in
+// order, each spaced by the frame rate from the first one's time. `afterFrame` runs after every frame with its time. It
+// is shared with the specs so that the replay's delivery order is checked against the tracker's.
+export function pushBatchToAnalyzer(
+    analyzer: RhythmAnalyzer,
+    batch: FeatureBatch,
+    afterFrame: (time: number) => void,
+): void {
+    analyzer.pushKicks(batch.onsetBand, batch.onsetTime, batch.onsetStrength, batch.onsetCount);
+    for (let i = 0; i < batch.count; i++) {
+        const time = batch.time0 + i / analyzer.frameRate;
+        analyzer.pushFrame(time, batch.frames, i * FRAME_STRIDE);
+        afterFrame(time);
+    }
+}
+
 // Counts the render ticks of one gate into its summary.
 class GateTally {
     private firstOpen: number | null = null;
@@ -304,20 +320,20 @@ function run(pcm: Float32Array, sampleRate: number, lockedTempo?: number, gateTr
         renderBefore(arrival);
         // The tracker's analysis: the batch's frames in order, spaced by the frame rate from the first one's time. A
         // locked clock replaces the tracker, so it is skipped then.
-        for (let i = 0; lockedTempo === undefined && i < batch.count; i++) {
-            const time = batch.time0 + i / analyzer.frameRate;
-            analyzer.pushFrame(time, batch.frames, i * FRAME_STRIDE);
-            while (songChanges.length < state.songChangeCount) songChanges.push({ time });
-            analyzer.updatePhase(time);
-            tempo.push({ time, bpm: state.bpm });
-            if (state.beatCount > lastBeatCount) {
-                lastBeatCount = state.beatCount;
-                // The counter rises on the first frame past a beat, up to one frame late. The beat itself is the grid beat
-                // behind `time`: phase beats of the grid's own period (read from the distance to the next beat) before it.
-                const phase = state.beatPhase ?? 0;
-                const period = (state.nextBeatTime - time) / (1 - phase);
-                beats.push(time - phase * period);
-            }
+        if (lockedTempo === undefined) {
+            pushBatchToAnalyzer(analyzer, batch, (time) => {
+                while (songChanges.length < state.songChangeCount) songChanges.push({ time });
+                analyzer.updatePhase(time);
+                tempo.push({ time, bpm: state.bpm });
+                if (state.beatCount > lastBeatCount) {
+                    lastBeatCount = state.beatCount;
+                    // The counter rises on the first frame past a beat, up to one frame late. The beat itself is the grid beat
+                    // behind `time`: phase beats of the grid's own period (read from the distance to the next beat) before it.
+                    const phase = state.beatPhase ?? 0;
+                    const period = (state.nextBeatTime - time) / (1 - phase);
+                    beats.push(time - phase * period);
+                }
+            });
         }
         // The hub is told after the tracker's own analysis, as RhythmTracker does.
         hub.onBatch(batch);

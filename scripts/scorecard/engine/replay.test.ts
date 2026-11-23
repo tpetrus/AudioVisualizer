@@ -1,6 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { asEngine, FakeAudioEngine } from '../../../app/test/fakeEngines';
+import { asWebAudio, FakeAnalyserNode, FakeAudioContext, installFakeWebAudio } from '../../../app/test/fakeWebAudio';
+import { buildFeatureBatches } from '../../../app/features/rhythm/__fixtures__/kickBatches';
+import { BeatTracker } from '../../../app/features/rhythm/beatTracker';
+import { OnsetExtractor } from '../../../app/features/rhythm/onsetExtractor';
+import { RhythmAnalyzer } from '../../../app/features/rhythm/rhythmAnalyzer';
+import { RhythmTracker } from '../../../app/features/rhythm/rhythmTracker';
 import { TEST_SAMPLE_RATE, concat, renderTrack, silence } from '../../../app/features/rhythm/testSignals';
-import { RENDER_HZ, replayPcm } from './replay';
+import { RENDER_HZ, pushBatchToAnalyzer, replayPcm } from './replay';
+
+// The real import is a Vite worker-URL query that only exists in the bundler.
+vi.mock('../../../app/features/rhythm/rhythmProcessor.worklet?worker&url', () => ({
+    default: '/assets/rhythm-worklet.js',
+}));
 
 describe('replayPcm', () => {
     const click = renderTrack({ seconds: 20, bpm: 120, beatsPerBar: 4 }).pcm;
@@ -94,5 +106,75 @@ describe('replayPcm with a gate trace', () => {
         const traced = replayPcm(pcm, TEST_SAMPLE_RATE, { gateTrace: { tick: (bass) => records.push(bass) } });
         expect(traced).toEqual(plain);
         expect(records.length).toBe(Math.floor(plain.seconds * RENDER_HZ) + 1);
+    });
+});
+
+// What the beat tracker is told, in order: each kick event, and each frame it is pushed.
+type Call = ['kick', number, number] | ['frame', number];
+
+function recordBeatTracker(log: Call[]): void {
+    const pushKick = BeatTracker.prototype.pushKick;
+    const push = BeatTracker.prototype.push;
+    vi.spyOn(BeatTracker.prototype, 'pushKick').mockImplementation(function (this: BeatTracker, time, strength) {
+        log.push(['kick', time, strength]);
+        pushKick.call(this, time, strength);
+    });
+    vi.spyOn(BeatTracker.prototype, 'push').mockImplementation(function (this: BeatTracker, time, onset) {
+        log.push(['frame', time]);
+        return push.call(this, time, onset);
+    });
+}
+
+describe('the kick input path', () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    // Kick events on every beat, so that a batch often carries one, and a few that are older than their batch.
+    const pcm = renderTrack({ seconds: 10, bpm: 140, beatsPerBar: 4, accent: 0, sampleRate: TEST_SAMPLE_RATE }).pcm;
+    const batches = buildFeatureBatches(pcm, TEST_SAMPLE_RATE);
+
+    it('gives RhythmTracker.onMessage and the replay the same kicks in the same order before the same frames', async () => {
+        const live: Call[] = [];
+        recordBeatTracker(live);
+        const web = installFakeWebAudio();
+        const engine = new FakeAudioEngine();
+        const tracker = new RhythmTracker();
+        engine.setAnalyser(
+            asWebAudio<AnalyserNode>(new FakeAnalyserNode(new FakeAudioContext({ sampleRate: TEST_SAMPLE_RATE }))),
+        );
+        tracker.start(asEngine(engine));
+        await vi.waitFor(() => expect(web.workletNodes).toHaveLength(1));
+        let heard = 0;
+        tracker.addFeatureListener({ onBatch: () => heard++, onReset: () => {} });
+        for (const batch of batches) {
+            web.workletNodes[0].processorPort.postMessage(batch);
+        }
+        await vi.waitFor(() => expect(heard).toBe(batches.length));
+        tracker.dispose();
+
+        vi.restoreAllMocks();
+        const replayed: Call[] = [];
+        recordBeatTracker(replayed);
+        const analyzer = new RhythmAnalyzer(new OnsetExtractor(TEST_SAMPLE_RATE).frameRate);
+        for (const batch of batches) {
+            pushBatchToAnalyzer(analyzer, batch, () => {});
+        }
+
+        const kicks = live.filter((call) => call[0] === 'kick');
+        expect(kicks.length).toBeGreaterThan(10);
+        expect(replayed).toEqual(live);
+
+        // Each batch's kick events arrive once, in arrival order with their own times, before its first frame.
+        const expected: Call[] = [];
+        for (const batch of batches) {
+            for (let i = 0; i < batch.onsetCount; i++) {
+                if (batch.onsetBand[i] === 0) expected.push(['kick', batch.onsetTime[i], batch.onsetStrength[i]]);
+            }
+            for (let i = 0; i < batch.count; i++) {
+                expected.push(['frame', batch.time0 + i / analyzer.frameRate]);
+            }
+        }
+        expect(live).toEqual(expected);
     });
 });

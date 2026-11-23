@@ -11,6 +11,7 @@ import {
     BEAT_REINIT_TEMPO_RATIO,
     BEAT_TEMPO_FOLLOW,
     BEAT_WINDOW_FRACTION,
+    KICK_STORE_CAPACITY,
 } from './rhythmConfig';
 
 // How far a tempo move may be from an exact octave (a ratio of 2 or 0.5) and still count as the same pulse counted at
@@ -77,6 +78,11 @@ export class BeatTracker {
     private phaseBeats = 0;
     private hitShare = 1;
     private readonly phaseScratch = new Float32Array(PHASE_BINS);
+    // The newest kick events the worklet reported (a ring, oldest overwritten). Nothing decides from them yet.
+    private readonly kickTimes = new Float64Array(KICK_STORE_CAPACITY);
+    private readonly kickStrengths = new Float32Array(KICK_STORE_CAPACITY);
+    private kickHead = 0;
+    private kickCount = 0;
 
     constructor(frameRate: number) {
         this.frameRate = frameRate;
@@ -211,6 +217,7 @@ export class BeatTracker {
     }
 
     reset(): void {
+        this.clearKicks();
         this.head = 0;
         this.count = 0;
         this.framesSinceInitTry = 0;
@@ -230,6 +237,39 @@ export class BeatTracker {
         this.phaseBins.fill(0);
         this.phaseWins = 0;
         this.phaseBeats = 0;
+    }
+
+    // Remembers one kick event: its own time (the centre of the frame where it was detected, which can be older than the
+    // frames pushed so far) and its 0..1 strength. Events arrive in the order the worklet decided them.
+    pushKick(time: number, strength: number): void {
+        const slot = (this.kickHead + this.kickCount) % KICK_STORE_CAPACITY;
+        this.kickTimes[slot] = time;
+        this.kickStrengths[slot] = strength;
+        if (this.kickCount < KICK_STORE_CAPACITY) {
+            this.kickCount++;
+        } else {
+            this.kickHead = (this.kickHead + 1) % KICK_STORE_CAPACITY;
+        }
+    }
+
+    // Forgets the stored kicks only; the grid is untouched. Used when the time base restarts, since kick times from
+    // before it mean nothing on the new clock.
+    clearKicks(): void {
+        this.kickHead = 0;
+        this.kickCount = 0;
+    }
+
+    // Number of stored kicks, and the one `index` places after the oldest (0 is the oldest).
+    get storedKickCount(): number {
+        return this.kickCount;
+    }
+
+    storedKickTime(index: number): number {
+        return this.kickTimes[(this.kickHead + index) % KICK_STORE_CAPACITY];
+    }
+
+    storedKickStrength(index: number): number {
+        return this.kickStrengths[(this.kickHead + index) % KICK_STORE_CAPACITY];
     }
 
     // Finds the beat phase for the current tempo by sliding a comb of pulses, one tempo period apart, over the

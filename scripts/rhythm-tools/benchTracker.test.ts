@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_BENCH_TRACKS,
     formatBench,
+    kickNote,
     median,
     nsPerFrame,
     parseBenchArguments,
@@ -72,7 +73,15 @@ describe('statistics', () => {
         const lines = formatBench(summary, 'main', 1);
         expect(lines).toHaveLength(4);
         expect(lines[0]).toContain('base main');
+        expect(lines[0]).toContain('(kickless)');
         expect(lines[2]).toContain('1.050');
         expect(lines[3]).toMatch(/^overall/);
+    });
+
+    it('labels the run and says whether the base side was given kicks', () => {
+        const summary = summarizeBench([{ track: 'a.wav', frames: 10, samples: [{ baseNs: 100, branchNs: 105 }] }]);
+        expect(formatBench(summary, 'main', 1, 'with kicks')[0]).toContain('(with kicks)');
+        expect(kickNote(true)).toContain('both sides');
+        expect(kickNote(false)).toContain('no pushKicks');
     });
 });
