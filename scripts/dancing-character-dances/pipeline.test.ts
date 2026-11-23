@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { AnimationClip, Quaternion, QuaternionKeyframeTrack, Vector3, VectorKeyframeTrack } from 'three';
 import { DANCE_REQUIRED_BONES } from '../../app/features/visualizers/dancing-character/dancingCharacterConfig';
@@ -8,8 +9,9 @@ import type { Clip } from './clip';
 import { groundLock, mirror } from './edits';
 import { KEYS_PER_BEAT, beatKeys, makeLoop, quatAngleDegrees, warpPosition } from './loop';
 import type { Retargeted } from './retarget';
-import { loadTargetRig } from './rig';
+import { loadGlb, loadTargetRig } from './rig';
 import type { TargetRig } from './rig';
+import { MANIFESTS } from './manifests';
 import { FOOT_SKATE_MAX_METERS, validateClip } from './validate';
 
 const MODEL = new URL('../../app/features/visualizers/dancing-character/assets/MakeHumanDancer.glb', import.meta.url);
@@ -17,7 +19,7 @@ const MODEL = new URL('../../app/features/visualizers/dancing-character/assets/M
 let rig: TargetRig;
 let torso: Torso;
 beforeAll(async () => {
-    rig = await loadTargetRig(decodeURIComponent(MODEL.pathname.replace(/^\/([A-Za-z]:)/, '$1')));
+    rig = await loadTargetRig(fileURLToPath(MODEL));
     torso = buildTorso(rig);
 }, 60_000);
 
@@ -232,4 +234,24 @@ describe('validation rules', () => {
         expect(report.failures.some((f) => /duration/.test(f))).toBe(true);
         expect(report.failures.some((f) => /keys, expected 121/.test(f))).toBe(true);
     });
+});
+
+describe('committed dances file', () => {
+    // The same hard rules build.ts applies to a fresh build, run on the GLB that ships, with no network and no CMU inputs.
+    const DANCES_FILE = new URL(
+        '../../app/features/visualizers/dancing-character/assets/MakeHumanDances.glb',
+        import.meta.url,
+    );
+
+    it('has exactly the manifest clips and every one passes validateClip', async () => {
+        const gltf = await loadGlb(fileURLToPath(DANCES_FILE));
+        expect(gltf.animations.map((clip) => clip.name).sort()).toEqual(MANIFESTS.map((m) => m.id).sort());
+        for (const manifest of MANIFESTS) {
+            const clip = gltf.animations.find((c) => c.name === manifest.id)!;
+            expect({ id: manifest.id, failures: validateClip(rig, torso, clip, manifest).failures }).toEqual({
+                id: manifest.id,
+                failures: [],
+            });
+        }
+    }, 60_000);
 });
