@@ -1022,6 +1022,56 @@ noise floor.
   wait for the onsets to stop. Each changes how the tracker works on every track, so each belongs in that plan with the
   full scorecard, not here.
 
+## Tracker plan D11, S1: beat trace diagnosis (2026-11-23, on `ee76875`)
+Measured with `npm run trace:beats` and scratch prototypes on top of it (none of them is committed). At the shipped
+constants the tool's `beat.errorMedianMs` equals the scorecard's cell: 153.4 ms on `summer2000` and 183.4 ms on
+`low-bpm-rnb`.
+
+- **The scorecard scores the extrapolated beat, not the declared one.** The replay takes a beat from each rise of
+  `state.beatCount` at its phase (what visualizers see). On `summer2000`, 40 of 47 beats differ from the tracker's
+  declared beat: most by a few to 30 ms, six by about one period, where the extrapolated count rose before the declared
+  beat. The window medians of the two lists agree to within 10 ms (5 to 10 s: 181 and 171; 10 to 15 s: 218 and 219), so
+  this does not explain the misses. It means a fix has to be judged on the replay's beats, which the tool's summary does.
+- **On `summer2000` the phase evidence says the grid is right.** From the lock (8.0 s) to 18.5 s the phase check's best
+  3-bin window is bin 1, 1/16 of a beat from the grid, which is under `PHASE_MIN_SHIFT`, at ratios 1.01 to 1.15. So the
+  check never wins and `phaseBeats` resets on every beat. The taps sit at bins 6 to 10 of the grid. Folding the
+  peak-normalized flux of each of the analyzer's three bands alone gives the same answer: band 0 (low) also peaks at bin 1,
+  and the taps' window holds only 0.14 to 0.5 of the grid's band-0 energy. The plan's C2 kick term, `flux[0] /
+  fluxPeak[0]`, therefore can't move the grid onto the taps. Loosening the winning-streak gate (`PHASE_MIN_BEATS`,
+  `PHASE_SHIFT_BEATS`) can't either, because the rival never wins on a single beat.
+- **Only the worklet's kick events point near the taps.** The BandOnsets `kick` events fall a median 31 ms before the
+  taps (quartiles -73 and +9 ms; 42 of 58 taps have one within 150 ms). Folded on the grid from 8 to 18.5 s, they peak
+  at 0.25 to 0.375 of a beat, a sixteenth before the taps, while the summed onset peaks on the grid. But from 12 to
+  14.8 s the kicks are irregular (a fill), and they only run regularly, every 0.47 s and about 30 ms before the taps, from
+  14.8 s on. The taps themselves jitter by up to 50 ms (intervals of 389 to 528 ms).
+- **Prototypes that feed the kick events to `BeatTracker` all miss AC1.** They used the scorecard's beat error on the
+  replay with the events passed in. That needs a new input path, since the analyzer never sees the events today.
+  | Mechanism | Points | Best `beat.errorMedianMs` |
+  |---|---|---|
+  | Kick events weighted into the phase bins (weights 1 to 100) | 6 | 153 ms, unchanged up to weight 4; one move at 12.7 to 13.6 s then 170 to 182 |
+  | Half-beat flip when the kicks favor the opposite half and the envelope there is within a ratio of the grid's (0.5 to 0.95; kick ratios 1.5 to 3) | 10 | 153 (no flip); 176 to 199 with a flip |
+  | Correction that prefers a kick event in its window, alone or with the two above | 6 | 149.5 |
+  | The same with a longer evidence gate (`PHASE_MIN_BEATS=16`, `PHASE_SHIFT_BEATS=8`, `PHASE_DECAY=0.85`) | 8 | 164 |
+
+  Every move that lands the grid on the taps (for example, a flip at 12.1 s gave -6, -12 and -45 ms on the next beats)
+  slides off within two seconds. Through the fill, the correction follows the envelope's strongest onset, and once the
+  grid is more than `BEAT_WINDOW_FRACTION` (94 ms) from the regular kicks it never sees them again.
+- **The latest first move that still allows AC1** is about 18 s. The track ends at 29.4 s with 46 beats after the lock,
+  so 24 of them, from about 18.2 s, have to be within 40 ms of the taps.
+- **`low-bpm-rnb` does not meet S4's precondition.** The grid sits a sixteenth (0.25 beat, about 185 ms) from the taps
+  for the whole track, and `phaseShiftCount` stays 0. The onset bins' best place moves between bins 9, 15 and 1, while
+  the taps sit at bins 3 to 5 or 8 to 10, so no rival built from this evidence stays on the taps through the slide. Its
+  kick events are sparse: 13 of 35 taps have one within 150 ms.
+- **Tracker CPU:** `npm run bench:tracker` measures about 7.9 µs a frame. Main against itself gives a ratio of 0.999
+  (0.993 to 1.008 per track), so the bench's own noise is about 1%.
+
+**Outcome for the plan.** S1 contradicts the premise of S3 and S4 (O5) on both required tracks. Kick-weighted phase bins
+and a looser gate can't reach AC1, and there is no stable rival for S4. Under D8, and with the authority Trevor
+delegated for this run, S3 and S4 are recorded as misses, not merged. `summer2000` and `low-bpm-rnb` go back to
+planning (Q1). The measurements above point at a tracker that takes the worklet's kick events as an input, holds a phase
+against an envelope that disagrees, and copes with fills. That is a multi-hypothesis design, not a constant in today's
+phase check.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of

@@ -20,6 +20,8 @@
     "test:e2e:install": "playwright install --with-deps chromium",
     "e2e:fixture": "esbuild e2e/fixtures/generate-fixture.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/generate-fixture.mjs && node node_modules/.cache/generate-fixture.mjs",
     "eval:rhythm": "esbuild scripts/eval-rhythm.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/eval-rhythm.mjs && node node_modules/.cache/eval-rhythm.mjs",
+    "trace:beats": "esbuild scripts/trace-beats.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/trace-beats.mjs && node node_modules/.cache/trace-beats.mjs",
+    "bench:tracker": "esbuild scripts/bench-tracker.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/bench-tracker.mjs && node node_modules/.cache/bench-tracker.mjs",
     "ablate:rhythm": "esbuild scripts/rhythm-ablate.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/rhythm-ablate.mjs && node node_modules/.cache/rhythm-ablate.mjs",
     "sweep:onsets": "esbuild scripts/onset-sweep.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/onset-sweep.mjs && node node_modules/.cache/onset-sweep.mjs",
     "probe:rhythm": "esbuild scripts/rhythm-probe.ts --bundle --platform=node --format=esm --log-level=warning --outfile=node_modules/.cache/rhythm-probe.mjs && node node_modules/.cache/rhythm-probe.mjs",
