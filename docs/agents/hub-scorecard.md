@@ -1254,8 +1254,13 @@ Folding uses the timestamp, so the delay does not move the lead above.
   histogram over the beat that vetoes envelope corrections pointing away from the kicks, holds the correction through a
   fill, moves the grid onto the kicks after `KICK_MOVE_BEATS` beats of margin, and gives way to a sustained envelope
   phase. Attempt B (`kickOffset.ts` in the analyzer): the median offset between the kicks and the grid, applied to the
-  anchor. With the defaults every offline cell is unchanged. Together they add 1.77 kB (340.33 kB, limit raised to
+  anchor. With the defaults every offline cell is unchanged. Together they add 1.82 kB (340.38 kB, limit raised to
   340.5).
+- **Review (independent, before the grids were final).** No blocking finding. One finding changed attempt B: it read a
+  beat's kicks when the beat was declared, about a fifth of a period after it, before the kicks late of the beat had
+  arrived. So it could only learn offsets up to about 0.15 of a beat, and summer2000's kicks sit about 0.3 of a beat
+  after the grid. Each beat is now read at the next declaration, and both grids were run again on the repaired code;
+  the numbers below are from that run. Attempt A's numbers did not change.
 
 **The pre-registered grids, full offline scorecard per point** (fixed before running; base summer2000 153.4 ms,
 low-bpm-rnb 24.2 ms, 11 blocking failures):
@@ -1263,7 +1268,7 @@ low-bpm-rnb 24.2 ms, 11 blocking failures):
 | Attempt | Grid | summer2000 `beat.errorMedianMs` | Blocking failures | What breaks |
 |---|---|---|---|---|
 | A | `KICK_SUPPORT_FLOOR` 0.2, 0.25 × `KICK_VETO_MARGIN` 0.05, 0.1, 0.15 × `KICK_MOVE_BEATS` 2, 4 × `KICK_PHASE_DECAY` 0.85, 0.9 × `KICK_FILL_CV` 0.25, 0.4 (48 points) | 142.7 to 161.2 | 13 to 16 | `low-bpm-rnb` 153.7 to 183.0 ms on every point; `drifting-tempo`, `lonley`, `syncopation-no-kick` or `high-bpm-dnb` on most |
-| B | `KICK_OFFSET_RING` 8, 16, 32 × `KICK_OFFSET_HYSTERESIS` 0.01, 0.03 (6 points) | 92.7 to 165.8 (best: ring 16, 0.01) | 15 to 18 | `low-bpm-rnb` 172 to 175 ms and `lonley` 124 to 186 ms on every point, `high-bpm-dnb` 49 to 137 ms |
+| B | `KICK_OFFSET_RING` 8, 16, 32 × `KICK_OFFSET_HYSTERESIS` 0.01, 0.03 (6 points) | 98.9 to 137.2 (best: ring 16, 0.03; 92.7 before the repair) | 12 to 18 | `low-bpm-rnb` 148 to 171 ms on every point; `lonley` 60 to 111 ms and `syncopation-no-kick` 45 to 66 ms with rings of 8 and 16 |
 
 No point of either grid meets the go/no-go (summer2000 at most 40 ms with AC2 green), so S3 and S4 enable nothing and
 are recorded as misses.
@@ -1277,9 +1282,11 @@ the tapped 467 ms. That drifts the grid 3 ms a beat, back to 145 to 185 ms off b
 kick intervals alone cannot tell a syncopated groove from a fill. On `low-bpm-rnb`, whose kicks are sparse (13 of 35
 taps have one), the same hold and the kick moves pull a grid that was right (24 ms) off the beat.
 
-**Why B misses.** The median kick offset on summer2000 is roughly the right shift (92.7 ms at best). But on
-`low-bpm-rnb`, `lonley` and `high-bpm-dnb` the kicks are not on the beat the taps mark, and their median offset moves
-grids that were right. One constant relationship between kicks and beat does not hold across these tracks.
+**Why B misses.** The median kick offset moves summer2000 toward the taps (98.9 ms at best), not onto them: its kicks
+are syncopated, so their median sits between the beat and the off-beat notes. On `low-bpm-rnb` (13 of 35 taps have a
+kick), `lonley` and `syncopation-no-kick`, the kicks are not on the beat the taps mark, and their median moves grids
+that were right. The longest ring (32) hurts the fewest tracks, but `low-bpm-rnb` still fails (148 ms), and summer2000
+improves only to 137 ms. No single offset between the kicks and the beat holds across these tracks.
 
 **Outcome (decision D4).** Both attempts missed their pre-registered grids, so `summer2000` `beat.errorMedianMs` is
 accepted at 153.4 ms. The S2 code stays off. Whether it ships off, or waits on a branch for a re-design, is Trevor's
