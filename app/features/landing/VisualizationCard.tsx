@@ -10,9 +10,9 @@ interface VisualizationCardProps {
     priority?: boolean;
 }
 
-// The cards share one row of three columns, so each image is shown at a third of the viewport width. Every card is in the
-// first row at common sizes, so none is lazy-loaded.
-const SIZES = '33vw';
+// The cards sit in two columns from the sm breakpoint (640px) up, so each image is shown at half the viewport width, and
+// in one column below it. The first row is in view at common sizes, so no card is lazy-loaded.
+const SIZES = '(min-width: 640px) 50vw, 100vw';
 
 export function VisualizationCard({ to, title, image, priority = false }: VisualizationCardProps) {
     const thumbnail = (
@@ -32,12 +32,24 @@ export function VisualizationCard({ to, title, image, priority = false }: Visual
         </picture>
     );
 
+    // The caption repeats the title the image's alt already gives, so it is hidden from assistive technology: the
+    // link's and the image's accessible names stay exactly the title.
+    const caption = (
+        <span
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 text-lg font-semibold text-white"
+        >
+            {title}
+        </span>
+    );
+
     return (
         <Link
             to={to}
-            className="block hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+            className="relative block hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
         >
             {thumbnail}
+            {caption}
         </Link>
     );
 }
