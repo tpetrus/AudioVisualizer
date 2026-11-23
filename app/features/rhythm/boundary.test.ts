@@ -234,3 +234,71 @@ describe('BoundaryDetector tempo jumps on syncopation', () => {
         expect(kinds).toContain(BOUNDARY_SOFT);
     });
 });
+
+describe('BoundaryDetector dotted tempo once the old beat has stopped', () => {
+    // Estimates every 0.25 s, as the analyzer gives them, with the grid's hit share alongside.
+    function feed(
+        detector: BoundaryDetector,
+        from: number,
+        to: number,
+        bpm: number,
+        gridSupport: number,
+    ): BoundaryKind[] {
+        const kinds: BoundaryKind[] = [];
+        for (let t = from; t < to; t += 0.25) kinds.push(detector.pushTempo(t, bpm, 1, gridSupport));
+        return kinds;
+    }
+
+    it('calls a sustained 3/2 tempo a new song when the old grid no longer finds its beats', () => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        const kinds = feed(detector, 10, 20, 150, 0.5);
+        expect(count(kinds, BOUNDARY_SOFT)).toBe(1);
+        // Not before the dotted move has lasted TEMPO_DOTTED_JUMP_SECONDS.
+        expect(kinds.indexOf(BOUNDARY_SOFT) * 0.25).toBeGreaterThanOrEqual(4);
+        // The new tempo is the reference now, so it does not count again.
+        expect(count(feed(detector, 20, 30, 150, 1), BOUNDARY_SOFT)).toBe(0);
+    });
+
+    it('keeps a dotted tempo quiet while the old beat still sounds on its grid', () => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        expect(count(feed(detector, 10, 30, 150, 0.9), BOUNDARY_SOFT)).toBe(0);
+    });
+
+    it('ignores the dotted move when the estimates behind it are not confident', () => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        const kinds: BoundaryKind[] = [];
+        for (let t = 10; t < 30; t += 0.25) kinds.push(detector.pushTempo(t, 150, 0.5, 0.4));
+        expect(count(kinds, BOUNDARY_SOFT)).toBe(0);
+    });
+
+    it('needs a reference confirmed for a few seconds, not one seeded by a brief reading of the rival', () => {
+        const detector = new BoundaryDetector(100);
+        // Seeded at 160 (the dotted rival of a 120 track), and then the estimates read the true 120 with a weak grid.
+        feed(detector, 0, 0.25, 160, 1);
+        expect(count(feed(detector, 0.25, 30, 120, 0.4), BOUNDARY_SOFT)).toBe(0);
+    });
+
+    it('starts the wait again when the tempo returns to the reference or the grid recovers', () => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        const kinds = [
+            ...feed(detector, 10, 13, 150, 0.5),
+            ...feed(detector, 13, 14, 100, 1),
+            ...feed(detector, 14, 17, 150, 0.5),
+            ...feed(detector, 17, 18, 150, 0.9),
+            ...feed(detector, 18, 21, 150, 0.5),
+        ];
+        expect(count(kinds, BOUNDARY_SOFT)).toBe(0);
+    });
+
+    it('forgets the confirmed reference on reset()', () => {
+        const detector = new BoundaryDetector(100);
+        feed(detector, 0, 10, 100, 1);
+        detector.reset();
+        feed(detector, 10, 10.25, 100, 1);
+        expect(count(feed(detector, 10.25, 30, 150, 0.4), BOUNDARY_SOFT)).toBe(0);
+    });
+});
