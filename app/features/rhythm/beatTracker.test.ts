@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BeatTracker } from './beatTracker';
+import { KICK_STORE_CAPACITY } from './rhythmConfig';
 import { createRandom } from './testSignals';
 
 const FRAME_RATE = 100;
@@ -701,5 +702,65 @@ describe('BeatTracker grid hit share', () => {
         drive(tracker, 150, 15, 100, 20);
         tracker.reset();
         expect(tracker.gridHitShare).toBe(1);
+    });
+});
+
+describe('stored kick events', () => {
+    it('keeps them in the order they came, with their own times and strengths', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        tracker.pushKick(2, 0.5);
+        tracker.pushKick(1, 0.25);
+        expect(tracker.storedKickCount).toBe(2);
+        expect([tracker.storedKickTime(0), tracker.storedKickStrength(0)]).toEqual([2, 0.5]);
+        expect([tracker.storedKickTime(1), tracker.storedKickStrength(1)]).toEqual([1, 0.25]);
+    });
+
+    it('keeps the newest events when more than it holds arrive, oldest first', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const extra = 5;
+        for (let i = 0; i < KICK_STORE_CAPACITY + extra; i++) {
+            tracker.pushKick(i, 1);
+        }
+        expect(tracker.storedKickCount).toBe(KICK_STORE_CAPACITY);
+        expect(tracker.storedKickTime(0)).toBe(extra);
+        expect(tracker.storedKickTime(KICK_STORE_CAPACITY - 1)).toBe(KICK_STORE_CAPACITY + extra - 1);
+    });
+
+    it('are cleared by reset() and by clearKicks(), which leaves the grid alone', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 120, 12);
+        const locked = tracker.locked;
+        expect(locked).toBe(true);
+        tracker.pushKick(1, 1);
+        tracker.clearKicks();
+        expect(tracker.storedKickCount).toBe(0);
+        expect(tracker.locked).toBe(locked);
+        tracker.pushKick(1, 1);
+        tracker.reset();
+        expect(tracker.storedKickCount).toBe(0);
+        tracker.pushKick(5, 1);
+        expect(tracker.storedKickTime(0)).toBe(5);
+    });
+
+    it('do not change the beats it declares', () => {
+        const plain = new BeatTracker(FRAME_RATE);
+        const kicked = new BeatTracker(FRAME_RATE);
+        for (let i = 0; i < 200; i++) {
+            kicked.pushKick(i / 10, 1);
+        }
+        const a = drive(plain, 120, 15);
+        const b = drive(kicked, 120, 15);
+        expect(b).toEqual(a);
+    });
+
+    it('allocate nothing after construction', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        const internals = tracker as unknown as { kickTimes: Float64Array; kickStrengths: Float32Array };
+        const { kickTimes, kickStrengths } = internals;
+        for (let i = 0; i < KICK_STORE_CAPACITY * 3; i++) tracker.pushKick(i, 1);
+        tracker.reset();
+        expect(internals.kickTimes).toBe(kickTimes);
+        expect(internals.kickStrengths).toBe(kickStrengths);
+        expect(kickTimes.length).toBe(KICK_STORE_CAPACITY);
     });
 });

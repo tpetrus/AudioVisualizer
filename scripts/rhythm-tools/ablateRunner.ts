@@ -1,6 +1,7 @@
+import { BandOnsets } from '../../app/features/rhythm/bandOnsets';
 import { OnsetExtractor, packFrame, type OnsetFrame } from '../../app/features/rhythm/onsetExtractor';
 import { RhythmAnalyzer } from '../../app/features/rhythm/rhythmAnalyzer';
-import { FFT_SIZE, FRAME_STRIDE } from '../../app/features/rhythm/rhythmConfig';
+import { FEATURE_ONSET_BAND_COUNT, FFT_SIZE, FRAME_STRIDE } from '../../app/features/rhythm/rhythmConfig';
 import type { AblationResult } from './ablateReport';
 
 // Runs the real OnsetExtractor and RhythmAnalyzer over a recording, as runPipeline in testSignals.ts does, and records what
@@ -16,6 +17,19 @@ export function runAblation(
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
     const packed = new Float32Array(FRAME_STRIDE);
+    // Every frame is its own batch here, so the events one frame's detectors decide go to the tracker with that frame.
+    const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
+    const onsetBand = new Uint8Array(FEATURE_ONSET_BAND_COUNT);
+    const onsetTime = new Float64Array(FEATURE_ONSET_BAND_COUNT);
+    const onsetStrength = new Float32Array(FEATURE_ONSET_BAND_COUNT);
+    let onsetCount = 0;
+    const onOnset = (band: number, eventTime: number, strength: number): void => {
+        if (onsetCount >= FEATURE_ONSET_BAND_COUNT) return;
+        onsetBand[onsetCount] = band;
+        onsetTime[onsetCount] = eventTime;
+        onsetStrength[onsetCount] = strength;
+        onsetCount++;
+    };
     const result: AblationResult = {
         sampleRate,
         frameRate: extractor.frameRate,
@@ -33,6 +47,9 @@ export function runAblation(
         // The window is centred half its length before its end, exactly as the worklet computes the batch time.
         const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
         packFrame(frame, packed, 0);
+        onsetCount = 0;
+        bandOnsets.push(frame, time, onOnset);
+        analyzer.pushKicks(onsetBand, onsetTime, onsetStrength, onsetCount);
         analyzer.pushFrame(time, packed, 0);
         analyzer.updatePhase(time);
         if (result.firstLock === undefined && analyzer.heldTempoBpm > 0) {
