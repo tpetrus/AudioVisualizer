@@ -1085,7 +1085,7 @@ Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.pl
 | `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83 s, never | unchanged | re-plan (with the beat), reported under D9 | follows the tracker's beat; no tracker change landed for these |
 | `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | see S8 | see S8 | S8 |
 | `tempo.falseSongChanges` | `6-8-time` | 1 | see S8 | see S8 | S8 |
-| `tempo.beatlessNeverLocks` | `beatless` | locks (1) | see S6 | see S6 | S6 |
+| `tempo.beatlessNeverLocks` | `beatless` | locks (1) | locks (1) | stretch-open | S6: no presence signal tried separates it; reverted |
 | `ac9.dottedChangeCounted` | dotted 100 to 150 | 0 | see S7 | see S7 | S7 |
 | `onset.f50.kick` / `.bass` | `bassline-kick-120` | 0.808 / 0.768 | unchanged | accepted (a non-goal: a finer low-end spectrum is a separate onset project) | plan non-goals |
 | `live.clip.maxDeviationBeats` (AC7 dance-clip consistency) | `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb`, `syncopationbass` | 0.163, unavailable, 1.793, unavailable, unavailable | unchanged | re-plan (with the beat level and phase) | no required tracker change merged, so the live cells were not re-recorded |
@@ -1095,6 +1095,22 @@ Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.pl
 required tracker change merged. There is no improvement to record, and so no baseline rewrite and no live run:
 `scorecard:check` against the current baseline is unchanged by S1, S2 and S5, which change no shipped code. The
 `it.fails` specs added in S2 stay `.fails`.
+
+**S6 (stretch: beat presence), attempted and reverted.** Q3 is answered by the code: `tempo.beatlessNeverLocks` reads
+the replay's `everReportedLock`, the hub's lock (a held tempo above 0 and a beat phase), so the gate belongs on the tempo
+lock in `tempo.ts`. Both candidate signals that exist before the lock were measured with the full scorecard:
+- **A higher first-lock confidence** (`TEMPO_LOCK_CONFIDENCE` 0.3, 0.4, 0.5, against 0.2) leaves `beatless` locked,
+  because its confidence is 1.0. From 0.4 it delays real locks (`low-bpm-rnb` 3.0 to 3.8 s, and 13.0 s at 0.5) and adds
+  a false song change on `6-8-time`.
+- **How sharp the autocorrelation peak is at the beat lag** (the peak minus the mean of its neighbors at a fixed
+  distance, over the peak) is 0.72 to 1.00 on `beatless` at its lock, but 0.42 to 0.58 on `summer2000` and 0.05 to 0.07 on
+  `6-8-time` at theirs, for neighbors 3, 4 or 6 frames away. A floor of 1.01 to 1.03 on a width of 0.15 of the lag
+  passes `beatlessNeverLocks`, but `high-bpm-dnb` then never locks (four blocking cells fail) and `summer2000` locks
+  at 21 s instead of 8 s.
+
+Neither tells `beatless`'s real 140 bpm periodicity from a beat. A beat-presence model needs another kind of evidence
+(how the onsets sit on the grid once one is proposed, or the kick events), which is a design for the re-planned
+tracker. Nothing ships; the cell stays failing as before.
 
 ## Follow-ups outside the fast lane
 
