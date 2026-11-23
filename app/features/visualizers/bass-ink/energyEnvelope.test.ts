@@ -126,6 +126,21 @@ describe('EnergyTracker', () => {
     });
 });
 
+describe('EnergyTracker silence', () => {
+    it('reseeds after a long silence so resumed music is not a surge', () => {
+        const tracker = new EnergyTracker();
+        const dt = 1 / 60;
+        for (let i = 0; i < 600; i++) {
+            tracker.update(0.3, dt);
+        }
+        for (let i = 0; i < 600; i++) {
+            tracker.update(0, dt);
+        }
+        tracker.update(0.3, dt);
+        expect(tracker.ratio).toBeCloseTo(1, 5);
+    });
+});
+
 describe('followLevel', () => {
     it('rises with the attack time and falls with the release time', () => {
         expect(followLevel(0, 1, 0.5, 2, 0.5)).toBeCloseTo(1 - Math.exp(-1), 9);
