@@ -19,9 +19,12 @@ export interface BenchArguments {
 export const BENCH_USAGE = `Usage: npm run bench:tracker -- [--dir <folder>] [--tracks a.wav,b.wav] [--runs N] [--base <git ref>]
 
 Times the rhythm tracker (RhythmAnalyzer.pushFrame and updatePhase per frame, which includes BeatTracker) of a base git ref
-and of the working tree, interleaved in one process so machine load hits both alike. The base ref's app/ is extracted with
+and of the working tree, twice: kickless (frames only, as before the kick input existed) and with kicks (every batch's
+kick events are pushed with pushKicks before its frames, as RhythmTracker does; a base ref without pushKicks is run
+without them and the output says so), interleaved in one process so machine load hits both alike. The base ref's app/ is extracted with
 git archive into node_modules/.cache and bundled there; the working tree is bundled as it is. The feature frames of each
-track are computed once with the working tree's OnsetExtractor (not timed) and fed to both trackers, so the two must share
+track are computed once with the working tree's OnsetExtractor and BandOnsets (not timed, as the worklet does that work
+off the main thread) and fed to both trackers, so the two must share
 the frame layout. Advisory only: timings on a shared machine are noisy, and this is not a CI gate.
 
 Options:
@@ -114,8 +117,17 @@ export function summarizeBench(results: readonly TrackBench[]): BenchSummary {
     };
 }
 
-export function formatBench(summary: BenchSummary, base: string, runs: number): string[] {
-    const lines = [`tracker timing, ${runs} runs per side, base ${base} vs working tree (median ns per frame)`];
+// The line that says whether the base side was given kick events in the with-kicks run.
+export function kickNote(baseHasPushKicks: boolean): string {
+    return baseHasPushKicks
+        ? 'with kicks: both sides were given the kick events (pushKicks per batch before its frames)'
+        : 'with kicks: the base ref has no pushKicks, so only the working tree was given the kick events';
+}
+
+export function formatBench(summary: BenchSummary, base: string, runs: number, label = 'kickless'): string[] {
+    const lines = [
+        `tracker timing (${label}), ${runs} runs per side, base ${base} vs working tree (median ns per frame)`,
+    ];
     const row = (name: string, frames: string, baseNs: number, branchNs: number, ratio: number): string =>
         `${name.padEnd(22)} ${frames.padStart(8)} ${baseNs.toFixed(0).padStart(10)} ${branchNs.toFixed(0).padStart(10)} ${ratio.toFixed(3).padStart(8)}`;
     lines.push(
