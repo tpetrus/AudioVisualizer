@@ -425,7 +425,17 @@ grid above, and should come with a spec over that grid, not one phase.
   onset F figures (0.04 to 0.48) mostly measure the delay and are not used above.
 - Capture delay in production (tab audio, input device) was not measured; that belongs to S5.
 
-## Next steps (2026-11-15)
+## Next steps (2026-11-15, status updated 2026-11-22)
+**Status on 2026-11-22.** S8 is closed: the bass gate's input was settled by the hub-regressions plan
+(`docs/plans/hub-regressions/`, its S4 and S5), the dancing character moved onto the hub in #96, and `bass-ink` and the
+close of the audit came with hub-regressions S9 (#106; see "S9 findings" in `hub-scorecard.md`). AC6 and AC7 are met
+there: every hub-fed visualizer takes its bands, onsets and gate bass from the hub, and the spectrum displays (the
+cubes' columns, `trio-color-wave`'s three sheets, `bass-ink`'s spectrum field) keep an owned analyser, as contract C5
+allows. Still open from this plan: AC9 (the `tab` and `device` capture delay, which needs a person at the machine) and
+AC5 as a guarantee (`syncopation-no-kick`'s first lock), which joins the tracker plan that hub-regressions deferred
+under D11 (see "Review decisions" in `hub-scorecard.md`). The follow-ups below carry their status; the rest of each
+entry is the 2026-11-15 record.
+
 This records where the audio alignment plan (`docs/plans/audio-engine-alignment/`) stands, and every follow-up that is
 still open. The full task packets (owned paths, acceptance, verification) are kept in the verified-diamond follow-up
 state outside the repository, so each one is listed here by its ID with enough detail to rebuild it. Before starting
@@ -443,15 +453,15 @@ an older item, check that it still applies: some were recorded against code that
 | S9 tap-along and harness instrumentation | done |
 | S10 presentation audit | done (`audio-presentation-audit.md`) |
 | S7 shared audio hub, cubes as the reference migration, docs | done (`feat/audio-hub`); migration check in `audio-presentation-audit.md` |
-| S8 every other visualizer reads the hub, the audit is closed | started: dancing character in draft #96, held for the bass gate input (see "S8 and the bass gate input" below) |
+| S8 every other visualizer reads the hub, the audit is closed | done: dancing character #96, `bass-ink` and the close in hub-regressions S9 (#106) |
 
 Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
-  offline start variations.
+  offline start variations. Moved to the tracker plan (2026-11-22).
 - **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
   `npm run measure:capture-delay` need a person and real hardware.
-- **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** is met
-  for cubes; the other visualizers and **AC7** come with S8.
+- **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** and **AC7**
+  are met since hub-regressions S9 (2026-11-20).
 
 Suggested order:
 1. Measure AC9 on real hardware.
@@ -470,7 +480,7 @@ track with eighth notes that can be heard reads at double time (65 reads 130), 8
 to step to, and a pulse above about 182 BPM folds to half time, as drum and bass is danced. Judge octave fixes against
 this rule, not against the notated beat.
 
-### S8 and the bass gate input (follow-up plan in progress)
+### S8 and the bass gate input (resolved by the hub-regressions plan)
 Moving the dancing character onto the hub (draft #96) passed the reaction-delay check (`dancing-character.in` on
 `drums-128`: 30.4 ms over three runs against 29.0 ms before, limit 39.0 ms) but not the bass gate. Fed the hub's low end
 (the louder of `sub` and `kick`) through `BassBump`, the shared gate opens later and far less repeatably than with
@@ -498,10 +508,10 @@ note) waits for it, and `FU-S10-basspulse-time-based` stays open. The tooling fr
 dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-gain`) is there for that plan to use.
 
 ### Audio hub follow-ups (from the S7 review)
-- **`FU-S7-hub-no-source`** (needs a full run and Trevor: it changes contract C5): with no bound source `hub.update()`
-  keeps the snapshot at its last values, so a reader would see music still playing after the capture stops. Decide
-  whether the snapshot should fall to rest (bands 0, beat unlocked) and pin it with a spec.
-- Smaller items, each with a full packet in the verified-diamond follow-up state: `FU-S7-cubes-start-state` (a stale
+- **`FU-S7-hub-no-source`** (decided by Trevor on 2026-11-22: the snapshot rests; contract C5 amended): with no bound
+  source `hub.update()` kept the snapshot at its last values, so a reader would see music still playing after the
+  capture stops. It now puts bands, gate bass and onset strengths at 0 and unlocks the beat, keeping the counters.
+- Smaller items, all fixed in #95 (`b20eac8`, `bf32bd5`, `bda9ee9`, `62f1f96`): `FU-S7-cubes-start-state` (a stale
   snapshot can fire one downbeat accent on entering cubes; the bass flash saturates for about 3 s on a sustained level
   at start), `FU-S7-provider-start-order` (a throwing `hub.start` is never retried), `FU-S7-hub-input-hardening`
   (non-finite energy poisons a band peak until the next reset; batch version unchecked; weak ring specs) and
@@ -553,11 +563,11 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
   (`scripts/debug-visualizer/run.ts`, `args.ts`).
 
 ### Dancing character
-- **`FU1`** (needs a product decision): relocking the camera snaps it back to the orbit pose and leaves the Reset view
-  button showing. Cubes and trio keep the user's view on relock. Decide which one dancing character should do.
-- **`DCR-FU6`** (supersedes the glb half of **`FU4`**): abort the GLB fetch and parse when the load signal aborts, not
-  only check the signal after `loadAsync`. `FU4` also covers the skybox download (about 95 KB), and both keep the
-  existing load semantics: AbortError, late arrivals disposed, a sky failure gives null.
+- **`FU1`** (decided by Trevor on 2026-11-22, fixed in #120): relocking the camera puts it back on the dancer and at
+  its starting spot, as Reset view does. Before, the dragged pose stayed and the Reset view button kept showing.
+- **`DCR-FU6`** and **`FU4`** (fixed in #120; there is no skybox download any more): abort the GLB fetch and parse when
+  the load signal aborts, not only check the signal after `loadAsync`, keeping the existing load semantics (AbortError,
+  late arrivals disposed).
 - **`DCR-FU3`**: send the bass-driven rim light and bass ring through the club flash limiter and the reduced-motion
   flash strength, so no bass-driven brightness jump starts more than 3 times a second. Add a 6 Hz bass spec.
 - **`DCR-FU4`**: make the flash cap hold for any closed 1 s window: a minimum interval slightly above 1/3 s, and a
@@ -598,5 +608,6 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
   `BrightnessGovernor.request`.
 
 ### Landing page
-- **`FU5`** (needs a product decision, and new visual baselines): the "More coming soon" tile sits alone on a row of
-  the 3-column grid. Drop it when the row is full, change the column count, or keep it.
+- **`FU5`** (fixed in #121): the "More coming soon" tile sat alone on a row of the 3-column grid. The cards are now
+  two columns from the `sm` breakpoint (one below it) with a title caption each, and the tile is a slim strip under
+  the grid.
