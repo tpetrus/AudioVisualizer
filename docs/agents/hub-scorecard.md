@@ -1086,7 +1086,7 @@ Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.pl
 | `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | see S8 | see S8 | S8 |
 | `tempo.falseSongChanges` | `6-8-time` | 1 | see S8 | see S8 | S8 |
 | `tempo.beatlessNeverLocks` | `beatless` | locks (1) | locks (1) | stretch-open | S6: no presence signal tried separates it; reverted |
-| `ac9.dottedChangeCounted` | dotted 100 to 150 | 0 | see S7 | see S7 | S7 |
+| `ac9.dottedChangeCounted` | dotted 100 to 150 | 0 | 1 | fixed | S7: a dotted move counts once the old beat stops sounding on its grid |
 | `onset.f50.kick` / `.bass` | `bassline-kick-120` | 0.808 / 0.768 | unchanged | accepted (a non-goal: a finer low-end spectrum is a separate onset project) | plan non-goals |
 | `live.clip.maxDeviationBeats` (AC7 dance-clip consistency) | `syncopation-no-kick`, `6-8-time`, `high-bpm-dnb`, `low-bpm-rnb`, `syncopationbass` | 0.163, unavailable, 1.793, unavailable, unavailable | unchanged | re-plan (with the beat level and phase) | no required tracker change merged, so the live cells were not re-recorded |
 | `tempo.lockSeconds` (AC5 of the audio-alignment plan) | `syncopation-no-kick` | 8.02 s | see S8 | see S8 | S8 |
@@ -1111,6 +1111,27 @@ lock in `tempo.ts`. Both candidate signals that exist before the lock were measu
 Neither tells `beatless`'s real 140 bpm periodicity from a beat. A beat-presence model needs another kind of evidence
 (how the onsets sit on the grid once one is proposed, or the kick events), which is a design for the re-planned
 tracker. Nothing ships; the cell stays failing as before.
+
+**S7 (stretch: the 3/2 tempo change), shipped.** The shelved attempt (`FU-S6-three-halves-change`, "3/2 tempo changes:
+shelved" in `audio-alignment-findings.md`) asked for a statistic of whether the old beat still sounds at its own grid
+places. The beat tracker already has one: whether each beat's window found an onset. `BeatTracker.gridHitShare` keeps a
+leaky share of the recent beats that did (`BEAT_HIT_SHARE_RATE`, about 8 beats). The tempo cue of `BoundaryDetector`
+(`FU-boundary-dotted`) now counts a sustained dotted move as a new song when that share is under 0.75, at confidence
+0.6 or more, for 4 s, and only against a reference the estimates have confirmed for 4 s.
+- **Dotted 100 to 150 (gapless, the AC9 scenario):** the share falls from 1.0 to 0.5 to 0.6 after the change. The song
+  change is counted at 32.8 s (8.8 s after it), and the held tempo is 150 by 41 s. On `main` it is never counted, and
+  the tempo stays at 100. `ac9.dottedChangeCounted` goes from 0 to 1.
+- **No other offline cell changes,** on any track or scenario. The grid support from 0.6 to 0.9 all scored the same.
+  `ac9.dottedPassageQuiet` needed the confirmed reference: without it, a reference seeded by a brief 160 reading of the
+  passage's 120 beat raised two soft boundaries.
+- **AC6 still passes:** the S2 pin (a 3:2 polyrhythm holds 150, with no song change) is unchanged. New specs keep four
+  3:2 layers (levels 1 and 2, four offsets) joining a steady 100 BPM beat free of song changes. The 100 to 150 spec
+  fails with the rule off.
+- **The tempo side is not needed.** Skipping the bar veto in `TempoTracker` while the grid support is low changed
+  nothing: once the soft boundary trims the history, the 150 estimate wins on its own. It was left out to save bytes.
+  `FU-dotted-leaky` was not needed either.
+- **Budget:** total JS 338.19 kB (+0.15 kB, limit 338.5 kB unchanged). `bench:tracker` against `main`: ratio 1.000.
+  sweep:gate: see the PR.
 
 ## Follow-ups outside the fast lane
 

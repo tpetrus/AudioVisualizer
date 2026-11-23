@@ -642,3 +642,29 @@ describe('BeatTracker phase moves on input with no beat', () => {
         expect(generate('equal eighths', 1).onset).toEqual(onset);
     });
 });
+
+describe('BeatTracker grid hit share', () => {
+    it('is 1 without a grid and stays near 1 while every beat finds its onset', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        expect(tracker.gridHitShare).toBe(1);
+        drive(tracker, 100, 20);
+        expect(tracker.gridHitShare).toBeGreaterThan(0.95);
+    });
+
+    it('falls to about a half when only every other beat of the grid meets a note (a 3/2 tempo change)', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 100, 20);
+        // The music moves to 150 BPM while the tracker is still told 100: the old grid meets a note on every other beat.
+        drive(tracker, 150, 15, 100, 20);
+        expect(tracker.gridHitShare).toBeGreaterThan(0.3);
+        expect(tracker.gridHitShare).toBeLessThan(0.75);
+    });
+
+    it('starts again at 1 on reset()', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 100, 20);
+        drive(tracker, 150, 15, 100, 20);
+        tracker.reset();
+        expect(tracker.gridHitShare).toBe(1);
+    });
+});
