@@ -1,8 +1,8 @@
 {
   "header": {
     "targetsVersion": 9,
-    "revision": "564df5e",
-    "created": "2026-11-23T04:51:15.724Z",
+    "revision": "b58634d",
+    "created": "2026-11-23T04:54:17.397Z",
     "sidecarHashes": {
       "6-8-time.wav": "9ce3c12d1ee614a1b947adb52e32663ed07716c6d45effd67ff04167b3b61ed8",
       "click-120.wav": "c1da26467ef8490858e599dc3647e25f32b69234b1f2fe2b24b420830e309cb7",
@@ -328,12 +328,12 @@
       "blocking": true,
       "applicable": true,
       "prehub": null,
-      "value": 183.39018633358873,
+      "value": 24.211883268128176,
       "spread": 0,
       "runs": 1,
       "source": "offline",
-      "pass": false,
-      "status": "fail"
+      "pass": true,
+      "status": "pass"
     },
     {
       "metric": "beat.errorMedianMs",
@@ -413,7 +413,7 @@
       "blocking": true,
       "applicable": true,
       "prehub": null,
-      "value": 35.670786876655036,
+      "value": 35.5262257973763,
       "spread": 0,
       "runs": 1,
       "source": "offline",
@@ -2027,8 +2027,8 @@
       "stretch": null,
       "blocking": false,
       "applicable": true,
-      "prehub": null,
-      "value": null,
+      "prehub": 18.05,
+      "value": 18.05,
       "spread": 0,
       "runs": 1,
       "source": "offline",
@@ -2452,8 +2452,8 @@
       "stretch": 2,
       "blocking": true,
       "applicable": true,
-      "prehub": null,
-      "value": null,
+      "prehub": 14.916666666666668,
+      "value": 14.916666666666668,
       "spread": 0,
       "runs": 1,
       "source": "offline",
