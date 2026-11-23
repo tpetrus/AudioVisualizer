@@ -250,6 +250,13 @@ on-beat half when the tempo halves (S7); a re-selected track starts on the same 
 tempo items are the 6/8 meter, `low-bpm-rnb`'s syncopated kick, `beatless`'s 140 bpm periodicity and the dotted
 100 to 150 change, all deferred to a later plan.
 
+## The tracker plan D11 (2026-11-23)
+The tempo and beat items deferred above went to their own plan, `docs/plans/rhythm-tracker/rhythm-tracker-d11.plan.md`.
+Each cell's before, after and status is in `docs/agents/hub-scorecard.md`, under "Tracker plan D11: status of the request's
+failing cells". The beat place on `summer2000` and `low-bpm-rnb` went back to planning: the tracker's phase evidence
+(every flux band, and the summed onset) does not favor the tapped beat on either track. The worklet's kick events
+come nearest, but feeding them to today's phase check does not hold the grid there.
+
 ## How to reproduce
 
 ```
