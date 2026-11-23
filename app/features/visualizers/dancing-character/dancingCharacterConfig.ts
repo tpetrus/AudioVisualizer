@@ -18,10 +18,6 @@ export const DANCE_CLIP_BEATS = 4;
 // Tempo at which a clip plays at timeScale 1. 120 BPM sits in the middle of the range that popular music uses, so the
 // clip is rarely sped up or slowed down by much; a beat is 0.5 s of clip time.
 export const NATIVE_BPM = 120;
-// Length of one bar of clip time in seconds (2 s).
-export const DANCE_CLIP_DURATION = (DANCE_CLIP_BEATS * 60) / NATIVE_BPM;
-// The number of beats in a bar, under the name the timing spec uses.
-export const NATIVE_BEATS_PER_LOOP = DANCE_CLIP_BEATS;
 // Where in the loop (0..1 of one beat) the beat lands: the clips are built with beat 1 at t = 0.
 export const STEP_PHASE_OFFSET = 0;
 // Materials the body color tints: the model's single skin material.
