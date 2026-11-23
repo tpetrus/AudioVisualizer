@@ -1081,8 +1081,8 @@ Each slice of the tracker plan (`docs/plans/rhythm-tracker/rhythm-tracker-d11.pl
 | Cell | Track | Before | After | Status | Where |
 |---|---|---|---|---|---|
 | `beat.errorMedianMs` | `summer2000` | 153.4 ms | 153.4 ms | re-plan | S1 diagnosis: no phase evidence the tracker has favors the taps; S3 recorded as a miss |
-| `beat.errorMedianMs` | `low-bpm-rnb` | 183.4 ms | 183.4 ms | re-plan (Q1) | S1: no rival stays on the taps, so S4's precondition fails; dropped under D8 |
-| `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83 s, never | unchanged | re-plan (with the beat), reported under D9 | follows the tracker's beat; no tracker change landed for these |
+| `beat.errorMedianMs` | `low-bpm-rnb` | 183.4 ms | 24.2 ms | fixed | S4's rival was dropped (S1); a halving now searches the phase again (S4b, found while measuring S8) |
+| `gate.secondsAfterLock` | `summer2000`, `half-time-shuffle`, `lonley`, `low-bpm-rnb` | 6.10, 7.18, 10.83 s, never | 6.10, 7.18, 10.83, 14.92 s | re-plan (with the beat), reported under D9 | follows the tracker's beat; `low-bpm-rnb`'s gate now opens (S4b) |
 | `beat.errorMedianMs`, `tempo.maxErrorAfterLock` | `6-8-time` | never locks to the truth | see S8 | see S8 | S8 |
 | `tempo.falseSongChanges` | `6-8-time` | 1 | see S8 | see S8 | S8 |
 | `tempo.beatlessNeverLocks` | `beatless` | locks (1) | locks (1) | stretch-open | S6: no presence signal tried separates it; reverted |
@@ -1132,6 +1132,26 @@ leaky share of the recent beats that did (`BEAT_HIT_SHARE_RATE`, about 8 beats).
   `FU-dotted-leaky` was not needed either.
 - **Budget:** total JS 338.19 kB (+0.15 kB, limit 338.5 kB unchanged). `bench:tracker` against `main`: ratio 1.000.
   sweep:gate: see the PR.
+
+**S4b (`low-bpm-rnb`, a second attempt), shipped.** Found while measuring S8. Letting the first-lock tie also weigh
+3/2 rivals took `low-bpm-rnb` to 22 ms, but only because every tie then waited for the full 8 s history (11 tracks
+locked 5 s later, and `syncopation-no-kick` never locked), so that rule was not shipped. What it showed is that the
+grid is right when it is placed at 81 bpm directly. On `main` the tempo first locks at 162 and halves to 81, and the
+halving keeps the better of the old grid's two halves, both of which sit a sixteenth early. Now a halving searches the
+phase again with the first alignment's comb, on the next retry (up to 10 frames later). The beats are counted on, no
+beat is declared twice, and `gridEpoch` is not bumped (C1).
+- `low-bpm-rnb` `beat.errorMedianMs` 183.4 to **24.2 ms** (AC2 met). `syncopationbass` 35.67 to 35.53 ms. No other
+  offline cell changes.
+- `gate.secondsAfterLock` on `low-bpm-rnb`: never to 14.92 s (the gate first opens at 18.05 s, the dancer locks at
+  3.13 s). It is still failing, accepted under D9, and better than before.
+- sweep:gate: false opens 3 and 15, as on `main`. `low-bpm-rnb`'s opening moves from 24.1 to 14.9 s and nothing else
+  moves.
+- Searching at once, inside `setTempo`, instead of on the next retry put `syncopationbass` at 39.0 ms (3 ms worse
+  than `main`), so the search waits for the retry. A comb that only overrode the old choice by a margin (1.05 to 1.3)
+  did the same, and from 1.6 it lost `low-bpm-rnb` again.
+- Two specs that described the old halving (keep every second beat, lock held through the call) now describe the new
+  one: the grid is back within one retry, on the music's pulses, numbered on in the same epoch.
+- Budget: total JS 338.09 kB (smaller than before; the keep-every-second-beat code is gone). `bench:tracker`: 0.999.
 
 ## Follow-ups outside the fast lane
 

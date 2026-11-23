@@ -37,10 +37,6 @@ const PHASE_SHIFT_RATIO = 1.15;
 const PHASE_SHIFT_BEATS = 4;
 const PHASE_MIN_BEATS = 8;
 
-// How far (in frames, either side) a grid point may be from the onset it is credited with when a halving picks which
-// beats to keep. 3 frames is 30 ms, a little more than a declared beat's remaining error after the phase gain.
-const PULSE_SEARCH_FRAMES = 3;
-
 // How often (in frames) the tracker retries aligning its first beat grid while it has none.
 const INIT_RETRY_FRAMES = 10;
 
@@ -138,9 +134,17 @@ export class BeatTracker {
                 return;
             }
             const ratio = this.tempoPeriod / this.period;
-            const factor = ratio > 1 ? 2 : 0.5;
-            if (Math.abs(ratio / factor - 1) <= BEAT_OCTAVE_TOLERANCE) {
-                this.changeOctave(factor);
+            if (Math.abs(ratio / 2 - 1) <= BEAT_OCTAVE_TOLERANCE) {
+                // The tempo halved. The phase is searched again over the recent envelope rather than keeping every
+                // second beat of the old grid: from double time the old grid inherits whatever error it had, and on
+                // `low-bpm-rnb` (162 to 81) both of its halves sat a sixteenth early, a 183 ms median beat error that
+                // the search takes to 24 ms. The epoch is not bumped, because the beats are still counted on from
+                // where they were (align() never declares a beat twice), so the meter keeps what it learned. The search
+                // runs on the next retry, as the first alignment does, so it also sees the onsets of the frames just
+                // after the change: searching at once put `syncopationbass` (195.7 to 98) 3 ms further off.
+                this.aligned = false;
+            } else if (Math.abs(ratio * 2 - 1) <= BEAT_OCTAVE_TOLERANCE) {
+                this.doubleTempo();
             } else if (Math.abs(ratio - 1) > BEAT_REINIT_TEMPO_RATIO) {
                 this.aligned = false;
                 this.epoch++;
@@ -148,25 +152,15 @@ export class BeatTracker {
         }
     }
 
-    // The tempo moved by exactly one octave: the same music counted at the other level. The grid is kept, so beats
-    // keep landing on the same music and the epoch (and with it the meter's evidence and the beat numbering) is not
-    // broken. The period is scaled at once rather than followed slowly. Halving the tempo (factor 2) keeps every second
-    // beat, starting with the one after the latest declared; doubling it adds a beat between each pair of old ones.
-    // Numbering carries on by one per beat of the new grid, so the count advances half as fast after a halving and twice
-    // as fast after a doubling. The next beat is placed one new period after the latest declared beat, which is also
-    // where consumers extrapolate to, (after a doubling that can already be in the past, and then the beat is declared at once).
-    //
-    // A halving has two ways to keep every second beat, and only one is the beat: from double time the grid alternates
-    // between the beat and the off-beat. Keeping the one after the latest declared beat whatever it was put
-    // `syncopationbass` (195.7 to 98 bpm) and `low-bpm-rnb` (162 to 81) half a beat off for 5 to 7 s, until the phase
-    // check moved them back. So the beats of each choice are summed over the recent envelope and the stronger is kept;
-    // a tie keeps the one after the latest declared beat.
-    private changeOctave(factor: number): void {
-        let base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
-        if (factor === 2 && this.pulseSum(base - this.period, 2 * this.period) > this.pulseSum(base, 2 * this.period)) {
-            base -= this.period;
-        }
-        this.period *= factor;
+    // The tempo doubled: the same music counted at the faster level. The grid is kept and a beat added between each pair
+    // of old ones, so beats keep landing on the same music and the epoch (and with it the meter's evidence and the beat
+    // numbering) is not broken. The period is halved at once rather than followed slowly, and numbering carries on by
+    // one per beat of the new grid, so the count advances twice as fast. The next beat is placed one new period after
+    // the latest declared beat, which is also where consumers extrapolate to (it can already be in the past, and then
+    // the beat is declared at once).
+    private doubleTempo(): void {
+        const base = this.declared > 0 ? this.lastBeat : this.pendingBeat - this.period;
+        this.period *= 0.5;
         this.pendingBeat = base + this.period;
         // The bins are fractions of the old period, so they say nothing about places in the new one.
         this.phaseBins.fill(0);
@@ -359,28 +353,6 @@ export class BeatTracker {
         this.phaseWins = 0;
         this.phaseShifts++;
         this.phaseBeats = 0;
-    }
-
-    // The onset energy on a grid of `period` seconds through `beat`, going back over the stored envelope: the strongest
-    // frame within PULSE_SEARCH_FRAMES of each grid point, since declared beats were pulled towards their onsets by only
-    // part of the error.
-    private pulseSum(beat: number, period: number): number {
-        const newest = this.times[this.ringIndex(0)];
-        let sum = 0;
-        for (let time = beat; ; time -= period) {
-            const center = Math.round((newest - time) * this.frameRate);
-            if (center - PULSE_SEARCH_FRAMES >= this.count) {
-                break;
-            }
-            let peak = 0;
-            for (let back = Math.max(0, center - PULSE_SEARCH_FRAMES); back <= center + PULSE_SEARCH_FRAMES; back++) {
-                if (back < this.count) {
-                    peak = Math.max(peak, this.envelope[this.ringIndex(back)]);
-                }
-            }
-            sum += peak;
-        }
-        return sum;
     }
 
     // Ring index of the frame `back` frames before the newest one.
