@@ -18,6 +18,7 @@ import {
     CLUB_CONE_TILT,
     CLUB_FLASH_BASS_THRESHOLD,
     CLUB_MAX_FLASHES_PER_SECOND,
+    CLUB_MIN_FLASH_INTERVAL_SECONDS,
     CLUB_REDUCED_MOTION_FLASH_STRENGTH,
     CLUB_FLOOR_HALF,
     CLUB_PATTERN_BEATS,
@@ -424,6 +425,17 @@ describe('flash limiter', () => {
         expect((frames + 1) * FRAME).toBeGreaterThanOrEqual(1 / CLUB_MAX_FLASHES_PER_SECOND);
     });
 
+    it('never starts 4 flashes within a closed one-second window', () => {
+        const state = createFlashLimiter();
+        const starts: number[] = [];
+        for (let frame = 0; frame < 1200; frame++) if (stepFlashLimiter(state, 1, FRAME)) starts.push(frame);
+        expect(starts.length).toBeGreaterThan(3);
+        for (let i = 3; i < starts.length; i++) {
+            expect((starts[i] - starts[i - 3]) * FRAME).toBeGreaterThan(1);
+        }
+        expect(CLUB_MIN_FLASH_INTERVAL_SECONDS).toBeGreaterThan(1 / CLUB_MAX_FLASHES_PER_SECOND);
+    });
+
     it('does not flash below the bass threshold, and the level only decays', () => {
         const state: FlashLimiterState = createFlashLimiter();
         expect(stepFlashLimiter(state, CLUB_FLASH_BASS_THRESHOLD - 0.01, FRAME)).toBe(false);
@@ -460,7 +472,7 @@ describe('flash limiter', () => {
         let worst = 0;
         for (let i = 0; i < jumpFrames.length; i++) {
             let count = 0;
-            for (let j = i; j < jumpFrames.length && jumpFrames[j] < jumpFrames[i] + 60; j++) count++;
+            for (let j = i; j < jumpFrames.length && jumpFrames[j] <= jumpFrames[i] + 60; j++) count++;
             worst = Math.max(worst, count);
         }
         return worst;
@@ -493,7 +505,7 @@ describe('flash limiter', () => {
             previous = brightness;
         }
         for (let i = 0; i < jumpFrames.length; i++) {
-            const inWindow = jumpFrames.filter((f) => f >= jumpFrames[i] && f < jumpFrames[i] + 60);
+            const inWindow = jumpFrames.filter((f) => f >= jumpFrames[i] && f <= jumpFrames[i] + 60);
             expect(inWindow.length).toBeLessThanOrEqual(3);
         }
         expect(jumpFrames.length).toBeGreaterThan(0);

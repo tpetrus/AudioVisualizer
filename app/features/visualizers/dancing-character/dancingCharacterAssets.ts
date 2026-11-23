@@ -40,10 +40,19 @@ export function pickDances(animations: readonly THREE.AnimationClip[]): Map<Danc
     for (const dance of DANCES) {
         const clip = animations.find((candidate) => candidate.name === dance.id);
         if (!clip) continue;
+        const reject = (reason: string) => {
+            if (import.meta.env.DEV) console.warn(`Dance clip "${dance.id}" rejected: ${reason}`);
+        };
         const expected = (dance.beats * 60) / NATIVE_BPM;
-        if (Math.abs(clip.duration - expected) > DURATION_TOLERANCE_SECONDS) continue;
+        if (Math.abs(clip.duration - expected) > DURATION_TOLERANCE_SECONDS) {
+            reject(`length ${clip.duration} s, expected ${expected} s`);
+            continue;
+        }
         const driven = new Set(clip.tracks.map((track) => track.name));
-        if (!DANCE_REQUIRED_BONES.every((bone) => driven.has(`${bone}.quaternion`))) continue;
+        if (!DANCE_REQUIRED_BONES.every((bone) => driven.has(`${bone}.quaternion`))) {
+            reject('it does not drive every required bone');
+            continue;
+        }
         dances.set(dance.id, clip);
     }
     return dances;
@@ -83,6 +92,9 @@ export async function loadDancingCharacterAssets(
         throw model.reason;
     }
 
+    if (dances.status === 'rejected' && import.meta.env.DEV) {
+        console.warn('The dances file failed to load; the dancer keeps the rest pose:', dances.reason);
+    }
     // The dances file holds animation only; its scene (bones, if any) is not used, so free it.
     if (dances.status === 'fulfilled') disposeModel(dances.value.scene);
     return {

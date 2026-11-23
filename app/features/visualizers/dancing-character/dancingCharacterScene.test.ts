@@ -931,6 +931,41 @@ describe('bass', () => {
         expect(distanceOf(camera) / rest).toBeLessThan(1 - 0.5 * 0.4 * DOLLY_MAX_FRACTION);
     });
 
+    // Counts rim-light jump starts at 6 Hz bass on a locked beat, as the most in any closed one-second window.
+    function worstRimRisesPerSecond(reducedMotion: boolean): { worst: number; peak: number } {
+        const scene = new THREE.Scene();
+        const dancing = new DancingCharacterScene(scene, makeCamera(), settings({ autoOrbit: false }), {
+            reducedMotion,
+        });
+        dancing.setCharacter(makeModel().model, makeDances());
+        const frames = 30 * WARM_UP_BEATS;
+        const rim = rimOf(scene);
+        const rest = rim.intensity;
+        const bass6Hz = (i: number) => (i % 10 === 0 ? 1 : 0);
+        play(dancing, 0, frames, kickAt, {});
+        const rises: number[] = [];
+        let previous = rim.intensity;
+        let peak = 0;
+        for (let i = frames; i < frames + 600; i++) {
+            dancing.update(makeFrame({ bass: bass6Hz(i) || kickAt(i), rhythm: beatRhythm(i), settings: settings() }));
+            if (rim.intensity - previous > 1) rises.push(i);
+            peak = Math.max(peak, rim.intensity - rest);
+            previous = rim.intensity;
+        }
+        let worst = 0;
+        for (const start of rises) worst = Math.max(worst, rises.filter((r) => r >= start && r <= start + 60).length);
+        return { worst, peak };
+    }
+
+    it('starts at most 3 rim-light rises in any second of 6 Hz bass, and reduced motion scales them', () => {
+        const full = worstRimRisesPerSecond(false);
+        expect(full.worst).toBeGreaterThan(0);
+        expect(full.worst).toBeLessThanOrEqual(3);
+        const reduced = worstRimRisesPerSecond(true);
+        expect(reduced.worst).toBeLessThanOrEqual(3);
+        expect(reduced.peak).toBeLessThan(full.peak * 0.5);
+    });
+
     it('lets the bump fade between beats', () => {
         const peak = pulsing({ autoOrbit: false }, 3);
         const late = pulsing({ autoOrbit: false }, 20);

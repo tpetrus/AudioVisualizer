@@ -217,6 +217,9 @@ export const CLUB_FLOOR_FLASH_LIFT = 0.25;
 // Photosensitivity limit: a large-area brightness jump (a spotlight flash or the floor's bass lift) may start at most
 // this many times per second, whatever the tempo or the bass does.
 export const CLUB_MAX_FLASHES_PER_SECOND = 3;
+// The shortest gap between two flash starts: a little over 1 / CLUB_MAX_FLASHES_PER_SECOND (one 60 Hz frame), so that
+// four starts can never fit in a closed one-second window [t, t + 1].
+export const CLUB_MIN_FLASH_INTERVAL_SECONDS = 1 / CLUB_MAX_FLASHES_PER_SECOND + 1 / 60;
 // Flash strength under reduced motion (1 is full strength).
 export const CLUB_REDUCED_MOTION_FLASH_STRENGTH = 0.3;
 // Bass level (0..1) that starts a flash.
