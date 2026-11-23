@@ -227,16 +227,28 @@ export function stepBassGate(
         // Once open, only kicks at the learned place keep the evidence, so a bassline that has moved to another place
         // wears it down and is learned afresh, as before; the bar repeat is what finds a bassline in the first place.
         const repeat = state.open ? NO_EARLIER_BAR : repeatsEarlierBar(state, position);
-        const matched = state.open ? atPlace : repeat === REPEATED;
+        let matched = state.open ? atPlace : repeat === REPEATED;
         const chance = state.open ? 0 : chanceOfRepeat(state, position);
         rememberKick(state, position);
         if (atPlace) {
             state.kickPhase = wrapUnit(state.kickPhase + offset * BASS_GATE_PHASE_ADAPT);
         } else if (!state.open) {
             // Until it opens, the place follows the latest kick, so it is a real kick's place once the bassline is
-            // found.
+            // found. Once open, a kick away from the place leaves it alone, except for the move onto the beat below.
             state.kickPhase = phase;
             state.phaseKnown = true;
+        }
+        // An open gate whose place is off the beat moves onto the beat once the last two bars support a place there,
+        // the choice made at opening. It had to open before the on-beat kick of the bar had played (the bassline's
+        // kicks come at several places and the on-beat one can come last), and the place would stay off the beat for
+        // good, because kicks only adapt it from near. The kick that moves it counts as matched when it is near the
+        // new place, since the gate has just learned that place from it.
+        if (state.open && !isOnBeat(state.kickPhase)) {
+            const best = bestSupportedPlace(state);
+            if (isOnBeat(best)) {
+                state.kickPhase = best;
+                if (Math.abs(wrapSigned(phase - best)) <= BASS_GATE_PHASE_WINDOW) matched = true;
+            }
         }
         if (matched) {
             state.beatsSinceOnBeat = 0;
@@ -297,12 +309,13 @@ export function stepBassGate(
 }
 
 // The place in the beat where most of the remembered kicks land, within BASS_GATE_PHASE_WINDOW, centered on them; the
-// latest kick's place breaks a tie. Until the gate opens the place follows the latest kick, and once open it only moves
-// toward kicks near it, so the place it opens with is the one it keeps. A bassline with kicks at two places in the beat
-// (on the beat and an off-beat accent) used to open on whichever came last; opening a few bars sooner (kicks placed
-// from before the lock, S5) made that the off-beat one on four tracks, and every bump then landed 90 to 300 ms off the
-// beat. Only the kicks of the last two bars count, the span the repeats that opened the gate look back over, so a
-// bassline that moved is not pulled back to its old place by kicks still in the history. Allocates nothing.
+// latest kick's place breaks a tie. Until the gate opens the place follows the latest kick, and once open it adapts
+// toward kicks near it, or moves to a place on the beat that the last two bars support when it is off the beat. A
+// bassline with kicks at two places in the beat (on the beat and an off-beat accent) used to open on whichever came
+// last; opening a few bars sooner (kicks placed from before the lock, S5) made that the off-beat one on four tracks,
+// and every bump then landed 90 to 300 ms off the beat. Only the kicks of the last two bars count, the span the
+// repeats that opened the gate look back over, so a bassline that moved is not pulled back to its old place by kicks
+// still in the history. Allocates nothing.
 function bestSupportedPlace(state: BassGateState): number {
     const times = state.kickTimes;
     const since =
@@ -323,7 +336,7 @@ function bestSupportedPlace(state: BassGateState): number {
         const place = wrapUnit(candidate + offsets / count);
         // A repeated place on the beat (allowing the bass pulse's lag) beats any place off it, and on a tie the latest
         // kick's place wins (the position term is far below 1).
-        const onBeat = count > 1 && Math.abs(wrapSigned(place - BASS_GATE_ON_BEAT_CENTER)) <= BASS_GATE_ON_BEAT_RADIUS;
+        const onBeat = count > 1 && isOnBeat(place);
         const rank = count + (onBeat ? BASS_GATE_KICK_HISTORY : 0) + candidate * 1e-9;
         if (rank > bestRank) {
             bestRank = rank;
@@ -331,6 +344,11 @@ function bestSupportedPlace(state: BassGateState): number {
         }
     }
     return bestPlace;
+}
+
+// Whether a place in the beat is on the beat, allowing the bass pulse's lag.
+function isOnBeat(place: number): boolean {
+    return Math.abs(wrapSigned(place - BASS_GATE_ON_BEAT_CENTER)) <= BASS_GATE_ON_BEAT_RADIUS;
 }
 
 // Moves the closed gate's evidence by the log of how much likelier this outcome is for a real bassline than for chance.
