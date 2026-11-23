@@ -25,6 +25,6 @@
     "name": "Total CSS: every stylesheet in assets (gzip)",
     "path": "build/client/assets/*.css",
     "gzip": true,
-    "limit": "5.9 kB"
+    "limit": "6.1 kB"
   }
 ]

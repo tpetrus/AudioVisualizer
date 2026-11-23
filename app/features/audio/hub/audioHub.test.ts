@@ -670,6 +670,89 @@ describe('AudioHub', () => {
         });
     });
 
+    describe('no source (contract C5)', () => {
+        // Frames, a revealed kick onset, a locked beat and one song change, read at time 2 with a bound source.
+        function playing() {
+            tracker.source = stubSource(0.25).source;
+            const { state } = tracker;
+            state.beatPhase = 0.25;
+            state.barPhase = 0.5;
+            state.bpm = 120;
+            state.tempoConfidence = 0.8;
+            state.beatsPerBar = 4;
+            state.meterConfidence = 1;
+            state.beatCount = 7;
+            state.downbeatCount = 2;
+            state.songChangeCount = 1;
+            feed(
+                [
+                    { time: 1, energy: 1 },
+                    { time: 2, energy: 1 },
+                ],
+                [{ band: 0, time: 1.5, strength: 0.7 }],
+            );
+            hub.update(2);
+        }
+
+        it('puts the snapshot at rest when the source is gone, keeping the counters and times', () => {
+            playing();
+            expect(hub.snapshot.beat.locked).toBe(true);
+            expect(hub.snapshot.bands[0]).toBe(1);
+
+            // A stopped capture: the tracker has no source and so no render time. Its state still holds the old beat.
+            tracker.source = undefined;
+            tracker.now = undefined;
+            hub.update();
+
+            const { snapshot } = hub;
+            expect(Array.from(snapshot.bands)).toEqual(new Array<number>(HUB_BAND_COUNT).fill(0));
+            expect(snapshot.gateBass).toEqual({ pulse: 0, lowEnd: 0 });
+            expect(snapshot.onsets.kick).toEqual({ lastTime: 1.5, strength: 0, sinceSeconds: Infinity, count: 1 });
+            expect(snapshot.beat).toEqual({
+                phase: undefined,
+                barPhase: undefined,
+                tempo: 0,
+                confidence: 0,
+                locked: false,
+                beatsPerBar: undefined,
+                barLocked: false,
+                beatCount: 7,
+                downbeatCount: 2,
+            });
+            expect(snapshot.section).toEqual({ changeCount: 1, lastChangeTime: 2 });
+            expect(snapshot.time).toBe(2);
+        });
+
+        it('rests without a started tracker too', () => {
+            const bare = new AudioHub();
+            bare.onBatch(batch([{ time: 1, energy: 1 }]));
+            bare.update(1);
+            expect(bare.snapshot.bands[0]).toBe(1);
+            bare.update();
+            expect(bare.snapshot.bands[0]).toBe(0);
+        });
+
+        it('reads normally again at the next render time, even the one it last read', () => {
+            playing();
+            tracker.source = undefined;
+            tracker.now = undefined;
+            hub.update();
+            expect(hub.snapshot.beat.locked).toBe(false);
+
+            // The same source comes back without a reset (the tracker resets only for a new source).
+            tracker.source = stubSource(0.25).source;
+            hub.update(2);
+            expect(hub.snapshot.beat.locked).toBe(true);
+            expect(hub.snapshot.bands[0]).toBe(1);
+            // An onset seen before the rest is not shown again: its strength stays 0 until the next one arrives.
+            expect(hub.snapshot.onsets.kick.strength).toBe(0);
+            feed([{ time: 3, energy: 1 }], [{ band: 0, time: 2.5, strength: 0.6 }]);
+            hub.update(3);
+            expect(hub.snapshot.onsets.kick).toMatchObject({ lastTime: 2.5, count: 2 });
+            expect(hub.snapshot.onsets.kick.strength).toBeCloseTo(0.6, 6);
+        });
+    });
+
     describe('update', () => {
         it('reads the tracker render time without an argument', () => {
             tracker.now = 12.5;
@@ -677,13 +760,30 @@ describe('AudioHub', () => {
             expect(hub.snapshot.time).toBe(12.5);
         });
 
-        it('leaves the snapshot unchanged when there is no render time', () => {
+        it('keeps the snapshot time and does not read the tracker when there is no render time', () => {
+            tracker.source = stubSource(0).source;
             hub.update(4);
+            tracker.updatePhase.mockClear();
             tracker.now = undefined;
             tracker.state.bpm = 90;
             hub.update();
+            expect(tracker.updatePhase).not.toHaveBeenCalled();
             expect(hub.snapshot.time).toBe(4);
             expect(hub.snapshot.beat.tempo).toBe(0);
+        });
+
+        it('keeps the bands and the beat with no render time while the same source is still bound', () => {
+            tracker.source = stubSource(0).source;
+            tracker.state.bpm = 120;
+            tracker.state.beatPhase = 0.25;
+            feed([{ time: 3, energy: 1 }]);
+            hub.update(4);
+            expect(hub.snapshot.beat.locked).toBe(true);
+            tracker.now = undefined;
+            hub.update();
+            expect(hub.snapshot.beat.locked).toBe(true);
+            expect(hub.snapshot.beat.tempo).toBe(120);
+            expect(hub.snapshot.bands[0]).toBe(1);
         });
 
         it('does nothing when called again with the same time', () => {

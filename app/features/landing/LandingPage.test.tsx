@@ -24,6 +24,14 @@ describe('LandingPage', () => {
         expect(screen.getByText('More coming soon')).toBeInTheDocument();
     });
 
+    it('lays the cards out in one column, then two from the sm breakpoint, with the strip after the grid', () => {
+        renderWithProviders(<LandingPage />, { engine: capturingEngine() });
+
+        const grid = screen.getByRole('link', { name: 'Cubes' }).parentElement;
+        expect(grid).toHaveClass('grid', 'grid-cols-1', 'sm:grid-cols-2', 'gap-2', 'p-2');
+        expect(grid).not.toContainElement(screen.getByText('More coming soon'));
+    });
+
     it('prioritises only the title image, which is the largest contentful paint', () => {
         const { container } = renderWithProviders(<LandingPage />, { engine: capturingEngine() });
 
