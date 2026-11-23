@@ -1,10 +1,10 @@
 # Scorecard
 
-Targets version 9, revision 564df5e, created 2026-11-23T04:51:15.724Z.
+Targets version 9, revision b58634d, created 2026-11-23T04:54:17.397Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
-Applicable cells 446: 399 passing, 23 failing, 24 unavailable. Blocking failures: 12.
+Applicable cells 446: 400 passing, 22 failing, 24 unavailable. Blocking failures: 11.
 
 ## ac9
 
@@ -32,12 +32,12 @@ Applicable cells 446: 399 passing, 23 failing, 24 unavailable. Blocking failures
 | beat.errorMedianMs | high-bpm-dnb.wav | tapped | 21.5 | 40.0 | - | - | pass |
 | beat.errorMedianMs | imyourgirl.wav | tapped | 23.8 | 40.0 | - | - | pass |
 | beat.errorMedianMs | lonley.wav | tapped | 25.9 | 40.0 | - | - | pass |
-| beat.errorMedianMs | low-bpm-rnb.wav | tapped | 183.4 | 40.0 | - | - | fail |
+| beat.errorMedianMs | low-bpm-rnb.wav | tapped | 24.2 | 40.0 | - | - | pass |
 | beat.errorMedianMs | no-kick-124.wav | synthetic | 1.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | pad-lead-groove-110.wav | synthetic | 1.6 | 20.0 | - | - | pass |
 | beat.errorMedianMs | summer2000.wav | tapped | 153.4 | 40.0 | - | - | fail |
 | beat.errorMedianMs | syncopation-no-kick.wav | tapped | 29.9 | 40.0 | - | - | pass |
-| beat.errorMedianMs | syncopationbass.wav | tapped | 35.7 | 40.0 | - | - | pass |
+| beat.errorMedianMs | syncopationbass.wav | tapped | 35.5 | 40.0 | - | - | pass |
 | beat.errorMedianMs | syncopationbass2.wav | tapped | 18.7 | 40.0 | - | - | pass |
 | beat.errorMedianMs | trap-2to1-double-90.wav | synthetic | 2.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | trap-2to1-half-140.wav | synthetic | 3.6 | 20.0 | - | - | pass |
@@ -142,7 +142,7 @@ Applicable cells 446: 399 passing, 23 failing, 24 unavailable. Blocking failures
 | gate.firstOpenSeconds | high-bpm-dnb.wav | tapped | 10.07 | - | - | 10.07 | pass (report-only) |
 | gate.firstOpenSeconds | imyourgirl.wav | tapped | 3.28 | - | - | 3.28 | pass (report-only) |
 | gate.firstOpenSeconds | lonley.wav | tapped | 18.97 | - | - | 18.97 | pass (report-only) |
-| gate.firstOpenSeconds | low-bpm-rnb.wav | tapped | - | - | - | - | pass (report-only) |
+| gate.firstOpenSeconds | low-bpm-rnb.wav | tapped | 18.05 | - | - | 18.05 | pass (report-only) |
 | gate.firstOpenSeconds | no-kick-124.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | pad-lead-groove-110.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | summer2000.wav | tapped | 14.23 | - | - | 14.23 | pass (report-only) |
@@ -167,7 +167,7 @@ Applicable cells 446: 399 passing, 23 failing, 24 unavailable. Blocking failures
 | gate.secondsAfterLock | high-bpm-dnb.wav | tapped | 1.93 | 4.00 | 2.00 | 1.93 | pass |
 | gate.secondsAfterLock | imyourgirl.wav | tapped | 0.15 | 4.00 | 2.00 | 0.15 | pass |
 | gate.secondsAfterLock | lonley.wav | tapped | 10.83 | 4.00 | 2.00 | 10.83 | fail |
-| gate.secondsAfterLock | low-bpm-rnb.wav | tapped | - | 4.00 | 2.00 | - | fail |
+| gate.secondsAfterLock | low-bpm-rnb.wav | tapped | 14.92 | 4.00 | 2.00 | 14.92 | fail |
 | gate.secondsAfterLock | no-kick-124.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | pad-lead-groove-110.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | summer2000.wav | tapped | 6.10 | 4.00 | 2.00 | 6.10 | fail |
