@@ -761,12 +761,29 @@ describe('AudioHub', () => {
         });
 
         it('keeps the snapshot time and does not read the tracker when there is no render time', () => {
+            tracker.source = stubSource(0).source;
             hub.update(4);
+            tracker.updatePhase.mockClear();
             tracker.now = undefined;
             tracker.state.bpm = 90;
             hub.update();
+            expect(tracker.updatePhase).not.toHaveBeenCalled();
             expect(hub.snapshot.time).toBe(4);
             expect(hub.snapshot.beat.tempo).toBe(0);
+        });
+
+        it('keeps the bands and the beat with no render time while the same source is still bound', () => {
+            tracker.source = stubSource(0).source;
+            tracker.state.bpm = 120;
+            tracker.state.beatPhase = 0.25;
+            feed([{ time: 3, energy: 1 }]);
+            hub.update(4);
+            expect(hub.snapshot.beat.locked).toBe(true);
+            tracker.now = undefined;
+            hub.update();
+            expect(hub.snapshot.beat.locked).toBe(true);
+            expect(hub.snapshot.beat.tempo).toBe(120);
+            expect(hub.snapshot.bands[0]).toBe(1);
         });
 
         it('does nothing when called again with the same time', () => {

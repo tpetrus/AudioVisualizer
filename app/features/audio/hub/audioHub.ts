@@ -118,7 +118,8 @@ export class AudioHub implements AudioHubReader, FeatureListener {
         this.removeListener = tracker.addFeatureListener(this);
     }
 
-    // Stops listening. The snapshot stays readable, frozen at its last values.
+    // Stops listening. The snapshot stays readable at its last values; an update without a time then puts it at rest,
+    // as with no source.
     public dispose(): void {
         this.removeListener?.();
         this.removeListener = undefined;

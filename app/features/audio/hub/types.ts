@@ -16,7 +16,8 @@ export interface HubOnset {
     lastTime: number;
     // 0..1 strength of that onset as the worklet reported it (not decayed; decay with `sinceSeconds`). 0 before the first.
     strength: number;
-    // time - lastTime, never negative; Infinity before the first onset.
+    // time - lastTime, never negative; Infinity before the first onset, and at rest with no source (lastTime then keeps
+    // the time of the last onset seen).
     sinceSeconds: number;
     // Onsets of this kind that have reached `time`. Only ever increases, across source changes too (the counters pattern).
     count: number;
@@ -88,7 +89,7 @@ export interface AudioHubReader {
     readonly snapshot: AudioHubSnapshot;
     // Brings `snapshot` up to `now` (AudioContext seconds). Without an argument it reads at the tracker's render time
     // (audio clock minus display delay and user sync offset, contract C6); with no bound source it puts the snapshot at
-    // rest (contract C5: bands, gate bass and onset strengths 0, the beat unlocked, the counters kept). Calling it again with the same time does nothing, so every consumer may call it once per frame. It
-    // allocates nothing.
+    // rest (contract C5: bands, gate bass and onset strengths 0, the beat unlocked, the counters kept). Calling it
+    // again with the same time does nothing, so every consumer may call it once per frame. It allocates nothing.
     update(now?: number): void;
 }
