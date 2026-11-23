@@ -137,12 +137,45 @@ describe('BeatTracker', () => {
         expect(tracker.locked).toBe(true);
         expect(tracker.periodSeconds).toBeCloseTo(2 * (60 / 196), 1);
         for (let i = 1; i < beats.length; i++) {
-            expect(beats[i].time - beats[i - 1].time).toBeCloseTo(120 / 196, 1);
+            expect(Math.abs(beats[i].time - beats[i - 1].time - 120 / 196)).toBeLessThan(0.02);
             expect(beats[i].count).toBe(beats[i - 1].count + 1);
         }
         // No beat is declared twice and none is skipped in the count, and the epoch (the meter's evidence) is kept.
         expect(beats[0].count).toBe(countBefore + 1);
         expect(tracker.gridEpoch).toBe(epoch);
+    });
+
+    it('re-locks at the halved period when the tempo estimate drops out right after a halving', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 196, 15);
+        tracker.setTempo(98);
+        tracker.setTempo(0);
+        const beats = continuePulses(tracker, 196, 15, 1);
+        expect(tracker.locked).toBe(true);
+        expect(tracker.periodSeconds).toBeCloseTo(2 * (60 / 196), 1);
+        expect(beats.length).toBeGreaterThan(0);
+    });
+
+    it('leaves half a new period between the last old beat and the first new one, without skipping or doubling a count', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 196, 15);
+        const lastOld = tracker.lastBeatTime;
+        const countBefore = tracker.beatCount;
+        tracker.setTempo(98);
+        const beats = continuePulses(tracker, 196, 15, 4);
+        expect(beats[0].time - lastOld).toBeGreaterThanOrEqual(0.5 * (120 / 196) - 0.02);
+        expect(beats.map((b) => b.count)).toEqual(beats.map((_, i) => countBefore + 1 + i));
+    });
+
+    it('resets the grid hit share when the tempo doubles', () => {
+        const tracker = new BeatTracker(FRAME_RATE);
+        drive(tracker, 98, 15);
+        // Silence after the lock: every beat window finds no onset, so the share drops.
+        for (let i = 0; i < 8 * FRAME_RATE; i++) tracker.push(15 + i / FRAME_RATE, 0);
+        expect(tracker.locked).toBe(true);
+        expect(tracker.gridHitShare).toBeLessThan(1);
+        tracker.setTempo(196);
+        expect(tracker.gridHitShare).toBe(1);
     });
 
     // Double time with every second pulse strong: the strong pulses are the beat. Returns, for a halving after `seconds`,
