@@ -441,8 +441,12 @@ under D11 (see "Review decisions" in `hub-scorecard.md`). The follow-ups below c
 entry is the 2026-11-15 record.
 
 **Status on 2026-11-23.** The D11 tracker plan tried AC5 as a stretch (its S8) and left it open: `syncopation-no-kick`
-still first locks at 8.02 s, and the tracker replan did not touch it. Still open from this plan: AC9,
-`FU-S10-basspulse-time-based`, AC5 and the known weaknesses listed under "Tempo tracker work" below.
+still first locks at 8.02 s, and the tracker replan did not touch it. Still open from this plan: AC9, AC5 and the
+known weaknesses listed under "Tempo tracker work" below. `FU-S10-basspulse-time-based` is done: `BassBump`
+(`app/features/audio/hub/bassBump.ts`) is time-based and replaced `BassPulse` in cubes, bass ink and the dancing
+character, and `bassBump.test.ts` checks equal settling at 30, 60 and 144 fps. `BassPulse` stays per frame on purpose, as
+the frozen pre-hub reference for the scorecard's pre-hub column (`scripts/scorecard/engine/prehubBass.ts` is the only
+place that builds it). Closed under the alignment-tracker-leftovers plan (decision D1) with no code change.
 
 This records where the audio alignment plan (`docs/plans/audio-engine-alignment/`) stands, and every follow-up that is
 still open. The full task packets (owned paths, acceptance, verification) are kept in the verified-diamond follow-up
@@ -543,9 +547,12 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
   and kept an 8 s weak burst out, but it gave 2 extra switches in 1296 noisy on-and-off dotted figures (0.15%), and
   alone it changes nothing a listener hears while the bar veto still blocks 3/2. Not shipped; worth redoing only
   together with a working 3/2 rule.
-- **`FU-S10-basspulse-time-based`**: BassPulse smooths per frame, so its speed depends on the frame rate. Make its
-  envelopes time-based, with the same behavior at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It
-  changes three visualizers through one shared class, so check with Trevor before routing it.
+- **`FU-S10-basspulse-time-based`** (done, closed under the alignment-tracker-leftovers plan, decision D1): BassPulse
+  smoothed per frame, so its speed depended on the frame rate. `BassBump` (`app/features/audio/hub/bassBump.ts`) now
+  does the job time-based: it scales every rate from its 60 fps tuning, so it matches `BassPulse` frame for frame at
+  60 fps, and `bassBump.test.ts` checks equal settling at 30, 60 and 144 fps. Cubes, bass ink and the dancing character
+  use it. `BassPulse` stays per frame on purpose, as the frozen pre-hub reference for the scorecard's pre-hub column
+  (`scripts/scorecard/engine/prehubBass.ts` is the only place that builds it outside specs); do not make it time-based.
 - Known weaknesses without a packet yet, from "Known costs and what is left" under S6 and the bass gate above. Status
   updated 2026-11-23 from the D11 tracker plan and the tracker replan ("Tracker plan D11" and "Tracker replan, S0" in
   `hub-scorecard.md`):
