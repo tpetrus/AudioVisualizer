@@ -1308,6 +1308,59 @@ check (above).
 | `tempo.beatlessNeverLocks` | `beatless` | locks | locks | stretch-open (S6 canceled: kick support does not separate it) |
 | `beat.errorMedianMs`, tempo cells | `6-8-time`, `half-time-shuffle` beat level | never locks to the truth | unchanged | stretch-open (S7 canceled: no bar pattern in the kicks) |
 
+## summer2000 beat phase, the final attempt: no-go at the pre-flight (2026-11-23, on `dac157d`)
+Plan `docs/plans/summer2000-beat-phase` (one bounded attempt; a miss closes the tracker work, decision D4). The design
+(option O2) was a gated kick phase-locked loop: per declared beat, the nearest kick in a window, read one beat late,
+drives a phase move and a period trim, engaged only by an N-of-M gate on kick regularity, with attempt A's kick move as
+the entry anchor. Contracts and the orchestrator's decisions OD1 to OD4 are in
+`docs/plans/summer2000-beat-phase/contracts.md`.
+
+**What was built (not merged).** Branch `replan2/s2-kick-pll-r` (`dac157d`): attempt A rebased with KickOffset, the veto
+and the fill hold removed; `KickGate` and `KickLoop` (`kickLoop.ts`) behind `KICK_PHASE_GAIN` 0. With the defaults all 717
+offline cells equal main's, `bench:tracker` 1.010, total JS 340.93 kB. The tooling it needed (kick events in
+`eval/detect.ts` and `testSignals.runPipeline`, `npm run scorecard -- --set`) is PR #137 and merges on its own (D8).
+
+**Why the anchor had to be gated (OD1).** Attempt A's move on its own, at the values A measured (floor 0.2, margin 0.05,
+2 beats), gives summer2000 163.0 ms and low-bpm-rnb 181.4 ms in a full scorecard. Ungated, it would fail every grid
+point on low-bpm-rnb before the loop acted.
+
+**The pre-flight (S3).** Its rule was fixed in the plan (K6) and made concrete in OD4 before any pre-flight data: for N in
+3 to 8 of M = 8, with the loop's gain 0 and the anchor on, N qualifies when the in-window kick count reaches N on at
+least 70% of summer2000's beats after 12 s (window 0.25 of a period), and no beat of low-bpm-rnb reaches N-1 (window
+0.35). The smallest qualifying N would set the gate; none means no-go without a grid run.
+
+| N | summer2000: share of beats after 12 s with count >= N | low-bpm-rnb: largest count before the anchor first moves | Qualifies |
+|---|---|---|---|
+| 3 | 0.89 | 4 (needs < 2) | no |
+| 4 | 0.68 | 4 (needs < 3) | no |
+| 5 | 0.51 | 5 (needs < 4) | no |
+| 6 | 0.24 | 7 (needs < 5) | no |
+| 7 | 0.16 | 7 (needs < 6) | no |
+| 8 | 0.03 | 8, the anchor never moves (needs < 7) | no |
+
+No N qualifies, so the attempt ends here and none of the 24 registered points was run. The two tracks want opposite
+gates. summer2000's syncopated kicks put one in a beat's window often enough only for the loosest gate (N = 3). After its
+halving, low-bpm-rnb runs on a 740 ms grid, where a window of 0.35 of a period is ±259 ms wide, so its kicks fill the
+window on most beats even though only 13 of its 35 taps have a kick within 150 ms. Once open, the gate let the anchor
+pull its grid from -11 ms to -242 and -269 ms (15.97 to 16.66 s at N = 6), the failure the gate was meant to prevent.
+Kick regularity counted per beat does not separate a syncopated groove that needs the kicks from a sparse one that must
+not follow them.
+
+**Independent review of the unmerged loop**, kept for any later design (it does not change this verdict, which ran
+with the loop's gain at 0):
+- High: the summed loop moves outlive a gate close, but other forces move the grid back, so after a clamp-close the loop
+  has no room left and stalls. Clearing the sum on close lets a steady off-beat pattern walk the grid in steps instead.
+  A loop needs to bound the real displacement from a reference grid.
+- Medium: with the onset term suppressed, the period nudge still sees the old place's onsets and biases the period while
+  the grid is part way to the kicks (only gain 1.0 jumps past it).
+- Medium: the trim's phase is not counted in the summed moves, so `KICK_MAX_PHASE_FRAC` does not bound the grid.
+- Medium-low: the analyzer's extrapolated beat phase ignores a pending kick move and jumps at the next beat.
+
+**Outcome (D4, AC6).** `summer2000` `beat.errorMedianMs` is accepted at 153.4 ms and the tracker is left as it is. Main
+keeps only the kick input of #136 and the tooling of #137. The model branches (`replan2/s1b-anchor`,
+`replan2/s2-kick-pll`, `replan2/s2-kick-pll-r`) stay unmerged. The follow-ups that served only the model
+(`FU-RP-kickmove-guard-spec`, `FU-RP-kickoffset-realign`) are closed; `FU-RP-eval-kicks` is done by #137.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
