@@ -907,7 +907,7 @@ describe('RhythmAnalyzer phase glide', () => {
         expect(shown.next).toBeCloseTo(1.515 + PERIOD, 9);
     });
 
-    it('eases a move that crosses the phase wrap, stepping the counter exactly when the phase wraps', () => {
+    it('eases a move that crosses the phase wrap, stepping the counter when the phase wraps', () => {
         const r = earlyBeat();
         // The shown phase continues from 0.98 instead of jumping to 0.1, and the counter still waits for the wrap.
         const start = r.at(1.49);
@@ -978,6 +978,68 @@ describe('RhythmAnalyzer phase glide', () => {
             expect(r.at(5.1).phase).toBeCloseTo(0.2, 9);
             vi.restoreAllMocks();
         }
+    });
+
+    it('restarts its clock on hardReset, so a lower clock after it still glides', () => {
+        glide.ms = 1000;
+        const r = earlyBeat();
+        r.at(1.49);
+        r.analyzer.hardReset(false);
+        // The caller's clock restarts a second lower. A stale newest time (1.49) would freeze the shown phase and
+        // the glide with it.
+        r.declare(0.0, 0.1);
+        r.at(0.49);
+        r.declare(0.44, 0.49);
+        expect(r.at(0.49).phase).toBeCloseTo(0.98, 9);
+        expect(r.at(0.74).phase).not.toBeCloseTo((0.74 - 0.44) / PERIOD, 3);
+        expect(r.at(1.6).phase).toBeCloseTo(((1.6 - 0.44) / PERIOD) % 1, 9);
+    });
+
+    it('starts no glide at the first anchor of a rebuilt grid', () => {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        r.at(1.49);
+        // The same early beat as above, but declared on a new grid epoch: the old phase is not comparable.
+        r.grid.epoch = 1;
+        r.declare(1.44, 1.49);
+        expect(r.at(1.49).phase).toBeCloseTo((1.49 - 1.44) / PERIOD, 9);
+        expect(r.at(1.49).next).toBeCloseTo(1.44 + PERIOD, 9);
+    });
+
+    it('steps the counter at a period doubling without a phase wrap, and never lowers it', () => {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        // The phase on show is 0.4 when the beat that doubles the period is declared on the spot.
+        const before = r.at(1.2);
+        expect(before.phase).toBeCloseTo(0.4, 9);
+        expect(before.count).toBe(1);
+        r.grid.period = 2 * PERIOD;
+        r.declare(1.2, 1.2);
+        // The glide hides the move (a phase of 0.4 continues), but the counter steps as the old jump did: the new
+        // anchor is one declared beat further on, and the phase did not wrap.
+        const after = r.at(1.2);
+        expect(after.phase).toBeCloseTo(0.4, 9);
+        expect(after.count).toBe(2);
+        let last = after.count;
+        for (let t = 1.21; t < 3.5; t += 0.01) {
+            const { count } = r.at(t);
+            expect(count).toBeGreaterThanOrEqual(last);
+            last = count;
+        }
+    });
+
+    it('wraps a move larger than half a beat to the nearest beat', () => {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        r.at(1.49);
+        // The new beat puts the phase at 0.38, 0.6 of a beat behind the 0.98 on show: the nearest beat is 0.4 ahead.
+        r.declare(1.3, 1.49);
+        const shown = r.at(1.49);
+        expect(shown.phase).toBeCloseTo(0.98, 9);
+        expect(shown.count).toBe(1);
+        const done = r.at(1.6);
+        expect(done.phase).toBeCloseTo((1.6 - 1.3) / PERIOD, 9);
+        expect(done.count).toBe(2);
     });
 
     it('drops a glide under way when the grid is rebuilt', () => {

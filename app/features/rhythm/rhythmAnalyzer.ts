@@ -245,7 +245,9 @@ export class RhythmAnalyzer {
         // A stalled analysis must freeze the phase rather than run on forever.
         const time = Math.min(now, this.latestTime + PHASE_EXTRAPOLATE_MAX_SECONDS);
         this.seen = Math.max(this.seen, time);
-        // Everything below reads the one eased anchor, so the counters step exactly when the published phase wraps.
+        // Everything below reads the one eased anchor, so the counters follow the published phase: they step when it
+        // wraps, for a move under half a beat at an unchanged tempo. A move of more than half a beat is wrapped to the
+        // nearest beat, and a period change at the re-align can step the counter without a wrap; it never goes down.
         const anchor = this.anchorTime + this.eased();
         // A beat is declared about 100 ms after it sounded, so a reader that asks for an earlier time (a positive sync
         // offset) can ask for a moment before the newest beat. That moment belongs to the end of the previous beat, so

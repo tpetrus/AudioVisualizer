@@ -29,7 +29,7 @@ export interface PhaseStepResult {
     // The largest excess step over the whole track, in beats, and the track time it happened at.
     maxExcess: number;
     atSeconds: number;
-    // BeatTracker.phaseShiftCount at the end, the number of grid moves.
+    // The number of grid moves (BeatTracker.phaseShiftCount increases), counted across hard resets.
     gridMoves: number;
     // Render calls that published a phase and were compared with a previous one.
     steps: number;
@@ -53,6 +53,14 @@ export function measurePhaseSteps(pcm: Float32Array, sampleRate: number): PhaseS
     let time0 = 0;
     let tick = 0;
     let previous: number | undefined;
+    // Grid moves are added up as they happen: a hard boundary resets the tracker's own count, which would hide the ones
+    // before it if the count were read once at the end.
+    let lastShiftCount = 0;
+    const countMoves = (): void => {
+        const now = analyzer.beat.phaseShiftCount;
+        if (now > lastShiftCount) result.gridMoves += now - lastShiftCount;
+        lastShiftCount = now;
+    };
     const result: PhaseStepResult = { maxExcess: 0, atSeconds: 0, gridMoves: 0, steps: 0 };
 
     const renderTick = (): void => {
@@ -84,6 +92,7 @@ export function measurePhaseSteps(pcm: Float32Array, sampleRate: number): PhaseS
             const time = time0 + i / analyzer.frameRate;
             analyzer.pushFrame(time, batch, i * FRAME_STRIDE);
             analyzer.updatePhase(time);
+            countMoves();
         }
         count = 0;
     };
@@ -104,7 +113,10 @@ export function measurePhaseSteps(pcm: Float32Array, sampleRate: number): PhaseS
     for (let offset = 0; offset < audio.length; offset += 128) {
         extractor.push(audio.subarray(offset, Math.min(audio.length, offset + 128)), onFrame);
     }
-    result.gridMoves = analyzer.beat.phaseShiftCount;
+    // The render clock keeps running to the end of the audio, as in the scorecard's replay.
+    const seconds = audio.length / sampleRate;
+    while (tick * RENDER_DT <= seconds) renderTick();
+    countMoves();
     return result;
 }
 
