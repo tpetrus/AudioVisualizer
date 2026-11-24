@@ -28,7 +28,6 @@ import {
     type ScoreFunction,
 } from './scores';
 
-const SR = 44100;
 const EIGHT_SECONDS = 8;
 
 // ---- Tatum series ----

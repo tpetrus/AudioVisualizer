@@ -174,14 +174,10 @@ export function analyze(rawPcm: Float32Array, sampleRate: number): Analysis {
 
     const originalAddBeat = meter.addBeat.bind(meter);
     meter.addBeat = (index, kick, totalFlux, chromaChange, period): void => {
-        // The means the meter will hold after this beat, advanced the way addBeat advances them, for the recomputation.
-        const before = { w: meter.meanWeight, k: meter.kickMean, t: meter.totalMean, c: meter.chromaMean };
         originalAddBeat(index, kick, totalFlux, chromaChange, period);
         const slot = (meter.ringHead - 1 + meter.accents.length) % meter.accents.length;
         const accent = meter.accents[slot] + meter.accentMean / meter.meanWeight;
         const epsilon = 1e-9;
-        const decayWeight = before.w; // unused: the means after the call are read from the meter itself
-        void decayWeight;
         const recomputed =
             ACCENT_KICK_WEIGHT * (kick / (meter.kickMean / meter.meanWeight + epsilon)) +
             ACCENT_TOTAL_WEIGHT * (totalFlux / (meter.totalMean / meter.meanWeight + epsilon)) +
