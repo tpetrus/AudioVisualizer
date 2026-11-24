@@ -62,6 +62,9 @@ export interface ScorecardHeader {
     // SHA-256 (hex) of each .beats.json used, by audio file name. A changed hash fails scorecard:check until the
     // baseline is regenerated.
     sidecarHashes: Record<string, string>;
+    // The rhythmConfig constants a `npm run scorecard -- --set` run overrode, by name with the value as source text.
+    // Absent on a plain run.
+    overrides?: Record<string, string>;
 }
 
 export interface Scorecard {
