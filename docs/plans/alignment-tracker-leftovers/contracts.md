@@ -95,3 +95,16 @@ the current kind, clamped to the slider range; a saved offset always wins.
   scorecard baseline files. It passes when specs show the phase never decreasing between forward reads (including a
   backward move of 0.5 beat) and the first step after a move staying within one frame of glide travel at 30 and
   60 fps. OD5 (per-batch calls) must stay at most 0.10 beat, and the slice must fit the size limit at its start.
+- **OD10 Size at S9's start (Trevor, 2026-11-24).** `main` at `69065e0` measures 339,092 B of total JS against the
+  339,100 B limit, 8 B of room, which no version of S9 fits. Trevor chose to raise the limit to 339.25 kB in the S9
+  pull request, as for S5. The 0.15 kB per-slice cap of OD2 still applies: S9 measuring more than 0.15 kB over its
+  base is a no-go.
+- **OD11 Backward glide length.** A backward move (the published phase is ahead of the new grid, so `lead` is negative)
+  glides over `max(PHASE_GLIDE_MS / 1000, 2 * |lead|)` seconds; a forward move keeps `PHASE_GLIDE_MS`. During a
+  backward glide the published phase then advances at half speed or faster and never runs backwards. The length is
+  fixed when the glide starts and is reset with the rest of the glide state (C3).
+- **OD12 Glide latch.** After a re-align with a glide, the glide's start is the time of the first `updatePhase` call
+  after the move, not the newest time shown before it, so the first read after a move carries no glide travel. Until
+  that call the published anchor holds the whole lead. The OD5 tool calls `updatePhase` once per batch, after the
+  batch's frames and at the batch's arrival time on the render clock, as `RhythmTracker.onMessage` does, instead
+  of after every frame at the frame's time. The scorecard engine's replays are not changed by S9.
