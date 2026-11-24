@@ -35,6 +35,13 @@ describe('evaluateCheck', () => {
         expect(evaluateCheck(card('fail'), card('fail')).exitCode).toBe(0);
     });
 
+    it('accepts a scorecard whose header records overrides', () => {
+        const overridden = card('pass');
+        overridden.header.overrides = { KICK_STORE_CAPACITY: '128' };
+        expect(evaluateCheck(card('pass'), overridden).exitCode).toBe(0);
+        expect(evaluateCheck(overridden, overridden).exitCode).toBe(0);
+    });
+
     it('fails and lists a blocking cell that stopped passing', () => {
         const outcome = evaluateCheck(card('pass'), card('fail'));
         expect(outcome.exitCode).toBe(1);
