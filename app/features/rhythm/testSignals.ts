@@ -1,6 +1,7 @@
+import { BandOnsets } from './bandOnsets';
 import { OnsetExtractor, packFrame, type OnsetFrame } from './onsetExtractor';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
-import { FFT_SIZE, FRAME_STRIDE } from './rhythmConfig';
+import { BATCH_FRAMES, FEATURE_ONSET_BAND_COUNT, FFT_SIZE, FRAME_STRIDE } from './rhythmConfig';
 import type { BeatsPerBar } from './types';
 
 // Synthetic audio and a pipeline runner for the rhythm specs and the offline evaluation. Everything is deterministic:
@@ -284,7 +285,6 @@ export function runPipeline(pcm: Float32Array, options: RunOptions = {}): RunRes
     const extractor = new OnsetExtractor(sampleRate);
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
-    const packed = new Float32Array(FRAME_STRIDE);
     const samples: Sample[] = [];
     const downbeatEvents: number[] = [];
     const songChangeEvents: number[] = [];
@@ -292,11 +292,26 @@ export function runPipeline(pcm: Float32Array, options: RunOptions = {}): RunRes
     let lastDownbeats = 0;
     let lastSongChanges = 0;
 
-    const onFrame = (frame: OnsetFrame): void => {
-        // The window is centred half its length before its end, exactly as the worklet computes the batch time.
-        const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
-        packFrame(frame, packed, 0);
-        analyzer.pushFrame(time, packed, 0);
+    const batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
+    const times = new Float64Array(BATCH_FRAMES);
+    let count = 0;
+    // The onset events of the batch being filled, as the worklet posts them with the batch.
+    const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
+    const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+    const onsetBand = new Uint8Array(onsetCapacity);
+    const onsetTime = new Float64Array(onsetCapacity);
+    const onsetStrength = new Float32Array(onsetCapacity);
+    let onsetCount = 0;
+    const onOnset = (band: number, eventTime: number, strength: number): void => {
+        if (onsetCount >= onsetCapacity) return;
+        onsetBand[onsetCount] = band;
+        onsetTime[onsetCount] = eventTime;
+        onsetStrength[onsetCount] = strength;
+        onsetCount++;
+    };
+
+    const analyzeFrame = (time: number, index: number): void => {
+        analyzer.pushFrame(time, batch, index * FRAME_STRIDE);
         analyzer.updatePhase(time);
         if (state.downbeatCount > lastDownbeats) {
             downbeatEvents.push(time);
@@ -319,10 +334,27 @@ export function runPipeline(pcm: Float32Array, options: RunOptions = {}): RunRes
             });
         }
     };
+    // The batch's kick events go in before its frames, the order RhythmTracker uses. The trailing partial batch is
+    // delivered too, so the samples cover the whole signal.
+    const deliver = (): void => {
+        analyzer.pushKicks(onsetBand, onsetTime, onsetStrength, onsetCount);
+        onsetCount = 0;
+        for (let i = 0; i < count; i++) analyzeFrame(times[i], i);
+        count = 0;
+    };
+    const onFrame = (frame: OnsetFrame): void => {
+        // The window is centred half its length before its end, exactly as the worklet computes the batch time.
+        const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
+        times[count] = time;
+        packFrame(frame, batch, count * FRAME_STRIDE);
+        bandOnsets.push(frame, time, onOnset);
+        if (++count === BATCH_FRAMES) deliver();
+    };
 
     for (let offset = 0; offset < pcm.length; offset += blockSize) {
         extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + blockSize)), onFrame);
     }
+    if (count > 0) deliver();
     return { analyzer, samples, downbeatEvents, songChangeEvents, frameRate: extractor.frameRate };
 }
 
