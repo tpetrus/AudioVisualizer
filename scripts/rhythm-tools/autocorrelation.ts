@@ -17,6 +17,7 @@ import {
     TEMPO_REFINE_RANGE,
     TEMPO_REFINE_STEP,
     TEMPO_RELATED_MAX_MULTIPLE,
+    TEMPO_TIE_FASTER_MIN_RATIO,
     TEMPO_TIE_MIN_RATIO,
     TEMPO_TIE_MULTIPLES,
     TEMPO_TIE_RIVAL_LAG_FACTORS,
@@ -158,17 +159,11 @@ export function estimateTempo(window: Correlation, geometry: TempoGeometry): Tem
     let bestLag = -1;
     let bestScore = 0;
     for (let lag = minLag; lag <= lastLag; lag++) {
-        const value = correlation[lag];
-        if (value <= 0 || value < correlation[lag - 1] || value < correlation[lag + 1]) {
-            scores[lag] = 0;
+        const score = lagScore(window, frameRate, lag);
+        scores[lag] = score;
+        if (score <= 0) {
             continue;
         }
-        let score = value;
-        if (lag * 2 <= lagLimit) {
-            score += TEMPO_DOUBLE_LAG_WEIGHT * correlation[lag * 2];
-        }
-        score *= prior(lag, frameRate);
-        scores[lag] = score;
         if (score > bestScore) {
             bestScore = score;
             bestLag = lag;
@@ -268,6 +263,36 @@ export function refineLag(window: Correlation, coarseLag: number): number {
     return refinedLag;
 }
 
+// The comb score of a lag (the tracker's `scores[lag]`): 0 unless the lag is a local peak of the correlation, otherwise
+// its height plus the weighted height at double the lag, times the tempo prior.
+function lagScore(window: Correlation, frameRate: number, lag: number): number {
+    const { correlation, lagLimit } = window;
+    const value = correlation[lag];
+    if (value <= 0 || value < correlation[lag - 1] || value < correlation[lag + 1]) {
+        return 0;
+    }
+    let score = value;
+    if (lag * 2 <= lagLimit) {
+        score += TEMPO_DOUBLE_LAG_WEIGHT * correlation[lag * 2];
+    }
+    return score * prior(lag, frameRate);
+}
+
+// The scored peak with the highest correlation within TEMPO_FASTER_TOLERANCE of `target` lags and no later than
+// `lastLag`, or -1 (the tracker's `peakNear`).
+function fasterPeakNear(window: Correlation, geometry: TempoGeometry, target: number, lastLag: number): number {
+    const { correlation } = window;
+    const from = Math.max(geometry.minLag, Math.floor(target * (1 - TEMPO_FASTER_TOLERANCE)));
+    const to = Math.min(lastLag, Math.ceil(target * (1 + TEMPO_FASTER_TOLERANCE)));
+    let best = -1;
+    for (let lag = from; lag <= to; lag++) {
+        if (lagScore(window, geometry.frameRate, lag) > 0 && (best < 0 || correlation[lag] > correlation[best])) {
+            best = lag;
+        }
+    }
+    return best;
+}
+
 // The tempo the tracker's first-lock tie-break would publish instead of the winner, or undefined when the winner stands.
 // The tracker decides this only on the update where it first locks (`settleFirstLock`), so it is not part of
 // `estimateTempo`: a caller that knows an update is the first lock asks here. It judges the dotted rival on the window
@@ -295,6 +320,21 @@ export function firstLockRivalBpm(
         if (height > rivalHeight) {
             rivalHeight = height;
             rival = peak!.lag;
+        }
+    }
+    // The 3:2 faster pulse replaces the dotted rival when its comb score reaches the ratio of the winner's, as in the
+    // tracker: the search stops at the winner's lag and needs a scored peak (no peak fails the comparison). A faster peak
+    // out of reach leaves the rival's lag as it was and its height NaN, which fails the closeness test below.
+    if (TEMPO_TIE_FASTER_MIN_RATIO > 0) {
+        const faster = fasterPeakNear(window, geometry, (estimate.bestLag * 2) / 3, estimate.bestLag);
+        if (
+            faster > 0 &&
+            lagScore(window, geometry.frameRate, faster) >=
+                TEMPO_TIE_FASTER_MIN_RATIO * lagScore(window, geometry.frameRate, estimate.bestLag)
+        ) {
+            const peak = interpolatedPeak(window, faster);
+            rivalHeight = peak?.height ?? NaN;
+            rival = peak?.lag ?? rival;
         }
     }
     if (rival === 0) {
