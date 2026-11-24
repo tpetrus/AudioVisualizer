@@ -1383,7 +1383,10 @@ largest of these over the tracks with a grid move (`lonley` and `low-bpm-rnb`); 
 
 100 ms is the smallest value that passes, which is the pre-registered choice. At 150 and 250 ms, `lonley`'s gate
 first opens at 13.50 s, exactly at its grid move (13.48 s), so it opens mid-glide. That earlier opening is recorded
-as a follow-up to test live, not taken here.
+as a follow-up to test live, not taken here: `FU-ATL-S5-glide-150` (R2, the full workflow). Run `sweep:gate` and
+`scorecard --set PHASE_GLIDE_MS=150`, and record `scorecard:live` for `dancing-character` on `lonley`, 4 runs each at 100
+and 150 ms, from the main checkout. Switch the constant only if the live gate opens earlier, no live cell gets worse
+and false opens do not rise. That is a revision of OD5 and needs Trevor's approval.
 
 **Gates at 100 ms, against `be82b93`.**
 - Every offline cell equals the base (446 applicable, 401 passing, 11 blocking failures). The baseline is rewritten
