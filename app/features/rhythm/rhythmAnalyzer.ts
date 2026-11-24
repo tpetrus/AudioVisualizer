@@ -358,8 +358,9 @@ export class RhythmAnalyzer {
         this.meter.addBeat(beatIndex, this.featureKick, this.featureTotal, this.featureChroma, period);
         this.syncMeterState();
 
-        // The new anchor starts `lead` seconds late, so that at the newest time shown it gives the phase on show (to the
-        // nearest beat), and eases back to the declared beat. The gap is taken in beats of each anchor's own period, so a
+        // The new anchor starts `lead` seconds after the declared beat (before it when lead is negative, a backward
+        // move), so that at the newest time shown it gives the phase on show (to the nearest beat), and eases back to
+        // the declared beat. The gap is taken in beats of each anchor's own period, so a
         // tempo change at the re-align (a halving) changes how fast the phase runs but does not make it jump. A move
         // at most the minimum, the first anchor and the first anchor of a new grid start no glide.
         let move = 0;
