@@ -36,8 +36,10 @@ export interface PhaseStepResult {
 }
 
 // Replays one track the way `replayPcm` feeds the tracker: AGC, the extractor over 128-sample blocks, batches of
-// BATCH_FRAMES, kick events first, one updatePhase per batch at its arrival time, and a render tick every
-// 1/60 s that runs before the batch that arrives after it. Only the render ticks are measured, as the scene reads them.
+// BATCH_FRAMES, kick events first, one updatePhase per batch (at the batch's last frame time, which stands in for its
+// arrival on the render clock: the app reads at ctx.currentTime minus the display delay and sync offset), and a render
+// tick every 1/60 s that runs before the batch that arrives after it. Only the render ticks are measured, as the scene
+// reads them.
 export function measurePhaseSteps(pcm: Float32Array, sampleRate: number): PhaseStepResult {
     const audio = applyAgc(pcm, sampleRate);
     const extractor = new OnsetExtractor(sampleRate);
@@ -93,7 +95,9 @@ export function measurePhaseSteps(pcm: Float32Array, sampleRate: number): PhaseS
             analyzer.pushFrame(time, batch, i * FRAME_STRIDE);
             countMoves();
         }
-        // One call per batch, after its frames and at its arrival time, as RhythmTracker.onMessage makes it.
+        // One call per batch, after its frames, as RhythmTracker.onMessage makes it. The time passed is the batch's last
+        // frame time, which stands in for its arrival on the render clock (the app reads at ctx.currentTime minus the
+        // display delay and sync offset).
         analyzer.updatePhase(arrival);
         count = 0;
     };

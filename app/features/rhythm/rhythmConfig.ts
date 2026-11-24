@@ -294,6 +294,8 @@ export const CHROMA_DISPLAY_SMOOTHING = 0.1;
 export const PHASE_EXTRAPOLATE_MAX_SECONDS = 1.5;
 // When a re-align moves the beat grid by more than PHASE_GLIDE_MIN_MS, the published phase eases to the new grid over
 // PHASE_GLIDE_MS instead of jumping; 0 keeps the jump. A move at most the minimum (two 10 ms hops) is not visible.
+// A backward move (the phase on show is ahead of the new grid) glides over twice its length when that is longer, so
+// the phase never runs backwards; 0 turns the glide off in both directions (every move jumps).
 export const PHASE_GLIDE_MS = 100;
 export const PHASE_GLIDE_MIN_MS = 20;
 

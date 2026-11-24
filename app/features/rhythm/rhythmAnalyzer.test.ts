@@ -956,8 +956,11 @@ describe('RhythmAnalyzer phase glide', () => {
     // The beat position the counter and the phase publish together.
     const position = (shown: { count: number; phase: number }) => shown.count + shown.phase;
 
-    // A move of -0.06 s, one between half and the whole of the 0.1 s glide (-0.07 s) and one of half a beat (-0.25 s).
-    const BACKWARD_BEATS = [1.56, 1.57, 1.75];
+    // Backward moves (the lead is 1.5 minus the beat time). Each case isolates one thing: -0.06 s and -0.07 s have 2|lead|
+    // (0.12 s, 0.14 s) just over the 0.1 s glide, so the stretch applies but only a little; -0.12 s and -0.24 s stretch
+    // it well past 0.1 s, and only cases with |lead| > 0.1 s would run backwards without the stretch; -0.25 s is half a
+    // beat, the longest move the wrap keeps backward.
+    const BACKWARD_BEATS = [1.56, 1.57, 1.62, 1.74, 1.75];
 
     it('never lets the published beat position decrease after a backward move, at 30 and 60 fps', () => {
         for (const beatTime of BACKWARD_BEATS) {
@@ -981,8 +984,8 @@ describe('RhythmAnalyzer phase glide', () => {
         for (const beatTime of [...BACKWARD_BEATS, 1.44]) {
             for (const fps of [30, 60]) {
                 const { r, before, lead } = lateBeat(beatTime);
-                // The first read comes a whole second-frame later than the last one shown, not at the same time: the glide
-                // must not have started yet, so the phase has advanced by the steady rate alone.
+                // The first read comes one frame after the last one shown, not at the same time as it: the glide must
+                // not have started yet, so the phase has advanced by the steady rate alone.
                 const first = 1.49 + 1 / fps;
                 let previous = position(r.at(first));
                 expect(previous).toBeCloseTo(position(before) + 1 / fps / PERIOD, 9);
@@ -1054,6 +1057,15 @@ describe('RhythmAnalyzer phase glide', () => {
                 quiet[FRAME_ENERGY_OFFSET] = 0.2;
                 quiet[FRAME_RMS_OFFSET] = 0.2;
                 for (let i = 1; i <= 30; i++) r.analyzer.pushFrame(1.6 + i / 100, quiet, 0);
+            }
+            // A read right after the reset must show no leftover glide: no phase at all after a hardReset (the anchor is
+            // gone), and after a rebuilt grid the plain extrapolation from the anchor at 1.75, not from the 1.5 that a
+            // retained lead of -0.25 s would give. `since` is not checked: every declare sets it to Infinity, so a
+            // stale value after clear() can never be read.
+            if (reset === 'hardReset') {
+                expect(r.at(1.9).phase).toBeUndefined();
+            } else {
+                expect(r.at(1.9).phase).toBeCloseTo((1.9 - 1.75) / PERIOD, 9);
             }
             // The first read after the reset shows the declared grid, and a forward move after it glides over 0.1 s.
             r.declare(5.0, 5.1);
