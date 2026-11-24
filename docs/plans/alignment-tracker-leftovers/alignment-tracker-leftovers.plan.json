@@ -1,0 +1,1191 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "alignment-tracker-leftovers-20261124t003451z-b43911f9",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-24T00:34:51.137Z",
+  "updated": "2026-11-24T00:47:20.568Z",
+  "feature": {
+    "slug": "alignment-tracker-leftovers",
+    "title": "Close out audio-alignment and tracker leftovers",
+    "request": "Feature: Close out the audio-alignment and tracker leftovers (everything still open except summer2000's beat phase)\n\nContext. The hub plans are finished: hub-regressions and hub-followups are closed (every row of\ndocs/plans/hub-followups/ledger.md is resolved), and audio-engine-alignment's 10 slices are done. The tracker work\ndeferred under D11 went through the D11 plan (docs/plans/rhythm-tracker/) and the tracker replan\n(docs/plans/rhythm-tracker-replan/). summer2000's beat.errorMedianMs has its own final plan\n(docs/plans/summer2000-beat-phase/) and is OUT of scope here. This plan collects everything else still open.\n\nRead first:\n- docs/agents/audio-alignment-findings.md: \"Next steps\" (status on 2026-11-22 and 2026-11-23), \"Tempo tracker work\"\n  and its known-weaknesses list, and \"3/2 tempo changes: shelved\"\n- docs/agents/hub-scorecard.md: \"Review decisions (Trevor, 2026-11-22)\", \"Tracker plan D11: status of the request's\n  failing cells\", \"Tracker replan, S0\" and \"Tracker replan, S1 to S4\"\n- docs/agents/capture-delay.md and docs/agents/debug-harness.md\n\nOpen items:\n1. AC9 (audio-alignment): the tab and device capture delay has only the --source direct self-check. The loopback runs\n   of `npm run measure:capture-delay -- --source tab|device` need Trevor at real hardware. Plan it as a guided manual\n   step with a clear procedure, what to record, and where the result goes (the default sync offset?).\n2. FU-S10-basspulse-time-based: BassPulse smooths per frame, so how fast it reacts depends on the frame rate. Make its\n   envelopes time-based, behave the same at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It changes\n   three visualizers through one shared class: ask Trevor whether it goes ahead, and say how the live cells prove no\n   regression (scorecard:live, scorecard:order).\n3. AC5 (audio-alignment): syncopation-no-kick's first lock (8.02 s; 2 of 10 offline start variations lock wrong). Its\n   135 pulse has almost no peak at its own lag; correcting on bar evidence alone was tried and flipped summer2000 to 4:3.\n4. Tracker weaknesses with no packet yet: a 3/4 click at 180 BPM reads 90 (an it.fails spec); high-bpm-dnb first locks\n   at 115 (adding 3:2 neighbors fixed it but delayed other locks to 8 s); the abrupt grid move when the phase\n   re-aligns (beat-grid jump; R2, touches shared state).\n5. Beat level: 6-8-time never locks to its truth (1 false song change) and half-time-shuffle holds 163 to 169 against\n   81. D11 S8 and the replan's S0 found that neither the tempo lags nor the kick events carry the bar evidence needed.\n6. beatless locks on a real 140 bpm periodicity; neither confidence, peak sharpness nor kick support separates it.\n7. AC7 dance-clip consistency (live.clip.maxDeviationBeats) failing or unavailable on low-bpm-rnb, 6-8-time,\n   syncopationbass, and borderline on syncopation-no-kick and high-bpm-dnb.\n8. Accepted as measured, for triage only (keep accepted unless the plan finds a cheap shared fix): the dancer's gate\n   after the lock on lonley 10.83 s, half-time-shuffle 7.18 s and low-bpm-rnb 14.92 s; the bassline-kick-120 onset F50\n   (a separate low-end spectrum project).\n\nConstraints.\n- Every tracker change affects every visualizer: judge it on the full `npm run scorecard` plus `scorecard:check`\n  (passing blocking cells must not get worse) and `sweep:gate` false opens; `bench:tracker` for CPU.\n- it.fails specs record known weaknesses; fixing one means removing .fails.\n- Committed .beats.json files are hash-checked and can't be recreated; the audio is local only.\n- Total JS is about 338.1 of 338.5 kB on main, so any growth needs a budget decision.\n- Live cells: `npm run scorecard:live` from the main checkout, one run at a time on an idle machine (machine load has\n  skewed results before). Worktrees: never link node_modules or .debug-in (AGENTS.md).\n- Two attempts already missed (D11 S6/S8, replan A and B): pre-register grids and go/no-go numbers per slice, and say\n  what gets accepted as measured if a slice misses.\n\nQuestions for the plan:\n1. Which of items 3 to 7 share one cause (beat-level or bar evidence, phase hypotheses), and which are independent?\n2. Which items are required, which are stretch, and which should be closed as accepted or won't-do now?\n3. Do AC9 and FU-S10 belong in this plan or in a small fast-lane packet of their own?\n4. Should this plan wait for summer2000-beat-phase to finish, since both touch BeatTracker?"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f"
+  },
+  "problem": {
+    "statement": "After the hub, audio-engine-alignment, D11 and replan work, a mixed set of items is still open: one manual measurement (AC9 tab/device capture delay), one follow-up already delivered in code but still listed open (FU-S10), and several tracker weaknesses (items 3-7) that two earlier attempts (D11 S6/S8, replan A/B) failed to fix because the evidence they relied on was not there. Without a probe-first, pre-registered approach, another attempt risks a third miss and scorecard regressions across every visualizer.",
+    "users": [
+      "Trevor (maintainer, runs the manual and live measurements and reviews go/no-go)",
+      "Listeners using any visualizer, who see tempo, beat grid and dance clips follow the music"
+    ],
+    "evidence": [
+      "docs/agents/audio-alignment-findings.md 528-566: open known weaknesses as of 2026-11-23",
+      "docs/agents/hub-scorecard.md 1156-1295: D11 S8 and replan S0/A/B found no bar evidence in tempo lags or kick events; kick-phase attempts A and B missed",
+      "app/features/audio/hub/bassBump.ts and bassBump.test.ts: time-based envelope with 30/60/144 fps specs, used by cubes, bass-ink and dancing-character; BassPulse is only built by scripts/scorecard/engine/prehubBass.ts",
+      "app/features/audio/timingModel.ts 17-21, 58: CAPTURE_DELAY_MS is 0 per kind and feeds the latency estimate",
+      "Scorecard S0 baseline: 446 cells, 22 fail, 11 blocking failures; JS 338.12 of 338.5 kB"
+    ]
+  },
+  "goals": [
+    "Close FU-S10 as delivered by BassBump, in docs and ledger, with no code change",
+    "Run AC9 as a guided manual loopback for tab (screen) and device, and set CAPTURE_DELAY_MS per kind when the result is stable",
+    "Classify items 3-7 by cause with one measurement-only probe slice before any tracker code changes",
+    "Attempt a fix only for a family the probe shows has a separable signal, under pre-registered grids and go/no-go numbers",
+    "Replace the abrupt beat-grid jump on phase re-align with a short glide, without changing where the grid lands",
+    "Leave every open item either fixed, or closed as accepted as measured or won't-do with its evidence"
+  ],
+  "non_goals": [
+    "summer2000 beat.errorMedianMs and kick-phase detection (summer2000-beat-phase was canceled; stays accepted as measured)",
+    "Changing BassPulse (the frozen pre-hub reference) or the pre-hub scorecard column",
+    "The bassline-kick-120 onset F50 (a separate low-end spectrum project)",
+    "The dancer gate-after-lock latencies on lonley, half-time-shuffle and low-bpm-rnb (stay accepted unless a fix slice improves them for free)",
+    "Raising the JS budget without an explicit decision recorded in the PR",
+    "3/2 tempo change following beyond what D11 S7 shipped"
+  ],
+  "success_metrics": [
+    "Every item 1-8 has a recorded outcome (fixed, accepted as measured, won't-do) in audio-alignment-findings.md",
+    "scorecard:check passes after every merged slice (no passing blocking cell gets worse; .beats.json hashes unchanged)",
+    "sweep:gate false opens not above the S0 baseline after any tracker change",
+    "bench:tracker branch/base median ratio at most 1.05 for any tracker change",
+    "Total JS stays at or under 338.5 kB unless a budget change is decided in the PR",
+    "AC9: tab and device loopback medians recorded with two runs each"
+  ],
+  "constraints": [
+    "Every tracker change is judged on the full npm run scorecard plus scorecard:check, sweep:gate false opens and bench:tracker",
+    "Fixing an it.fails weakness means removing .fails in the same change",
+    "Committed .beats.json files are hash-checked and cannot be recreated; audio is local only in .debug-in",
+    "Live cells: scorecard:live and scorecard:order from the main checkout, one run at a time on an idle machine",
+    "Worktrees never link node_modules or .debug-in; remove them with npm run worktree:remove",
+    "Grids and go/no-go numbers are fixed in the plan or the probe report before any fix run",
+    "PR titles are Conventional Commits; docs-only slices use docs: and change nothing that ships"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "bassBump.ts already scales its rates from 60 fps and bassBump.test.ts checks 30, 60 and 144 fps",
+      "when": "the FU-S10 closeout lands",
+      "then": "audio-alignment-findings.md and the hub-followups ledger list FU-S10-basspulse-time-based as done by BassBump, BassPulse is described as the frozen pre-hub reference, and no file under app/ changes"
+    },
+    {
+      "id": "AC2",
+      "given": "a run sheet in capture-delay.md for --source tab and --source device (Stereo Mix), recording per run the median, outputLatency, clicks found and machine",
+      "when": "Trevor runs each source twice on real hardware",
+      "then": "the runs are recorded; for each kind whose two hearing-relative figures (median minus outputLatency) agree within 10 ms, CAPTURE_DELAY_MS for that kind (screen for tab, device) is set to their mean rounded to 5 ms, and a user with no saved sync offset starts at the offset that moves visuals earlier by that delay (clamped to the slider range), with specs pinning the sign, the clamp and that a saved offset wins; a kind whose runs disagree or whose outputLatency reads n/a stays 0 with the reason recorded"
+    },
+    {
+      "id": "AC3",
+      "given": "probe-plan.md merged in its own PR before any probe run, fixing the score formula, lags and bands, margin, target tracks, controls (including a faster-level-truth track, a true 3/4 or 6/8 track and a true half-time track) and held-out tracks",
+      "when": "the probe runs on that plan with no app change, starting from what meter.addBeat already sees",
+      "then": "probe-report.md cites the probe-plan commit hash and gives, per family (level and meter: 3/4-180, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless; clip cells follow beat level), the measured margin on targets and on held-out tracks against the pre-registered threshold, and a go only if the held-out tracks pass"
+    },
+    {
+      "id": "AC4",
+      "given": "the probe gave the level and meter family a go",
+      "when": "the level fix is tried on its pre-registered grid of at most 6 points",
+      "then": "it ships only if every named held-out track passes, at least two of 6-8-time, half-time-shuffle and syncopation-no-kick (counting its start variations as one sample) lock within 4% of truth, the named regression set (an 81 to 90 BPM track, a true 4/4 track at 170 to 185 BPM and the probe controls) keeps its level, the C2 ladder passes and the slice adds at most 0.15 kB; the 3/4-180 .fails is removed only if that spec passes; otherwise nothing ships and the family is recorded as accepted as measured"
+    },
+    {
+      "id": "AC5",
+      "given": "the probe gave the high-bpm-dnb candidate-set item a go, with the 3:2-neighbor cost (other first locks delayed toward 8 s) pre-registered as the no-go",
+      "when": "the candidate-set change is tried on its pre-registered grid",
+      "then": "it ships only if high-bpm-dnb first locks within 4% of truth, no track in the named first-lock set (every scorecard track with a first-lock cell) locks more than 0.5 s later than the committed baseline, the C2 ladder passes and the slice adds at most 0.15 kB; otherwise it is recorded as accepted as measured"
+    },
+    {
+      "id": "AC6",
+      "given": "a phase re-align that moves the beat grid by more than rhythmConfig.phaseGlideMinMs",
+      "when": "RhythmAnalyzer.updatePhase publishes beat phase, nextBeatTime and counters after the re-align",
+      "then": "all three derive from one anchor that eases to the new grid over phaseGlideMs, the beat counter increments exactly when the published phase wraps, the largest per-frame phase step on the tracks with gridMoves falls below the pre-registered value, specs cover a wrap-crossing move, a counter step mid-glide, a backwards now, a second move mid-glide and reset on clear, hardReset and grid epoch change, and scorecard:check passes with beat.errorMedianMs no worse than 2 ms on any track, sweep:gate false opens not above baseline and the dancer gate-latency cells not worse"
+    },
+    {
+      "id": "AC7",
+      "given": "any slice that changed tracker or phase behaviour has merged",
+      "when": "scorecard:live runs for dancing-character and scorecard:order runs on one pair, one at a time from the main checkout",
+      "then": "live.clip.maxDeviationBeats is recorded for low-bpm-rnb, 6-8-time, syncopationbass, syncopation-no-kick and high-bpm-dnb, scorecard:check passes on the merged live json, and any cell still failing is recorded as accepted as measured with its value"
+    },
+    {
+      "id": "AC8",
+      "given": "all slices are done or stopped at their no-go",
+      "when": "the closeout lands",
+      "then": "audio-alignment-findings.md lists every item 1-8 with its outcome and evidence, beatless and item 8 are recorded as accepted as measured unless fixed, and the open-items list under Tempo tracker work is empty or each remaining entry names why"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "Does FU-S10 go ahead?",
+      "answer": "Close as done: the visualizers already use time-based BassBump with 30/60/144 fps specs; BassPulse stays per-frame as the pre-hub reference",
+      "decided_by": "user",
+      "rationale": "Repo shows the work is delivered; changing BassPulse would only move the pre-hub column"
+    },
+    {
+      "id": "D2",
+      "question": "Do AC9 and FU-S10 belong here or in a fast lane?",
+      "answer": "Separate fast-lane slices first, independent of the tracker work",
+      "decided_by": "user",
+      "rationale": "They depend on nothing and gain nothing from waiting"
+    },
+    {
+      "id": "D3",
+      "question": "Wait for summer2000-beat-phase?",
+      "answer": "No: that plan finished as canceled because its solutions did not improve it enough; summer2000 stays accepted as measured and out of scope",
+      "decided_by": "user",
+      "rationale": "No concurrent BeatTracker work to sequence against"
+    },
+    {
+      "id": "D4",
+      "question": "How ambitious is the tracker part?",
+      "answer": "Probe first, then fix only families with a separable signal, under pre-registered go/no-go",
+      "decided_by": "user",
+      "rationale": "Two attempts already missed on missing evidence"
+    },
+    {
+      "id": "D5",
+      "question": "What happens to the beat-grid jump?",
+      "answer": "Smooth the visible jump with a glide; do not change where the grid lands or retry kick-phase detection",
+      "decided_by": "user",
+      "rationale": "Presentation fix independent of the missing phase evidence"
+    },
+    {
+      "id": "D6",
+      "question": "Framing of items 3-7",
+      "answer": "Families: octave/3:2 level (3/4 at 180, 6-8-time, half-time-shuffle), first lock (syncopation-no-kick, high-bpm-dnb), beatless (own cause), AC7 clip cells follow beat level; item 8 stays accepted",
+      "decided_by": "user",
+      "rationale": "Matches D11 S8 and replan S0 findings; confirmed by Trevor"
+    },
+    {
+      "id": "D7",
+      "question": "Where does the AC9 result go?",
+      "answer": "CAPTURE_DELAY_MS per kind, used as the default sync offset for screen and device when the user has no saved offset; the slider still overrides",
+      "decided_by": "user",
+      "rationale": "The critic found the constant had no consumer; Trevor chose to make it the starting sync offset"
+    },
+    {
+      "id": "D8",
+      "question": "Which CaptureKind does --source tab map to?",
+      "answer": "screen (tab audio is captured via getDisplayMedia, CaptureKind is screen, device or file)",
+      "decided_by": "repo-fact",
+      "rationale": "timingModel.ts line 3 has no tab kind"
+    },
+    {
+      "id": "D9",
+      "question": "How are items 3 and 4 grouped after the critic's review?",
+      "answer": "syncopation-no-kick joins the level and meter family (its bar evidence cannot tell 4/4 from 3/4); high-bpm-dnb is its own candidate-set item (173 is never weighed; 3:2 neighbors delayed other locks)",
+      "decided_by": "planner-assumption",
+      "rationale": "findings 306-312; refines D6 without changing its probe-first intent"
+    },
+    {
+      "id": "D10",
+      "question": "JS budget for this plan",
+      "answer": "No budget raise in this plan; each code slice adds at most 0.15 kB and the total stays within 338.5 kB; a fix that needs more is a no-go",
+      "decided_by": "planner-assumption",
+      "rationale": "0.38 kB headroom; decided now so no slice argues for a raise after seeing results"
+    },
+    {
+      "id": "D11",
+      "question": "Order of the glide and the tracker fixes",
+      "answer": "The glide ships first and its scorecard becomes the committed baseline that the level and candidate-set fixes are judged against",
+      "decided_by": "planner-assumption",
+      "rationale": "The glide changes published phase that the scorecard reads; judging fixes on a moving baseline mixes effects"
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Two docs/manual fast-lane slices, one measurement-only probe with fixed thresholds, at most two gated fix slices, a small phase glide, one live pass and a closeout; nothing ships on a missed gate.",
+      "approach": [
+        "S1 docs: close FU-S10 as done by BassBump (bassBump.ts, 30/60/144 fps specs); BassPulse is the frozen pre-hub reference; update audio-alignment-findings.md and the hub-followups ledger. No app/ change.",
+        "S2 manual AC9: add a run sheet to capture-delay.md (tab: 'This Tab' + 'Also share tab audio'; device: Stereo Mix). Trevor runs each source twice and records median, outputLatency, click counts and machine. If two runs agree within 10 ms, set CAPTURE_DELAY_MS.screen / .device to the mean rounded to 5 ms and update timingModel.test.ts; otherwise keep 0 and record the spread.",
+        "S3 probe, no app change: run trace:beats, ablate:rhythm and eval:rhythm on 3/4-180 click, 6-8-time, half-time-shuffle, syncopation-no-kick, high-bpm-dnb, beatless, with passing tracks as controls (summer2000, lonley). Output is a probe report in docs/plans/. Pre-registered rule: a family has a separable signal only if the truth-level score beats the wrong level by at least 10% on every target track and the wrong level never beats truth on any control. Otherwise the family is recorded as accepted as measured.",
+        "S4 conditional level fix: only if S3 passes for the level family. One rhythmConfig grid (at most 6 points) for a bar-evidence term in RhythmAnalyzer. Go if AC4 holds. Remove .fails from the 3/4-180 spec in rhythmAnalyzer.test.ts if it passes.",
+        "S5 conditional first-lock fix: only if S3 passes for first lock. One rhythmConfig grid for a seed or 3:2 neighbour in BeatTracker. Go if AC5 holds, and no first lock gets more than 0.5 s later.",
+        "S6 glide: in BeatTracker's published phase, move by a bounded glide (about 150 ms) when a re-align exceeds a threshold. The grid target and beat counters are unchanged. Add a unit spec. Go if scorecard:check passes and beat.errorMedianMs is within 2 ms on every track.",
+        "S7 live pass: one at a time from the main checkout, scorecard:live for dancing-character and scorecard:order on one pair, recording clip.maxDeviationBeats on the 5 named tracks. S8 closeout: record the outcome of items 1-8 in findings. Beatless and item 8 stay accepted."
+      ],
+      "components": [
+        {
+          "name": "Probe report",
+          "responsibility": "Pre-registered thresholds, measured values, family verdicts",
+          "location": "docs/plans/alignment-tracker-leftovers/probe.md"
+        },
+        {
+          "name": "Capture-delay constants",
+          "responsibility": "Per-kind delay from the AC9 result",
+          "location": "app/features/audio/timingModel.ts"
+        },
+        {
+          "name": "Level/first-lock fixes",
+          "responsibility": "Gated tracker changes",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, beatTracker.ts, rhythmConfig.ts"
+        },
+        {
+          "name": "Phase glide",
+          "responsibility": "Bounded smoothing of the published phase",
+          "location": "app/features/rhythm/beatTracker.ts"
+        }
+      ],
+      "contracts": [
+        "CAPTURE_DELAY_MS values change for screen and device only if the two runs agree within 10 ms.",
+        "rhythmConfig may gain one or two constants (bar-evidence weight, glide ms).",
+        "Published beat phase is continuous but converges to the same grid."
+      ],
+      "pros": [
+        "Fast docs and manual slices are independent of the tracker work.",
+        "Probe-first avoids a third missed attempt, and a miss costs no shipped code.",
+        "Smallest total diff; growth is capped by gates."
+      ],
+      "cons": [
+        "Likely outcome is that the level and first-lock fixes both stop at no-go, so the benefit is mostly documentation.",
+        "The probe's 10% rule is a judgment call.",
+        "The glide adds a small state change in shared code."
+      ],
+      "risks": [
+        "The glide could shift beat.errorMedianMs while the phase converges.",
+        "JS budget: 338.12 of 338.5 kB leaves 0.38 kB; each fix capped at +0.15 kB or a budget decision is required.",
+        "Machine load skews live cells."
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 4.15
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Staged, pre-registered pipeline: docs/hardware fast lane, one measurement-only probe with held-out tracks, then flag-guarded fixes per family that each ship only through a fixed gate ladder or close as accepted as measured.",
+      "approach": [
+        "P0 (docs-only, fast lane): close FU-S10 as delivered by BassBump in findings and hub-followups ledger; no app/ change (AC1).",
+        "P1 (manual, fast lane): extend capture-delay.md with a per-run record table (median, outputLatency, clicks, machine). Trevor runs tab and device twice each; if the two runs agree within 10 ms, set CAPTURE_DELAY_MS screen/device to mean rounded to 5 ms and update timingModel.test.ts, else keep 0 and record the spread (AC2).",
+        "P2 probe (no app change): commit a probe-plan file before any run, naming exact tracks per family, parameter grids, thresholds, and a held-out split (tune on one half of tracks and start variations, report on the untouched half plus every other scorecard track). Run trace:beats, ablate:rhythm, eval:rhythm; write the report that assigns each item a family with measured value vs threshold (AC3).",
+        "P3 level fix (only if the probe finds a separable signal): new fields in rhythmConfig (for example levelEvidence.enabled, default false until gates pass) read in BeatTracker/RhythmAnalyzer. Run order: unit specs, offline scorecard, scorecard:check, sweep:gate, bench:tracker (ratio <= 1.05), then scorecard:live once. Ship only on the AC4 numbers, remove .fails on the 3/4-at-180 spec in the same change; otherwise leave the flag off or delete the code and record accepted as measured.",
+        "P4 first-lock fix, same ladder and flag pattern, AC5 numbers (9/10 start variations or dnb within 4%, no other first lock later than 0.5 s). Held-out check of the 10 start variations of other tracks guards against the summer2000 4:3 flip.",
+        "P5 beat-grid glide: a bounded smoothing of published phase in RhythmAnalyzer (rhythmConfig.phaseGlideMs, 0 means old jump) with specs for no counter skip or double count; gate on beat.errorMedianMs no worse than 2 ms (AC6). Independent of P3 and P4.",
+        "P6 closeout: one live pass (scorecard:live for dancing-character, scorecard:order on one pair, one at a time on an idle main checkout) recording live.clip.maxDeviationBeats on the five tracks. Write every item 1-8 outcome into findings; beatless and item 8 stay accepted as measured (AC7, AC8)."
+      ],
+      "components": [
+        {
+          "name": "Probe plan and report",
+          "responsibility": "Pre-registered tracks, grids, thresholds, held-out split; measured results per family",
+          "location": "docs/plans/alignment-tracker-leftovers/probe-plan.md, probe-report.md"
+        },
+        {
+          "name": "Level and first-lock switches",
+          "responsibility": "Default-off config switches gating new evidence code for instant rollback",
+          "location": "app/features/rhythm/rhythmConfig.ts, beatTracker.ts, rhythmAnalyzer.ts"
+        },
+        {
+          "name": "Phase glide",
+          "responsibility": "Bounded easing of published phase after re-align, counters unaffected",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts"
+        },
+        {
+          "name": "Capture delay constants",
+          "responsibility": "Per-kind CAPTURE_DELAY_MS from measured loopback",
+          "location": "app/features/audio/timingModel.ts, timingModel.test.ts, docs/agents/capture-delay.md"
+        },
+        {
+          "name": "Gate ladder",
+          "responsibility": "Fixed checklist per slice, with no-go outcome text",
+          "location": "slice PR template in docs/plans/alignment-tracker-leftovers/"
+        }
+      ],
+      "contracts": [
+        "rhythmConfig adds default-off switches (level evidence, first-lock evidence) and phaseGlideMs; flag off must reproduce the S0 scorecard exactly",
+        "Gate ladder per tracker slice: unit, scorecard, scorecard:check, sweep:gate not above S0, bench:tracker <= 1.05, size <= 338.5 kB, then one live pass",
+        "No-go rule: a slice that misses its pre-registered number ships nothing, deletes or leaves its flag off, and is recorded as accepted as measured with the values"
+      ],
+      "pros": [
+        "Lowest chance of a third miss: thresholds and held-out tracks fixed before any run",
+        "Flag-off equals baseline, so rollback is a one-line change and regressions are bisectable",
+        "Every item gets a recorded outcome, even on a miss"
+      ],
+      "cons": [
+        "More process and docs than the minimal path",
+        "Flag branches add JS against a 0.38 kB headroom, so the fix slices may need a budget decision or must remove the flag at ship",
+        "Probe slice adds a round trip before any fix"
+      ],
+      "risks": [
+        "Probe finds no separable signal, so P3 and P4 never start (acceptable outcome, recorded)",
+        "Live cells are load-sensitive and may give noisy AC7 values",
+        "Glide could shift beat.errorMedianMs by more than 2 ms",
+        "AC2 runs may disagree and leave CAPTURE_DELAY_MS at 0"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 3.55
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Stop trying to make the tracker know the bar: run the two fast-lane slices, one measurement-only probe that also tests non-kick evidence (chroma change, non-kick-band flux periodicity) with pre-registered thresholds, ship only the glide, and close items 3-7 as accepted unless the probe clears its bar; clip level ambiguity is handled consumer-side only if Trevor approves.",
+      "approach": [
+        "Slice 1 (docs): close FU-S10 as done by BassBump in findings and hub-followups ledger; no app/ change (AC1).",
+        "Slice 2 (manual): Trevor runs measure:capture-delay tab and device twice each; record in capture-delay.md; set CAPTURE_DELAY_MS screen/device to the mean rounded to 5 ms only if runs agree within 10 ms, else stay 0 with spread (AC2).",
+        "Slice 3 (probe, no app change): on 6-8-time, half-time-shuffle, 3/4-at-180, syncopation-no-kick, high-bpm-dnb, beatless, with pre-registered thresholds, test two new evidence sources via a script under scripts/ only: chroma-change period (bar boundaries) and flux periodicity in the non-kick bands (hats, snare). Signal counts as separable only if it picks truth on at least 2 of 3 level tracks AND does not pick a wrong level on summer2000 or beatless. Report per family (AC3).",
+        "Slice 4 (only if the probe clears): one level or first-lock attempt on a single pre-registered grid; any miss ships nothing and the family is closed accepted as measured (AC4, AC5).",
+        "Slice 5: beat-grid glide in the phase publish step, bounded (for example 150 ms), grid target unchanged, counters driven by the target grid; unit spec; scorecard:check with errorMedianMs within 2 ms (AC6).",
+        "Slice 6: AC7 live runs after any merge, one at a time from main; record values. Consumer-side tolerance (dancing-character folds clip length to the nearest of x, 2x, 3/2x of the beat) is offered as a Trevor decision, since it changes what the cell measures.",
+        "Closeout: findings lists items 1-8 with outcomes; beatless and item 8 accepted (AC8)."
+      ],
+      "components": [
+        {
+          "name": "Evidence probe script",
+          "responsibility": "Offline chroma and non-kick flux periodicity vs truth level; report only",
+          "location": "scripts/ (new, not shipped)"
+        },
+        {
+          "name": "Phase glide",
+          "responsibility": "Bounded easing of published phase after re-align",
+          "location": "app/features/rhythm/beatTracker.ts or the phase publish site; spec beside it"
+        },
+        {
+          "name": "CAPTURE_DELAY_MS",
+          "responsibility": "Per-kind delay from AC9 result",
+          "location": "app/features/audio/timingModel.ts, timingModel.test.ts, docs/agents/capture-delay.md"
+        },
+        {
+          "name": "Outcome record",
+          "responsibility": "Item 1-8 outcomes",
+          "location": "docs/agents/audio-alignment-findings.md, docs/plans/hub-followups/ledger.md"
+        }
+      ],
+      "contracts": [
+        "Published beat phase may lag the target grid for at most the glide window; beat counters read the target grid.",
+        "CAPTURE_DELAY_MS.screen and .device may become non-zero."
+      ],
+      "pros": [
+        "Cheapest honest path; two misses show tracker-side bar evidence is likely absent",
+        "Probe tests genuinely new evidence rather than retrying kicks",
+        "JS growth about 0 to 0.1 kB, inside the 0.38 kB headroom"
+      ],
+      "cons": [
+        "Items 3-7 likely end as accepted as measured",
+        "Clip-side folding could be read as moving the goalposts; needs Trevor's call",
+        "Chroma needs an FFT-to-pitch-class stage that may not fit the budget if it ships"
+      ],
+      "risks": [
+        "Chroma ships only if it fits under 338.5 kB; otherwise a budget decision is needed",
+        "Glide interacts with phase re-align in shared state (R2)",
+        "AC9 hardware results may not agree within 10 ms"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 4
+      },
+      "total": 3.85
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "O1's slice structure with O2's pre-registered probe plan and held-out split, and O3's non-kick evidence sources tested in the probe. Ship config constants, not default-off flags, to keep JS within the 0.38 kB headroom.",
+      "approach": [
+        "Fast lane (from O1): S1 docs closeout of FU-S10; S2 AC9 run sheet and manual loopback, CAPTURE_DELAY_MS per kind if two runs agree within 10 ms",
+        "S3 (from O2): commit probe-plan.md naming tracks per family, grids, thresholds and a held-out split before any probe run",
+        "S4 probe (O1 plus O3): trace:beats, ablate:rhythm and eval:rhythm on the target tracks, plus a scripts-only measurement of non-kick-band flux periodicity and chroma-change period as candidate bar evidence; no app change",
+        "S5 and S6: conditional level and first-lock fixes, each one rhythmConfig grid of at most 6 points, tuned on the tuning half and judged on the held-out half plus the full scorecard",
+        "S7: phase glide via rhythmConfig.phaseGlideMs (0 reproduces the old jump), counters read the target grid",
+        "S8: one live pass after the last tracker merge, then closeout of items 1-8"
+      ],
+      "components": [
+        {
+          "name": "Probe plan and report",
+          "responsibility": "Pre-registered tracks, grids, thresholds, held-out split; measured verdict per family",
+          "location": "docs/plans/alignment-tracker-leftovers/probe-plan.md, probe-report.md"
+        },
+        {
+          "name": "Evidence probe script",
+          "responsibility": "Offline non-kick flux periodicity and chroma-change period against truth level; not shipped",
+          "location": "scripts/probe-bar-evidence/"
+        },
+        {
+          "name": "Capture-delay constants",
+          "responsibility": "Per-kind delay from AC9",
+          "location": "app/features/audio/timingModel.ts, docs/agents/capture-delay.md"
+        },
+        {
+          "name": "Level and first-lock fixes",
+          "responsibility": "Gated tracker changes",
+          "location": "app/features/rhythm/rhythmAnalyzer.ts, beatTracker.ts, rhythmConfig.ts"
+        },
+        {
+          "name": "Phase glide",
+          "responsibility": "Bounded easing of the published phase after a re-align",
+          "location": "app/features/rhythm/beatTracker.ts, rhythmConfig.ts"
+        }
+      ],
+      "contracts": [
+        "C1 probe pre-registration",
+        "C2 gate ladder and no-go rule",
+        "C3 published phase glide",
+        "C4 CAPTURE_DELAY_MS per kind"
+      ],
+      "pros": [
+        "Thresholds and a held-out split are fixed before any run, which addresses why D11 and the replan missed",
+        "Tests genuinely new evidence (non-kick bands, chroma) instead of retrying tempo lags and kicks",
+        "Config constants with old-behaviour values give rollback without flag code",
+        "Fast lane ships independently"
+      ],
+      "cons": [
+        "One more docs step (probe-plan) before the probe",
+        "Chroma, if it ever ships, likely needs a budget decision",
+        "Likely outcome is still several families accepted as measured"
+      ],
+      "risks": [
+        "Probe finds nothing separable; fix slices never start (an accepted outcome)",
+        "Glide shifts beat.errorMedianMs",
+        "Live cells noisy under load"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 5,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 4.35
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O4 keeps O1's small slice structure but adds the two things that address why earlier attempts missed: a committed pre-registration with a held-out split (O2) and a test of evidence not tried before, non-kick flux and chroma (O3). It avoids O2's default-off flag code, which the 0.38 kB headroom cannot carry, by using rhythmConfig constants whose old values reproduce S0. O3's clip-side folding is not taken: it changes what AC7 measures, and Trevor kept the cells as they are.",
+  "design": {
+    "overview": "Two independent fast-lane slices (FU-S10 docs closeout, AC9 manual loopback with the result as the default sync offset per kind) ship first. Tracker work starts with probe-plan.md merged on its own, then a measurement-only probe that starts from the meter's existing features (kick, total and chroma per beat) and per-band flux, and gives each family a go only if held-out tracks pass. The phase glide ships next in RhythmAnalyzer.updatePhase and its scorecard becomes the baseline. Only families with a go get one fix slice through the C2 ladder. One live pass after the last tracker merge records the AC7 clip cells, and a closeout records every item's outcome.",
+    "components": [
+      {
+        "name": "FU-S10 closeout",
+        "responsibility": "Mark FU-S10 delivered by BassBump; describe BassPulse as the frozen pre-hub reference",
+        "location": "docs/agents/audio-alignment-findings.md, docs/plans/hub-followups/ledger.md"
+      },
+      {
+        "name": "AC9 run sheet and default offset",
+        "responsibility": "Procedure, record table, per-kind constant and its use as the default sync offset",
+        "location": "docs/agents/capture-delay.md, app/features/audio/timingModel.ts, app/features/audio/audioEngine.ts"
+      },
+      {
+        "name": "Probe plan, start-variation harness and report",
+        "responsibility": "Pre-registration, reproducible start offsets, verdicts",
+        "location": "docs/plans/alignment-tracker-leftovers/, scripts/probe-bar-evidence/"
+      },
+      {
+        "name": "Phase glide",
+        "responsibility": "Ease the published anchor after a re-align",
+        "location": "app/features/rhythm/rhythmAnalyzer.ts, rhythmConfig.ts"
+      },
+      {
+        "name": "Level and meter fix",
+        "responsibility": "Choose the truth level using probe-proven evidence",
+        "location": "app/features/rhythm/rhythmAnalyzer.ts, meter code, rhythmConfig.ts"
+      },
+      {
+        "name": "Candidate-set fix",
+        "responsibility": "Weigh the missing tempo candidate for high-bpm-dnb",
+        "location": "app/features/rhythm/tempo code, rhythmConfig.ts"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "Probe pre-registration",
+        "kind": "process",
+        "definition": "probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR."
+      },
+      {
+        "id": "C2",
+        "name": "Gate ladder and no-go rule",
+        "kind": "process",
+        "definition": "Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values."
+      },
+      {
+        "id": "C3",
+        "name": "Published phase glide",
+        "kind": "behaviour",
+        "definition": "In RhythmAnalyzer.updatePhase, when a re-align moves the grid by more than phaseGlideMinMs, the anchor eases to the new grid over phaseGlideMs (pre-registered grid 0, 100, 150, 250 ms; 0 reproduces the old jump). beatPhase, nextBeatTime and the beat and bar counters all derive from the eased anchor, so the counter increments exactly when the published phase wraps. Scorecard readers (replay beat times, gateTrace, live clip) all see the eased values. Glide state resets on clear, hardReset and grid epoch change, restarts on a second move, and treats a backwards now as no progress. No allocation per frame."
+      },
+      {
+        "id": "C4",
+        "name": "Capture delay as default sync offset",
+        "kind": "config",
+        "definition": "CAPTURE_DELAY_MS.screen and .device become the mean of two hearing-relative figures (loopback median minus outputLatency), rounded to 5 ms, only when they agree within 10 ms and outputLatency is known; otherwise 0. file stays 0. When no sync offset is saved, the engine starts at the offset that moves visuals earlier by CAPTURE_DELAY_MS of the current kind, clamped to the slider range; a saved offset always wins."
+      }
+    ],
+    "data": "No schema change. Probe outputs and live json committed under docs/; .beats.json files untouched and hash-checked.",
+    "ux": "Listeners see the beat grid ease instead of jump after a re-align; any level or first-lock fix that ships changes tempo display and dance timing on the affected tracks only.",
+    "accessibility": "No UI change.",
+    "security_privacy": "Audio stays local; the probe reads .debug-in only; nothing new is committed from it.",
+    "observability": "trace:beats, debug:viz telemetry (gridMoves) and the scorecard cells; the glide's effect shows in gridMoves and beat.errorMedianMs.",
+    "rollout": "Fast-lane slices merge first as separate PRs (docs: for S1, fix(audio): for S2's constant). Each tracker slice is its own PR behind the C2 ladder; rollback is reverting the PR or setting its rhythmConfig constant back to the S0 value (phaseGlideMs 0). Cloudflare preview checked for any change that renders. Live pass runs once after the last tracker merge, from the main checkout on an idle machine."
+  },
+  "test_strategy": {
+    "unit": "timingModel.test.ts for the new constants; beatTracker spec for the glide (no counter skip, bounded duration, 0 reproduces the jump); remove .fails from rhythmAnalyzer.test.ts 3/4-180 only if the level fix passes; coverage stays at or above 95%.",
+    "integration": "npm run scorecard and scorecard:check on every tracker slice; sweep:gate and bench:tracker per C2; held-out start variations via trace:beats.",
+    "e2e": "npm run test:e2e after any app change; visual baselines unchanged expected.",
+    "manual": "AC9 loopback runs by Trevor; npm run dev check of the glide on a track with a known re-align; scorecard:live for dancing-character and scorecard:order on one pair, one at a time from the main checkout.",
+    "non_functional": "bench:tracker ratio at most 1.05; npm run size at or under 338.5 kB."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "A third attempt overfits the tuning tracks and regresses others",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "C1 held-out split and C2 ladder; no-go reverts the code"
+    },
+    {
+      "id": "K2",
+      "description": "Probe finds no separable evidence for any family",
+      "likelihood": "high",
+      "impact": "low",
+      "mitigation": "Accepted outcome: families close as accepted as measured with numbers (AC8)"
+    },
+    {
+      "id": "K3",
+      "description": "Glide shifts beat.errorMedianMs or confuses counters in shared state",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Counters follow the target grid; 2 ms limit per track; phaseGlideMs 0 restores old behaviour"
+    },
+    {
+      "id": "K4",
+      "description": "JS budget exceeded by a fix",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "D10: at most 0.15 kB per code slice, no raise in this plan; a fix that needs more is a no-go"
+    },
+    {
+      "id": "K5",
+      "description": "Live cells skewed by machine load",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "One run at a time on an idle machine; rerun a failing cell once before recording"
+    },
+    {
+      "id": "K6",
+      "description": "AC9 runs disagree, leaving the constants at 0",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Record the spread; sync slider remains the correction"
+    },
+    {
+      "id": "K7",
+      "description": "Default sync offset from one machine is wrong for other machines",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Only applies with no saved offset; slider overrides; documented as one machine"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Close FU-S10 as done by BassBump",
+      "objective": "Docs-only closeout of FU-S10 in findings and the ledger",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1"
+      ],
+      "contracts": [],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "docs/agents/audio-alignment-findings.md",
+        "docs/plans/hub-followups/ledger.md"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "AC9 capture-delay loopback",
+      "objective": "Write the run sheet, Trevor runs tab and device twice each, record results, set CAPTURE_DELAY_MS and the default sync offset per C4",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC2"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "docs/agents/capture-delay.md",
+        "app/features/audio/timingModel.ts",
+        "app/features/audio/timingModel.test.ts",
+        "app/features/audio/audioEngine.ts",
+        "app/features/audio/audioEngine.test.ts"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Probe pre-registration",
+      "objective": "Write and merge probe-plan.md per C1 in its own docs PR, before any probe run",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC3"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R0",
+      "size": "S",
+      "draft_paths": [
+        "docs/plans/alignment-tracker-leftovers/probe-plan.md"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Probe run and report",
+      "objective": "Build the start-variation harness and reproduce the 2-of-10 baseline, dump what meter.addBeat sees on targets, measure the pre-registered scores, and write probe-report.md citing the plan's commit",
+      "depends_on": [
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC3"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R0",
+      "size": "M",
+      "draft_paths": [
+        "scripts/probe-bar-evidence/",
+        "docs/plans/alignment-tracker-leftovers/probe-report.md"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Phase glide on re-align",
+      "objective": "Implement C3 in RhythmAnalyzer.updatePhase on its pre-registered grid through the C2 ladder; commit the refreshed baseline",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC6"
+      ],
+      "contracts": [
+        "C2",
+        "C3"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/rhythmAnalyzer.test.ts",
+        "app/features/rhythm/rhythmConfig.ts",
+        "docs/agents/hub-scorecard.cells.json"
+      ]
+    },
+    {
+      "id": "S6",
+      "title": "Level and meter fix, conditional",
+      "objective": "Only on an S4 go for the level and meter family: one grid of at most 6 points through the C2 ladder, judged on the glide baseline; ship on AC4 or record accepted as measured",
+      "depends_on": [
+        "S4",
+        "S5"
+      ],
+      "acceptance_refs": [
+        "AC4"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/rhythmAnalyzer.ts",
+        "app/features/rhythm/rhythmAnalyzer.test.ts",
+        "app/features/rhythm/rhythmConfig.ts"
+      ]
+    },
+    {
+      "id": "S7",
+      "title": "high-bpm-dnb candidate set, conditional",
+      "objective": "Only on an S4 go for the candidate-set item: one grid through the C2 ladder on the latest committed baseline (the glide's, or S6's if it shipped; independent of S6's outcome); ship on AC5 or record accepted as measured",
+      "depends_on": [
+        "S4",
+        "S5"
+      ],
+      "acceptance_refs": [
+        "AC5"
+      ],
+      "contracts": [
+        "C1",
+        "C2"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/rhythm/rhythmConfig.ts",
+        "app/features/rhythm/tempo.ts",
+        "app/features/rhythm/tempo.test.ts"
+      ]
+    },
+    {
+      "id": "S8",
+      "title": "Live pass and closeout",
+      "objective": "After the last tracker merge or no-go, scorecard:live for dancing-character and scorecard:order on one pair from the main checkout; record the AC7 clip cells; write every item 1-8 outcome in findings, recording AC9 as pending if S2 is not done",
+      "depends_on": [
+        "S1",
+        "S4",
+        "S5",
+        "S6",
+        "S7"
+      ],
+      "acceptance_refs": [
+        "AC7",
+        "AC8"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "docs/agents/hub-scorecard.live.json",
+        "docs/agents/hub-scorecard.md",
+        "docs/agents/audio-alignment-findings.md"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Which pair does the S7 scorecard:order run use (dancing-character with cubes, or bass-ink)?",
+      "owner": "Trevor, at S7",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "design",
+        "finding": "C3/S4 put the glide in beatTracker.ts, but BeatTracker publishes nothing continuous. Published beatPhase, nextBeatTime and the counters come from RhythmAnalyzer.updatePhase (app/features/rhythm/rhythmAnalyzer.ts:196-233), a stateless extrapolation from the newest anchor. The glide therefore has to live there, and S4's draft_paths omit rhythmAnalyzer.ts. O2 placed it in the analyzer and O4 did not, so the plan is inconsistent. The scorecard also derives its beat times from the published phase: scripts/scorecard/engine/replay.ts:311-319 computes beats.push(time - phase*period) with period from nextBeatTime. If phase is eased while nextBeatTime and the counters follow the target grid, every beat counted during a glide gets a wrong derived time. The AC6 gate (beat.errorMedianMs within 2 ms, a median over all beats) hides this and cannot show the glide's benefit either. gateTrace (replay.ts:274) and live clip (scripts/scorecard/live/measures.ts:205, phase*beats) also read beatPhase, and sweep:gate false opens and the dancer-gate cells move with it. AC6 gates none of these.",
+        "suggestion": "Name rhythmAnalyzer.updatePhase as the site and fix the S4 paths. Pick one rule: either phase, nextBeatTime and the counters all derive from the same eased position, or the eased value goes in a separate display field that only dancing-character reads. Say which scorecard readers (replay beats, gateTrace, live clip) see the eased or the target phase. Add a pre-registered observable for the glide itself, such as the largest per-frame phase step on the tracks with gridMoves, and add the sweep:gate and gate-latency cells to the AC6 gate.",
+        "resolution": "Fixed: C3 and S5 place the glide in RhythmAnalyzer.updatePhase; phase, nextBeatTime and counters derive from one eased anchor so every scorecard reader sees consistent values; AC6 adds the max per-frame phase step observable, sweep:gate and gate-latency cells."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "design",
+        "finding": "C3 says counters follow the target grid and never skip or double-count, while the published phase is eased. During a glide the beat counter can rise while beatPhase is still, say, 0.8. Consumers that treat the phase wrap as the beat (clip position, dancer timing) then disagree with the counter, which is the same inconsistency the glide is meant to remove. The glide also has to cross the 0/1 wrap when it eases from 0.9 to 0.1, and its state is time-domain. updatePhase(now) is called with explicit offline times and with sync-offset times that can go backwards (rhythmAnalyzer.ts:205-208). The spec list covers none of this. Glide state must also reset on clear(), hardReset, a grid epoch change and a second re-align that starts mid-glide.",
+        "suggestion": "Add specs for: a re-align that crosses the wrap; a counter rising mid-glide; a backwards `now`; a second move during a glide; and reset on hardReset and gridEpoch. State the invariant in C3 in terms of the published fields (for example, the counter increments exactly when the published phase wraps).",
+        "resolution": "Fixed: C3 invariant is that the counter increments exactly at the published wrap; AC6 lists specs for wrap crossing, mid-glide counter, backwards now, second move and resets."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "problem",
+        "finding": "C4/AC2/S2 assume that setting CAPTURE_DELAY_MS reaches listeners (D7: 'Every user gets the estimate'). In app/ and scripts/ the only consumer is featureDelaySeconds (timingModel.ts:55-58), which is referenced only in timingModel.test.ts. The comment at timingModel.ts:14-16 says nothing is subtracted automatically. A measured non-zero constant would change no behaviour, no scorecard cell and no sync default, so S2 would ship a dead constant. The formulas disagree too. AC2 says the mean of the two medians rounded to 5 ms, while C4 says the mean of the two medians minus outputLatency. capture-delay.md:45-54 defines the hearing-relative figure as median minus outputLatency, and outputLatency can read n/a. timingModel.test.ts:63 pins {0,0,0} and must change with it.",
+        "suggestion": "Decide before S2 what reads the constant (a latency readout, a default sync offset, or nothing). If nothing, reduce S2 to recording the result in capture-delay.md and leave the constant at 0. Otherwise add the consumer to S2's paths and an AC for it. Use one formula in AC2 and C4, and say what happens when outputLatency is n/a.",
+        "resolution": "Fixed with Trevor (D7): the constant becomes the default sync offset per kind when none is saved; one formula (median minus outputLatency) in AC2 and C4; n/a outputLatency keeps 0; audioEngine paths added to S2."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "C1's separability rule and held-out split will not stop a third miss. (a) The 'score' of the truth level against the best wrong level is not an output of trace:beats, ablate:rhythm or eval:rhythm. The scripts-only probe defines its own score, lags and bands after seeing the data, which is the same freedom the earlier attempts had. (b) The rule is checked only on the tuning targets. The level family has 3 targets (one a synthetic unit-test signal). The first-lock family has 2 tracks, and one is 10 start variations of the same music, so they are not independent (findings:245 says only 2 of the 10 fail). Splitting them in halves can leave the held-out half with no failing variation. (c) Every named control (summer2000, lonley, drums-128, imyourgirl, syncopationbass2) is a case where the expected level is the slow one, so 'no control picks a wrong level' passes trivially. No control has the faster level as truth (the 81 BPM versus 182 break-even trade at findings:297-298) and none is in triple meter, and findings:308 says the bar evidence already cannot tell 4/4 from 3/4.",
+        "suggestion": "In probe-plan.md fix the score formula, the lag and band set and the margin definition before any run. Add at least one control whose truth is the faster level, one true 3/4 or 6/8 control and one true half-time control. Make held-out tracks, meaning the other scorecard tracks plus untouched start offsets, the pass condition for 'separable', not only the tuning targets. Treat the 10 start variations as one sample.",
+        "resolution": "Fixed: C1 fixes score formula, lags, bands and margin; adds faster-level, triple-meter and half-time controls; held-out tracks are the go condition; start variations count as one sample."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "D6 (a planner framing, marked as confirmed) splits level from first lock, but findings:306-312 show these are not two clean causes. syncopation-no-kick's bar evidence 'is decisive from 4 s' but cannot tell 4/4 from 3/4, which is the level family's missing signal. high-bpm-dnb is a candidate-set gap: only 4:3 neighbors are weighed and 173 never is, and adding 3:2 neighbors delayed other locks to 8 s. A bar-evidence probe does not address that. S6 carries one grid for these two causes. S6 also depends on S5, so a no-go in S5 leaves S6 without the evidence it was meant to inherit.",
+        "suggestion": "Make syncopation-no-kick part of the level or meter family and treat high-bpm-dnb as its own candidate-set item with its known 3:2-neighbor cost pre-registered as the no-go. Say in S6 what it uses from S5 when S5 is a no-go.",
+        "resolution": "Fixed: D9 moves syncopation-no-kick into the level and meter family and makes high-bpm-dnb a candidate-set item with the 3:2 cost as its no-go; S7 no longer depends on S6's outcome."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "The AC4/AC5 go conditions are 'A or B' lists, which lets the cheapest ship. AC4 passes if the synthetic 3/4-at-180 it.fails spec passes. That target is the most overfittable, since the likely lever is the 182 break-even (findings:297-298). AC5 passes if high-bpm-dnb alone locks within 4%, even though findings:311 records the 8 s delay to other locks from that exact change. scorecard:check protects only passing blocking cells, and a 'no first lock later than 0.5 s' check needs a defined list of tracks and a baseline. The 81 BPM tracks the break-even protects may not be in the scorecard at all.",
+        "suggestion": "Require the held-out numbers and a named regression set (including an 81 to 90 BPM track and a track in the 170 to 185 range that is true 4/4) in AC4 and AC5. Say which scorecard tracks form the 0.5 s first-lock set.",
+        "resolution": "Fixed: AC4 requires held-out tracks, two of three real tracks and a named regression set; AC5 names the first-lock set (every scorecard track with a first-lock cell)."
+      },
+      {
+        "id": "F7",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "S4 (R2) has depends_on [], yet it changes the published phase that the scorecard reads (see F1) and edits beatTracker.ts and rhythmConfig.ts, the files S5 and S6 edit. Whichever merges first moves the baseline the others are gated against. C2 says 'sweep:gate not above S0' and scorecard:check runs against the committed baseline, so after S4 merges, S5 and S6 are judged on a shifted S0. The AC4 and AC5 'no worse' comparisons then mix the glide with the fix. S4 and S5/S6 will also conflict on rhythmConfig.ts.",
+        "suggestion": "Make S4 depend on S5 and S6, because they may be no-go and S4 is independent of their decision. Or run S4 first and require a refreshed, committed baseline before S5 starts. Either way, state in C2 which baseline each slice is judged against.",
+        "resolution": "Fixed: D11 and C2: the glide ships first and its committed baseline gates S6 and S7; each passing slice commits a refreshed baseline."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "S3 holds both the pre-registration (C1: probe-plan.md 'committed before any probe run') and the probe in one slice and one PR, so nothing in AC3 shows the order, and thresholds can be edited before the PR lands. C1's 'new committed revision and Trevor's agreement' has no gate either. S7 (closeout, AC8) depends on S2, a manual hardware step with no deadline, so a stalled loopback blocks the live pass and closeout of the tracker items. S7 also lists no dependency on S3 or on the slice outcomes it records.",
+        "suggestion": "Split S3 into S3a (probe-plan.md alone, merged or hash-recorded first) and S3b (probe and report), and have AC3 cite the plan's commit hash. Let S7 close with AC9 recorded as pending if S2 is not done, or give S2 an explicit deadline.",
+        "resolution": "Fixed: pre-registration is its own slice and PR (S3), the report cites its commit (AC3); S8 no longer waits on S2 and records AC9 as pending if needed."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "design",
+        "finding": "The plan misdescribes the evidence the probe tests. Q2/K4 and the O4 cons say chroma needs an FFT-to-pitch-class stage that may not fit 338.5 kB. RhythmAnalyzer already holds CHROMA_BINS frames and computes a per-beat chroma change (rhythmAnalyzer.ts:63-68, 356-371), and passes featureKick, featureTotal and featureChroma to meter.addBeat (:294). Per-band flux is also already in each frame. So the 'new' evidence partly exists in the meter, and the probe may duplicate it or ignore it. The budget risk was also weakened. O1 capped each fix at +0.15 kB; O4 dropped the cap, and C2 allows 'or a recorded budget decision', so the 0.38 kB headroom is not enforced. The glide, the only slice sure to run, takes state, config constants and logic and could use most of it before S5 and S6.",
+        "suggestion": "In S3 start by dumping what meter.addBeat already sees on the target tracks. Drop the chroma-budget premise and the Q2 question that rests on it. Pre-register a byte cap per slice (for example, glide at most 0.15 kB), and decide any budget raise now, not at S5.",
+        "resolution": "Fixed: the probe starts from what meter.addBeat already sees; the chroma budget premise and Q2 are dropped; D10 caps each code slice at 0.15 kB with no raise."
+      },
+      {
+        "id": "F10",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC5's '9 of 10 offline start variations' and the held-out start variations in the test strategy ('via trace:beats') rely on a harness I could not find. A search of scripts/rhythm-tools, scripts/scorecard and scripts/ground-truth for start, offset or variation options turned up no start-variation option. The only record is the findings table (:245: 500 ms lead, 100 ms skipped). The 10 variations are not defined (offsets, trims or leads), and they were produced outside the named tools. The go/no-go number may be unmeasurable with the listed tools, or measured differently from the baseline of '2 of 10'.",
+        "suggestion": "Name the exact variation set (the 10 offsets and how each is produced) and the command that reproduces the baseline '2 of 10' before S6. Add the script to S3's paths if it must be written.",
+        "resolution": "Fixed: S4 builds the start-variation harness with exact offsets in probe-plan.md and must reproduce the 2-of-10 baseline before measuring."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "fa6ab26127941309ac01236c1d66119cc1ef3cbfd214705abbd268b03e5e097d",
+    "cards": {
+      "O1": "ddc750bb02135557c700e1534cf593319bd594aeadfdfa416be212aef2ea74be",
+      "O2": "b6b7ec7301b60bca63dcecf246b220723c62d6dba1f8e11cad3ec2b74d3cc7ff",
+      "O3": "b6595fbd86b04037454695f2a3eaf78618069a9f6e2aa35eb6a6767e39cad68a"
+    },
+    "critic_sha256": "a287d2678da775aa2cd33aa2b5afd29ea5c4449ed3eb9305cc53eb55922bc3dd",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "f4be2f52dbfbaa9c",
+      "acs_sha256": "da26ab1c572640cc"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "fd953c11a097df15",
+      "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C4",
+          "name": "Capture delay as default sync offset",
+          "kind": "config",
+          "definition": "CAPTURE_DELAY_MS.screen and .device become the mean of two hearing-relative figures (loopback median minus outputLatency), rounded to 5 ms, only when they agree within 10 ms and outputLatency is known; otherwise 0. file stays 0. When no sync offset is saved, the engine starts at the offset that moves visuals earlier by CAPTURE_DELAY_MS of the current kind, clamped to the slider range; a saved offset always wins."
+        },
+        {
+          "id": "C1",
+          "name": "Probe pre-registration",
+          "kind": "process",
+          "definition": "probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR."
+        },
+        {
+          "id": "C2",
+          "name": "Gate ladder and no-go rule",
+          "kind": "process",
+          "definition": "Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values."
+        },
+        {
+          "id": "C3",
+          "name": "Published phase glide",
+          "kind": "behaviour",
+          "definition": "In RhythmAnalyzer.updatePhase, when a re-align moves the grid by more than phaseGlideMinMs, the anchor eases to the new grid over phaseGlideMs (pre-registered grid 0, 100, 150, 250 ms; 0 reproduces the old jump). beatPhase, nextBeatTime and the beat and bar counters all derive from the eased anchor, so the counter increments exactly when the published phase wraps. Scorecard readers (replay beat times, gateTrace, live clip) all see the eased values. Glide state resets on clear, hardReset and grid epoch change, restarts on a second move, and treats a backwards now as no progress. No allocation per frame."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Close FU-S10 as done by BassBump: Docs-only closeout of FU-S10 in findings and the ledger",
+          "dependencies": [],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/audio-alignment-findings.md",
+            "docs/plans/hub-followups/ledger.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC1: Given bassBump.ts already scales its rates from 60 fps and bassBump.test.ts checks 30, 60 and 144 fps, when the FU-S10 closeout lands, then audio-alignment-findings.md and the hub-followups ledger list FU-S10-basspulse-time-based as done by BassBump, BassPulse is described as the frozen pre-hub reference, and no file under app/ changes"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "AC9 capture-delay loopback: Write the run sheet, Trevor runs tab and device twice each, record results, set CAPTURE_DELAY_MS and the default sync offset per C4",
+          "dependencies": [],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/capture-delay.md",
+            "app/features/audio/timingModel.ts",
+            "app/features/audio/timingModel.test.ts",
+            "app/features/audio/audioEngine.ts",
+            "app/features/audio/audioEngine.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 Capture delay as default sync offset (config): CAPTURE_DELAY_MS.screen and .device become the mean of two hearing-relative figures (loopback median minus outputLatency), rounded to 5 ms, only when they agree within 10 ms and outputLatency is known; otherwise 0. file stays 0. When no sync offset is saved, the engine starts at the offset that moves visuals earlier by CAPTURE_DELAY_MS of the current kind, clamped to the slider range; a saved offset always wins."
+          ],
+          "acceptance": [
+            "AC2: Given a run sheet in capture-delay.md for --source tab and --source device (Stereo Mix), recording per run the median, outputLatency, clicks found and machine, when Trevor runs each source twice on real hardware, then the runs are recorded; for each kind whose two hearing-relative figures (median minus outputLatency) agree within 10 ms, CAPTURE_DELAY_MS for that kind (screen for tab, device) is set to their mean rounded to 5 ms, and a user with no saved sync offset starts at the offset that moves visuals earlier by that delay (clamped to the slider range), with specs pinning the sign, the clamp and that a saved offset wins; a kind whose runs disagree or whose outputLatency reads n/a stays 0 with the reason recorded"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Probe pre-registration: Write and merge probe-plan.md per C1 in its own docs PR, before any probe run",
+          "dependencies": [],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/plans/alignment-tracker-leftovers/probe-plan.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Probe pre-registration (process): probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR."
+          ],
+          "acceptance": [
+            "AC3: Given probe-plan.md merged in its own PR before any probe run, fixing the score formula, lags and bands, margin, target tracks, controls (including a faster-level-truth track, a true 3/4 or 6/8 track and a true half-time track) and held-out tracks, when the probe runs on that plan with no app change, starting from what meter.addBeat already sees, then probe-report.md cites the probe-plan commit hash and gives, per family (level and meter: 3/4-180, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless; clip cells follow beat level), the measured margin on targets and on held-out tracks against the pre-registered threshold, and a go only if the held-out tracks pass"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Probe run and report: Build the start-variation harness and reproduce the 2-of-10 baseline, dump what meter.addBeat sees on targets, measure the pre-registered scores, and write probe-report.md citing the plan's commit",
+          "dependencies": [
+            "S3"
+          ],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "scripts/probe-bar-evidence/",
+            "docs/plans/alignment-tracker-leftovers/probe-report.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Probe pre-registration (process): probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR."
+          ],
+          "acceptance": [
+            "AC3: Given probe-plan.md merged in its own PR before any probe run, fixing the score formula, lags and bands, margin, target tracks, controls (including a faster-level-truth track, a true 3/4 or 6/8 track and a true half-time track) and held-out tracks, when the probe runs on that plan with no app change, starting from what meter.addBeat already sees, then probe-report.md cites the probe-plan commit hash and gives, per family (level and meter: 3/4-180, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless; clip cells follow beat level), the measured margin on targets and on held-out tracks against the pre-registered threshold, and a go only if the held-out tracks pass"
+          ],
+          "verify": [],
+          "risk": "R0",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Phase glide on re-align: Implement C3 in RhythmAnalyzer.updatePhase on its pre-registered grid through the C2 ladder; commit the refreshed baseline",
+          "dependencies": [],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/rhythmAnalyzer.test.ts",
+            "app/features/rhythm/rhythmConfig.ts",
+            "docs/agents/hub-scorecard.cells.json"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Gate ladder and no-go rule (process): Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values.",
+            "C3 Published phase glide (behaviour): In RhythmAnalyzer.updatePhase, when a re-align moves the grid by more than phaseGlideMinMs, the anchor eases to the new grid over phaseGlideMs (pre-registered grid 0, 100, 150, 250 ms; 0 reproduces the old jump). beatPhase, nextBeatTime and the beat and bar counters all derive from the eased anchor, so the counter increments exactly when the published phase wraps. Scorecard readers (replay beat times, gateTrace, live clip) all see the eased values. Glide state resets on clear, hardReset and grid epoch change, restarts on a second move, and treats a backwards now as no progress. No allocation per frame."
+          ],
+          "acceptance": [
+            "AC6: Given a phase re-align that moves the beat grid by more than rhythmConfig.phaseGlideMinMs, when RhythmAnalyzer.updatePhase publishes beat phase, nextBeatTime and counters after the re-align, then all three derive from one anchor that eases to the new grid over phaseGlideMs, the beat counter increments exactly when the published phase wraps, the largest per-frame phase step on the tracks with gridMoves falls below the pre-registered value, specs cover a wrap-crossing move, a counter step mid-glide, a backwards now, a second move mid-glide and reset on clear, hardReset and grid epoch change, and scorecard:check passes with beat.errorMedianMs no worse than 2 ms on any track, sweep:gate false opens not above baseline and the dancer gate-latency cells not worse"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S6",
+          "objective": "Level and meter fix, conditional: Only on an S4 go for the level and meter family: one grid of at most 6 points through the C2 ladder, judged on the glide baseline; ship on AC4 or record accepted as measured",
+          "dependencies": [
+            "S4",
+            "S5"
+          ],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/rhythmAnalyzer.ts",
+            "app/features/rhythm/rhythmAnalyzer.test.ts",
+            "app/features/rhythm/rhythmConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Probe pre-registration (process): probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR.",
+            "C2 Gate ladder and no-go rule (process): Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values."
+          ],
+          "acceptance": [
+            "AC4: Given the probe gave the level and meter family a go, when the level fix is tried on its pre-registered grid of at most 6 points, then it ships only if every named held-out track passes, at least two of 6-8-time, half-time-shuffle and syncopation-no-kick (counting its start variations as one sample) lock within 4% of truth, the named regression set (an 81 to 90 BPM track, a true 4/4 track at 170 to 185 BPM and the probe controls) keeps its level, the C2 ladder passes and the slice adds at most 0.15 kB; the 3/4-180 .fails is removed only if that spec passes; otherwise nothing ships and the family is recorded as accepted as measured"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S7",
+          "objective": "high-bpm-dnb candidate set, conditional: Only on an S4 go for the candidate-set item: one grid through the C2 ladder on the latest committed baseline (the glide's, or S6's if it shipped; independent of S6's outcome); ship on AC5 or record accepted as measured",
+          "dependencies": [
+            "S4",
+            "S5"
+          ],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/rhythm/rhythmConfig.ts",
+            "app/features/rhythm/tempo.ts",
+            "app/features/rhythm/tempo.test.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 Probe pre-registration (process): probe-plan.md is merged in its own PR before any probe run and fixes: the score formula, lag set, band set and margin; targets per family (level and meter: 3/4-180 synthetic, 6-8-time, half-time-shuffle, syncopation-no-kick; candidate set: high-bpm-dnb; beatless); controls including at least one faster-level-truth track, one true 3/4 or 6/8 track and one true half-time track besides summer2000, lonley, drums-128, imyourgirl and syncopationbass2; held-out tracks (every other scorecard track plus untouched start offsets) whose pass is the condition for a go; the 10 syncopation-no-kick start variations defined as exact offsets and counted as one sample. A threshold change needs a new merged revision that Trevor approves in its PR.",
+            "C2 Gate ladder and no-go rule (process): Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values."
+          ],
+          "acceptance": [
+            "AC5: Given the probe gave the high-bpm-dnb candidate-set item a go, with the 3:2-neighbor cost (other first locks delayed toward 8 s) pre-registered as the no-go, when the candidate-set change is tried on its pre-registered grid, then it ships only if high-bpm-dnb first locks within 4% of truth, no track in the named first-lock set (every scorecard track with a first-lock cell) locks more than 0.5 s later than the committed baseline, the C2 ladder passes and the slice adds at most 0.15 kB; otherwise it is recorded as accepted as measured"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S8",
+          "objective": "Live pass and closeout: After the last tracker merge or no-go, scorecard:live for dancing-character and scorecard:order on one pair from the main checkout; record the AC7 clip cells; write every item 1-8 outcome in findings, recording AC9 as pending if S2 is not done",
+          "dependencies": [
+            "S1",
+            "S4",
+            "S5",
+            "S6",
+            "S7"
+          ],
+          "base_revision": "2b95c688f9c2e03b28eed6567fe93a914394cd7f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/agents/hub-scorecard.live.json",
+            "docs/agents/hub-scorecard.md",
+            "docs/agents/audio-alignment-findings.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 Gate ladder and no-go rule (process): Every tracker slice is judged against the committed baseline at its start (after S5, the glide's baseline) and passes, in order: unit specs (it.fails removed if fixed), npm run scorecard, scorecard:check, sweep:gate false opens not above baseline, bench:tracker median ratio at most 1.05, npm run size within 338.5 kB with the slice adding at most 0.15 kB, then its AC numbers on held-out tracks. A slice that passes commits a refreshed baseline. Any miss ships nothing, the code is reverted, and the family is recorded as accepted as measured with the measured values."
+          ],
+          "acceptance": [
+            "AC7: Given any slice that changed tracker or phase behaviour has merged, when scorecard:live runs for dancing-character and scorecard:order runs on one pair, one at a time from the main checkout, then live.clip.maxDeviationBeats is recorded for low-bpm-rnb, 6-8-time, syncopationbass, syncopation-no-kick and high-bpm-dnb, scorecard:check passes on the merged live json, and any cell still failing is recorded as accepted as measured with its value",
+            "AC8: Given all slices are done or stopped at their no-go, when the closeout lands, then audio-alignment-findings.md lists every item 1-8 with its outcome and evidence, beatless and item 8 are recorded as accepted as measured unless fixed, and the open-items list under Tempo tracker work is empty or each remaining entry names why"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}
