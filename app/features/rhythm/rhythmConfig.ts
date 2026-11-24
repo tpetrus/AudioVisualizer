@@ -137,6 +137,10 @@ export const TEMPO_TIE_SWITCH_FACTOR = 1.1;
 export const TEMPO_TIE_PEAK_TOLERANCE = 0.03;
 // The dotted rivals of a lag, as factors of it (4/3 and 3/4: the two pulses that dotted notes make against the beat).
 export const TEMPO_TIE_RIVAL_LAG_FACTORS = [4 / 3, 3 / 4] as const;
+// The 3:2 faster neighbor (2/3 of the winning lag) is also a tie rival, but only when its comb score is at least this
+// fraction of the winner's (0 turns it off). Unconditional, it made most first locks wait for the full history; before a
+// first lock its score is 0 on every scorecard track but high-bpm-dnb, where it is at least 0.764 while the winner is 115.
+export const TEMPO_TIE_FASTER_MIN_RATIO = 0.7;
 export const TEMPO_TIE_MULTIPLES = [4, 8] as const;
 // Estimates within this fraction of the held tempo only nudge it (hysteresis), and the held tempo follows by this
 // fraction of the difference per estimate.

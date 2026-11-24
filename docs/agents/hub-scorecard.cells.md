@@ -1,6 +1,6 @@
 # Scorecard
 
-Targets version 9, revision a19a743, created 2026-11-24T02:04:14.754Z.
+Targets version 9, revision 1e1d355, created 2026-11-24T02:55:30.376Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
@@ -29,7 +29,7 @@ Applicable cells 446: 401 passing, 24 failing, 21 unavailable. Blocking failures
 | beat.errorMedianMs | drums-128.wav | synthetic | 2.3 | 20.0 | - | - | pass |
 | beat.errorMedianMs | drums-150.wav | synthetic | 1.6 | 20.0 | - | - | pass |
 | beat.errorMedianMs | half-time-shuffle.wav | tapped | 22.6 | 40.0 | - | - | pass |
-| beat.errorMedianMs | high-bpm-dnb.wav | tapped | 21.5 | 40.0 | - | - | pass |
+| beat.errorMedianMs | high-bpm-dnb.wav | tapped | 19.3 | 40.0 | - | - | pass |
 | beat.errorMedianMs | imyourgirl.wav | tapped | 23.8 | 40.0 | - | - | pass |
 | beat.errorMedianMs | lonley.wav | tapped | 25.9 | 40.0 | - | - | pass |
 | beat.errorMedianMs | low-bpm-rnb.wav | tapped | 24.2 | 40.0 | - | - | pass |
@@ -139,7 +139,7 @@ Applicable cells 446: 401 passing, 24 failing, 21 unavailable. Blocking failures
 | gate.firstOpenSeconds | drums-128.wav | synthetic | 5.95 | - | - | 5.95 | pass (report-only) |
 | gate.firstOpenSeconds | drums-150.wav | synthetic | 6.13 | - | - | 6.13 | pass (report-only) |
 | gate.firstOpenSeconds | half-time-shuffle.wav | tapped | 18.58 | - | - | 18.58 | pass (report-only) |
-| gate.firstOpenSeconds | high-bpm-dnb.wav | tapped | 10.07 | - | - | 10.07 | pass (report-only) |
+| gate.firstOpenSeconds | high-bpm-dnb.wav | tapped | 9.88 | - | - | 9.88 | pass (report-only) |
 | gate.firstOpenSeconds | imyourgirl.wav | tapped | 3.28 | - | - | 3.28 | pass (report-only) |
 | gate.firstOpenSeconds | lonley.wav | tapped | 18.97 | - | - | 18.97 | pass (report-only) |
 | gate.firstOpenSeconds | low-bpm-rnb.wav | tapped | 18.05 | - | - | 18.05 | pass (report-only) |
@@ -164,7 +164,7 @@ Applicable cells 446: 401 passing, 24 failing, 21 unavailable. Blocking failures
 | gate.secondsAfterLock | drums-128.wav | synthetic | 2.82 | 4.00 | 2.00 | 2.82 | pass |
 | gate.secondsAfterLock | drums-150.wav | synthetic | 3.00 | 4.00 | 2.00 | 3.00 | pass |
 | gate.secondsAfterLock | half-time-shuffle.wav | tapped | 7.18 | 4.00 | 2.00 | 7.18 | fail |
-| gate.secondsAfterLock | high-bpm-dnb.wav | tapped | 1.93 | 4.00 | 2.00 | 1.93 | pass |
+| gate.secondsAfterLock | high-bpm-dnb.wav | tapped | 1.72 | 4.00 | 2.00 | 1.72 | pass |
 | gate.secondsAfterLock | imyourgirl.wav | tapped | 0.15 | 4.00 | 2.00 | 0.15 | pass |
 | gate.secondsAfterLock | lonley.wav | tapped | 10.83 | 4.00 | 2.00 | 10.83 | fail |
 | gate.secondsAfterLock | low-bpm-rnb.wav | tapped | 14.92 | 4.00 | 2.00 | 14.92 | fail |

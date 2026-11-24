@@ -70,3 +70,28 @@ the current kind, clamped to the slider range; a saved offset always wins.
   C:/Users/trevo/CODE/AudioVisualizer/.debug-in`; nothing is linked; worktrees are removed with `npm run
   worktree:remove`. `scorecard:live` and `scorecard:order` (S8) run only from the main checkout on `main`, one at a
   time, with no builder running.
+- **OD8 S7's grid (pre-registered 2026-11-23, before any S7 run).** The probe (`probe-report.md`, #144) found that
+  `high-bpm-dnb`'s 3:2 faster neighbor has a comb score ratio R of at least 0.764 while it holds 115. On every other
+  track's updates before its first lock, R is 0: there is no comb peak at that lag. The change weighs the 3:2 faster
+  neighbor (lag factor 2/3) as a first-lock tie rival only when its comb score is at least ρ times the estimate's.
+  ρ is a new `rhythmConfig.ts` constant, `TEMPO_TIE_FASTER_MIN_RATIO`, overridable with `--set`, where 0 means off.
+  The grid is ρ = 0.5, 0.6 and 0.7. Each point passes only on AC5's terms:
+  - `high-bpm-dnb` first locks within 4% of 173;
+  - no track with a first-lock cell locks more than 0.5 s later than the baseline committed by S5;
+  - C2's ladder passes.
+  The chosen value is the largest ρ that passes, which touches the fewest tracks. If none passes, S7 is a no-go and
+  `high-bpm-dnb`'s first lock is accepted as measured.
+- **OD9 Size at S7's start.** The limit is 339.1 kB and `main` measures about 339.06 kB, so S7 has about 40 B. That is
+  less than the 0.15 kB cap, and the smaller figure applies (OD2). A slice over it is a no-go unless Trevor decides
+  otherwise.
+- **S9 glide refinements (added 2026-11-23, approved by Trevor; R2).** This runs after S7, on the latest baseline,
+  through the C2 ladder. It does two things:
+  - `FU-ATL-S5-glide-latch`: start the glide at the first `updatePhase` after a move, and have the OD5 tool call
+    `updatePhase` once per batch, as the app does.
+  - `FU-ATL-S5-backward-glide`: stretch the glide for backward moves larger than `PHASE_GLIDE_MS`, so the published
+    phase never runs backwards.
+
+  It owns `rhythmAnalyzer.ts` and its spec, `kickGolden.test.ts`, `scripts/rhythm-tools/phaseStep*.ts` and the
+  scorecard baseline files. It passes when specs show the phase never decreasing between forward reads (including a
+  backward move of 0.5 beat) and the first step after a move staying within one frame of glide travel at 30 and
+  60 fps. OD5 (per-batch calls) must stay at most 0.10 beat, and the slice must fit the size limit at its start.

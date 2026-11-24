@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
     TEMPO_LOCK_CONFIDENCE,
     TEMPO_MIN_HISTORY_SECONDS,
@@ -7,6 +7,18 @@ import {
 } from './rhythmConfig';
 import { isSyncopationRatio, TempoTracker } from './tempo';
 import { createRandom } from './testSignals';
+
+// The 3:2 faster tie rival's ratio is a rhythmConfig constant; its specs change it per case (undefined keeps the default).
+const fasterTie = vi.hoisted(() => ({ ratio: undefined as number | undefined }));
+vi.mock('./rhythmConfig', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./rhythmConfig')>();
+    return {
+        ...actual,
+        get TEMPO_TIE_FASTER_MIN_RATIO() {
+            return fasterTie.ratio ?? actual.TEMPO_TIE_FASTER_MIN_RATIO;
+        },
+    };
+});
 
 const FRAME_RATE = 100;
 const UPDATE_FRAMES = Math.round(TEMPO_UPDATE_SECONDS * FRAME_RATE);
@@ -453,6 +465,67 @@ describe('TempoTracker first-lock tie', () => {
         expect(tracker.confidence).toBeLessThan(TEMPO_LOCK_CONFIDENCE);
         expect(tracker.deferring).toBe(false);
         expect(tracker.bpm).toBe(0);
+    });
+});
+
+// A bar of four beats every 36 frames (167 BPM, at `beat` weight) with a pulse every 54 frames (111 BPM, at weight 1) that
+// restarts each bar, as in a drum and bass track whose estimate holds 2/3 of the beat. The 111 pulse wins the estimate and
+// has no dotted rival; the beat is its 3:2 faster neighbor, and only the beat repeats every bar.
+function fasterBar(seconds: number, beat: number): Float32Array {
+    const frames = Math.round(seconds * FRAME_RATE);
+    const envelope = new Float32Array(frames);
+    for (let bar = 0; bar * 144 < frames; bar++) {
+        for (let k = 0; k < 4; k++) {
+            if (bar * 144 + k * 36 < frames) {
+                envelope[bar * 144 + k * 36] += beat;
+            }
+            if (k < 3 && bar * 144 + k * 54 < frames) {
+                envelope[bar * 144 + k * 54] += 1;
+            }
+        }
+    }
+    return envelope;
+}
+
+describe('TempoTracker first-lock tie with the 3:2 faster neighbor', () => {
+    afterEach(() => {
+        fasterTie.ratio = undefined;
+    });
+
+    it('weighs the faster neighbor when its comb score reaches TEMPO_TIE_FASTER_MIN_RATIO, and moves to it', () => {
+        fasterTie.ratio = 0.5;
+        const trace = driveTie(new TempoTracker(FRAME_RATE), fasterBar(14, 0.2));
+
+        expect(trace.firstDeferred).toBeCloseTo(3, 1);
+        expect(trace.publishedWhileDeferring).toBe(false);
+        expect(Math.abs(trace.bpm / 166.67 - 1)).toBeLessThan(0.02);
+    });
+
+    it('locks at once on the estimate when the faster comb score is under the ratio', () => {
+        fasterTie.ratio = 0.7;
+        const trace = driveTie(new TempoTracker(FRAME_RATE), fasterBar(14, 0.2));
+
+        expect(trace.firstDeferred).toBeUndefined();
+        expect(trace.published).toBeLessThanOrEqual(3.25);
+        expect(Math.abs(trace.bpm / 111.11 - 1)).toBeLessThan(0.02);
+    });
+
+    it('leaves the first lock as before at a ratio of 0 (off)', () => {
+        fasterTie.ratio = 0;
+        for (const beat of [0.2, 0.4]) {
+            const off = driveRaw(new TempoTracker(FRAME_RATE), fasterBar(14, beat));
+            fasterTie.ratio = 0.5;
+            const on = driveRaw(new TempoTracker(FRAME_RATE), fasterBar(14, beat));
+            fasterTie.ratio = 0;
+
+            // Off, the tracker holds the 2/3 pulse (or its half); on, it reaches the beat.
+            expect(off.bpm.at(-1)).not.toBeCloseTo(166.67, 0);
+            expect(on.bpm.at(-1)).toBeCloseTo(166.67, 0);
+        }
+        const trace = driveTie(new TempoTracker(FRAME_RATE), fasterBar(14, 0.2));
+        expect(trace.firstDeferred).toBeUndefined();
+        expect(trace.published).toBeLessThanOrEqual(3.25);
+        expect(Math.abs(trace.bpm / 111.11 - 1)).toBeLessThan(0.02);
     });
 });
 

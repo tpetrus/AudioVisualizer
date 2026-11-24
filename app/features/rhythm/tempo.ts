@@ -27,6 +27,7 @@ import {
     TEMPO_SYNCOPATION_RATIOS,
     TEMPO_SYNCOPATION_SWITCH_ESTIMATES,
     TEMPO_SYNCOPATION_TOLERANCE,
+    TEMPO_TIE_FASTER_MIN_RATIO,
     TEMPO_TIE_MAX_DEFER_S,
     TEMPO_TIE_MIN_RATIO,
     TEMPO_TIE_MULTIPLES,
@@ -364,6 +365,13 @@ export class TempoTracker {
                 rivalHeight = height;
                 rival = this.peakAt;
             }
+        }
+        // The 3:2 faster pulse replaces the dotted rival when its comb peak is strong enough (see the constant). With no
+        // peak there, `faster` is -1 and its score reads undefined, which fails the comparison.
+        const faster = this.peakNear((winner * 2) / 3, winner);
+        if (TEMPO_TIE_FASTER_MIN_RATIO > 0 && this.scores[faster] >= TEMPO_TIE_FASTER_MIN_RATIO * this.scores[winner]) {
+            rivalHeight = this.peakHeight(faster, lagLimit);
+            rival = this.peakAt;
         }
         // No rival, or a peak out of reach (NaN), fails the comparison and means no tie. A tie that is already open stays
         // open while the ratio wobbles around the threshold, so the decision is made once, on the evidence below.
