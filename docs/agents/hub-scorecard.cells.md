@@ -1,6 +1,6 @@
 # Scorecard
 
-Targets version 9, revision 7b602b8, created 2026-11-23T18:01:40.662Z.
+Targets version 9, revision a19a743, created 2026-11-24T02:04:14.754Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 

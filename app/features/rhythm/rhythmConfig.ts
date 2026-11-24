@@ -288,6 +288,10 @@ export const BAND_ONSET_FULL_RATIO = 3;
 export const CHROMA_DISPLAY_SMOOTHING = 0.1;
 // Phase is extrapolated at most this many seconds past the newest analysed frame, so a stalled worklet freezes it.
 export const PHASE_EXTRAPOLATE_MAX_SECONDS = 1.5;
+// When a re-align moves the beat grid by more than PHASE_GLIDE_MIN_MS, the published phase eases to the new grid over
+// PHASE_GLIDE_MS instead of jumping; 0 keeps the jump. A move at most the minimum (two 10 ms hops) is not visible.
+export const PHASE_GLIDE_MS = 100;
+export const PHASE_GLIDE_MIN_MS = 20;
 
 // ---- Per-band onset detection (BandOnsets, runs in the AudioWorklet beside the extractor) ----
 

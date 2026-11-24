@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
-import { BoundaryDetector } from './boundary';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { BOUNDARY_HARD, BoundaryDetector } from './boundary';
+import type { MeterEstimator } from './meter';
 import { RhythmAnalyzer } from './rhythmAnalyzer';
 import {
     BEAT_LOST_BEATS,
@@ -24,6 +25,18 @@ import {
     type Sample,
 } from './testSignals';
 import type { BeatsPerBar } from './types';
+
+// The glide duration is a rhythmConfig constant; the glide specs change it per case.
+const glide = vi.hoisted(() => ({ ms: 100 }));
+vi.mock('./rhythmConfig', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./rhythmConfig')>();
+    return {
+        ...actual,
+        get PHASE_GLIDE_MS() {
+            return glide.ms;
+        },
+    };
+});
 
 // Prints what the end-to-end runs measured when RHYTHM_REPORT is set (and vitest runs with --silent=false), so a
 // failing expectation can be read against real numbers.
@@ -803,4 +816,280 @@ describe('RhythmAnalyzer on a tempo move by 3/2', () => {
             expect(last(result).songChangeCount).toBe(0);
         },
     );
+});
+
+// The published phase glide. The beat tracker is stubbed so a spec declares a beat at an exact time and the analyzer's own
+// anchor, glide and counter arithmetic is what is measured. The grid has a 0.5 s period.
+describe('RhythmAnalyzer phase glide', () => {
+    const PERIOD = 0.5;
+
+    afterEach(() => {
+        glide.ms = 100;
+        vi.restoreAllMocks();
+    });
+
+    function rig() {
+        const analyzer = new RhythmAnalyzer(100);
+        const grid = { time: 0, count: 0, epoch: 0, declared: false, period: PERIOD };
+        vi.spyOn(analyzer.beat, 'push').mockImplementation(() => {
+            const declared = grid.declared;
+            grid.declared = false;
+            return declared;
+        });
+        Object.defineProperties(analyzer.beat, {
+            lastBeatTime: { get: () => grid.time },
+            lastBeatPeriod: { get: () => grid.period },
+            beatCount: { get: () => grid.count },
+            gridEpoch: { get: () => grid.epoch },
+        });
+        const frame = new Float32Array(FRAME_STRIDE);
+        frame[FRAME_ENERGY_OFFSET] = 0.2;
+        frame[FRAME_RMS_OFFSET] = 0.2;
+        const state = analyzer.state;
+        return {
+            analyzer,
+            grid,
+            // Declares a beat that sounded at `beatTime`, found by the frame at `frameTime`.
+            declare(beatTime: number, frameTime: number): void {
+                grid.time = beatTime;
+                grid.count++;
+                grid.declared = true;
+                analyzer.pushFrame(frameTime, frame, 0);
+            },
+            // The published state at `now`.
+            at(now: number) {
+                analyzer.updatePhase(now);
+                return {
+                    phase: state.beatPhase as number,
+                    next: state.nextBeatTime,
+                    count: state.beatCount,
+                    bar: state.barPhase as number,
+                    down: state.downbeatCount,
+                };
+            },
+        };
+    }
+
+    // Bars of four beats whose first beat has index 1, as if the meter had settled.
+    function mockBars(analyzer: RhythmAnalyzer): void {
+        const meter = (analyzer as unknown as { meter: MeterEstimator }).meter;
+        vi.spyOn(meter, 'addBeat').mockImplementation(() => {});
+        vi.spyOn(meter, 'barPosition').mockImplementation((index) => (index - 1) % 4);
+        vi.spyOn(meter, 'beatsPerBar', 'get').mockReturnValue(4);
+    }
+
+    // A grid beat at 1.0 and a second beat 0.06 s earlier than that grid puts it, found at 1.49, where the shown phase
+    // is 0.98 and about to wrap: the glide eases the anchor from 1.5 back to 1.44.
+    function earlyBeat() {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        r.at(1.49);
+        r.declare(1.44, 1.49);
+        return r;
+    }
+
+    it('keeps the old jump when the glide is 0 ms', () => {
+        glide.ms = 0;
+        const r = earlyBeat();
+        const jumped = r.at(1.49);
+        expect(jumped.phase).toBeCloseTo((1.49 - 1.44) / PERIOD, 9);
+        expect(jumped.next).toBeCloseTo(1.44 + PERIOD, 9);
+        expect(jumped.count).toBe(2);
+    });
+
+    it('does not glide a move at or below the minimum', () => {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        r.at(1.48);
+        r.declare(1.515, 1.52);
+        const shown = r.at(1.52);
+        expect(shown.phase).toBeCloseTo((1.52 - 1.515) / PERIOD, 9);
+        expect(shown.next).toBeCloseTo(1.515 + PERIOD, 9);
+    });
+
+    it('eases a move that crosses the phase wrap, stepping the counter exactly when the phase wraps', () => {
+        const r = earlyBeat();
+        // The shown phase continues from 0.98 instead of jumping to 0.1, and the counter still waits for the wrap.
+        const start = r.at(1.49);
+        expect(start.phase).toBeCloseTo(0.98, 9);
+        expect(start.count).toBe(1);
+        expect(start.next).toBeCloseTo(1.5, 9);
+        // The anchor has eased 10% of the way to 1.44 at 1.50, which is the first moment the phase is past the wrap.
+        const wrapped = r.at(1.5);
+        expect(wrapped.phase).toBeCloseTo((1.5 - 1.494) / PERIOD, 9);
+        expect(wrapped.count).toBe(2);
+        // After the glide the phase is the new grid's.
+        const done = r.at(1.6);
+        expect(done.phase).toBeCloseTo((1.6 - 1.44) / PERIOD, 9);
+        expect(done.next).toBeCloseTo(1.44 + PERIOD, 9);
+        expect(done.count).toBe(2);
+    });
+
+    it('treats a time that goes backwards as no progress', () => {
+        const r = earlyBeat();
+        r.at(1.49);
+        // 0.06 s into the glide the anchor has eased 60% of the way from 1.5 to 1.44.
+        const before = r.at(1.55);
+        expect(before.phase).toBeCloseTo((1.55 - 1.464) / PERIOD, 9);
+        // An earlier time is read on the anchor 1.55 left, one beat back, and the counter holds.
+        const earlier = r.at(1.4);
+        expect(earlier.phase).toBeCloseTo(1 + (1.4 - 1.464) / PERIOD, 9);
+        expect(earlier.count).toBeGreaterThanOrEqual(before.count);
+        const again = r.at(1.55);
+        expect(again.next).toBeCloseTo(before.next, 9);
+        expect(again.phase).toBeCloseTo(before.phase, 9);
+        expect(again.count).toBe(before.count);
+    });
+
+    it('restarts from the shown phase when a second move comes mid-glide', () => {
+        glide.ms = 1000;
+        const r = earlyBeat();
+        r.at(1.49);
+        r.at(2.2);
+        const shown = r.at(2.25);
+        r.declare(2.15, 2.25);
+        // No jump at the move: the phase just after it is the phase just before it.
+        const continued = r.at(2.25);
+        expect(continued.phase).toBeCloseTo(shown.phase, 9);
+        expect(continued.count).toBe(shown.count);
+        // Half a second on, the first glide would long have ended; the restarted one has not.
+        const middle = r.at(2.75);
+        const plain = ((2.75 - 2.15) / PERIOD) % 1;
+        expect(Math.abs(middle.phase - plain)).toBeGreaterThan(0.1);
+        // A full glide after the move the phase is the new grid's.
+        expect(r.at(3.3).phase).toBeCloseTo(((3.3 - 2.15) / PERIOD) % 1, 9);
+    });
+
+    it('forgets a glide under way on hardReset and on a hard boundary', () => {
+        glide.ms = 1000;
+        for (const reset of ['hardReset', 'boundary'] as const) {
+            const r = earlyBeat();
+            r.at(1.49);
+            if (reset === 'hardReset') {
+                r.analyzer.hardReset(false);
+            } else {
+                const boundary = (r.analyzer as unknown as { boundary: BoundaryDetector }).boundary;
+                vi.spyOn(boundary, 'push').mockReturnValueOnce(BOUNDARY_HARD);
+                r.analyzer.pushFrame(1.5, new Float32Array(FRAME_STRIDE), 0);
+            }
+            expect(r.analyzer.state.beatPhase).toBeUndefined();
+            // The first beat of the new analysis is not eased from the old glide.
+            r.declare(5.0, 5.1);
+            expect(r.at(5.1).phase).toBeCloseTo(0.2, 9);
+            vi.restoreAllMocks();
+        }
+    });
+
+    it('drops a glide under way when the grid is rebuilt', () => {
+        glide.ms = 1000;
+        const r = earlyBeat();
+        r.at(1.49);
+        expect(r.at(1.6).phase).not.toBeCloseTo((1.6 - 1.44) / PERIOD, 3);
+        // The grid is rebuilt (its epoch rises when the tempo is updated).
+        r.grid.epoch = 1;
+        vi.spyOn(r.analyzer.tempo, 'update').mockReturnValue(true);
+        vi.spyOn(r.analyzer.beat, 'setTempo').mockImplementation(() => {});
+        // The tempo is updated every quarter second of frames, which is when the new epoch is noticed.
+        const quiet = new Float32Array(FRAME_STRIDE);
+        quiet[FRAME_ENERGY_OFFSET] = 0.2;
+        quiet[FRAME_RMS_OFFSET] = 0.2;
+        for (let i = 1; i <= 30; i++) r.analyzer.pushFrame(1.6 + i / 100, quiet, 0);
+        expect(r.analyzer.gridEpoch).toBe(1);
+        // The glide under way is dropped: the anchor is the declared one again, as on the old grid.
+        expect(r.at(1.9).phase).toBeCloseTo(((1.9 - 1.44) / PERIOD) % 1, 9);
+    });
+
+    it('keeps the phase continuous when the period changes at the re-align, and eases it at most 0.1 beat a frame', () => {
+        for (const ms of [0, 100]) {
+            glide.ms = ms;
+            const r = rig();
+            r.declare(1.0, 1.1);
+            r.at(1.49);
+            // The tempo halves: the new beat at 1.44 is declared with a period of a whole second.
+            r.grid.period = 1.0;
+            r.declare(1.44, 1.49);
+            const start = r.at(1.49);
+            if (ms === 0) {
+                // The old jump, from 0.98 to the new grid's phase.
+                expect(start.phase).toBeCloseTo(0.05, 9);
+                expect(start.count).toBe(2);
+                continue;
+            }
+            expect(start.phase).toBeCloseTo(0.98, 9);
+            expect(start.count).toBe(1);
+            let previous = start;
+            for (let now = 1.49 + 1 / 60; now < 1.7; now += 1 / 60) {
+                const shown = r.at(now);
+                const step = shown.phase - previous.phase + (shown.count - previous.count);
+                expect(Math.abs(step - 1 / 60)).toBeLessThanOrEqual(0.1);
+                expect(shown.count).toBeGreaterThanOrEqual(previous.count);
+                previous = shown;
+            }
+            expect(r.at(1.7).phase).toBeCloseTo(0.26, 9);
+            expect(r.at(1.7).count).toBe(2);
+        }
+    });
+
+    it('moves the next beat time, the bar phase and the downbeat counter with the eased anchor', () => {
+        const r = rig();
+        mockBars(r.analyzer);
+        // Beat 1 opens a bar. Beat 2 comes 0.06 s early.
+        r.declare(1.0, 1.1);
+        r.at(1.49);
+        r.declare(1.44, 1.49);
+        const start = r.at(1.49);
+        // The shown phase is still the end of beat 1, position 0 of the bar.
+        expect(start.bar).toBeCloseTo((0 + 0.98) / 4, 9);
+        expect(start.next).toBeCloseTo(1.5, 9);
+        const done = r.at(1.6);
+        expect(done.bar).toBeCloseTo((1 + 0.32) / 4, 9);
+        expect(done.next).toBeCloseTo(1.94, 9);
+    });
+
+    it('steps the beat and downbeat counters exactly when the phases wrap, through many moves, without going back', () => {
+        const r = rig();
+        mockBars(r.analyzer);
+        const jitter = [0, 0.07, -0.06, 0.1, 0, -0.09, 0.05, 0.02];
+        const beats = 24;
+        const soundedAt = (index: number): number => 1.0 + index * PERIOD + jitter[index % jitter.length];
+        let previous: ReturnType<typeof r.at> | undefined;
+        let declared = 0;
+        let counted = 0;
+        let downbeats = 0;
+        for (let t = 1.1; t < 1.0 + beats * PERIOD; t += 1 / 60) {
+            // A beat is found 0.09 s after it sounded.
+            while (declared < beats && soundedAt(declared) + 0.09 <= t) {
+                if (declared === 0) {
+                    r.declare(soundedAt(declared), t);
+                } else {
+                    const shown = r.at(t);
+                    r.declare(soundedAt(declared), t);
+                    const after = r.at(t);
+                    // A move never shows as a jump: the phase continues to within the minimum move.
+                    expect(Math.abs(after.phase - shown.phase)).toBeLessThan(0.05);
+                    expect(after.count).toBe(shown.count);
+                    expect(after.down).toBe(shown.down);
+                }
+                declared++;
+            }
+            if (declared === 0) continue;
+            const now = r.at(t);
+            expect(now.next).toBeCloseTo(t + (1 - now.phase) * PERIOD, 9);
+            if (previous !== undefined) {
+                expect(now.count).toBeGreaterThanOrEqual(previous.count);
+                expect(now.down).toBeGreaterThanOrEqual(previous.down);
+                if (now.count > previous.count) {
+                    counted++;
+                    expect(now.phase).toBeLessThan(previous.phase - 0.5);
+                }
+                if (now.down > previous.down) {
+                    downbeats++;
+                    expect(now.bar).toBeLessThan(previous.bar - 0.5);
+                }
+            }
+            previous = now;
+        }
+        expect(counted).toBeGreaterThan(10);
+        expect(downbeats).toBeGreaterThan(2);
+    });
 });

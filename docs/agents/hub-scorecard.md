@@ -1361,6 +1361,56 @@ keeps only the kick input of #136 and the tooling of #137. The model branches (`
 `replan2/s2-kick-pll`, `replan2/s2-kick-pll-r`) stay unmerged. The follow-ups that served only the model
 (`FU-RP-kickmove-guard-spec`, `FU-RP-kickoffset-realign`) are closed; `FU-RP-eval-kicks` is done by #137.
 
+## Alignment and tracker leftovers, S5: the published phase glide (2026-11-23, on `be82b93`)
+Plan `docs/plans/alignment-tracker-leftovers` (contracts C2 and C3, decisions OD4 and OD5 in `contracts.md`). When a
+re-align moves the beat grid by more than `PHASE_GLIDE_MIN_MS` (20 ms), `RhythmAnalyzer.updatePhase` now eases the
+published anchor to the new grid over `PHASE_GLIDE_MS` instead of jumping. `beatPhase`, `nextBeatTime` and the
+counters all read the one eased anchor, so the beat counter steps exactly when the published phase wraps. The move is
+measured as the jump in published phase, in beats of each anchor's own period. A tempo change at the re-align (the
+halving on `low-bpm-rnb`) therefore changes only how fast the phase runs, not where it is. A first attempt measured
+the move in seconds, and on that halving it made the jump larger (0.31 to 0.46 beat).
+
+**The measure (OD5).** `scripts/rhythm-tools/phaseStepMain.ts` replays every scorecard track and calls `updatePhase`
+at 60 fps. Per call it takes the published phase step minus the step the tempo explains, in beats. The figure is the
+largest of these over the tracks with a grid move (`lonley` and `low-bpm-rnb`); the pre-registered limit is 0.10 beat.
+
+| `PHASE_GLIDE_MS` | Largest step (worst track) | `beat.errorMedianMs` change | Gate cells | `scorecard:check` |
+|---|---|---|---|---|
+| 0 (the old jump) | 0.367 (`lonley`; `low-bpm-rnb` 0.310) | none | unchanged | pass |
+| **100 (chosen)** | **0.061** (`lonley`; `low-bpm-rnb` 0.052) | none | unchanged | pass |
+| 150 | 0.041 (`lonley`) | none | `lonley` 10.83 to 5.37 s after the lock | pass |
+| 250 | 0.038 (`lonley`) | none | as at 150 | pass |
+
+100 ms is the smallest value that passes, which is the pre-registered choice. At 150 and 250 ms, `lonley`'s gate
+first opens at 13.50 s, exactly at its grid move (13.48 s), so it opens mid-glide. That earlier opening is recorded
+as `FU-ATL-S5-glide-150`, a follow-up to test 150 ms live, which Trevor canceled on 2026-11-23 as not worth the
+effort. 100 ms stays, and 150 and 250 ms are not pursued.
+
+The independent review found nothing that blocks. Two findings change the published phase, so each is an R2
+follow-up for the full workflow:
+- `FU-ATL-S5-glide-latch`: the glide starts at the newest time already shown, so the first read after a move carries
+  the time since the previous read. At 60 fps that is one frame, which is what OD5 measures. At lower frame rates the
+  first step is larger. Starting the glide at the first `updatePhase` after the move would fix it. The OD5 tool would
+  then need to call `updatePhase` once per batch, as the app does.
+- `FU-ATL-S5-backward-glide`: a move back by more than `PHASE_GLIDE_MS` makes the published phase run backwards for
+  the length of the glide. The counter holds, as it did on the old jump. Lengthening the glide for large backward
+  moves would fix it.
+
+C3 says the counter "increments exactly when the published phase wraps". That holds for moves under half a beat at
+an unchanged tempo. A tempo doubling at the re-align steps the counter without a wrap, as the old jump did. The
+specs that pin this, and the reset specs that cannot fail today, are fast-lane follow-ups.
+
+**Gates at 100 ms, against `be82b93`.**
+- Every offline cell equals the base (446 applicable, 401 passing, 11 blocking failures). The baseline is rewritten
+  from this run.
+- `sweep:gate`: unchanged on every column (false opens 3 and 15; 12 of 16 within 4 s).
+- `bench:tracker`: 1.001 (1.006 with kicks). The base ref was the local `main`, so this figure is advisory.
+- Unit specs pass, coverage passes and `test:e2e` passes (58 passed, 6 skipped).
+- Total JS: 338.91 to 339.05 kB (+0.148 kB, within the slice's 0.15 kB). `main` had only 94 B left under 339 kB, so
+  Trevor raised the limit to 339.1 kB in this change (2026-11-23; the OD2 amendment in `contracts.md`).
+- The `no kick` digest in `kickGolden.test.ts` moves, because it hashes the published phase. At 0 ms it is the base
+  digest.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
