@@ -13,9 +13,10 @@ import { TEST_SAMPLE_RATE } from './testSignals';
 // tracker decides must show here before it ships.
 const GOLDEN: Record<string, string> = {
     'steady kick': '6a4e50cb',
-    // Moved by the published phase glide (PHASE_GLIDE_MS): the digest holds the eased beatPhase and nextBeatTime. With
-    // PHASE_GLIDE_MS at 0 it is the digest taken at the base revision, 'fe460364'.
-    'no kick': '9c801789',
+    // Moved by the published phase glide (PHASE_GLIDE_MS) and its refinements (backward glide length, start at the first
+    // read after a move): the digest holds the eased beatPhase and nextBeatTime. With PHASE_GLIDE_MS at 0 it is the
+    // digest taken before the glide, 'fe460364' (checked again for S9).
+    'no kick': 'edc86934',
     'song change': '7627ee06',
 };
 

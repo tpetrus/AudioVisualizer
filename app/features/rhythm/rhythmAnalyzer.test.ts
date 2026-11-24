@@ -941,6 +941,131 @@ describe('RhythmAnalyzer phase glide', () => {
         expect(again.count).toBe(before.count);
     });
 
+    // The grid beat at 1.0 puts phase 0.98 on show at 1.49, and then a beat that sounded at `beatTime` is declared. The
+    // published anchor starts at the 1.5 the old grid gives, so its lead over the declared beat is 1.5 - beatTime: negative
+    // for a late beat (the phase on show is ahead of the new grid), positive for an early one.
+    function lateBeat(beatTime: number) {
+        const r = rig();
+        r.declare(1.0, 1.1);
+        const before = r.at(1.49);
+        r.declare(beatTime, 1.49);
+        const lead = 1.5 - beatTime;
+        return { r, before, lead };
+    }
+
+    // The beat position the counter and the phase publish together.
+    const position = (shown: { count: number; phase: number }) => shown.count + shown.phase;
+
+    // A move of -0.06 s, one between half and the whole of the 0.1 s glide (-0.07 s) and one of half a beat (-0.25 s).
+    const BACKWARD_BEATS = [1.56, 1.57, 1.75];
+
+    it('never lets the published beat position decrease after a backward move, at 30 and 60 fps', () => {
+        for (const beatTime of BACKWARD_BEATS) {
+            for (const fps of [30, 60]) {
+                const { r, before } = lateBeat(beatTime);
+                let previous = position(before);
+                for (let k = 0; k <= 2 * fps; k++) {
+                    const now = 1.49 + k / fps;
+                    const current = position(r.at(now));
+                    expect(current, `move to ${beatTime} at ${fps} fps, read ${k}`).toBeGreaterThanOrEqual(
+                        previous - 1e-9,
+                    );
+                    previous = current;
+                }
+            }
+        }
+    });
+
+    it('carries no glide travel in the first read after a move and at most one frame in each later step', () => {
+        // Backward moves, and a forward one (the beat that sounded 0.06 s early) as in the other glide specs.
+        for (const beatTime of [...BACKWARD_BEATS, 1.44]) {
+            for (const fps of [30, 60]) {
+                const { r, before, lead } = lateBeat(beatTime);
+                // The first read comes a whole second-frame later than the last one shown, not at the same time: the glide
+                // must not have started yet, so the phase has advanced by the steady rate alone.
+                const first = 1.49 + 1 / fps;
+                let previous = position(r.at(first));
+                expect(previous).toBeCloseTo(position(before) + 1 / fps / PERIOD, 9);
+                const travel = (Math.abs(lead) / Math.max(0.1, -2 * lead)) * (1 / fps / PERIOD);
+                for (let k = 2; k <= fps; k++) {
+                    const current = position(r.at(1.49 + k / fps));
+                    expect(Math.abs(current - previous - 1 / fps / PERIOD)).toBeLessThanOrEqual(travel + 1e-9);
+                    previous = current;
+                }
+            }
+        }
+        // A first read much later than the move (but within the extrapolation limit) still starts the glide there: the
+        // move is not already over.
+        const { r, before } = lateBeat(1.57);
+        expect(position(r.at(2.2))).toBeCloseTo(position(before) + (2.2 - 1.49) / PERIOD, 9);
+    });
+
+    it('glides a backward move over twice its length when that is longer than the glide, and keeps forward ones', () => {
+        // Half a beat back (0.25 s): the glide lasts 0.5 s, not 0.1 s. The anchor's lead is halved 0.25 s in.
+        const back = lateBeat(1.75);
+        back.r.at(2.0);
+        expect(back.r.at(2.25).phase).toBeCloseTo((2.25 - 1.75 + 0.125) / PERIOD - 1, 9);
+        expect(back.r.at(2.49).phase).not.toBeCloseTo((2.49 - 1.75) / PERIOD - 1, 3);
+        expect(back.r.at(2.5).phase).toBeCloseTo((2.5 - 1.75) / PERIOD - 1, 9);
+        // A short backward move keeps the configured glide (0.06 s back, 0.12 s by twice its length, 0.1 s configured).
+        const short = lateBeat(1.56);
+        short.r.at(2.0);
+        expect(short.r.at(2.06).phase).toBeCloseTo((2.06 - 1.56 + 0.03) / PERIOD - 1, 9);
+        expect(short.r.at(2.12).phase).toBeCloseTo((2.12 - 1.56) / PERIOD - 1, 9);
+        // A forward move of 0.2 s (the new beat sounded early) glides over the configured 0.1 s, not over twice the move.
+        const forward = lateBeat(1.3);
+        forward.r.at(2.0);
+        expect(forward.r.at(2.05).phase).toBeCloseTo(((2.05 - 1.3 - 0.1) / PERIOD) % 1, 9);
+        expect(forward.r.at(2.1).phase).toBeCloseTo(((2.1 - 1.3) / PERIOD) % 1, 9);
+    });
+
+    it('keeps the old jump for a backward move too when the glide is 0 ms', () => {
+        glide.ms = 0;
+        // A 0 ms glide is the switch back to the old jump (C3), so the backward stretch is off with it.
+        const back = lateBeat(1.75);
+        expect(back.r.at(2.1).phase).toBeCloseTo(((2.1 - 1.75) / PERIOD) % 1, 9);
+        const forward = lateBeat(1.3);
+        expect(forward.r.at(2.0).phase).toBeCloseTo(((2.0 - 1.3) / PERIOD) % 1, 9);
+    });
+
+    it('holds the whole lead until the first read after a move, and starts the next glide at that read', () => {
+        const { r } = lateBeat(1.75);
+        // Reads before the glide starts show the held anchor: the phase advances at the steady rate only.
+        const first = r.at(1.9);
+        expect(first.phase).toBeCloseTo(0.98 + (1.9 - 1.49) / PERIOD - 1, 9);
+        // A second move mid-glide restarts it from what is on show, with its own length and its own start.
+        r.at(2.0);
+        const shown = r.at(2.1);
+        r.declare(2.5, 2.1);
+        const held = r.at(2.4);
+        expect(held.phase + held.count).toBeCloseTo(position(shown) + (2.4 - 2.1) / PERIOD, 9);
+    });
+
+    it('does not carry a pending glide or its length over a hardReset or a rebuilt grid', () => {
+        for (const reset of ['hardReset', 'grid'] as const) {
+            const { r } = lateBeat(1.75);
+            if (reset === 'hardReset') {
+                r.analyzer.hardReset(false);
+            } else {
+                r.grid.epoch = 1;
+                vi.spyOn(r.analyzer.tempo, 'update').mockReturnValue(true);
+                vi.spyOn(r.analyzer.beat, 'setTempo').mockImplementation(() => {});
+                const quiet = new Float32Array(FRAME_STRIDE);
+                quiet[FRAME_ENERGY_OFFSET] = 0.2;
+                quiet[FRAME_RMS_OFFSET] = 0.2;
+                for (let i = 1; i <= 30; i++) r.analyzer.pushFrame(1.6 + i / 100, quiet, 0);
+            }
+            // The first read after the reset shows the declared grid, and a forward move after it glides over 0.1 s.
+            r.declare(5.0, 5.1);
+            expect(r.at(5.1).phase).toBeCloseTo(0.2, 9);
+            r.at(5.49);
+            r.declare(5.44, 5.49);
+            r.at(5.5);
+            expect(r.at(5.6).phase).toBeCloseTo((5.6 - 5.44) / PERIOD, 9);
+            vi.restoreAllMocks();
+        }
+    });
+
     it('restarts from the shown phase when a second move comes mid-glide', () => {
         glide.ms = 1000;
         const r = earlyBeat();

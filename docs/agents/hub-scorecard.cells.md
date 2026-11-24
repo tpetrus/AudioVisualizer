@@ -1,6 +1,6 @@
 # Scorecard
 
-Targets version 9, revision 1e1d355, created 2026-11-24T02:55:30.376Z.
+Targets version 9, revision 5e2f9d8, created 2026-11-24T15:44:23.345Z.
 
 Pre-hub is the same metric with the gate fed the pre-hub input; where it is blank the rhythm DSP is unchanged since the commit before the hub merge, so the pre-hub value equals the value shown.
 
@@ -141,7 +141,7 @@ Applicable cells 446: 401 passing, 24 failing, 21 unavailable. Blocking failures
 | gate.firstOpenSeconds | half-time-shuffle.wav | tapped | 18.58 | - | - | 18.58 | pass (report-only) |
 | gate.firstOpenSeconds | high-bpm-dnb.wav | tapped | 9.88 | - | - | 9.88 | pass (report-only) |
 | gate.firstOpenSeconds | imyourgirl.wav | tapped | 3.28 | - | - | 3.28 | pass (report-only) |
-| gate.firstOpenSeconds | lonley.wav | tapped | 18.97 | - | - | 18.97 | pass (report-only) |
+| gate.firstOpenSeconds | lonley.wav | tapped | 13.50 | - | - | 13.50 | pass (report-only) |
 | gate.firstOpenSeconds | low-bpm-rnb.wav | tapped | 18.05 | - | - | 18.05 | pass (report-only) |
 | gate.firstOpenSeconds | no-kick-124.wav | synthetic | - | - | - | - | n/a |
 | gate.firstOpenSeconds | pad-lead-groove-110.wav | synthetic | - | - | - | - | n/a |
@@ -166,7 +166,7 @@ Applicable cells 446: 401 passing, 24 failing, 21 unavailable. Blocking failures
 | gate.secondsAfterLock | half-time-shuffle.wav | tapped | 7.18 | 4.00 | 2.00 | 7.18 | fail |
 | gate.secondsAfterLock | high-bpm-dnb.wav | tapped | 1.72 | 4.00 | 2.00 | 1.72 | pass |
 | gate.secondsAfterLock | imyourgirl.wav | tapped | 0.15 | 4.00 | 2.00 | 0.15 | pass |
-| gate.secondsAfterLock | lonley.wav | tapped | 10.83 | 4.00 | 2.00 | 10.83 | fail |
+| gate.secondsAfterLock | lonley.wav | tapped | 5.37 | 4.00 | 2.00 | 5.37 | fail |
 | gate.secondsAfterLock | low-bpm-rnb.wav | tapped | 14.92 | 4.00 | 2.00 | 14.92 | fail |
 | gate.secondsAfterLock | no-kick-124.wav | synthetic | - | 4.00 | 2.00 | - | n/a |
 | gate.secondsAfterLock | pad-lead-groove-110.wav | synthetic | - | 4.00 | 2.00 | - | n/a |

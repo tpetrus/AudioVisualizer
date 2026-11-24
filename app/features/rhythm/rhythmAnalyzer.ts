@@ -90,10 +90,14 @@ export class RhythmAnalyzer {
     private anchorPeriod = 0;
     private anchorBeatIndex = 0;
     // After a re-align the published anchor lies `lead` seconds after the declared one and eases back to it over
-    // PHASE_GLIDE_MS. The glide runs on the clock updatePhase is given, starting at the newest time it was given; that
-    // clock only moves forward, so a reader that asks for an earlier time (a sync offset change) makes no progress. A
-    // glide of 0 ms is over before it starts, which is the old jump. A rebuilt grid or a clear drops the glide under way.
+    // `span` seconds: PHASE_GLIDE_MS, or twice the move when the phase on show is ahead of the new grid, so that it
+    // still advances at half speed or faster instead of running backwards. The glide runs on the clock updatePhase is
+    // given and starts at the first call after the move (`since` is Infinity until then, so the anchor holds the whole
+    // lead and the first read carries no glide travel). That clock only moves forward, so a reader that asks for an
+    // earlier time (a sync offset change) makes no progress. A glide of 0 ms is over before it starts, either way, which
+    // is the old jump. A rebuilt grid or a clear drops the glide under way.
     private lead = 0;
+    private span = 0;
     private since = 0;
     private seen = 0;
     // The grid epoch of the anchor, so the first beat of a new grid is shown where it was declared.
@@ -245,6 +249,7 @@ export class RhythmAnalyzer {
         // A stalled analysis must freeze the phase rather than run on forever.
         const time = Math.min(now, this.latestTime + PHASE_EXTRAPOLATE_MAX_SECONDS);
         this.seen = Math.max(this.seen, time);
+        this.since = Math.min(this.since, this.seen);
         // Everything below reads the one eased anchor, so the counters follow the published phase: they step when it
         // wraps, for a move under half a beat at an unchanged tempo. A move of more than half a beat is wrapped to the
         // nearest beat, and a period change at the re-align can step the counter without a wrap; it never goes down.
@@ -281,8 +286,8 @@ export class RhythmAnalyzer {
 
     // The published anchor's lead over the declared one: all of the move when the glide starts, none after it.
     private eased(): number {
-        const left = 1 - (this.seen - this.since) / (PHASE_GLIDE_MS / 1000);
-        // A 0 ms glide has no time left, or none that is a number; either way it is over.
+        const left = 1 - Math.max(0, this.seen - this.since) / this.span;
+        // A glide with no length has no time left, or none that is a number; either way it is over.
         return left > 0 ? this.lead * left : 0;
     }
 
@@ -364,7 +369,9 @@ export class RhythmAnalyzer {
             move = (gap - Math.floor(gap + 0.5)) * period;
         }
         this.lead = Math.abs(move) > PHASE_GLIDE_MIN_MS / 1000 ? move : 0;
-        this.since = this.seen;
+        // A 0 ms glide is the switch back to the old jump (C3), so only a glide that is on is stretched.
+        this.span = PHASE_GLIDE_MS > 0 ? Math.max(PHASE_GLIDE_MS / 1000, -2 * move) : 0;
+        this.since = Infinity;
         this.anchorEpoch = this.beat.gridEpoch;
         this.hasAnchor = true;
         this.anchorTime = this.beat.lastBeatTime;

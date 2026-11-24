@@ -103,6 +103,9 @@ the current kind, clamped to the slider range; a saved offset always wins.
   glides over `max(PHASE_GLIDE_MS / 1000, 2 * |lead|)` seconds; a forward move keeps `PHASE_GLIDE_MS`. During a
   backward glide the published phase then advances at half speed or faster and never runs backwards. The length is
   fixed when the glide starts and is reset with the rest of the glide state (C3).
+  **Amended 2026-11-24 (orchestrator, S9 integration).** As first written, OD11 also stretched backward moves when
+  `PHASE_GLIDE_MS` is 0, which broke C3's "0 reproduces the old jump". C3 wins: with `PHASE_GLIDE_MS` at 0 every move
+  jumps, as before the glide; the stretch applies only while the glide is on.
 - **OD12 Glide latch.** After a re-align with a glide, the glide's start is the time of the first `updatePhase` call
   after the move, not the newest time shown before it, so the first read after a move carries no glide travel. Until
   that call the published anchor holds the whole lead. The OD5 tool calls `updatePhase` once per batch, after the
