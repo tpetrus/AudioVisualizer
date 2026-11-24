@@ -1,7 +1,7 @@
 import { BandOnsets } from '../bandOnsets';
 import { OnsetExtractor, packFrame, type OnsetFrame } from '../onsetExtractor';
 import { RhythmAnalyzer } from '../rhythmAnalyzer';
-import { FEATURE_ONSET_BANDS, FFT_SIZE, FRAME_STRIDE } from '../rhythmConfig';
+import { BATCH_FRAMES, FEATURE_ONSET_BANDS, FEATURE_ONSET_BAND_COUNT, FFT_SIZE, FRAME_STRIDE } from '../rhythmConfig';
 import type { DetectedRun } from './evalReport';
 import type { TempoSample } from './metrics';
 
@@ -60,22 +60,34 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
     const extractor = new OnsetExtractor(sampleRate);
     const analyzer = new RhythmAnalyzer(extractor.frameRate);
     const state = analyzer.state;
-    const packed = new Float32Array(FRAME_STRIDE);
     const beats: number[] = [];
     const tempo: TempoSample[] = [];
     const bandOnsets = new BandOnsets(sampleRate, extractor.frameRate);
     const onsets: PipelineDetection['onsets'] = { kick: [], bass: [], snare: [], highs: [] };
-    const onOnset = (band: number, eventTime: number): void => {
+    // The onset events of the batch being filled, as the worklet posts them with the batch, so pushKicks sees what
+    // RhythmTracker gives it.
+    const onsetCapacity = BATCH_FRAMES * FEATURE_ONSET_BAND_COUNT;
+    const onsetBand = new Uint8Array(onsetCapacity);
+    const onsetTime = new Float64Array(onsetCapacity);
+    const onsetStrength = new Float32Array(onsetCapacity);
+    let onsetCount = 0;
+    const onOnset = (band: number, eventTime: number, strength: number): void => {
         onsets[FEATURE_ONSET_BANDS[band]].push(eventTime);
+        if (onsetCount >= onsetCapacity) return;
+        onsetBand[onsetCount] = band;
+        onsetTime[onsetCount] = eventTime;
+        onsetStrength[onsetCount] = strength;
+        onsetCount++;
     };
     let lastBeatCount = 0;
 
-    const onFrame = (frame: OnsetFrame): void => {
-        const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
-        packFrame(frame, packed, 0);
-        analyzer.pushFrame(time, packed, 0);
+    const batch = new Float32Array(BATCH_FRAMES * FRAME_STRIDE);
+    const times = new Float64Array(BATCH_FRAMES);
+    let count = 0;
+
+    const analyzeFrame = (time: number, index: number): void => {
+        analyzer.pushFrame(time, batch, index * FRAME_STRIDE);
         analyzer.updatePhase(time);
-        bandOnsets.push(frame, time, onOnset);
         tempo.push({ time, bpm: state.bpm });
         if (state.beatCount > lastBeatCount) {
             lastBeatCount = state.beatCount;
@@ -86,10 +98,26 @@ export function detectFromPcm(pcm: Float32Array, sampleRate: number): PipelineDe
             beats.push(time - phase * period);
         }
     };
+    // The batch's kick events go in before its frames, the order RhythmTracker uses. The trailing partial batch is
+    // delivered too, so the beats and tempo cover the whole signal.
+    const deliver = (): void => {
+        analyzer.pushKicks(onsetBand, onsetTime, onsetStrength, onsetCount);
+        onsetCount = 0;
+        for (let i = 0; i < count; i++) analyzeFrame(times[i], i);
+        count = 0;
+    };
+    const onFrame = (frame: OnsetFrame): void => {
+        const time = (frame.endSample - FFT_SIZE / 2) / sampleRate;
+        times[count] = time;
+        packFrame(frame, batch, count * FRAME_STRIDE);
+        bandOnsets.push(frame, time, onOnset);
+        if (++count === BATCH_FRAMES) deliver();
+    };
 
     for (let offset = 0; offset < pcm.length; offset += blockSize) {
         extractor.push(pcm.subarray(offset, Math.min(pcm.length, offset + blockSize)), onFrame);
     }
 
+    if (count > 0) deliver();
     return { beats, tempo, onsets };
 }
