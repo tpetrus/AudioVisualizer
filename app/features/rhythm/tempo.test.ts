@@ -501,6 +501,38 @@ describe('TempoTracker first-lock tie with the 3:2 faster neighbor', () => {
         expect(Math.abs(trace.bpm / 166.67 - 1)).toBeLessThan(0.02);
     });
 
+    it('engages the faster neighbor at the shipped default ratio and publishes it once the bars are compared', () => {
+        // No override: this runs the real TEMPO_TIE_FASTER_MIN_RATIO. A beat weight of 0.4 is strong enough for the default.
+        const trace = driveTie(new TempoTracker(FRAME_RATE), fasterBar(14, 0.4));
+
+        // The estimate stays at the 111 BPM pulse, so the lock is held back until the bar-repeat comparison is in reach.
+        expect(trace.firstDeferred).toBeDefined();
+        expect(trace.publishedWhileDeferring).toBe(false);
+        expect(trace.published).toBeGreaterThan(7);
+        expect(Math.abs(trace.bpm / 166.67 - 1)).toBeLessThan(0.02);
+    });
+
+    it('lets the faster neighbor replace the dotted rival when both are present', () => {
+        // The fasterBar signal (111 BPM winner, 167 BPM beat) plus a 150 BPM pulse every 40 frames that restarts each bar.
+        // 40 frames is 3/4 of the winner's 54-frame lag, so it is a dotted rival; the beat is the 3:2 faster neighbor. The
+        // 72-frame lag (4/3 of the winner) is the other dotted rival, and the beat grid already hits it. Both neighbors
+        // qualify, and the faster pulse takes the rival's place, so the tracker decides between 111 and 167 BPM.
+        const envelope = fasterBar(14, 0.35);
+        for (let bar = 0; bar * 144 < envelope.length; bar++) {
+            for (let offset = 0; offset < 144 && bar * 144 + offset < envelope.length; offset += 40) {
+                envelope[bar * 144 + offset] += 0.3;
+            }
+        }
+        const trace = driveTie(new TempoTracker(FRAME_RATE), envelope);
+
+        expect(trace.firstDeferred).toBeDefined();
+        expect(trace.publishedWhileDeferring).toBe(false);
+        expect(Math.abs(trace.bpm / 166.67 - 1)).toBeLessThan(0.02);
+        // Not the dotted pulses: 150 BPM (the 40-frame lag) or 83 BPM (the 72-frame lag).
+        expect(Math.abs(trace.bpm / 150 - 1)).toBeGreaterThan(0.05);
+        expect(Math.abs(trace.bpm / 83.33 - 1)).toBeGreaterThan(0.05);
+    });
+
     it('locks at once on the estimate when the faster comb score is under the ratio', () => {
         fasterTie.ratio = 0.7;
         const trace = driveTie(new TempoTracker(FRAME_RATE), fasterBar(14, 0.2));
