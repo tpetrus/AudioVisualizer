@@ -312,7 +312,11 @@ tracks were not run through it.
   `imyourgirl`, the drum patterns and `syncopationbass`, and broke one `lonley` variation.
 - **Gate on the right tempo.** `syncopationbass` now holds 98, and its gate opens 17 s after lock or not at all.
 - Follow-ups recorded in the verified-diamond state: `FU-S6-octave-pins`, `FU-S6-change-delay`,
-  `FU-S6-mirror-close-gate`, `FU-S6-telemetry`.
+  `FU-S6-mirror-close-gate`, `FU-S6-telemetry`. The first three are done, in the `fu/s6-batch` fast lane merged with
+  #90: `253de93` pins the octave prior on slow and fast material (`FU-S6-octave-pins`), `3fdd538` measures how late
+  the held tempo follows a dotted or octave-away change (`FU-S6-change-delay`), and `709d9ea` mirrors the tracker's
+  close-peak gate in the tempo probe's first-lock rival (`FU-S6-mirror-close-gate`). `FU-S6-telemetry` is done too
+  (see "Tempo tracker work" below).
 
 ## Bass gate evidence (after S6)
 The gate was the main visible miss after S6: with the tempo right, it still opened 10 s after the lock on `lonley` and
@@ -436,6 +440,14 @@ AC5 as a guarantee (`syncopation-no-kick`'s first lock), which joins the tracker
 under D11 (see "Review decisions" in `hub-scorecard.md`). The follow-ups below carry their status; the rest of each
 entry is the 2026-11-15 record.
 
+**Status on 2026-11-23.** The D11 tracker plan tried AC5 as a stretch (its S8) and left it open: `syncopation-no-kick`
+still first locks at 8.02 s, and the tracker replan did not touch it. Still open from this plan: AC9, AC5 and the
+known weaknesses listed under "Tempo tracker work" below. `FU-S10-basspulse-time-based` is done: `BassBump`
+(`app/features/audio/hub/bassBump.ts`) is time-based and replaced `BassPulse` in cubes, bass ink and the dancing
+character, and `bassBump.test.ts` checks equal settling at 30, 60 and 144 fps. `BassPulse` stays per frame on purpose, as
+the frozen pre-hub reference for the scorecard's pre-hub column (`scripts/scorecard/engine/prehubBass.ts` is the only
+place that builds it). Closed under the alignment-tracker-leftovers plan (decision D1) with no code change.
+
 This records where the audio alignment plan (`docs/plans/audio-engine-alignment/`) stands, and every follow-up that is
 still open. The full task packets (owned paths, acceptance, verification) are kept in the verified-diamond follow-up
 state outside the repository, so each one is listed here by its ID with enough detail to rebuild it. Before starting
@@ -468,8 +480,8 @@ Suggested order:
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave` (closed: intended behavior).
 4. S7 (done). It froze contract C5, the hub snapshot, before any worker started.
-5. S8, one pull request per visualizer, bass ink last. Held after the dancing character (#96) until the follow-up
-   plan below settles the bass gate's input.
+5. S8, one pull request per visualizer, bass ink last (done: the dancing character in #96, `bass-ink` and the close in
+   hub-regressions S9, #106, once that plan settled the bass gate's input).
 
 The other tracker items can wait until after S7, because none of them blocks it.
 
@@ -535,19 +547,29 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
   and kept an 8 s weak burst out, but it gave 2 extra switches in 1296 noisy on-and-off dotted figures (0.15%), and
   alone it changes nothing a listener hears while the bar veto still blocks 3/2. Not shipped; worth redoing only
   together with a working 3/2 rule.
-- **`FU-S10-basspulse-time-based`**: BassPulse smooths per frame, so its speed depends on the frame rate. Make its
-  envelopes time-based, with the same behavior at 60 fps, and add specs for equal settling at 30, 60 and 144 fps. It
-  changes three visualizers through one shared class, so check with Trevor before routing it.
-- Known weaknesses without a packet yet, from "Known costs and what is left" under S6 and the bass gate above:
-  - the 3/4 click at 180 BPM reads 90
-  - `syncopation-no-kick`'s first lock
-  - `high-bpm-dnb` first locks at 115
-  - the abrupt grid move
-  - the gate opens more than 4 s after lock on `lonley`, `summer2000` and `syncopationbass`
-  - `low-bpm-rnb` never opens
-  - `beatless` opens on a weak pulse
+- **`FU-S10-basspulse-time-based`** (done, closed under the alignment-tracker-leftovers plan, decision D1): BassPulse
+  smoothed per frame, so its speed depended on the frame rate. `BassBump` (`app/features/audio/hub/bassBump.ts`) now
+  does the job time-based: it scales every rate from its 60 fps tuning, so it matches `BassPulse` frame for frame at
+  60 fps, and `bassBump.test.ts` checks equal settling at 30, 60 and 144 fps. Cubes, bass ink and the dancing character
+  use it. `BassPulse` stays per frame on purpose, as the frozen pre-hub reference for the scorecard's pre-hub column
+  (`scripts/scorecard/engine/prehubBass.ts` is the only place that builds it outside specs); do not make it time-based.
+- Known weaknesses without a packet yet, from "Known costs and what is left" under S6 and the bass gate above. Status
+  updated 2026-11-23 from the D11 tracker plan and the tracker replan ("Tracker plan D11" and "Tracker replan, S0" in
+  `hub-scorecard.md`):
+  - the 3/4 click at 180 BPM reads 90 (still open: its `it.fails` spec still fails after D11 S8)
+  - `syncopation-no-kick`'s first lock (still open: 8.02 s, stretch-open in D11 S8; AC5)
+  - `high-bpm-dnb` first locks at 115 (still open, not measured since; its beat error is 21.5 ms and it locks at
+    8.02 s in the replan's S0)
+  - the abrupt grid move (still open)
+  - the gate opens more than 4 s after lock on `lonley`, `summer2000` and `syncopationbass` (`syncopationbass` is
+    fixed, 1.73 s in the replan's S0; `lonley` 10.83 s and `summer2000` 6.10 s are accepted as measured, with
+    `half-time-shuffle` 7.18 s)
+  - `low-bpm-rnb` never opens (it opens since D11 S4b, at 14.92 s after the lock, accepted as measured)
+  - `beatless` opens on a weak pulse (still open: it locks, and neither D11 S6's presence signals nor kick support
+    separate it from a beat)
   - the onset miss on `bassline-kick-120` in `scripts/ground-truth/alignment.test.ts` (`no-kick-124`'s was fixed in
-    hub-regressions S6; see "S6 findings" in `hub-scorecard.md`)
+    hub-regressions S6; see "S6 findings" in `hub-scorecard.md`). Accepted by D11 as a non-goal: a finer low-end
+    spectrum is a separate onset project.
 
 ### Rhythm specs and dev tools (small, fast lane)
 - **`FU-pin-state-bpm`** (done in #67): add analyzer specs pinning `state.bpm` to the held tempo when the grid is
