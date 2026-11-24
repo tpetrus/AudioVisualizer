@@ -1444,6 +1444,39 @@ Two R0 items are fast-lane follow-ups: `FU-ATL-S7-mirror` (the offline `firstLoc
 `scripts/rhythm-tools/autocorrelation.ts` does not mirror the faster rival) and `FU-ATL-S7-specs` (no spec engages at
 the shipped 0.7, or pins a faster rival replacing a present dotted one).
 
+## Alignment and tracker leftovers, S9: glide refinements (2026-11-24, on `69065e0`)
+S9 closes the two R2 findings of S5's review (contracts OD10 to OD12):
+- `FU-ATL-S5-backward-glide`: when the phase on show is ahead of the new grid, the glide lasts
+  `max(PHASE_GLIDE_MS, 2 × the move)`. The published phase keeps advancing at half speed or faster instead of running
+  backwards (a half-beat move used to run it backwards for the whole 100 ms). Forward moves keep the 100 ms glide.
+  With `PHASE_GLIDE_MS` at 0 every move still jumps, as C3 requires: OD11 as first written stretched backward moves at
+  0 ms too, and was amended at integration.
+- `FU-ATL-S5-glide-latch`: the glide starts at the first `updatePhase` after the move, so the first read carries no
+  glide travel at any frame rate. The OD5 tool now calls `updatePhase` once per batch, as the app does.
+
+| Gate | Base | S9 |
+|---|---|---|
+| OD5 measure (largest excess step, tracks with grid moves) | 0.0611 beat (`lonley`) | 0.0611 beat (`lonley`) |
+| `sweep:gate` false opens at 120 / 400 beats | 3 / 15 | 3 / 15 |
+| `sweep:gate` seconds from lock to first opening, sum over kick tracks | 65.5 | 60.0 |
+| `bench:tracker` branch / base | | 1.004 (1.001 with kicks) |
+| Total JS | 339,092 B | 339,125 B (+33 B) |
+
+`scorecard:check` passes: 446 applicable cells, 401 passing, 11 blocking failures, as at the base. Only `lonley`'s two
+gate cells move. `gate.firstOpenSeconds` goes from 18.97 to 13.50 s and `gate.secondsAfterLock` from 10.83 to
+5.37 s, which still fails its 4 s bound. 13.50 s is the opening S5 saw at 150 and 250 ms, right at `lonley`'s grid
+move (13.48 s). The likely cause is that the published beat position now stays continuous across that backward move,
+so the kick just after it matches the one a bar earlier. That is inferred from the gate's rule
+(`bassGate.ts`, `repeatsEarlierBar`), not replayed. The false opens do not move.
+
+`main` had 8 B left under 339.1 kB, so Trevor raised the limit to 339.25 kB for this slice (OD10). The `no kick`
+digest in `kickGolden.test.ts` moves again. At 0 ms it is still the pre-glide digest `fe460364`.
+
+**Review.** Nothing blocks. Two R0 packets are fast-lane follow-ups. `FU-ATL-S9-specs`: the reset spec cannot fail
+with the resets removed, more backward cases are needed, and two comments are unclear. `FU-ATL-S9-comments`: the
+`PHASE_GLIDE_MS` comment does not mention the stretch, the `handleBeat` comment says "late", and the OD5 tool's
+batch time is the last frame's. `FU-ATL-S7-mirror` and `FU-ATL-S7-specs` were closed in #148.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
