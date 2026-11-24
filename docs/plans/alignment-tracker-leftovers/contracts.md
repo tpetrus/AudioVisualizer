@@ -44,6 +44,10 @@ the current kind, clamped to the slider range; a saved offset always wins.
   read as: this plan raises no limit; each code slice adds at most 0.15 kB of total JS (gzip), measured with
   `npm run size` on its base and on its head; the total stays within the limit in `.size-limit.json` at the slice's
   start. A slice that needs more is a no-go.
+  **Amended 2026-11-23 (Trevor, S5).** `main` had only 94 B left under 339 kB when S5 started. The glide adds 0.148 kB,
+  within its 0.15 kB, but ends at 339.05 kB (339.06 kB after merging the react-router 8.5.1 bump). Trevor chose to
+  raise the limit to 339.1 kB in the S5 pull request (#145). The 0.15 kB per-slice cap stands, and every later slice
+  is judged against the limit in `.size-limit.json` at its start.
 - **OD3 S2 is split.** S2a writes the run sheet only (docs). Trevor's four loopback runs are a human step. S2b (code:
   values and the default sync offset) runs only if at least one kind is stable by C4, and is designed then. Two
   questions are left to S2b: how storage tells "no saved offset" from a saved 0 (today `loadSyncOffsetMs` returns 0 for

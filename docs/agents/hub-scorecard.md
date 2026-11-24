@@ -1361,7 +1361,7 @@ keeps only the kick input of #136 and the tooling of #137. The model branches (`
 `replan2/s2-kick-pll`, `replan2/s2-kick-pll-r`) stay unmerged. The follow-ups that served only the model
 (`FU-RP-kickmove-guard-spec`, `FU-RP-kickoffset-realign`) are closed; `FU-RP-eval-kicks` is done by #137.
 
-## Alignment and tracker leftovers, S5: the published phase glide (2026-11-24, on `be82b93`)
+## Alignment and tracker leftovers, S5: the published phase glide (2026-11-23, on `be82b93`)
 Plan `docs/plans/alignment-tracker-leftovers` (contracts C2 and C3, decisions OD4 and OD5 in `contracts.md`). When a
 re-align moves the beat grid by more than `PHASE_GLIDE_MIN_MS` (20 ms), `RhythmAnalyzer.updatePhase` now eases the
 published anchor to the new grid over `PHASE_GLIDE_MS` instead of jumping. `beatPhase`, `nextBeatTime` and the
@@ -1388,6 +1388,20 @@ as a follow-up to test live, not taken here: `FU-ATL-S5-glide-150` (R2, the full
 and 150 ms, from the main checkout. Switch the constant only if the live gate opens earlier, no live cell gets worse
 and false opens do not rise. That is a revision of OD5 and needs Trevor's approval.
 
+The independent review found nothing that blocks. Two findings change the published phase, so each is an R2
+follow-up for the full workflow:
+- `FU-ATL-S5-glide-latch`: the glide starts at the newest time already shown, so the first read after a move carries
+  the time since the previous read. At 60 fps that is one frame, which is what OD5 measures. At lower frame rates the
+  first step is larger. Starting the glide at the first `updatePhase` after the move would fix it. The OD5 tool would
+  then need to call `updatePhase` once per batch, as the app does.
+- `FU-ATL-S5-backward-glide`: a move back by more than `PHASE_GLIDE_MS` makes the published phase run backwards for
+  the length of the glide. The counter holds, as it did on the old jump. Lengthening the glide for large backward
+  moves would fix it.
+
+C3 says the counter "increments exactly when the published phase wraps". That holds for moves under half a beat at
+an unchanged tempo. A tempo doubling at the re-align steps the counter without a wrap, as the old jump did. The
+specs that pin this, and the reset specs that cannot fail today, are fast-lane follow-ups.
+
 **Gates at 100 ms, against `be82b93`.**
 - Every offline cell equals the base (446 applicable, 401 passing, 11 blocking failures). The baseline is rewritten
   from this run.
@@ -1395,7 +1409,7 @@ and false opens do not rise. That is a revision of OD5 and needs Trevor's approv
 - `bench:tracker`: 1.001 (1.006 with kicks). The base ref was the local `main`, so this figure is advisory.
 - Unit specs pass, coverage passes and `test:e2e` passes (58 passed, 6 skipped).
 - Total JS: 338.91 to 339.05 kB (+0.148 kB, within the slice's 0.15 kB). `main` had only 94 B left under 339 kB, so
-  Trevor raised the limit to 339.1 kB in this change (2026-11-24).
+  Trevor raised the limit to 339.1 kB in this change (2026-11-23; the OD2 amendment in `contracts.md`).
 - The `no kick` digest in `kickGolden.test.ts` moves, because it hashes the published phase. At 0 ms it is the base
   digest.
 
