@@ -8,6 +8,12 @@ import type { Scorecard } from './types';
 // How the parent run hands the overrides to the bundled child, so the child can record them in the header.
 export const OVERRIDES_ENV = 'SCORECARD_OVERRIDES';
 
+// Where one --set run writes its bundle. The process id keeps two runs in one checkout from overwriting each other's
+// file while the other is still executing it.
+export function setBundlePath(pid: number): string {
+    return `node_modules/.cache/scorecard-set-${pid}.mjs`;
+}
+
 export interface SplitArgs {
     overrides: Override[];
     // The arguments without the --set pairs, as the child run takes them.

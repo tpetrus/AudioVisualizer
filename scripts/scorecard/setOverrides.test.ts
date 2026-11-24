@@ -4,6 +4,7 @@ import {
     OVERRIDES_ENV,
     overridesFromEnv,
     overridesRecord,
+    setBundlePath,
     splitSetArgs,
     withOverrides,
 } from './setOverrides';
@@ -65,5 +66,12 @@ describe('overrides record', () => {
         expect(withOverrides(card, undefined)).toBe(card);
         expect(withOverrides(card, { A: '1' }).header.overrides).toEqual({ A: '1' });
         expect('overrides' in withOverrides(card, undefined).header).toBe(false);
+    });
+});
+
+describe('setBundlePath', () => {
+    it('is distinct per process and under node_modules/.cache', () => {
+        expect(setBundlePath(1)).not.toBe(setBundlePath(2));
+        expect(setBundlePath(7)).toBe('node_modules/.cache/scorecard-set-7.mjs');
     });
 });
