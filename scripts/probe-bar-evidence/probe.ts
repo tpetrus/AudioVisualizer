@@ -414,6 +414,25 @@ function main(): void {
     );
     const fn = chosen.fn;
 
+    // Information only: 6-8-time's truth (62) is P = 18 at the level the tracker holds, 59.9 bpm, just under the range edge,
+    // so it is left out. The same scores with the lower edge relaxed to 50 bpm, and the syncopation variations that were
+    // scorable.
+    const relaxed = scoreRun(
+        analyses.get('6-8-time.wav') as Analysis,
+        '6-8-time',
+        'info',
+        truthOf(need('6-8-time')),
+        50,
+    );
+    say(
+        `\nInformation only, 6-8-time with the lower tempo edge relaxed to 50 bpm: H ${relaxed.heldBpm?.toFixed(1)}, candidates ${relaxed.candidates.join(',')}, truth period ${relaxed.truthPeriod}, margins ${FUNCTIONS.map((f) => `${f} ${fmt(relaxed.margins[f])}`).join(', ')}`,
+    );
+    for (const f of FUNCTIONS) {
+        const ok = synVariationRuns.filter((r) => r.scorable);
+        say(
+            `Information only, syncopation-no-kick ${f}: ${ok.length} of 10 variations scorable, smallest margin among them ${fmt(Math.min(...ok.map((r) => r.margins[f])))}, at or above tau ${ok.filter((r) => r.margins[f] >= TAU).length}`,
+        );
+    }
     say('\nTargets, 8 s window (information only) for the chosen function and syncopation variations:');
     for (const n of ['synthetic-3/4-180', '6-8-time', 'half-time-shuffle'])
         say(`${n}: ${fmt((n.startsWith('synthetic') ? target('synthetic-3/4-180') : target(n)).margins8[fn])}`);
