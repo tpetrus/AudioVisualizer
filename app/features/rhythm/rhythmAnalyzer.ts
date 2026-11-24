@@ -24,6 +24,8 @@ import {
     ONSET_PEAK_FLOOR,
     ONSET_PEAK_HALF_LIFE_SECONDS,
     PHASE_EXTRAPOLATE_MAX_SECONDS,
+    PHASE_GLIDE_MIN_MS,
+    PHASE_GLIDE_MS,
     SOFT_RESET_KEEP,
     TEMPO_UPDATE_SECONDS,
 } from './rhythmConfig';
@@ -87,6 +89,15 @@ export class RhythmAnalyzer {
     private anchorTime = 0;
     private anchorPeriod = 0;
     private anchorBeatIndex = 0;
+    // After a re-align the published anchor lies `lead` seconds after the declared one and eases back to it over
+    // PHASE_GLIDE_MS. The glide runs on the clock updatePhase is given, starting at the newest time it was given; that
+    // clock only moves forward, so a reader that asks for an earlier time (a sync offset change) makes no progress. A
+    // glide of 0 ms is over before it starts, which is the old jump. A rebuilt grid or a clear drops the glide under way.
+    private lead = 0;
+    private since = 0;
+    private seen = 0;
+    // The grid epoch of the anchor, so the first beat of a new grid is shown where it was declared.
+    private anchorEpoch = 0;
 
     constructor(frameRate: number, state: RhythmState = createRhythmState()) {
         this.frameRate = frameRate;
@@ -191,6 +202,7 @@ export class RhythmAnalyzer {
                 if (this.beat.gridEpoch !== this.seenGridEpoch) {
                     // The beats are numbered afresh on a new grid, so what the meter learned no longer lines up.
                     this.seenGridEpoch = this.beat.gridEpoch;
+                    this.lead = 0;
                     this.meter.shrink(METER_GRID_RESET_KEEP);
                     this.syncMeterState();
                 }
@@ -232,14 +244,17 @@ export class RhythmAnalyzer {
         }
         // A stalled analysis must freeze the phase rather than run on forever.
         const time = Math.min(now, this.latestTime + PHASE_EXTRAPOLATE_MAX_SECONDS);
+        this.seen = Math.max(this.seen, time);
+        // Everything below reads the one eased anchor, so the counters step exactly when the published phase wraps.
+        const anchor = this.anchorTime + this.eased();
         // A beat is declared about 100 ms after it sounded, so a reader that asks for an earlier time (a positive sync
         // offset) can ask for a moment before the newest beat. That moment belongs to the end of the previous beat, so
         // the grid is run backwards, by at most one beat, instead of holding the phase at 0 until the time catches up.
-        const beats = Math.max(-1, (time - this.anchorTime) / this.anchorPeriod);
+        const beats = Math.max(-1, (time - anchor) / this.anchorPeriod);
         const wholeBeats = Math.floor(beats);
         const fraction = beats - wholeBeats;
         state.beatPhase = fraction;
-        state.nextBeatTime = this.anchorTime + (wholeBeats + 1) * this.anchorPeriod;
+        state.nextBeatTime = anchor + (wholeBeats + 1) * this.anchorPeriod;
 
         const beatTarget = this.beatBase + this.beat.beatCount + wholeBeats;
         if (beatTarget > state.beatCount) {
@@ -260,6 +275,13 @@ export class RhythmAnalyzer {
         if (downbeatTarget > state.downbeatCount) {
             state.downbeatCount = downbeatTarget;
         }
+    }
+
+    // The published anchor's lead over the declared one: all of the move when the glide starts, none after it.
+    private eased(): number {
+        const left = 1 - (this.seen - this.since) / (PHASE_GLIDE_MS / 1000);
+        // A 0 ms glide has no time left, or none that is a number; either way it is over.
+        return left > 0 ? this.lead * left : 0;
     }
 
     private countSongChange(): void {
@@ -295,6 +317,9 @@ export class RhythmAnalyzer {
         this.downbeatBase = this.state.downbeatCount;
         this.declaredDownbeats = 0;
         this.hasAnchor = false;
+        this.lead = 0;
+        this.since = 0;
+        this.seen = 0;
         clearRhythmState(this.state);
     }
 
@@ -326,6 +351,19 @@ export class RhythmAnalyzer {
         this.meter.addBeat(beatIndex, this.featureKick, this.featureTotal, this.featureChroma, period);
         this.syncMeterState();
 
+        // The new anchor starts `lead` seconds late, so that at the newest time shown it gives the phase on show (to the
+        // nearest beat), and eases back to the declared beat. The gap is taken in beats of each anchor's own period, so a
+        // tempo change at the re-align (a halving) changes how fast the phase runs but does not make it jump. A move
+        // at most the minimum, the first anchor and the first anchor of a new grid start no glide.
+        let move = 0;
+        if (this.hasAnchor && this.anchorEpoch === this.beat.gridEpoch) {
+            const shown = (this.seen - this.anchorTime - this.eased()) / this.anchorPeriod;
+            const gap = (this.seen - this.beat.lastBeatTime) / period - shown;
+            move = (gap - Math.floor(gap + 0.5)) * period;
+        }
+        this.lead = Math.abs(move) > PHASE_GLIDE_MIN_MS / 1000 ? move : 0;
+        this.since = this.seen;
+        this.anchorEpoch = this.beat.gridEpoch;
         this.hasAnchor = true;
         this.anchorTime = this.beat.lastBeatTime;
         this.anchorPeriod = period;
