@@ -1411,6 +1411,39 @@ specs that pin this, and the reset specs that cannot fail today, are fast-lane f
 - The `no kick` digest in `kickGolden.test.ts` moves, because it hashes the published phase. At 0 ms it is the base
   digest.
 
+## Alignment and tracker leftovers, S7: the 3:2 faster rival in the first-lock tie (2026-11-23, on `37da953`)
+The probe (`probe-report.md`, step 4) gave `high-bpm-dnb`'s candidate set a go. The tie only weighed the 4:3 dotted
+rivals, so its first estimate (115, the 2:3 pulse) was never compared with 173. Now the 3:2 faster neighbor (2/3 of
+the winning lag) takes the dotted rival's place in the tie when its comb score is at least `TEMPO_TIE_FASTER_MIN_RATIO`
+times the winner's. The grid (OD8, pre-registered in `8ee9b69`) was 0.5, 0.6 and 0.7; all three gave the same
+scorecard, so the largest, 0.7, ships.
+
+| Cell (`high-bpm-dnb`) | Before | After |
+|---|---|---|
+| Tempo the tracker first locks at | 86 (half) | 172.9 |
+| `beat.errorMedianMs` | 21.50 ms | 19.33 ms |
+| `gate.secondsAfterLock` | 1.93 s | 1.72 s |
+| `tempo.maxErrorAfterLock` | 0.00007 | 0.00049 (passes) |
+
+No other cell moves on any track, and no `tempo.lockSeconds` is later. `scorecard:check` passes, `sweep:gate` false
+opens equal the base, and `bench:tracker` is 1.001. Total JS goes from 339.05 to 339.09 kB (+39 B, inside the 40 B
+OD9 left). That leaves about 8 B under the 339.1 kB limit, so the next slice that adds code needs a limit decision. The
+`prehub` value of the two gate cells moves with them, as it does for every offline gate cell, because it is computed
+from the same tracker beats.
+
+**Review.** Nothing blocks. One medium finding is an R2 follow-up, `FU-ATL-S7-rival-choice`. When the faster rival
+qualifies it replaces the dotted rival without checking which is the closer tie. The faster lag's score also includes
+a double-lag term that a strong dotted peak inflates. On a synthetic grid of 432 beat-and-figure patterns, 12 lock
+differently:
+- three variants of a 70 bpm 3-against-4 figure now lock at 105 (3:2 too fast), and one triplet case locks 5 s later;
+- five cases that held the wrong tempo (80, 67.5, 75 and 96 bpm) now hold the right one or close to it;
+- three lock sooner, two of them 5 s sooner.
+
+No scorecard track shows any of this. The fix would keep whichever rival gives the closer tie, and it needs bytes.
+Two R0 items are fast-lane follow-ups: `FU-ATL-S7-mirror` (the offline `firstLockRivalBpm` in
+`scripts/rhythm-tools/autocorrelation.ts` does not mirror the faster rival) and `FU-ATL-S7-specs` (no spec engages at
+the shipped 0.7, or pins a faster rival replacing a present dotted one).
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
