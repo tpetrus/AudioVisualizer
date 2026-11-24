@@ -3,7 +3,7 @@
 // holds later runs to. Not part of the app bundle: nothing under app/ imports this file.
 
 import { execSync, spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { buildScorecard, scenarioNotes } from './cells';
 import { measureScenarios } from './engine';
@@ -28,6 +28,7 @@ import {
     OVERRIDES_ENV,
     overridesFromEnv,
     overridesRecord,
+    setBundlePath,
     splitSetArgs,
     withOverrides,
 } from './setOverrides';
@@ -63,25 +64,30 @@ function write(path: string, text: string): void {
 // records the overrides in its output. Returns the child's exit code.
 async function runWithOverrides(rest: readonly string[], overrides: readonly Override[]): Promise<number> {
     let applied = false;
-    const outfile = resolve('node_modules/.cache/scorecard-set.mjs');
-    await build({
-        entryPoints: [resolve('scripts/scorecard/run.ts')],
-        bundle: true,
-        platform: 'node',
-        format: 'esm',
-        packages: 'external',
-        logLevel: 'warning',
-        outfile,
-        plugins: [createOverridePlugin(overrides, () => (applied = true))],
-    });
-    // A bundle that never loaded the config would silently ignore the overrides.
-    if (!applied)
-        throw new Error('rhythmConfig.ts was never loaded by the bundle, so the overrides would have no effect');
-    const result = spawnSync(process.execPath, [outfile, ...rest], {
-        stdio: 'inherit',
-        env: { ...process.env, [OVERRIDES_ENV]: JSON.stringify(overridesRecord(overrides)) },
-    });
-    return result.status ?? 1;
+    const outfile = resolve(setBundlePath(process.pid));
+    // The bundle is this run's own file, removed whether the build, the check or the child fails.
+    try {
+        await build({
+            entryPoints: [resolve('scripts/scorecard/run.ts')],
+            bundle: true,
+            platform: 'node',
+            format: 'esm',
+            packages: 'external',
+            logLevel: 'warning',
+            outfile,
+            plugins: [createOverridePlugin(overrides, () => (applied = true))],
+        });
+        // A bundle that never loaded the config would silently ignore the overrides.
+        if (!applied)
+            throw new Error('rhythmConfig.ts was never loaded by the bundle, so the overrides would have no effect');
+        const result = spawnSync(process.execPath, [outfile, ...rest], {
+            stdio: 'inherit',
+            env: { ...process.env, [OVERRIDES_ENV]: JSON.stringify(overridesRecord(overrides)) },
+        });
+        return result.status ?? 1;
+    } finally {
+        rmSync(outfile, { force: true });
+    }
 }
 
 function main(): void {
