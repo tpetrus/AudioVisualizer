@@ -53,6 +53,11 @@ the current kind, clamped to the slider range; a saved offset always wins.
   questions are left to S2b: how storage tells "no saved offset" from a saved 0 (today `loadSyncOffsetMs` returns 0 for
   both), and whether the settings' Reset button returns to the kind's default by clearing the saved value. If neither
   kind is stable, S2b is not run and AC9 is recorded with the measured runs and the reason.
+  **Amended 2026-11-25 (Trevor, AC9 results).** The loopback runs made only `screen` stable, at 5 ms, and `device` was
+  not (47.6 ms between runs, through Voicemeeter). `CAPTURE_DELAY_MS.screen` is set to 5. S2b is not run: a default
+  sync offset of 5 ms is one slider step and under a third of a frame, which does not justify the storage decisions
+  above and new code against the size limit. AC2's default-offset clause is waived, and the sync offset still starts
+  at 0. The runs are in `docs/agents/capture-delay.md`.
 - **OD4 C3 numbers.** `PHASE_GLIDE_MIN_MS` is 20 (two 10 ms hops; a smaller move is not visible as a jump at 60 fps).
   The glide duration is a `rhythmConfig.ts` constant `PHASE_GLIDE_MS`, one `export const` per line so `--set` can
   override it. The grid is 0, 100, 150 and 250 ms, run with `npm run scorecard -- --set PHASE_GLIDE_MS=<v> --out <file>`.

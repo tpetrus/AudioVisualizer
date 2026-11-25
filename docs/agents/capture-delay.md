@@ -117,16 +117,32 @@ the median minus `outputLatency`; the report prints it as "Estimated delay relat
 
 | Run      | Date | Machine | Browser | Source | Device label | Clicks found / sent | Median (ms) | outputLatency (ms or n/a) | Hearing-relative (ms) = median - outputLatency | Output file |
 | -------- | ---- | ------- | ------- | ------ | ------------ | ------------------- | ----------- | ------------------------- | ---------------------------------------------- | ----------- |
-| tab 1    |      |         |         | tab    |              |                     |             |                           |                                                |             |
-| tab 2    |      |         |         | tab    |              |                     |             |                           |                                                |             |
-| device 1 |      |         |         | device |              |                     |             |                           |                                                |             |
-| device 2 |      |         |         | device |              |                     |             |                           |                                                |             |
+| tab 1 | 2026-11-25 | Trevor's Windows 11 PC | Playwright Chromium | tab | n/a (the tool's own tab) | 20 / 20 | 44.67 | 40 | 4.67 | `capture-delay-runs/capture-delay-tab-1.json` |
+| tab 2 | 2026-11-25 | Trevor's Windows 11 PC | Playwright Chromium | tab | n/a (the tool's own tab) | 20 / 20 | 44.67 | 40 | 4.67 | `capture-delay-runs/capture-delay-tab-2.json` |
+| device 1 | 2026-11-25 | Trevor's Windows 11 PC | Playwright Chromium | device | `Default - Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)` | 20 / 20 | 166.21 | 53 | 113.21 | `capture-delay-runs/capture-delay-device-1.json` |
+| device 2 | 2026-11-25 | Trevor's Windows 11 PC | Playwright Chromium | device | `Default - Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)` | 20 / 20 | 213.85 | 53 | 160.85 | `capture-delay-runs/capture-delay-device-2.json` |
 
 | Kind                              | Figures agree within 10 ms and outputLatency known? | CAPTURE_DELAY_MS (mean, rounded to 5 ms, or 0) | Reason if 0         |
 | --------------------------------- | --------------------------------------------------- | ---------------------------------------------- | ------------------- |
-| `screen` (from `--source tab`)    |                                                     |                                                |                     |
-| `device` (from `--source device`) |                                                     |                                                |                     |
+| `screen` (from `--source tab`) | yes: 4.67 and 4.67 ms, outputLatency 40 ms in both | 5 | |
+| `device` (from `--source device`) | no: 113.21 and 160.85 ms, 47.64 ms apart | 0 | the two runs disagree by more than 10 ms |
 | `file`                            | not measured                                        | 0                                              | stays 0 by decision |
+
+Notes on these runs (2026-11-25):
+- **Device path.** Stereo Mix does not work on this machine, so the device runs looped through Voicemeeter Banana.
+  Windows output was set to Voicemeeter Input, its VAIO strip sent to A1 (the headset) and B1, and the tool recorded
+  Voicemeeter Out B1. Within each run all 20 clicks arrived at the same delay, but the two runs, about 20 s apart,
+  settled 47.6 ms apart. That fits Voicemeeter choosing a different buffer alignment each time a stream opens, so no
+  single device figure holds on this machine. The browser's `outputLatency` here is the latency into Voicemeeter's
+  virtual input. It leaves out Voicemeeter's own output to the headset, so these hearing-relative figures overstate the
+  delay by that much. It does not matter here, because the device kind stays 0 anyway.
+- **Tab path.** Both tab runs were made about 30 s apart, in one session, before the output was moved to Voicemeeter.
+  The browser reported 40 ms of `outputLatency` then, against 53 ms through Voicemeeter. So the 5 ms holds for that
+  output device.
+- **S2b is not run.** Trevor decided this on 2026-11-25, amending AC2 in the plan's `contracts.md`. The only stable
+  kind gives 5 ms, one step of the sync-offset slider and under a third of a 60 Hz frame. A default sync offset for
+  it would need two storage decisions and new code against the size limit, for a shift no one can see.
+  `CAPTURE_DELAY_MS.screen` is set to 5 as the measured figure, and the sync offset still starts at 0.
 
 ### Decision rule (contract C4)
 

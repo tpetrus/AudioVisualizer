@@ -12,10 +12,12 @@ export const SYNC_OFFSET_STEP_MS = 5;
 export const DEFAULT_SYNC_OFFSET_MS = 0;
 
 // Estimated delay from the listener hearing a sound to its samples reaching the AudioContext, per source kind. 0 means
-// not measured; the findings document says where each figure comes from. Nothing is subtracted for it automatically:
-// the user sync offset is the correction.
+// not measured or not stable; the findings document says where each figure comes from. Nothing is subtracted for it
+// automatically: the user sync offset is the correction. `screen` is the mean of two tab loopback runs (4.67 ms each,
+// rounded to 5 ms, contract C4); `device` stays 0 because its two runs, through Voicemeeter, were 47.6 ms apart
+// (docs/agents/capture-delay.md, AC9 results).
 export const CAPTURE_DELAY_MS: Readonly<Record<CaptureKind, number>> = Object.freeze({
-    screen: 0,
+    screen: 5,
     device: 0,
     file: 0,
 });

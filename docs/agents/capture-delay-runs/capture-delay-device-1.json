@@ -1,0 +1,121 @@
+{
+  "found": 20,
+  "missed": 0,
+  "medianMs": 166.2083333333335,
+  "p5Ms": 166.20833333333306,
+  "p95Ms": 166.2083333333335,
+  "source": "device",
+  "deviceLabel": "Default - Voicemeeter Out B1 (VB-Audio Voicemeeter VAIO)",
+  "clicks": 20,
+  "sampleRate": 48000,
+  "baseLatencyMs": 10,
+  "outputLatencyMs": 53,
+  "estimatedDelayRelativeToHearingMs": 113.20833333333351,
+  "failed": false,
+  "lateSuspected": false,
+  "clicksDetail": [
+    {
+      "scheduled": 1.0213541666666666,
+      "arrival": 1.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 1.5213541666666666,
+      "arrival": 1.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 2.021354166666667,
+      "arrival": 2.1875625,
+      "delayMs": 166.20833333333306
+    },
+    {
+      "scheduled": 2.521354166666667,
+      "arrival": 2.6875625,
+      "delayMs": 166.20833333333306
+    },
+    {
+      "scheduled": 3.021354166666667,
+      "arrival": 3.1875625,
+      "delayMs": 166.20833333333306
+    },
+    {
+      "scheduled": 3.521354166666667,
+      "arrival": 3.6875625,
+      "delayMs": 166.20833333333306
+    },
+    {
+      "scheduled": 4.021354166666667,
+      "arrival": 4.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 4.521354166666667,
+      "arrival": 4.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 5.021354166666667,
+      "arrival": 5.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 5.521354166666667,
+      "arrival": 5.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 6.021354166666667,
+      "arrival": 6.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 6.521354166666667,
+      "arrival": 6.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 7.021354166666667,
+      "arrival": 7.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 7.521354166666667,
+      "arrival": 7.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 8.021354166666667,
+      "arrival": 8.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 8.521354166666667,
+      "arrival": 8.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 9.021354166666667,
+      "arrival": 9.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 9.521354166666667,
+      "arrival": 9.6875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 10.021354166666667,
+      "arrival": 10.1875625,
+      "delayMs": 166.2083333333335
+    },
+    {
+      "scheduled": 10.521354166666667,
+      "arrival": 10.6875625,
+      "delayMs": 166.2083333333335
+    }
+  ],
+  "noiseFloor": 0,
+  "peak": 0.5,
+  "threshold": 0.125
+}
