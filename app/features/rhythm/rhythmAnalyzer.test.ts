@@ -261,7 +261,9 @@ describe('RhythmAnalyzer on material without a clear meter', () => {
     // spec bounds the total over 16 seeds by what the code gave before the change. A real worsening still fails it. The
     // octave prior and the bar-evidence veto moved the total from 31 to 32 (re-measured): they change which octave and
     // pulse noise locks to, and with it the later beat grid, so one more confident sample is chance, not a meter claim.
-    it('keeps the meter confidence low on white noise, over 16 seeds', () => {
+    // Running 16 seeds of white noise through the analyzer took 76 s on a slow CI runner, over the 60 s default timeout,
+    // so this spec gets its own limit.
+    it('keeps the meter confidence low on white noise, over 16 seeds', { timeout: 180_000 }, () => {
         let total = 0;
         const perSeed: number[] = [];
         for (let seed = 1; seed <= 16; seed++) {
