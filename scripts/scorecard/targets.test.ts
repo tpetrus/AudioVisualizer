@@ -7,6 +7,7 @@ import {
     directionOf,
     effectiveFloor,
     floorFor,
+    liveAllowanceOf,
     offlineEffectiveFloor,
     liveEffectiveFloor,
     meetsFloor,
@@ -216,6 +217,19 @@ describe('effectiveFloor', () => {
         expect(effectiveFloor('lower', 4, 6)).toBe(4);
         expect(effectiveFloor('higher', 0.9, 0.95)).toBe(0.95);
         expect(effectiveFloor('higher', 0.9, 0.5)).toBe(0.9);
+    });
+});
+
+describe('liveAllowanceOf', () => {
+    it('gives each live metric its minimum and everything else none', () => {
+        expect(liveAllowanceOf('live.reaction.latencyMs')).toBeCloseTo(1000 / 60, 10);
+        expect(liveAllowanceOf('live.hit.share50ms')).toBe(0.05);
+        expect(liveAllowanceOf('live.gate.secondsAfterLock')).toBe(0.5);
+        expect(liveAllowanceOf('live.falseFire.share')).toBe(0.05);
+        expect(liveAllowanceOf('live.lock.spreadSeconds')).toBe(0.25);
+        expect(liveAllowanceOf('live.clip.maxDeviationBeats')).toBe(0);
+        expect(liveAllowanceOf('beat.errorMedianMs')).toBe(0);
+        expect(liveAllowanceOf('nope')).toBe(0);
     });
 });
 
