@@ -6,7 +6,8 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
 import { swellFromBump, type BassSwell } from './bassInkBass';
 import { BrightnessMix } from './brightnessMix';
-import { blendPalette, writePalette } from './chromaPalette';
+import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
+import { blendPalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 import { fitScale, formationP95Radius } from './framing';
 import { InkCloud } from './inkCloud';
@@ -170,7 +171,25 @@ export function useBassInkScene(
         const paletteFrom = createPalette();
         const paletteTo = createPalette();
         const paletteShown = createPalette();
-        writePalette(cue.paletteIndex, paletteShown);
+        // The three picked colors (linear) and the hex strings they were parsed from, so a string is parsed only when
+        // the control changes. Empty strings never match a control value, so the first write parses all three.
+        const pickedColors = [new THREE.Color(), new THREE.Color(), new THREE.Color()] as const;
+        const pickedHex = ['', '', ''];
+        let huePhase = 0;
+        const parsePicked = (index: number, hex: string) => {
+            if (hex === pickedHex[index]) return;
+            pickedHex[index] = hex;
+            // Color.set reads a CSS hex as sRGB and stores it in linear light, as the cubes visualizer does.
+            pickedColors[index].set(hex);
+        };
+        const writePicked = (out: PalettePair) => {
+            const picked = valuesRef.current;
+            parsePicked(0, picked.colorA);
+            parsePicked(1, picked.colorB);
+            parsePicked(2, picked.colorC);
+            writeCustomPalette(pickedColors, huePhase, out);
+        };
+        writePicked(paletteShown);
         copyPalette(paletteShown, paletteFrom);
         copyPalette(paletteShown, paletteTo);
         let paletteStart = 0;
@@ -355,10 +374,13 @@ export function useBassInkScene(
                     }
                     cloud.beginTransition(cue.transitionStart, cue.transitionSeconds);
                     copyPalette(paletteShown, paletteFrom);
-                    writePalette(cue.paletteIndex, paletteTo);
                     paletteStart = cue.transitionStart;
                     paletteSeconds = cue.transitionSeconds;
                 }
+                // The picked colors drive the palette every frame, so a picker change shows on the next frame; a
+                // transition only fades from what was shown when it began.
+                huePhase = advanceHuePhase(huePhase, values.colorSpeed, dt);
+                writePicked(paletteTo);
                 const paletteProgress = paletteSeconds > 0 ? (now - paletteStart) / paletteSeconds : 1;
                 blendPalette(paletteFrom, paletteTo, Math.min(1, Math.max(0, paletteProgress)), paletteShown);
 
