@@ -1,4 +1,5 @@
 import { bassInkConfig, type BrightnessConfig } from './bassInkConfig';
+import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { BrightnessGovernor } from './brightnessGovernor';
 import type { DirectorCue } from './bassInkTypes';
 
@@ -14,9 +15,11 @@ export class BrightnessMix {
     private lastTension = 0;
     // Requests the governor or the soft cap turned down, for telemetry and tests.
     deniedCount = 0;
-    // Times of recent granted kick flashes and core steps, newest overwriting oldest, for their shared per-second cap.
+    // Times of recent granted kick flashes, bass glows and core steps, newest overwriting oldest, for their shared per-second cap.
     private readonly softGrants: Float64Array;
     private softHead = 0;
+    // False after a glow crossing until the glow has fallen below the re-arm level.
+    private glowArmed = true;
     private readonly config: BrightnessConfig;
     private readonly governor: BrightnessGovernor;
 
@@ -64,7 +67,22 @@ export class BrightnessMix {
         return this.level;
     }
 
-    // Core steps and kick flashes share one cap below the governor's limit, so the drop burst always finds a slot. The
+    // A lift on every bass pulse, with no tempo lock needed: asks once when `glow` (0..1) rises through the arm level and
+    // again only after it has fallen below the lower re-arm level. It goes through the same soft cap as the kick flashes,
+    // so the shared per-second cap and the governor's limit still bound the brightness increases. Call it after update().
+    requestBassGlow(glow: number, nowSeconds: number, intensity: number): void {
+        const { glowArm, glowRearm, glowAmount } = bassInkSceneConfig.bass;
+        if (this.glowArmed) {
+            if (glow >= glowArm) {
+                this.glowArmed = false;
+                this.grantSoft(glowAmount * Math.min(1, glow), nowSeconds, intensity);
+            }
+        } else if (glow < glowRearm) {
+            this.glowArmed = true;
+        }
+    }
+
+    // Core steps, kick flashes and bass glows share one cap below the governor's limit, so the drop burst always finds a slot. The
     // slot about to be overwritten holds the oldest such grant: if it is under a second old, the cap is reached.
     private grantSoft(amount: number, nowSeconds: number, intensity: number): boolean {
         if (nowSeconds - this.softGrants[this.softHead] < 1) {

@@ -379,6 +379,15 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uPunchAmp')).toBe(bassInkSceneConfig.cloud.beatPunch);
         });
 
+        it('takes the bass swell through setSwell, with a constant amplitude below the beat punch', () => {
+            const { cloud } = setup();
+            expect(uniformOf(cloud, 'uSwell')).toBe(0);
+            cloud.setSwell(0.8);
+            expect(uniformOf(cloud, 'uSwell')).toBe(0.8);
+            expect(uniformOf(cloud, 'uSwellAmp')).toBe(bassInkSceneConfig.cloud.swellAmplitude);
+            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeLessThan(bassInkSceneConfig.cloud.beatPunch);
+        });
+
         it('takes the band onsets and the turbulence control through setTexture', () => {
             const { cloud } = setup();
 

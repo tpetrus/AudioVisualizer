@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createRhythmState } from '~/features/rhythm/types';
 import { bassInkConfig } from './bassInkConfig';
+import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { DirectorCue } from './bassInkTypes';
 import { BrightnessGovernor } from './brightnessGovernor';
 import { BrightnessMix } from './brightnessMix';
@@ -147,7 +148,7 @@ describe('BrightnessMix', () => {
 });
 
 // AC5: the real director, kick ring and mix together, over a whole groove -> build -> drop -> afterglow.
-function runScene(bpm: number, intensity: number) {
+function runScene(bpm: number, intensity: number, withGlow = false) {
     const director = new SetDirector();
     const kicks = new KickRing();
     const mix = new BrightnessMix();
@@ -155,12 +156,16 @@ function runScene(bpm: number, intensity: number) {
     const energy = { fast: 0.2, slow: 0.2, ratio: 1 };
     const period = 60 / bpm;
     const increaseTimes: number[] = [];
+    // Every granted request (not only the visible increases), for the governor window.
+    const grantTimes: number[] = [];
+    let glowFrames = 0;
     const levels: number[] = [];
     // The bass gate pulses on every beat at full strength, as it does once a steady bassline is found.
     const gate = { bumpCount: 0, bumpTarget: 1, weight: 1 };
     let nextKick = 0;
     let onset = 0;
     let previousLevel = 0;
+    let grantsSeen = 0;
     let dropped = false;
     const frames = 60 * 40;
     for (let i = 0; i < frames; i++) {
@@ -169,6 +174,7 @@ function runScene(bpm: number, intensity: number) {
         const kickNow = now >= nextKick - 1e-9;
         if (kickNow) {
             onset = 1;
+            glowFrames = 8;
             gate.bumpCount++;
             nextKick += period;
         }
@@ -194,13 +200,24 @@ function runScene(bpm: number, intensity: number) {
             DT,
             intensity,
         );
-        if (level > previousLevel + 1e-9) {
+        let afterGlow = level;
+        if (withGlow) {
+            // Full gate pulses on every beat: the glow is 1 for a few frames after each kick, then 0.
+            mix.requestBassGlow(glowFrames > 0 ? 1 : 0, now, intensity);
+            glowFrames = Math.max(0, glowFrames - 1);
+            afterGlow = mix.level;
+        }
+        for (let g = grantsSeen; g < mix.grantCount; g++) {
+            grantTimes.push(now);
+        }
+        grantsSeen = mix.grantCount;
+        if (afterGlow > previousLevel + 1e-9) {
             increaseTimes.push(now);
         }
-        levels.push(level);
-        previousLevel = level;
+        levels.push(afterGlow);
+        previousLevel = afterGlow;
     }
-    return { increaseTimes, levels, director, mix, kicks };
+    return { increaseTimes, grantTimes, levels, director, mix, kicks };
 }
 
 describe('Bass Ink brightness through the whole scene (AC5)', () => {
@@ -230,5 +247,72 @@ describe('Bass Ink brightness through the whole scene (AC5)', () => {
         expect(Math.max(...half.levels)).toBeCloseTo(Math.max(...full.levels) / 2, 5);
         expect(Math.max(...none.levels)).toBe(0);
         expect(none.mix.grantCount).toBe(0);
+    });
+});
+
+describe('Bass Ink brightness with the bass glow on every beat', () => {
+    // The worst case: a 180 BPM kick train with kick flashes firing, the bass glow at 1 on every beat, and the drop and the
+    // core steps of the scripted set. The swell adds no light (it is displacement only), so it needs no term here.
+    it('never grants more than the governor limit in any one-second window', () => {
+        const { grantTimes, mix, kicks, director } = runScene(180, 1, true);
+        expect(kicks.count).toBeGreaterThan(100);
+        expect(director.cue.dropAt).toBeGreaterThan(0);
+        expect(grantTimes.length).toBeGreaterThan(10);
+        // The glow really asked, and some requests were turned down.
+        expect(mix.deniedCount).toBeGreaterThan(0);
+        for (let i = 0; i + 3 < grantTimes.length; i++) {
+            expect(grantTimes[i + 3] - grantTimes[i]).toBeGreaterThanOrEqual(1 - 1e-9);
+        }
+    });
+});
+
+describe('BrightnessMix.requestBassGlow', () => {
+    const { glowArm, glowRearm, glowAmount } = bassInkSceneConfig.bass;
+
+    it('grants once per upward crossing and re-arms below the lower threshold', () => {
+        const mix = new BrightnessMix();
+        mix.requestBassGlow(glowArm, 0, 1);
+        expect(mix.grantCount).toBe(1);
+        expect(mix.level).toBeCloseTo(glowAmount * glowArm, 9);
+        // Wobbling between the two thresholds is the same pulse.
+        mix.requestBassGlow(1, 3, 1);
+        mix.requestBassGlow(glowRearm + 0.01, 3.1, 1);
+        mix.requestBassGlow(glowArm, 3.2, 1);
+        expect(mix.grantCount).toBe(1);
+        // Below the lower threshold it re-arms, and the next crossing grants again.
+        mix.requestBassGlow(glowRearm - 0.01, 3.3, 1);
+        mix.requestBassGlow(1, 3.4, 1);
+        expect(mix.grantCount).toBe(2);
+        expect(mix.level).toBeCloseTo(glowAmount, 9);
+    });
+
+    it('grants nothing below the arm level', () => {
+        const mix = new BrightnessMix();
+        mix.requestBassGlow(glowArm - 0.01, 0, 1);
+        expect(mix.grantCount).toBe(0);
+        expect(mix.level).toBe(0);
+    });
+
+    it('grants nothing at intensity 0', () => {
+        const mix = new BrightnessMix();
+        mix.requestBassGlow(1, 0, 0);
+        expect(mix.grantCount).toBe(0);
+        expect(mix.level).toBe(0);
+    });
+
+    it('shares the soft cap with kick flashes', () => {
+        const mix = new BrightnessMix();
+        const cue = cueWith({});
+        for (let i = 0; i < config.kickFlashMaxPerSecond; i++) {
+            mix.update(cue, true, 1, i * 0.1, DT, 1);
+        }
+        const granted = mix.grantCount;
+        mix.requestBassGlow(1, 0.5, 1);
+        expect(mix.grantCount).toBe(granted);
+        expect(mix.deniedCount).toBeGreaterThan(0);
+        // A second after the first kick flash the cap has room again.
+        mix.requestBassGlow(0, 1.05, 1);
+        mix.requestBassGlow(1, 1.06, 1);
+        expect(mix.grantCount).toBe(granted + 1);
     });
 });

@@ -27,14 +27,14 @@ export function fitScale(
 }
 
 // Worst-case outward reach of a rim point at rest radius 1, in world units at a given uRadius, summing breathing,
-// beat punch, swell, kick-wave max and spectrum amplitude from the config constants. Loud peaks may clip at the edge
+// beat punch, bass swell, kick-wave max and spectrum amplitude from the config constants. Loud peaks may clip at the edge
 // of the view by design: the fit is made for the cloud at rest, and this is what the cloud can briefly reach beyond it.
 export function worstCaseExtent(radius: number, config: typeof bassInkSceneConfig = bassInkSceneConfig): number {
     // The scale terms multiply; the shockwave and the spectrum add world units on top of the scaled position.
     const breathing = 1 + config.cloud.breathingAmplitude;
     const punch = 1 + config.cloud.beatPunch;
-    // The bass swell (slice S3) joins the multiplied terms here: it is 0 until that slice adds its amplitude.
-    const swell = 1 + 0;
+    // The bass swell joins the multiplied terms, at its full amplitude.
+    const swell = 1 + config.cloud.swellAmplitude;
     return radius * breathing * punch * swell + config.wave.maxDisplacement + config.spectrum.amplitude;
 }
 

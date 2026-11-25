@@ -27,6 +27,10 @@ export const bassInkSceneConfig = {
         // cloud keeps the tempo even before the bass gate has found the kick. A 9 percent swell moves points apart
         // without adding light (the point count and sizes stay the same).
         beatPunch: 0.09,
+        // Every bass pulse swells the whole cloud outward by up to this fraction, with no tempo lock needed. It stays
+        // below beatPunch so the swell never outshouts the beat, and like the punch it moves points apart without
+        // adding light.
+        swellAmplitude: 0.07,
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
@@ -36,6 +40,21 @@ export const bassInkSceneConfig = {
         // beyond this number (about 0.83 to 0.86 of the half-dimension at 0.8), which keeps the loudest moments
         // (breathing, punch, waves) mostly inside the view.
         fill: 0.8,
+    },
+    bass: {
+        // The bump envelope's output below this is its noise floor (a steady bassline leaves it at a few percent), so
+        // the cloud stays still until a real pulse.
+        swellFloor: 0.04,
+        // Scales what is above the floor so a kick-sized pulse (about 0.15 to 0.5) reaches a clearly visible swell
+        // within a couple of frames; the result is clamped to 1.
+        swellGain: 3,
+        // The glow arms at this swell and re-arms only below the lower one, so a pulse that wobbles around one level
+        // is one flash, not several.
+        glowArm: 0.6,
+        glowRearm: 0.25,
+        // Peak of a bass glow at full swell. Smaller than a kick flash (0.35): every bass pulse glows, so it is only a
+        // lift, and it goes through the BrightnessMix's soft cap and the governor like every other flash.
+        glowAmount: 0.25,
     },
     wave: {
         // Kick shockwave: world units per second the front travels, so it crosses the cloud in about a second.
