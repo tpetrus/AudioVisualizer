@@ -56,8 +56,8 @@ export function writeFormation(
                 break;
             }
             case 2: {
-                // Three thin rings of dust in the three orthogonal planes, like an armillary sphere. Unlike a helix, the
-                // shape has the same extent along every axis, so it reads as 3D from any orbit angle. The ring is chosen
+                // Three thin rings of dust in the three orthogonal planes, like an armillary sphere. The shape has the
+                // same extent along every axis, so it reads as 3D from any orbit angle. The ring is chosen
                 // by the point index, so the rings get equal shares and any slice of points still fills on its own.
                 const ringIndex = i % 3;
                 const around = a * TAU;
