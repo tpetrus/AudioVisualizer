@@ -112,3 +112,22 @@ export function writeCustomPalette(colors: readonly [THREE.Color, THREE.Color, T
 The total JS budget (339.25 kB) was exceeded by 342 B. Fix without raising the limit: the GLSL `//` comments, which ship
 verbatim inside the shader strings, move into TypeScript comments by splitting each shader into named GLSL pieces
 joined into `inkVertexShader`/`inkFragmentShader`, each piece with its why-comment above it. No comment is dropped.
+
+## Second look review (2026-11-25)
+
+The user asked that the whole object stay on screen by default even while it pulses, and that resting formations look
+tighter and more solid.
+
+- **C1 amended: fit to the pulse envelope, not the rest shape.** The fit now makes the formation's outermost rest point,
+  pushed out by every pulse at the default control values (breathing, beat punch, swell, the kick-wave cap, the
+  spectrum amplitude and the turbulence at full mid level), project within 0.95 of the viewport's smaller
+  half-dimension, using real perspective (the nearest point is the largest). The absolute displacements (waves,
+  spectrum, turbulence) do not scale with the radius, so the fit solves for the radius rather than multiplying.
+  `worstCaseExtent` and `fitScale` may change shape to do this; the AC1 test asserts the worst-case projected extent of
+  every formation is <= 0.95 at 16:9 and 4:3, and that the rest p95 still fills a stated floor.
+- To keep the picture from shrinking too far, the absolute displacement amplitudes (`wave.amplitude`,
+  `wave.maxDisplacement`, `spectrum.amplitude`) may be reduced by up to about 40 percent so the rest shape still fills
+  at least about half of the smaller half-dimension.
+- **Tighter rest shapes:** thinner formation shells and tubes (`bassInkConfig.formations`) and a calmer always-on
+  turbulence (`turbulence.base`), so a formation reads as a solid shape when nothing pulses. The armillary AC2 tests
+  stay green.
