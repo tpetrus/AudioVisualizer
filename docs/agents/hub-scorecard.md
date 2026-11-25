@@ -1477,6 +1477,52 @@ with the resets removed, more backward cases are needed, and two comments are un
 `PHASE_GLIDE_MS` comment does not mention the stretch, the `handleBeat` comment says "late", and the OD5 tool's
 batch time is the last frame's. `FU-ATL-S7-mirror` and `FU-ATL-S7-specs` were closed in #148.
 
+## Alignment and tracker leftovers, S8: the live pass and closeout (2026-11-24, on `647e948`)
+S8 re-records the live cells after the plan's tracker and phase slices (S5, S7, S9), and closes AC7 and AC8. The
+runs were headed, from the main checkout on `main`, one at a time (OD7).
+
+**`scorecard:live` for the dancing character.** 86 applicable live cells: 71 pass, 7 fail and 8 are unavailable.
+`bassline-kick-120` is not in `.debug-in`, so its cells are unavailable. The previous record (`7b602b8`) also had 71
+passing. The AC7 clip cells (`live.clip.maxDeviationBeats`, floor 0.2 beat):
+
+| Track | `7b602b8` | `647e948` |
+|---|---|---|
+| `high-bpm-dnb` | 0.081, pass | 0.034, pass |
+| `syncopation-no-kick` | 0.121, pass | 0.133, pass |
+| `low-bpm-rnb` | 0.875, fail | unavailable: 30% of the span scored |
+| `6-8-time` | 0.306, fail | unavailable: under the 4 s sampling minimum |
+| `syncopationbass` | unavailable | unavailable: 0% of the span scored |
+
+A clip cell needs half the span after the lock scored and at least 4 s sampled (`clipReport`). On `low-bpm-rnb`, half
+the runs lock 5 s late, and the settling window after each lock leaves too little to score. `6-8-time`'s meter lock is
+late. These three are accepted as measured: unavailable, not fixed. The live gate cells: `high-bpm-dnb` now passes at
+1.68 s (S7). `low-bpm-rnb` is 12.37 s (15.05 before), `summer2000` 7.16 s (6.44), `lonley` 5.30 s (unchanged) and
+`half-time-shuffle` 10.37 s (10.36).
+
+**`scorecard:order` on dancing character and cubes.** 2 sessions per order on the three default tracks (24
+sessions). 49 of 54 rows pass, as before, but different rows fail:
+- still failing: `dancing-character.in` on `imyourgirl` and the dancer's `gain` on `syncopationbass2`;
+- no longer failing: three rows;
+- newly failing: three cubes rows on `syncopationbass2` (`gain`, `onsetKick`, `cubes.in`), each 1 to 5% over its
+  allowance.
+
+The previous record used 4 sessions per order, so its allowances were wider.
+
+**`scorecard:check` and the refreshed baseline.** Against the old live baseline the check failed on five live cells of
+the dancer. A second pass and two controls show none of them comes from the code:
+
+| Cell | `7b602b8`, Nov 23 | `647e948`, pass 1 | `647e948`, pass 2 | Control |
+|---|---|---|---|---|
+| `low-bpm-rnb` lock times | 3.2 s ×4 | 8.2 s in 2 of 4 | 8.2 s in 4 of 4 | `7b602b8` today: 8.2 s in 2 of 4; S7 off: 2 of 4 |
+| `half-time-shuffle` reaction | 61.3 ms | 70.6 ms | 69.8 ms | `7b602b8` today: 68 to 72 ms; glide off: about 68 ms |
+| `imyourgirl` lock spread | 0.019 s | 0.128 s | 0.011 s | |
+| `6-8-time` lock spread | 0 s | 0.021 s | 0.019 s | |
+| `trap-2to1-double-90` false fires | 0 | 0.014 | 0 | |
+
+The build the old baseline was recorded on reproduces both large shifts today, so they come from this machine's live
+timing on the day, not from S5, S7 or S9. Trevor chose to refresh the baseline from this pass (2026-11-24), and the
+check passes against it. The offline cells do not change: 446 applicable, 401 passing, 11 blocking failures.
+
 ## Follow-ups outside the fast lane
 
 The open follow-ups no longer live in this file. `docs/plans/hub-followups/ledger.md` has one row for every `FU-` id of
