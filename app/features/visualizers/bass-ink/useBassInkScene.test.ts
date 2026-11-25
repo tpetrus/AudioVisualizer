@@ -14,7 +14,6 @@ import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { DirectorCue, PalettePair } from './bassInkTypes';
-import { writePalette } from './chromaPalette';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
 
@@ -781,44 +780,82 @@ describe('useBassInkScene', () => {
             expect(prepared).toBeLessThan(cloud.beginTransition.mock.invocationCallOrder[0]);
         });
 
-        it('fades the palette from the previous pair to the latest one across the transition', () => {
-            const { frame } = mountScene();
+        it('fades from the colors shown when the transition began to the picked ones', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
             frame();
-            const start = Array.from(lastUpdate().core);
-            const target: PalettePair = { core: new Float32Array(3), edge: new Float32Array(3) };
-            writePalette(5, target);
-            expect(Array.from(target.core)).not.toEqual(start);
+            expect(lastUpdate().core[1]).toBeCloseTo(0, 5);
 
-            script.cue.paletteIndex = 5;
             script.cue.transitionCount = 1;
             script.cue.transitionStart = 0.016;
             script.cue.transitionSeconds = 1;
+            valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
             // Frames are clamped to 0.1 s, so the one second transition takes about ten of them.
             for (let i = 0; i < 5; i++) frame(100);
-            const halfway = lastUpdate().core;
+            const halfway = lastUpdate().core[1];
             for (let i = 0; i < 8; i++) frame(100);
-            const done = lastUpdate().core;
+            const done = lastUpdate().core[1];
 
-            for (let i = 0; i < 3; i++) {
-                expect(halfway[i]).toBeGreaterThanOrEqual(Math.min(start[i], target.core[i]) - 1e-6);
-                expect(halfway[i]).toBeLessThanOrEqual(Math.max(start[i], target.core[i]) + 1e-6);
-                expect(done[i]).toBeCloseTo(target.core[i], 5);
-            }
-            expect(halfway).not.toEqual(done);
+            expect(halfway).toBeGreaterThan(0.05);
+            expect(halfway).toBeLessThan(0.95);
+            expect(done).toBeCloseTo(1, 5);
         });
 
-        it('keeps the palette when a transition has zero length', () => {
-            const { frame } = mountScene();
+        it('shows the picked colors at once when a transition has zero length', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
             frame();
-            script.cue.paletteIndex = 7;
             script.cue.transitionCount = 1;
             script.cue.transitionSeconds = 0;
+            valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
 
             frame();
 
-            const target: PalettePair = { core: new Float32Array(3), edge: new Float32Array(3) };
-            writePalette(7, target);
-            expect(lastUpdate().core[0]).toBeCloseTo(target.core[0], 6);
+            expect(lastUpdate().core[1]).toBeCloseTo(1, 5);
+        });
+    });
+
+    describe('picked colors', () => {
+        it('shows a changed color picker on the next frame, with no transition', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
+            frame();
+            expect(lastUpdate().core[0]).toBeCloseTo(1, 5);
+            expect(lastUpdate().core[1]).toBeCloseTo(0, 5);
+
+            valuesRef.current = { ...valuesRef.current, colorA: '#0000ff' };
+            frame();
+
+            expect(lastUpdate().core[0]).toBeCloseTo(0, 5);
+            expect(lastUpdate().core[2]).toBeCloseTo(1, 5);
+        });
+
+        it('ignores the director palette index', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0 };
+            frame();
+            const before = lastUpdate().core;
+            script.cue.paletteIndex = 7;
+            frame();
+            expect(lastUpdate().core).toEqual(before);
+        });
+
+        it('keeps the palette fixed across frames at color speed 0', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0 };
+            frame();
+            const first = lastUpdate().core;
+            for (let i = 0; i < 30; i++) frame();
+            expect(lastUpdate().core).toEqual(first);
+        });
+
+        it('cycles the palette at color speed above 0', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 1 };
+            frame();
+            const first = lastUpdate().core;
+            for (let i = 0; i < 30; i++) frame();
+            expect(lastUpdate().core).not.toEqual(first);
         });
     });
 
