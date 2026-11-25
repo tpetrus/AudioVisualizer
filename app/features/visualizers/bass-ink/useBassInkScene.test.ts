@@ -102,6 +102,9 @@ interface FakeCloud {
     setPunch: ReturnType<typeof vi.fn>;
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
+    setRadius: ReturnType<typeof vi.fn>;
+    activeIndex: number;
+    blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
 }
@@ -122,6 +125,9 @@ vi.mock('./inkCloud', async () => {
             setPunch = vi.fn();
             setSpectrum = vi.fn();
             setViewport = vi.fn();
+            setRadius = vi.fn();
+            activeIndex = 0;
+            blendProgress = 0;
             showFormation = vi.fn();
             dispose = vi.fn();
             constructor(
@@ -267,6 +273,75 @@ describe('useBassInkScene', () => {
 
             expect(currentCloud().setViewport.mock.calls.length).toBe(calls + 1);
             expect(currentCloud().setViewport.mock.calls.at(-1)![0]).toBeGreaterThanOrEqual(900);
+        });
+    });
+
+    describe('fitting the cloud to the view', () => {
+        const radiusOf = (cloud: FakeCloud) => cloud.setRadius.mock.calls.at(-1)![0] as number;
+
+        it('sets a fitted radius on mount, larger than the unfitted one', () => {
+            mountScene();
+            const first = currentCloud().setRadius.mock.calls[0][0] as number;
+            expect(first).toBeGreaterThan(bassInkSceneConfig.cloud.radius);
+        });
+
+        it('refits the radius on resize and leaves the camera where it was', () => {
+            const { resizes, frame, camera } = mountScene();
+            frame();
+            const before = radiusOf(currentCloud());
+            const position = camera.position.clone();
+
+            // A portrait view: the width is now the smaller dimension, so the cloud must shrink to fit it.
+            resizes.resize(500, 1000);
+            const after = radiusOf(currentCloud());
+
+            expect(after).toBeLessThan(before);
+            expect(camera.position.equals(position)).toBe(true);
+            expect(camera.position.z).toBe(bassInkSceneConfig.camera.distance);
+        });
+
+        it('treats a view with no height as square instead of dividing by zero', () => {
+            const { resizes } = mountScene();
+            resizes.resize(800, 0);
+            expect(Number.isFinite(radiusOf(currentCloud()))).toBe(true);
+        });
+
+        it('blends the fits of the two formations during a fade and aims at the prepared one after a bake', () => {
+            const { frame } = mountScene();
+            const cloud = currentCloud();
+            cloud.activeIndex = 0;
+            cloud.preparedIndex = 1;
+            cloud.transitioning = true;
+            cloud.blendProgress = 0;
+            for (let i = 0; i < 60; i++) frame();
+            const atStart = radiusOf(cloud);
+            cloud.blendProgress = 1;
+            for (let i = 0; i < 60; i++) frame();
+            const atEnd = radiusOf(cloud);
+            expect(atEnd).not.toBe(atStart);
+
+            cloud.activeIndex = -1;
+            cloud.transitioning = false;
+            // The scene prepares the director's next formation (1) again, and the fit aims at it.
+            for (let i = 0; i < 120; i++) frame();
+            expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
+
+            // Nothing prepared either: it holds the last fit.
+            cloud.prepareFormation.mockImplementation(() => {});
+            cloud.preparedIndex = -1;
+            frame();
+            expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
+        });
+
+        it('refits a cloud rebuilt for a density change', () => {
+            const { frame, valuesRef } = mountScene();
+            frame();
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            frame();
+            for (let i = 0; i < 5; i++) frame(100);
+
+            expect(allClouds()).toHaveLength(2);
+            expect(currentCloud().setRadius).toHaveBeenCalled();
         });
     });
 

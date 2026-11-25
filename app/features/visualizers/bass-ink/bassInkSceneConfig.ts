@@ -30,6 +30,12 @@ export const bassInkSceneConfig = {
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
+        // Share of the viewport's smaller half-dimension that the 95th-percentile point of the resting cloud reaches. The
+        // scene scales the cloud's world radius to get there (framing.ts), so the picture fills the screen at any window
+        // shape. Perspective magnifies the points nearer the camera, so the measured 95th percentile lands about 8 percent
+        // beyond this number (about 0.83 to 0.86 of the half-dimension at 0.8), which keeps the loudest moments
+        // (breathing, punch, waves) mostly inside the view.
+        fill: 0.8,
     },
     wave: {
         // Kick shockwave: world units per second the front travels, so it crosses the cloud in about a second.
@@ -110,7 +116,7 @@ export const bassInkSceneConfig = {
         tensionAlphaNormalization: 0.14,
     },
     camera: {
-        // The cloud fills about 60 percent of the height at this distance and field of view.
+        // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).
         distance: 12,
         fov: 50,
         // Radians per second of cloud rotation at the camera-drift control's full value.
