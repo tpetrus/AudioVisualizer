@@ -26,3 +26,20 @@ describe('bassInkSceneConfig brightness bounds', () => {
         expect(gain).toBeLessThan(0.1);
     });
 });
+
+describe('bassInkSceneConfig depth fade', () => {
+    const { depth, camera, cloud } = bassInkSceneConfig;
+
+    it('fades the far point to at most half of the near point', () => {
+        expect(depth.fade).toBeGreaterThanOrEqual(0.5);
+        expect(depth.fade).toBeLessThanOrEqual(1);
+    });
+
+    it('puts the camera distance between the near and far depths at the default fit', () => {
+        const near = camera.distance - cloud.radius * depth.halfRange;
+        const far = camera.distance + cloud.radius * depth.halfRange;
+        expect(near).toBeGreaterThan(camera.near);
+        expect(near).toBeLessThan(camera.distance);
+        expect(far).toBeGreaterThan(camera.distance);
+    });
+});
