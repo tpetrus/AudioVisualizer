@@ -56,14 +56,18 @@ describe('featureDelaySeconds', () => {
 
     it('adds half a window, a hop and a batch', () => {
         const expected = 2048 / 48000 / 2 + 0.01 + 0.08;
-        expect(featureDelaySeconds({ ...base, captureKind: 'screen' })).toBeCloseTo(expected, 12);
+        expect(featureDelaySeconds({ ...base, captureKind: 'file' })).toBeCloseTo(expected, 12);
     });
 
-    it('adds the capture delay of the source kind, which is not measured yet', () => {
-        expect(CAPTURE_DELAY_MS).toEqual({ screen: 0, device: 0, file: 0 });
+    it('adds the capture delay of the source kind: 5 ms measured for tab audio, none for a device or a file', () => {
+        expect(CAPTURE_DELAY_MS).toEqual({ screen: 5, device: 0, file: 0 });
         expect(Object.isFrozen(CAPTURE_DELAY_MS)).toBe(true);
         expect(featureDelaySeconds({ ...base, captureKind: 'device' })).toBe(
             featureDelaySeconds({ ...base, captureKind: 'file' }),
+        );
+        expect(featureDelaySeconds({ ...base, captureKind: 'screen' })).toBeCloseTo(
+            featureDelaySeconds({ ...base, captureKind: 'file' }) + 0.005,
+            12,
         );
     });
 });

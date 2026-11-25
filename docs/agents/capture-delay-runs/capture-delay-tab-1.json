@@ -1,0 +1,121 @@
+{
+  "found": 20,
+  "missed": 0,
+  "medianMs": 44.666666666667965,
+  "p5Ms": 44.66666666666441,
+  "p95Ms": 44.666666666667965,
+  "source": "tab",
+  "deviceLabel": null,
+  "clicks": 20,
+  "sampleRate": 48000,
+  "baseLatencyMs": 10,
+  "outputLatencyMs": 40,
+  "estimatedDelayRelativeToHearingMs": 4.666666666667965,
+  "failed": false,
+  "lateSuspected": false,
+  "clicksDetail": [
+    {
+      "scheduled": 15.901333333333334,
+      "arrival": 15.946,
+      "delayMs": 44.66666666666619
+    },
+    {
+      "scheduled": 16.401333333333334,
+      "arrival": 16.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 16.901333333333334,
+      "arrival": 16.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 17.401333333333334,
+      "arrival": 17.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 17.901333333333334,
+      "arrival": 17.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 18.401333333333334,
+      "arrival": 18.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 18.901333333333334,
+      "arrival": 18.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 19.401333333333334,
+      "arrival": 19.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 19.901333333333334,
+      "arrival": 19.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 20.401333333333334,
+      "arrival": 20.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 20.901333333333334,
+      "arrival": 20.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 21.401333333333334,
+      "arrival": 21.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 21.901333333333334,
+      "arrival": 21.946,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 22.401333333333334,
+      "arrival": 22.446,
+      "delayMs": 44.666666666667965
+    },
+    {
+      "scheduled": 22.901333333333334,
+      "arrival": 22.945999999999998,
+      "delayMs": 44.66666666666441
+    },
+    {
+      "scheduled": 23.401333333333334,
+      "arrival": 23.445999999999998,
+      "delayMs": 44.66666666666441
+    },
+    {
+      "scheduled": 23.901333333333334,
+      "arrival": 23.945999999999998,
+      "delayMs": 44.66666666666441
+    },
+    {
+      "scheduled": 24.401333333333334,
+      "arrival": 24.445999999999998,
+      "delayMs": 44.66666666666441
+    },
+    {
+      "scheduled": 24.901333333333334,
+      "arrival": 24.945999999999998,
+      "delayMs": 44.66666666666441
+    },
+    {
+      "scheduled": 25.401333333333334,
+      "arrival": 25.445999999999998,
+      "delayMs": 44.66666666666441
+    }
+  ],
+  "noiseFloor": 0,
+  "peak": 0.5,
+  "threshold": 0.125
+}

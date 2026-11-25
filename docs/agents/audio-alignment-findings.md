@@ -196,7 +196,13 @@ syncopation-no-kick`:
 One synthetic band is not worth 20 to 60 ms of delay on every reaction, and the real tracks move the wrong way, so
 `DISPLAY_DELAY_MS` stays 0 and `ONSET_LOOKAHEAD_FRAMES` stays 2.
 
-### Production capture delay (AC9): not measured yet
+### Production capture delay (AC9): measured 2026-11-25
+**Update, 2026-11-25.** Trevor ran the `tab` and `device` loopbacks twice each (`capture-delay.md`, "Results"). Tab
+audio came out at 4.67 ms relative to hearing in both runs, so `CAPTURE_DELAY_MS.screen` is 5 (contract C4). The
+device runs, looped through Voicemeeter because Stereo Mix does not work on that machine, gave 113.2 and 160.9 ms. They
+are too far apart, so `device` stays 0. No default sync offset is derived from the 5 ms (AC2 amended; S2b not run), and
+the sync offset remains the correction. The paragraph below is the record from before the runs.
+
 The page cannot observe when the listener hears a sound, so this is an estimate by loopback, per machine:
 `npm run measure:capture-delay` (see `docs/agents/capture-delay.md`) plays clicks at known AudioContext times and
 times their arrival through a capture of the same machine. Its self-check (`--source direct`, the in-page stream
@@ -454,7 +460,7 @@ item:
 
 | # | Item | Outcome | Evidence |
 |---|---|---|---|
-| 1 | AC9, tab and device capture delay | **Pending.** The run sheet is in `capture-delay.md` (#142). The four loopback runs need Trevor at the machine. S2b (the defaults) runs only if a kind is stable | `capture-delay.md`, "AC9 run sheet" |
+| 1 | AC9, tab and device capture delay | **Done, 2026-11-25.** Tab audio is 5 ms, now `CAPTURE_DELAY_MS.screen`. The device kind stays 0, because its two runs were 47.6 ms apart. S2b is not run: AC2 is amended, since a 5 ms default is invisible | `capture-delay.md`, "Results" |
 | 2 | `FU-S10-basspulse-time-based` | **Done** by `BassBump`, with no code change (#141) | "Status on 2026-11-23" above |
 | 3 | AC5, `syncopation-no-kick`'s first lock | **Accepted as measured**: 8.02 s, 2 of 10 start variations lock wrong. The probe found no bar evidence that separates it (level and meter family, no-go) | `probe-report.md` (#144) |
 | 4 | 3/4 click at 180; `high-bpm-dnb` first lock; abrupt grid move | 3/4 at 180: **accepted as measured**, level family no-go, and its `it.fails` stays. `high-bpm-dnb`: **fixed** by S7 (#147), which first locks at 172.9 and moves no other track's lock. Grid move: **fixed** by S5 (#145, a 100 ms glide) and S9 (#149, never backwards; the glide starts at the first read) | `hub-scorecard.md`, S5, S7 and S9 |
@@ -486,13 +492,13 @@ Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
   offline start variations. Moved to the tracker plan (2026-11-22). Accepted as measured by the
   alignment-tracker-leftovers plan (2026-11-24): the probe found no evidence that separates it.
-- **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
-  `npm run measure:capture-delay` need a person and real hardware.
+- **AC9** is done (2026-11-25): tab audio measured 5 ms, the device kind did not settle and stays 0, and no default
+  sync offset is derived (see "Production capture delay (AC9)" above).
 - **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** and **AC7**
   are met since hub-regressions S9 (2026-11-20).
 
 Suggested order:
-1. Measure AC9 on real hardware.
+1. Measure AC9 on real hardware (done 2026-11-25).
 2. `FU-S6-telemetry`, so the tracker work below can be measured live (done).
 3. `FU-S6-slow-octave` (closed: intended behavior).
 4. S7 (done). It froze contract C5, the hub snapshot, before any worker started.
