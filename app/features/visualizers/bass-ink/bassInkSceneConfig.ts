@@ -134,6 +134,16 @@ export const bassInkSceneConfig = {
         // the cloud spreading out, not as a flash (global brightness is the BrightnessMix's job alone).
         tensionAlphaNormalization: 0.14,
     },
+    depth: {
+        // A point at the far end of the range keeps 1 - fade of its size and its alpha, so far points are at most 0.45 of
+        // the near ones (under the 0.5 the plan requires): visible, not harsh. Points are additive, so the fade only
+        // removes light; it cannot add flashing.
+        fade: 0.55,
+        // The range is centered on the camera distance and spans this many fitted radii each way, so the nearest part of
+        // the cloud is at full strength and the farthest is at the faded end. It follows the fit (framing.ts) because
+        // the radius does: near = distance - radius * halfRange, far = distance + radius * halfRange.
+        halfRange: 1,
+    },
     camera: {
         // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).
         distance: 12,

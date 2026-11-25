@@ -7,6 +7,17 @@
 // Number of kick shockwaves summed per point. Must equal KICK_SLOTS in bassInkTypes.ts.
 export const INK_KICK_SLOTS = 8;
 
+// The view-depth fade, the same maths as the vertex shader: 1 at `near` and closer, down to 1 - fade at `far` and
+// beyond, linear in between. Size and alpha both use it, so far/near is at most 1 - fade for each. Exported so a spec
+// can check the bound; the GLSL below must match it.
+export function depthFade(depth: number, near: number, far: number, fade: number): number {
+    if (far <= near) {
+        return 1;
+    }
+    const k = Math.min(1, Math.max(0, (depth - near) / (far - near)));
+    return 1 - fade * k;
+}
+
 export const inkVertexShader = /*glsl*/ `
 attribute vec3 restB;
 attribute float aRand;
@@ -51,8 +62,12 @@ uniform float uSparkleFraction;
 uniform float uSparkleAmp;
 uniform float uBaseSize;
 uniform float uTensionSize;
+uniform float uDepthNear;
+uniform float uDepthFar;
+uniform float uDepthFade;
 
 varying float vRadial;
+varying float vDepth;
 
 void main() {
     // Rest position: a smooth fade between the two formation sides.
@@ -116,7 +131,11 @@ void main() {
 
     // A small, fixed share of points glints with the highs. It changes their size only, never the brightness.
     float glint = step(1.0 - uSparkleFraction, fract(aRand * 91.7)) * uHigh * uSparkleAmp;
-    float size = uBaseSize * uPointScale / max(-mv.z, 0.1) * (1.0 - uTension * uTensionSize) * (1.0 + glint);
+    // Points farther from the camera get smaller and fainter so near points separate from far ones (the same maths as
+    // depthFade above). It only removes light, so it cannot add flashing.
+    float depthK = uDepthFar > uDepthNear ? clamp((-mv.z - uDepthNear) / (uDepthFar - uDepthNear), 0.0, 1.0) : 0.0;
+    vDepth = 1.0 - uDepthFade * depthK;
+    float size = uBaseSize * uPointScale / max(-mv.z, 0.1) * (1.0 - uTension * uTensionSize) * (1.0 + glint) * vDepth;
     gl_PointSize = clamp(size, 1.0, uMaxPointSize);
 }
 `;
@@ -130,6 +149,7 @@ uniform float uTension;
 uniform float uAlphaNormalization;
 
 varying float vRadial;
+varying float vDepth;
 
 void main() {
     // A soft round sprite: fully transparent at the rim, brightest in the middle.
@@ -143,7 +163,7 @@ void main() {
     vec3 color = mix(uCore, uEdge, vRadial);
     // The squeezed cloud overlaps itself more, so its alpha is normalized down. uBrightness (from BrightnessMix) is the
     // only global brightness input; ripples never reach this shader stage.
-    float alpha = uAlpha * (1.0 - uTension * uAlphaNormalization) * (1.0 + uBrightness) * soft * soft;
+    float alpha = uAlpha * (1.0 - uTension * uAlphaNormalization) * (1.0 + uBrightness) * soft * soft * vDepth;
     gl_FragColor = vec4(color, alpha);
     #include <colorspace_fragment>
 }

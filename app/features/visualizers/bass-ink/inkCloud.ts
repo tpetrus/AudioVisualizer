@@ -4,6 +4,15 @@ import { KICK_SLOTS, type DirectorCue, type KickRingView, type PalettePair } fro
 import { hash01, writeFormation } from './formations';
 import { inkFragmentShader, inkVertexShader } from '../meshes/inkShaders';
 
+// View depths where the fade starts and ends, around the camera distance and following the fitted radius.
+function depthNear(radius: number): number {
+    return bassInkSceneConfig.camera.distance - radius * bassInkSceneConfig.depth.halfRange;
+}
+
+function depthFar(radius: number): number {
+    return bassInkSceneConfig.camera.distance + radius * bassInkSceneConfig.depth.halfRange;
+}
+
 // Contract C4: the point cloud of the Bass Ink visualizer.
 //
 // The two unit formations live in two ping-pong attributes (`position` is side A, `restB` is side B). One side is
@@ -95,6 +104,9 @@ export class InkCloud {
             uSparkleAmp: { value: config.sparkle.amplitude },
             uBaseSize: { value: config.sprite.baseSize },
             uTensionSize: { value: config.sprite.tensionSizeShrink },
+            uDepthNear: { value: depthNear(config.cloud.radius) },
+            uDepthFar: { value: depthFar(config.cloud.radius) },
+            uDepthFade: { value: config.depth.fade },
             uCore: { value: this.core },
             uEdge: { value: this.edge },
             uBrightness: { value: 0 },
@@ -224,6 +236,9 @@ export class InkCloud {
     // World radius of the unit formations. The scene refits it to the viewport (framing.ts) on mount, resize and rebuild.
     setRadius(worldRadius: number): void {
         this.uniforms.uRadius.value = worldRadius;
+        // The depth fade follows the fit, so it spans the cloud at any window shape.
+        this.uniforms.uDepthNear.value = depthNear(worldRadius);
+        this.uniforms.uDepthFar.value = depthFar(worldRadius);
     }
 
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
