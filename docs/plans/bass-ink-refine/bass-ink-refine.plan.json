@@ -1,0 +1,1012 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "bass-ink-refine-20261125t200240z-1da1e11f",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R1",
+  "created": "2026-11-25T20:02:40.976Z",
+  "updated": "2026-11-25T20:12:57.832Z",
+  "feature": {
+    "slug": "bass-ink-refine",
+    "title": "Refine the bass-ink visualizer",
+    "request": "<task>\n-clean up and refine the bass-ink visualization\n</task>\n\n<context>\n-this visualization was a one-pass creation, so although the base is complete, it needs to be enhanced and refined still\n</context>\n\n<requirements>\n-update the visualization to fill out more of the full screen size (right now it takes up a small amount of the screen by default)\n-replace the spring/coil visualization with one that makes no sense for viewing from one angle\n-make the bass/tempo work more similarly to the bass bump in cubes. it doesn't need a lock to show bass like the dancing character does\n-make the colors customizable\n-add color spectrum change speed slider\n-(stretch) give the visualization more visual depth. Right now all of the points in the maps makes it overall muddy.  Can we add reflection somehow to add more depth?\n</requirements>\n\n<scope-and-non-goals>\n-any other visualizations\n-no modifying the audio analyzing hub in any way. if issues or defects are found with it, note them as a takeaway\n</scope-and-non-goals>\n\n<verification>\n-\n</verification>"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8"
+  },
+  "problem": {
+    "statement": "bass-ink was built in one pass. By default its point cloud fills a small part of the screen, the double-helix formation only reads from one angle, the bass reaction is only visible through the kick ring driven by the learned bass gate (so it feels absent until the gate settles), colors are fixed to a pitch-driven palette with no user control, and the additive, non-depth-written points blend into a flat, muddy mass.",
+    "users": [
+      "Viewer who picks an audio source and watches bass-ink full screen",
+      "Maintainer who extends bass-ink and expects it to follow the cubes/trio-color-wave patterns"
+    ],
+    "evidence": [
+      "bassInkSceneConfig.ts: cloud radius 3.4 at camera distance 12, fov 50; helix radius 0.45 and disc thickness 0.06 in bassInkConfig.ts (scout brief)",
+      "useBassInkScene.ts already computes the GATE_BASS_BUMP pulse (lastGateBass) but uses it only for the bass gate and kick ring; cubes draws stepCubesBass(bass, snapshot.gateBass, dt, values) directly with no lock (scout brief)",
+      "bassInkControls.ts has four range controls and no color or speed control; chromaPalette.ts follows pitch class, not time (scout brief)",
+      "inkCloud.ts: THREE.Points with additive blending and depthWrite false (scout brief)"
+    ]
+  },
+  "goals": [
+    "The cloud fills most of the viewport by default at common aspect ratios, without the user zooming",
+    "Replace the double-helix formation with a formation that reads as 3D from every orbit angle",
+    "Drive a visible bass bump from the cubes-style bass pulse every frame, with no dependence on tempo lock or the learned gate",
+    "Let the user pick the palette colors and the speed at which hue cycles, with 0 meaning static",
+    "Stretch: add visual depth and separation so dense regions stop reading as one muddy mass"
+  ],
+  "non_goals": [
+    "Any change to other visualizers (cubes code may be imported, not modified)",
+    "Any change to app/features/audio/hub/ or app/features/rhythm/; hub defects found become takeaways in docs, not fixes",
+    "Upgrading three.js or adding a postprocessing dependency",
+    "Raising the size-limit or Lighthouse budgets for the core work"
+  ],
+  "success_metrics": [
+    "At 16:9 and 4:3 the default framing has the cloud's projected bounding box covering at least about 70% of the viewport's smaller dimension",
+    "Bass bump visibly moves on the first kicks after audio starts, before any tempo lock (checked with npm run debug:viz on a kick track)",
+    "All CI gates pass unchanged: coverage 95%, size-limit, Lighthouse, e2e (with regenerated bass-ink visual baselines)"
+  ],
+  "constraints": [
+    "Named exports only; logic in classes and pure functions; per-frame values via valuesRef/refs, never useState",
+    "No per-frame allocation; every new GPU object disposed; StrictMode double-mount safe",
+    "Software WebGL point cap of 8000 (renderBudget.ts) still respected",
+    "Flash limit from the sparkle comment in bassInkSceneConfig.ts (WCAG 2.3.1) still respected by the new bass bump and hue cycling",
+    "Bundle within .size-limit.json (133 kB entry, 339.25 kB total gzip)",
+    "Settings-panel change requires regenerated bassink-settings-panel visual baseline via the Update visual snapshots workflow"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "a fresh visit to /bass-ink with default controls at 1920x1080 and 1024x768",
+      "when": "each formation renders at rest (no bass)",
+      "then": "the 95th-percentile projected point radius of each formation spans at least 0.80 of the viewport's smaller half-dimension (unit test computed from the formation's actual points, not from the fit formula), loud peaks may clip at the edge by design, and a manual before/after screenshot per formation confirms it"
+    },
+    {
+      "id": "AC2",
+      "given": "the formation set",
+      "when": "the replacement for the double helix is generated",
+      "then": "no helix remains (code, FORMATION_NAMES, tests, docs), the armillary-rings formation's per-axis extents are within 1.25x of each other and its projected silhouette area from each of the x, y and z axes is at least 0.5 of the largest, and the user confirms the look at the S2 review"
+    },
+    {
+      "id": "AC3",
+      "given": "kicks playing with clock.locked false",
+      "when": "the gateBass pulse rises",
+      "then": "the swell value exceeds 0.3 within 3 frames (unit test on the pure mapping and a hook test with the injected fakes), with no lock or gate input in the code path, and the bass-ink telemetry shows a swell column rising on the first kicks in npm run debug:viz"
+    },
+    {
+      "id": "AC4",
+      "given": "the bass-ink control panel",
+      "when": "the user changes the palette color pickers",
+      "then": "the points use the chosen colors on the next frame, the values persist like other controls, and reset restores the defaults"
+    },
+    {
+      "id": "AC5",
+      "given": "the color speed slider",
+      "when": "set to 0, then to its maximum",
+      "then": "at 0 hues stay fixed; at higher values hue rotates around the palette at a rate proportional to the slider, with no flashing beyond the existing WCAG limit"
+    },
+    {
+      "id": "AC6",
+      "given": "the depth slice is shipped",
+      "when": "points sit at uDepthNear and at uDepthFar",
+      "then": "a unit test on the shader-side maths shows the far point's alpha and size are at most 0.5 of the near point's, a manual before/after screenshot shows near points separate from far ones, and software-WebGL e2e stays within existing timeouts"
+    },
+    {
+      "id": "AC7",
+      "given": "the full change",
+      "when": "CI runs",
+      "then": "format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "How do customizable colors work?",
+      "answer": "2-3 palette color pickers; a speed slider rotates hue around the palette; speed 0 keeps colors static.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D2",
+      "question": "What replaces the spring/coil?",
+      "answer": "Chosen during Develop from ideator options; must read as 3D from any orbit angle. Confirmed at the checkpoint.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D3",
+      "question": "How far does the depth/reflection stretch goal go?",
+      "answer": "Planned as the last, droppable slice, within the existing bundle-size and performance budgets.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D4",
+      "question": "Which bass signal drives the bump?",
+      "answer": "The same GATE_BASS_BUMP pulse cubes reads (snapshot.gateBass), stepped through stepCubesBass or an equivalent pure bass-ink step; the kick ring may keep its gate.",
+      "decided_by": "repo-fact",
+      "rationale": "Scout: useBassInkScene already computes lastGateBass with GATE_BASS_BUMP; cubesBass.ts is pure and lock-free."
+    },
+    {
+      "id": "D5",
+      "question": "Are postprocessing libraries allowed for depth?",
+      "answer": "No new dependency; use three.js core and three/addons only, within the bundle budget.",
+      "decided_by": "planner-assumption",
+      "rationale": "Pinned three r186, tight size-limit, no postprocessing anywhere in app/."
+    },
+    {
+      "id": "D6",
+      "question": "Is the framing confirmed?",
+      "answer": "Yes, goals, non-goals and AC1-AC7 confirmed.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D7",
+      "question": "What form does the bass bump take?",
+      "answer": "Radial swell outward plus a brightness glow per pulse, then settle.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D8",
+      "question": "What happens to the gate-driven kick ring?",
+      "answer": "Kept as an extra accent; the new lock-free bump carries bass at all times.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D9",
+      "question": "Is inkShaders.ts shared with other visualizers?",
+      "answer": "No; only bass-ink/inkCloud.ts and its own tests import it, so changing it stays in scope.",
+      "decided_by": "repo-fact",
+      "rationale": "grep for inkShaders under app/"
+    },
+    {
+      "id": "D10",
+      "question": "Which shape replaces the helix?",
+      "answer": "Armillary rings: three or four thick tilted point rings on different axes, which read as 3D from any orbit angle, let the existing kick waves and spectrum displacement travel visibly along each ring, and do not duplicate the sphere.",
+      "decided_by": "planner-assumption",
+      "rationale": "The user asked for whichever looks best for audio; a standard trefoil is 3:3:1 flat (critic F2) and a nebula duplicates the sphere. The user confirms the look at the S2 review before S3-S5."
+    },
+    {
+      "id": "D11",
+      "question": "Do the color pickers replace the pitch-driven palette?",
+      "answer": "Replace: the three colors plus the hue phase compute core and edge colors on the CPU into the existing PalettePair; the paletteFrom/To transition fade is kept; the fragment shader is unchanged.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D12",
+      "question": "What does the depth slice include?",
+      "answer": "Shader depth fade only; the reflection is dropped from this plan and can be planned separately.",
+      "decided_by": "user"
+    },
+    {
+      "id": "D13",
+      "question": "How is the fill achieved without breaking the orbit view?",
+      "answer": "Scale the cloud via uRadius by a fit factor on mount and resize; the camera and createOrbitView stay untouched, so reset and the moved-view state are unaffected.",
+      "decided_by": "planner-assumption",
+      "rationale": "createOrbitView captures its default position once and has no setter; moving the camera would flip onViewChanged (critic F3) and touch shared lib code."
+    },
+    {
+      "id": "D14",
+      "question": "What drives the swell?",
+      "answer": "The existing lastGateBass (already GATE_BASS_BUMP-stepped every frame with no lock) mapped by a pure function to swell; glow is granted through BrightnessMix, not a new brightness channel; no second envelope and no stepCubesBass wrapper.",
+      "decided_by": "repo-fact",
+      "rationale": "Critic F4/F5: useBassInkScene already computes the pulse; BrightnessMix is the only documented global brightness input."
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Retune existing constants for framing, swap the helix for a filled Fibonacci-sphere shell plus noise-jittered volume, reuse stepCubesBass and cubes-style color controls, and add fog-style depth fade in the existing point shader.",
+      "approach": [
+        "Framing: raise cloud radius and/or lower camera distance in bassInkSceneConfig.ts; add pure fitDistance(radius, fov, aspect, fill) in bassInkSceneConfig.ts and use it for the default camera, so the unit test asserts >=70% of the smaller viewport dimension at 16:9 and 4:3.",
+        "Formation: delete double helix in formations.ts; add 'nebula' (points in a unit ball with radius = cbrt(random), seeded) so extents match on x/y/z; remove helix sizes from bassInkConfig.ts.",
+        "Bass: in useBassInkScene.ts call stepCubesBass(bass, snapshot.gateBass, dt, bassValues) every frame with no gate or lock check; feed the result to a new uBump uniform (radial scale 1+k*bump) and a glow term on uCore brightness. Keep kick ring gated (D8).",
+        "Flash safety: clamp glow amplitude and rate with the existing sparkle limit constant.",
+        "Colors: add 3 type 'color' controls and a 'colorSpeed' range (0..max) to bassInkControls.ts, copying cubesControls.ts. Read via valuesRef into preallocated THREE.Color each frame.",
+        "Hue cycle: pure advanceHue(phase, speed, dt) in chromaPalette.ts; palette lookup samples the 3 colors at (pitchPos + phase) so speed 0 is static. Reset restores defaults via resetAll.",
+        "Depth (droppable slice): add a uFogNear/uFar depth fade in the point vertex/fragment shader (dim and shrink far points, brighten near), no new objects; regenerate visual baselines."
+      ],
+      "components": [
+        {
+          "name": "framing",
+          "responsibility": "fitDistance maths and default camera distance",
+          "location": "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+        },
+        {
+          "name": "nebula formation",
+          "responsibility": "isotropic volume replacing helix",
+          "location": "app/features/visualizers/bass-ink/formations.ts"
+        },
+        {
+          "name": "bass bump wiring",
+          "responsibility": "stepCubesBass each frame into uBump/glow",
+          "location": "app/features/visualizers/bass-ink/useBassInkScene.ts"
+        },
+        {
+          "name": "color controls and hue phase",
+          "responsibility": "pickers, speed slider, advanceHue",
+          "location": "bassInkControls.ts, chromaPalette.ts"
+        },
+        {
+          "name": "depth fade",
+          "responsibility": "distance-based fade in shader",
+          "location": "app/features/visualizers/meshes/inkShaders.ts, inkCloud.ts"
+        }
+      ],
+      "contracts": [
+        "bassInkControls: + color1..color3 (color), colorSpeed (range, 0 = static)",
+        "InkCloud: + uBump, uGlow, uDepthNear/Far, palette uniforms",
+        "formations: helix removed, nebula added",
+        "fitDistance(radius, fovDeg, aspect, fill): number"
+      ],
+      "pros": [
+        "Touches only bass-ink plus a shared shader; reuses cubes pure bass step and color control pattern",
+        "No new dependency or objects, little bundle growth",
+        "Depth slice is a shader-only change that is easy to drop"
+      ],
+      "cons": [
+        "Shader depth fade is a weaker cue than a true reflection; muddiness may remain",
+        "inkShaders.ts is in meshes/ and may be shared; changes must be uniform-gated",
+        "Hue shifting through a 3-color palette replaces pitch-driven color partly"
+      ],
+      "risks": [
+        "Larger cloud raises overdraw and frame time in software WebGL",
+        "Bump plus hue cycling could exceed the flash limit without clamps",
+        "Visual baselines must be regenerated via workflow"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 4.25
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Pure, unit-tested modules for framing, formation, bass step, hue cycling and depth, with GPU state updated only through uniforms, so every AC is verified by tests rather than by eye.",
+      "approach": [
+        "framing.ts: pure fitCameraDistance(boundRadius, fovDeg, aspect, targetFill=0.75) from the projected bounding sphere against the smaller dimension; useBassInkScene applies it on mount and resize, and the cloud radius is raised accordingly. A unit test at 16:9 and 4:3 asserts a fill of at least 0.70.",
+        "formations.ts: delete the double helix and add a 'nebula shell' (a thick spherical shell with a gaussian radial jitter, plus a few inner filaments). A test asserts the per-axis extent ratio is within about 0.8 to 1.25 and that no 'helix' id remains in types, controls or snapshots.",
+        "bassInkBass.ts: step function stepInkBass(gateBass, dt, state) that wraps stepCubesBass (imported, unchanged). It outputs swell (radial scale) and glow (brightness) and takes no lock or gate parameter. The hook feeds it snapshot.gateBass every frame, the kick ring keeps its gate (D8), and the swell is capped and rate-limited to stay under the 10% flash rule.",
+        "inkShaders/inkCloud: new uniforms uSwell (radial displacement in the vertex shader), uGlow, uColorA/B/C and uHue, all set from preallocated values each frame, with no allocation.",
+        "bassInkControls.ts: three color controls (hex defaults) and a range 'colorSpeed' (0 to max cycles per minute, default small, 0 means static). A pure hueCycle.ts advances phase = phase + speed*dt and samples the palette by phase offset along the pitch/time ramp. A test covers 0 means constant, proportionality, and a max rate below the flash limit.",
+        "Depth (last slice, droppable): a size-attenuated, distance-faded point shader (uFadeNear/uFadeFar) plus Scene.fog-style darkening, and optionally a cheap mirrored second Points draw below a floor with 0.25 alpha. Gate the mirror off under the software-WebGL point cap. Guard it with a renderBudget test.",
+        "Regenerate the bassink-settings-panel and scene baselines via the Update visual snapshots workflow; add the hub-defect takeaway to docs; verify with debug:viz on a kick track before lock."
+      ],
+      "components": [
+        {
+          "name": "framing",
+          "responsibility": "Fit camera distance to the target fill",
+          "location": "app/features/visualizers/bass-ink/framing.ts"
+        },
+        {
+          "name": "stepInkBass",
+          "responsibility": "Lock-free swell/glow envelope from gateBass",
+          "location": "app/features/visualizers/bass-ink/bassInkBass.ts"
+        },
+        {
+          "name": "hueCycle",
+          "responsibility": "Phase and palette sampling, flash-safe",
+          "location": "app/features/visualizers/bass-ink/hueCycle.ts"
+        },
+        {
+          "name": "nebula formation",
+          "responsibility": "Replaces the helix with a volumetric formation",
+          "location": "app/features/visualizers/bass-ink/formations.ts"
+        },
+        {
+          "name": "depth shader",
+          "responsibility": "Distance fade and optional mirror",
+          "location": "app/features/visualizers/meshes/inkShaders.ts, inkCloud.ts"
+        }
+      ],
+      "contracts": [
+        "fitCameraDistance(radius, fovDeg, aspect, fill): number",
+        "stepInkBass(gateBass, dt, state): { swell, glow }",
+        "advanceHue(phase, speed, dt): number",
+        "Controls: colorA, colorB, colorC (color), colorSpeed (range)",
+        "InkCloud uniforms: uSwell, uGlow, uColorA/B/C, uHue, uFade*"
+      ],
+      "pros": [
+        "Every AC has a unit-testable seam, which suits the 95% coverage gate",
+        "The flash cap is enforced in code and tested",
+        "The depth slice is isolated and droppable",
+        "The hub and rhythm code is untouched"
+      ],
+      "cons": [
+        "More new files and tests than a minimal patch",
+        "The mirror pass adds draw cost and bundle bytes",
+        "The nebula shell is a design choice that needs user confirmation (D2)"
+      ],
+      "risks": [
+        "The size-limit headroom is unknown",
+        "Software WebGL frame time with a mirror draw",
+        "Visual baseline churn",
+        "Palette sampling along the pitch ramp may conflict with the user colors"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 4,
+        "reversibility": 4
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "experience",
+      "summary": "Fit the camera to the cloud by maths so it fills ~75% of the smaller viewport side at any aspect, swap the helix for a thick trefoil-knot tube, drive a per-frame swell and glow from snapshot.gateBass, add a Colors section (3 pickers plus a hue-speed slider), and add a shader depth fade so near points read brighter and larger than far ones.",
+      "approach": [
+        "framing.ts: pure fitDistance(radius, fovDeg, aspect, fill=0.75) based on the smaller of the vertical and horizontal half-angles. The scene sets the camera distance from it on mount and on resize. Unit test at 16:9 and 4:3 asserts projected extent >= 0.7.",
+        "formations.ts: remove doubleHelix and add trefoilKnot, a tube of radius about 0.3 around a (2,3) torus knot, normalised to the shared cloud radius. A test asserts the bounding extents on x, y and z are within about 1.5x of each other.",
+        "bassInkBass.ts: pure stepBassInkBass(gateBass, dt, state), reusing stepCubesBass if its output shape fits. It outputs swell (0..1) and glow (0..1) every frame with no lock or gate. Feed it snapshot.gateBass in useBassInkScene. The kick ring keeps its gate (D8).",
+        "inkShaders.ts: add uSwell (radial push along the normalised position) and uGlow (brightness gain, capped so the luminance step stays under the WCAG flash threshold). Add uDepthNear/uDepthFar, which fade alpha and size by view-space z.",
+        "bassInkControls.ts: new 'Colors' section with three type:'color' pickers (defaults are the current palette) and a range 'Color speed' of 0 to 1. The unit is cycles per second, scaled to a maximum of about 0.2 Hz. The label states 0 = static.",
+        "bassInkColor.ts: pure huePhase(t, speed) and sampleGradient(phase, colors, out) write into preallocated THREE.Color objects, with no per-frame allocation. Phase accumulates as speed*dt, so dragging the slider never jumps the colors.",
+        "Optional last slice: a faint mirrored floor using a second draw of the same Points with y flipped and 0.25 alpha. It is droppable (D3)."
+      ],
+      "components": [
+        {
+          "name": "framing",
+          "responsibility": "Camera distance that fits the cloud to the viewport",
+          "location": "app/features/visualizers/bass-ink/framing.ts"
+        },
+        {
+          "name": "trefoilKnot formation",
+          "responsibility": "3D-from-everywhere replacement for the helix",
+          "location": "app/features/visualizers/bass-ink/formations.ts"
+        },
+        {
+          "name": "bassInkBass",
+          "responsibility": "Lock-free swell and glow stepper",
+          "location": "app/features/visualizers/bass-ink/bassInkBass.ts"
+        },
+        {
+          "name": "bassInkColor",
+          "responsibility": "Palette gradient and hue-phase maths",
+          "location": "app/features/visualizers/bass-ink/bassInkColor.ts"
+        },
+        {
+          "name": "Colors controls",
+          "responsibility": "Pickers and speed slider, persisted and reset by useControlValues",
+          "location": "app/features/visualizers/bass-ink/bassInkControls.ts"
+        }
+      ],
+      "contracts": [
+        "fitDistance(radius, fovDeg, aspect, fill): number",
+        "stepBassInkBass(gateBass, dt, state): { swell, glow }",
+        "InkCloud uniforms: uSwell, uGlow, uDepthNear, uDepthFar",
+        "Control ids: colorA, colorB, colorC, colorSpeed"
+      ],
+      "pros": [
+        "Every user-visible change has a labelled control with a clear zero state (static colors).",
+        "Resize keeps the cloud filling the screen, not only the default viewport.",
+        "The depth fade is a shader-only change with no extra draw calls, so the software WebGL budget is safe.",
+        "The pure modules are easy to unit test toward the 95% coverage gate."
+      ],
+      "cons": [
+        "A trefoil tube is less abstract than a filled shape. Some users may find it too recognisable.",
+        "The depth fade dims far points, which lowers overall brightness. The default may need tuning by eye.",
+        "The mirrored floor, if kept, doubles the points drawn and needs a budget check."
+      ],
+      "risks": [
+        "The glow gain plus a hue change could breach the flash limit, so cap glow and test the luminance delta.",
+        "Camera fit from the radius ignores the swell, so the cloud may clip at the screen edge on a bump. Use a fill of 0.75 to leave headroom.",
+        "Changing the camera distance affects the orbit limits in createOrbitView."
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 4.55
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O3",
+  "decision_rationale": "O3 scores highest and stays chosen, amended after the critic: the fill comes from scaling uRadius instead of moving the camera (D13), armillary rings replace the trefoil (D10), the swell reuses the existing lastGateBass pulse and glow goes through BrightnessMix (D14), colors compute into the existing PalettePair with no new color uniforms (D11), and the mirror is dropped so S5 is depth fade only (D12).",
+  "design": {
+    "overview": "Five slices inside app/features/visualizers/bass-ink/ plus meshes/inkShaders.ts, which only bass-ink uses. The camera, createOrbitView, hub and rhythm code are untouched. framing.ts computes a uRadius fit factor from each formation's 95th-percentile point radius, with the worst-case displacement known. formations.ts replaces the double helix with armillary rings. bassInkBass.ts maps the existing lastGateBass to a swell value and a BrightnessMix glow grant. bassInkColor.ts turns three user colors and an accumulated hue phase into core and edge colors written into the existing PalettePair, keeping the transition fade. S5 adds a view-depth fade in the shader.",
+    "components": [
+      {
+        "name": "framing",
+        "responsibility": "fitScale(p95Radius, cameraDistance, fovDeg, aspect, fill) returns the uRadius multiplier, applied on mount and resize; worstCaseExtent(config) sums the breathing, punch, wave and spectrum maxima so clipping on peaks is a documented, tested choice",
+        "location": "app/features/visualizers/bass-ink/framing.ts"
+      },
+      {
+        "name": "armillary formation",
+        "responsibility": "Replaces doubleHelix: seeded points on three or four thick rings tilted on different axes, normalised to unit radius; FORMATION_NAMES, the bassInkTypes comment, the formations test and the debug-harness doc are updated",
+        "location": "app/features/visualizers/bass-ink/formations.ts"
+      },
+      {
+        "name": "bassInkBass",
+        "responsibility": "swellFromBump(lastGateBass, out) is pure and returns swell (0..1, sized below the beatPunch so the effects do not stack) and a glow grant that goes into BrightnessMix",
+        "location": "app/features/visualizers/bass-ink/bassInkBass.ts"
+      },
+      {
+        "name": "bassInkColor",
+        "responsibility": "advanceHuePhase(phase, speed, dt), with speed bounded in cycles per second; writeCustomPalette(colors, phase, outPair) writes core and edge in place into the PalettePair feeding the existing paletteFrom/To fade",
+        "location": "app/features/visualizers/bass-ink/bassInkColor.ts"
+      },
+      {
+        "name": "Colors controls",
+        "responsibility": "A Colors section with colorA, colorB and colorC pickers (defaults are the gradient of current palette 0) and a colorSpeed range from 0 to a bounded maximum (0 = static)",
+        "location": "app/features/visualizers/bass-ink/bassInkControls.ts"
+      },
+      {
+        "name": "telemetry",
+        "responsibility": "Add swell and glow columns to bass-ink's own debug telemetry probe, which lives in the bass-ink feature and not in the hub",
+        "location": "app/features/visualizers/bass-ink/"
+      },
+      {
+        "name": "depth fade",
+        "responsibility": "uDepthNear/uDepthFar scale alpha and point size by view-space depth",
+        "location": "app/features/visualizers/meshes/inkShaders.ts, app/features/visualizers/bass-ink/inkCloud.ts"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "fitScale",
+        "kind": "function",
+        "definition": "fitScale(p95Radius, cameraDistance, fovDeg, aspect, fill): number, the multiplier on the uRadius that makes the formation's p95 projected radius equal fill times the smaller half-dimension; also worstCaseExtent(config): number"
+      },
+      {
+        "id": "C2",
+        "name": "swellFromBump",
+        "kind": "function",
+        "definition": "swellFromBump(lastGateBass: number, out: { swell: number; glow: number }): void; pure, no allocation, no lock or gate parameter"
+      },
+      {
+        "id": "C3",
+        "name": "Bass-ink control ids",
+        "kind": "ui-config",
+        "definition": "New persisted controls colorA, colorB, colorC (type color, hex defaults) and colorSpeed (type range, min 0, bounded max); the existing four controls are unchanged"
+      },
+      {
+        "id": "C4",
+        "name": "bassInkColor",
+        "kind": "function",
+        "definition": "advanceHuePhase(phase, speed, dt): number; writeCustomPalette(colors, phase, out: PalettePair): void writes in place"
+      },
+      {
+        "id": "C5",
+        "name": "S3 shader uniform",
+        "kind": "shader-interface",
+        "definition": "uSwell only (radial push along the normalised position); frozen in S3"
+      },
+      {
+        "id": "C6",
+        "name": "S5 depth uniforms",
+        "kind": "shader-interface",
+        "definition": "uDepthNear, uDepthFar fade alpha and size by view-space depth"
+      }
+    ],
+    "data": "Control values persist through useControlValues like the existing four; no new storage keys beyond the new control ids.",
+    "ux": "The cloud fills about 75% of the smaller side at any window size. The bass swell and glow show from the first kick. The kick ring stays as an accent once the gate learns the beat. A Colors section holds three pickers and a Color speed slider labelled so that 0 means static, and reset restores the defaults.",
+    "accessibility": "Glow goes through BrightnessMix, so the existing global brightness cap bounds it. One combined worst-case unit test (full gate pulse, full sparkle, a BrightnessMix grant, beatPunch) asserts the total luminance step stays under the 10% WCAG 2.3.1 budget in bassInkSceneConfig.ts. The hue speed is bounded in cycles per second. The luminance of user-picked colors is the user's choice and is stated in the control's help text. The new controls must pass the e2e axe check.",
+    "security_privacy": "None; client-only rendering change.",
+    "observability": "npm run debug:viz --viz bass-ink on a kick track: the new swell and glow telemetry columns rise before lock. Any hub or rhythm defect found becomes a takeaway in docs/agents/audio-presentation-audit.md, with no code change there; known notes already include bass-ink.kicks at about 240 ms on lonley and tracker onsets at 49-60 ms median.",
+    "rollout": "Ships as feat PRs per slice; Cloudflare preview URL for a look; revert by PR. Only the bassink-settings-panel visual baseline is regenerated (S4) via the Update visual snapshots workflow."
+  },
+  "test_strategy": {
+    "unit": "framing.test.ts: per formation, the p95 projected radius from the real points is >= 0.80 at 16:9 and 4:3; worstCaseExtent comes from the config constants. formations.test.ts: no helix, the armillary per-axis extents are within 1.25x, the silhouette from each axis is >= 0.5 of the max. bassInkBass.test.ts: swell > 0.3 within 3 frames of a pulse with no lock input, decays, stays below beatPunch. A combined flash worst-case test. bassInkColor.test.ts: speed 0 keeps the phase constant, the rate is proportional and bounded, writes go to the same PalettePair instances. Depth: far/near alpha and size ratio <= 0.5. Coverage stays >= 95%.",
+    "integration": "useBassInkScene.test.ts with the injected engine and tracker fakes: with clock unlocked, uSwell follows lastGateBass, the PalettePair follows the controls through valuesRef, uRadius refits on resize while the camera position is unchanged, and the StrictMode double mount disposes everything.",
+    "e2e": "npm run test:e2e (visualizer render, controls, WebGL context release, axe); regenerate only the bassink-settings-panel baseline in S4.",
+    "manual": "npm run dev: before/after screenshots per formation at two window sizes, orbit the armillary rings 360 degrees, change the colors and speed, check reset, watch the console for WebGL warnings; debug:viz on a kick track before lock.",
+    "non_functional": "npm run size within .size-limit.json; Lighthouse unchanged; software-WebGL e2e within existing timeouts."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "Loud peaks (breathing, punch, kick waves, spectrum, swell) push the rim past the screen edge after the larger fit",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "worstCaseExtent helper and test; clipping on peaks is accepted and documented, rest-state fill targets 0.80-0.85"
+    },
+    {
+      "id": "K2",
+      "description": "Swell and glow added to the sparkle, punch and grants breach the WCAG flash limit",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "Glow only through BrightnessMix; combined worst-case unit test; bounded hue speed"
+    },
+    {
+      "id": "K3",
+      "description": "Armillary rings do not look right in motion",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "User review at S2 before S3-S5; the formation is isolated, so swapping it for a stretched-z trefoil is cheap"
+    },
+    {
+      "id": "K4",
+      "description": "Losing pitch-driven colors removes the musical color meaning",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Decided by the user (D11); the transition fade is kept so formation changes still feel musical"
+    },
+    {
+      "id": "K5",
+      "description": "Scaling uRadius changes the kick wave and spectrum displacement proportions",
+      "likelihood": "medium",
+      "impact": "low",
+      "mitigation": "Displacements stay in absolute units; tune by eye at S1 and cover with the worstCaseExtent test"
+    },
+    {
+      "id": "K6",
+      "description": "Telemetry swell and glow columns need a change in the debug harness outside bass-ink",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "If the probe schema lives outside the bass-ink folder, fall back to the hook test plus a manual check, and record it as a takeaway"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Fill the screen",
+      "objective": "uRadius fit factor from the p95 point radius per formation, applied on mount and resize; camera untouched",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC1",
+        "AC7"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/framing.ts",
+        "app/features/visualizers/bass-ink/framing.test.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Armillary rings replace helix",
+      "objective": "Remove the double helix everywhere and add the armillary-rings formation; the user reviews the look",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC2",
+        "AC7"
+      ],
+      "contracts": [],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/formations.ts",
+        "app/features/visualizers/bass-ink/formations.test.ts",
+        "app/features/visualizers/bass-ink/bassInkConfig.ts",
+        "app/features/visualizers/bass-ink/bassInkTypes.ts",
+        "docs/agents/debug-harness.md"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Lock-free bass swell and glow",
+      "objective": "Map the existing lastGateBass to uSwell and a BrightnessMix glow grant; add telemetry columns; the kick ring stays as an accent",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC3",
+        "AC7"
+      ],
+      "contracts": [
+        "C2",
+        "C5"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/bassInkBass.ts",
+        "app/features/visualizers/bass-ink/bassInkBass.test.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "app/features/visualizers/bass-ink/inkCloud.ts",
+        "app/features/visualizers/meshes/inkShaders.ts"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Custom colors and speed",
+      "objective": "Colors section with three pickers and a bounded hue-speed slider writing into the existing PalettePair; regenerate the settings-panel baseline",
+      "depends_on": [
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC4",
+        "AC5",
+        "AC7"
+      ],
+      "contracts": [
+        "C3",
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/bassInkControls.ts",
+        "app/features/visualizers/bass-ink/bassInkColor.ts",
+        "app/features/visualizers/bass-ink/bassInkColor.test.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "e2e/visual.spec.ts-snapshots/bassink-settings-panel-chromium-linux.png"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Depth fade",
+      "objective": "Stretch, droppable: a view-depth fade on alpha and size; the reflection is left for a separate plan",
+      "depends_on": [
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC6",
+        "AC7"
+      ],
+      "contracts": [
+        "C6"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/meshes/inkShaders.ts",
+        "app/features/visualizers/meshes/inkShaders.test.ts",
+        "app/features/visualizers/bass-ink/inkCloud.ts",
+        "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q2",
+      "question": "Should the dropped reflection floor be planned as a follow-up with a real-GPU frame-time check?",
+      "owner": "user, after S5 ships",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "problem",
+        "finding": "AC1/S1/C1 is close to circular and may not fix the complaint. bassInkSceneConfig.ts already says the cloud fills about 60% of the height at distance 12 and fov 50. The new target of 0.70-0.75 is only a modest change, and the AC1 unit test checks fitDistance against its own formula, so it passes by construction. The fit uses the bounding sphere (radius 3.4). The formations are not all unit sphere: the helix was 0.45 wide, the disc is thin, and the torus is flat. Soft sprites with soft*soft alpha and the vRadial colour fall-off make the visible mass smaller than the bounding sphere. The trefoil also does not fill a sphere. So 'small amount of the screen' can survive a passing AC1.",
+        "suggestion": "Define fill from the visible mass, not the sphere: for example the 95th-percentile projected point radius per formation. Raise the target (about 0.85-0.9 of the smaller side before swell). Add one rendered-pixel coverage check, either a debug:viz or e2e screenshot measurement or a manual checklist item per formation.",
+        "resolution": "Changed: AC1 now measures the p95 projected radius from each formation's real points against a 0.80 target, plus manual before/after screenshots per formation."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "acceptance",
+        "finding": "AC2 and D10 contradict each other. A (2,3) trefoil has centreline extents of roughly 3:3:1 (x:y:z, for example the standard torus-knot form, R=2, r=1), so the planned test 'extents within 1.5x on all three axes' cannot pass for a normalised trefoil without distorting the shape. Seen along x or y it is a flat band, and the torus formation already behaves that way. It would not read as 3D from every angle, which is the point of D2. D10 is a planner-assumption and is only confirmed in the end-of-run summary, while D2 says the shape is confirmed at the checkpoint. S2 therefore ships before the user has seen the shape.",
+        "suggestion": "Measure the candidate's per-axis extents and projected silhouette from the three axes before fixing the AC2 threshold. Pick a shape that passes (a thick 3D knot with an adjusted z scale, a filled or gaussian-shell volume, or O1/O2's nebula), or loosen AC2 to 'silhouette area from any axis at least 0.5 of the max'. Get the user's visual confirmation of the shape at the S2 review, before S3-S5 build on it.",
+        "resolution": "Changed: armillary rings replace the trefoil (D10). AC2 uses a 1.25x extent test and silhouette area from each axis; the user reviews the look at S2."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "design",
+        "finding": "The camera-distance fit conflicts with the orbit view (K5 is rated low impact). createOrbitView (app/lib/three/orbitView.ts) captures defaultPosition once at creation and has no setter. Refitting on resize therefore needs an edit to this shared lib, which is not in any slice's draft_paths and touches other visualizers. Moving the camera after resize also exceeds MOVED_THRESHOLD (0.5), which flips onViewChanged to true, so the reset-view button appears without the user touching anything. If the orbit is unlocked, a refit fights the user's own zoom.",
+        "suggestion": "Do not move the camera. The cloud is already scaled in the vertex shader by uRadius, so scale the radius by the fit factor on mount and resize. The camera and orbit reset stay untouched. If the camera must move, recreate or extend the orbit default in a named slice with a test for the reset button state.",
+        "resolution": "Changed: fill comes from scaling uRadius, and the camera and createOrbitView are untouched (D13). The hook test asserts the camera position is unchanged on resize."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "security",
+        "finding": "The flash budget is not honest (K2 is rated low likelihood). The sparkle comment in bassInkSceneConfig.ts says glints already use about 8% of the 10% budget. BrightnessMix is documented as the only global brightness input (the fragment shader uses (1+uBrightness)). The plan adds a second additive brightness channel (uGlow) plus a radial swell on every kick, on top of the kick ring, beatPunch (9%) and the BrightnessMix grants. Caps and tests per module (C2 and C4 unit tests) do not bound the sum. Kicks at 150-180 bpm approach the 3 per second general flash threshold. With user-chosen colours, a hue cycle between a dark and a bright picker also changes luminance, so a 'max rate' test cannot be written for arbitrary colours.",
+        "suggestion": "Budget glow inside BrightnessMix (or cap it to about 2% luminance change) and add one combined worst-case test: full gate pulse, full sparkle and a grant together stay under 10%. For hue cycling, bound the speed (cycles per second) and say the user colours' luminance is theirs to choose, or interpolate in a luminance-preserving way. Raise the risk likelihood to medium.",
+        "resolution": "Changed: glow goes only through BrightnessMix, a combined worst-case flash test is added, the hue speed is bounded, and K2 is raised to medium."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "design",
+        "finding": "The bass wiring (S3/C2/AC3) duplicates and mis-specifies existing state. useBassInkScene already computes lastGateBass = bump.step(hub.snapshot.gateBass.pulse, dt) with GATE_BASS_BUMP every frame, with no lock condition (it is replaced only on source change). The plan's stepBassInkBass(gateBass, dt, state) wraps stepCubesBass, which needs a BassBump envelope and CubesBassSettings {bassBump, bgPulse}. Bass-ink has neither control and C3 says the existing four controls are unchanged. A second envelope would run beside the first. Bass-ink already has three radial pulses (beatPunch 9%, kick waves up to 1.3 units, spectrum 1.1) and the swell adds a fourth. AC3 ('same frame window as cubes') cannot be measured, because cubes is not in this scene. The telemetry probe has no swell or glow channel, only gateIn (which is already the post-bump value), so the debug:viz check in AC3 has nothing to read.",
+        "suggestion": "Reuse the existing bump instance and map swell = f(lastGateBass) in a pure function (no stepCubesBass wrapper, no second envelope). Add a fixed internal gain, or a control if wanted. Add a probe channel for swell and glow. Rewrite AC3 as 'swell exceeds X within N frames of gateRaw rising, with clock.locked false', and size the swell relative to beatPunch so the effect is visible but not stacked.",
+        "resolution": "Changed: a pure swellFromBump maps the existing lastGateBass with no second envelope (D14). AC3 is measurable at 3 frames, and telemetry gets swell and glow columns."
+      },
+      {
+        "id": "F6",
+        "severity": "high",
+        "area": "design",
+        "finding": "The colour design (S4/C3/C4/C5/AC4) skips the real colour pipeline. Today colour comes from director cue.paletteIndex through writePalette, with the paletteFrom/To/Shown fade on each transition, into PalettePair core/edge uniforms mixed by vRadial. The plan adds uColorA/B/C and uHue but never says whether uCore/uEdge, the transition fade and the pitch offset stay. Q1 (replace or offset by pitch) is marked non-blocking and deferred to the S4 review, yet it decides the code shape. K4's 'offset by pitch class, defaults reproduce the current look' conflicts with AC4 ('points use the chosen colors'). A 3-colour gradient also cannot reproduce a per-pitch-class table. C5 is touched in S3, S4 and S5, so the shader contract is not frozen before its dependents.",
+        "suggestion": "Make Q1 blocking and decide it now. Smallest design: compute core and edge on the CPU from the 3 colours and the hue phase into the existing PalettePair, keeping the transition fade, and leave the fragment shader unchanged (no uColorA/B/C or uHue). Freeze C5 in S3 to only the uniforms S3 needs, with S5's uniforms in its own contract. State what the defaults reproduce, for example 'default gradient from current palette 0', rather than claiming identical looks.",
+        "resolution": "Changed: the user chose to replace the palette (D11). Colors are written into the existing PalettePair with the fade kept and no new color uniforms. C5 is frozen to uSwell in S3, and S5 has its own C6."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "The mirrored floor in S5/AC6 is under-specified and untestable where it matters. There is no floor plane: the cloud is centred at the origin, tilted, rotating, and orbitable. The vertex shader computes the spectrum displacement in screen space relative to the modelView centre and the kick waves from distance to the origin. A y-flipped second Points draw would therefore apply the spectrum mirrored incorrectly (bass at the bottom) and double the 100k additive points on real GPUs. Because it is disabled under the software-WebGL cap, e2e and the visual baselines never exercise it, so the AC6 frame-time check passes vacuously. The plan's own text says the depth fade 'may leave muddiness', and AC6 ('reads distinctly') is subjective.",
+        "suggestion": "Drop the mirror from this plan (D3 makes it droppable) or split it into its own plan with a real-GPU frame-time check. Ship only the shader depth fade and make AC6 measurable: a unit test on the near/far alpha and size ratio at uDepthNear/uDepthFar, plus a manual before/after screenshot.",
+        "resolution": "Changed: the user dropped the mirror (D12). AC6 is a measurable near/far ratio plus screenshots, and the follow-up is Q2."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "design",
+        "finding": "K1/K5 and the 0.75 fit ignore the existing displacements. Worst case at 3.4 radius: breathing 7%, punch 9%, kick wave up to 1.3 units, spectrum up to 1.1 units on the rim (the sum is about 5 units, or about 1.5x the radius). At 0.75 fill the cloud's rim would pass the screen edge on a loud kick. The planned test 'max swell stays within the viewport' covers only the new swell term, not these. The cloud can therefore clip at the edge on loud kicks, while quiet passages sit at the fill target.",
+        "suggestion": "Take the worst case from the config constants (breathing, punch, wave maxDisplacement, spectrum amplitude) in a pure helper. Choose fill so the typical rim sits near 0.8 and clipping on a peak is acceptable, or document it. Assert that in a unit test instead of testing the swell alone.",
+        "resolution": "Changed: a worstCaseExtent helper and test are added, and clipping on peaks is accepted and documented (K1)."
+      },
+      {
+        "id": "F9",
+        "severity": "low",
+        "area": "delivery",
+        "finding": "The CI and baseline claims are partly wrong. The plan (test_strategy.e2e, AC7, constraints) says 'regenerate the bass-ink scene baselines' and 'visual baselines'. The only bass-ink file under e2e/visual.spec.ts-snapshots is bassink-settings-panel-chromium-linux.png, and there is no bass-ink mention in e2e/*.ts. So no scene screenshot exists, which means nothing guards the framing or depth look in CI, and only S4 changes a baseline. The slices that touch the scene (S1, S2, S3) list AC7, but their CI gate will not show regressions. Also S2's draft_paths omit formations.test.ts (the helix test at line 98), the FORMATION_NAMES array, the bassInkTypes.ts comment and docs/agents/debug-harness.md (which lists formation 2 as 'double helix').",
+        "suggestion": "Say only the settings-panel baseline is regenerated (S4). If framing and depth need a CI guard, add a scene baseline or a pixel-coverage assertion explicitly. Add the test, name list, comment and doc to S2's paths.",
+        "resolution": "Changed: only the settings-panel baseline is regenerated (S4, AC7), and S2's paths include formations.test.ts, bassInkTypes.ts and debug-harness.md."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "b620ed99265e7e080f8298599490803eef3e940ad09182d21c06d9bf6f3fc4a1",
+    "cards": {
+      "O1": "7f1361124f2c8e55cbd939bbe851f439be972f88219eb564b0d4fa3795600714",
+      "O2": "9255743155cb778eab66f14fed50679114a602f81c4857c6fbbf0a2ca8cc97b3",
+      "O3": "052d6f0dff0849c0da3107ef37392d1033d841efe9c368e4c49c3c3da7a2b513"
+    },
+    "critic_sha256": "c451b021c7dcd143828dc6807367372ff9e75c2012c3fdcb5afae4505ea4e7db",
+    "critic_basis": {
+      "chosen_option": "O3",
+      "risk": "R1",
+      "contracts_sha256": "9176e1b405e38b73",
+      "acs_sha256": "09049c760c9b8300"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "11ffc88fe66bea1b",
+      "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+      "risk": "R1",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "fitScale",
+          "kind": "function",
+          "definition": "fitScale(p95Radius, cameraDistance, fovDeg, aspect, fill): number, the multiplier on the uRadius that makes the formation's p95 projected radius equal fill times the smaller half-dimension; also worstCaseExtent(config): number"
+        },
+        {
+          "id": "C2",
+          "name": "swellFromBump",
+          "kind": "function",
+          "definition": "swellFromBump(lastGateBass: number, out: { swell: number; glow: number }): void; pure, no allocation, no lock or gate parameter"
+        },
+        {
+          "id": "C5",
+          "name": "S3 shader uniform",
+          "kind": "shader-interface",
+          "definition": "uSwell only (radial push along the normalised position); frozen in S3"
+        },
+        {
+          "id": "C3",
+          "name": "Bass-ink control ids",
+          "kind": "ui-config",
+          "definition": "New persisted controls colorA, colorB, colorC (type color, hex defaults) and colorSpeed (type range, min 0, bounded max); the existing four controls are unchanged"
+        },
+        {
+          "id": "C4",
+          "name": "bassInkColor",
+          "kind": "function",
+          "definition": "advanceHuePhase(phase, speed, dt): number; writeCustomPalette(colors, phase, out: PalettePair): void writes in place"
+        },
+        {
+          "id": "C6",
+          "name": "S5 depth uniforms",
+          "kind": "shader-interface",
+          "definition": "uDepthNear, uDepthFar fade alpha and size by view-space depth"
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Fill the screen: uRadius fit factor from the p95 point radius per formation, applied on mount and resize; camera untouched",
+          "dependencies": [],
+          "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/framing.ts",
+            "app/features/visualizers/bass-ink/framing.test.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 fitScale (function): fitScale(p95Radius, cameraDistance, fovDeg, aspect, fill): number, the multiplier on the uRadius that makes the formation's p95 projected radius equal fill times the smaller half-dimension; also worstCaseExtent(config): number"
+          ],
+          "acceptance": [
+            "AC1: Given a fresh visit to /bass-ink with default controls at 1920x1080 and 1024x768, when each formation renders at rest (no bass), then the 95th-percentile projected point radius of each formation spans at least 0.80 of the viewport's smaller half-dimension (unit test computed from the formation's actual points, not from the fit formula), loud peaks may clip at the edge by design, and a manual before/after screenshot per formation confirms it",
+            "AC7: Given the full change, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Armillary rings replace helix: Remove the double helix everywhere and add the armillary-rings formation; the user reviews the look",
+          "dependencies": [],
+          "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/formations.ts",
+            "app/features/visualizers/bass-ink/formations.test.ts",
+            "app/features/visualizers/bass-ink/bassInkConfig.ts",
+            "app/features/visualizers/bass-ink/bassInkTypes.ts",
+            "docs/agents/debug-harness.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [],
+          "acceptance": [
+            "AC2: Given the formation set, when the replacement for the double helix is generated, then no helix remains (code, FORMATION_NAMES, tests, docs), the armillary-rings formation's per-axis extents are within 1.25x of each other and its projected silhouette area from each of the x, y and z axes is at least 0.5 of the largest, and the user confirms the look at the S2 review",
+            "AC7: Given the full change, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Lock-free bass swell and glow: Map the existing lastGateBass to uSwell and a BrightnessMix glow grant; add telemetry columns; the kick ring stays as an accent",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/bassInkBass.ts",
+            "app/features/visualizers/bass-ink/bassInkBass.test.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "app/features/visualizers/bass-ink/inkCloud.ts",
+            "app/features/visualizers/meshes/inkShaders.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 swellFromBump (function): swellFromBump(lastGateBass: number, out: { swell: number; glow: number }): void; pure, no allocation, no lock or gate parameter",
+            "C5 S3 shader uniform (shader-interface): uSwell only (radial push along the normalised position); frozen in S3"
+          ],
+          "acceptance": [
+            "AC3: Given kicks playing with clock.locked false, when the gateBass pulse rises, then the swell value exceeds 0.3 within 3 frames (unit test on the pure mapping and a hook test with the injected fakes), with no lock or gate input in the code path, and the bass-ink telemetry shows a swell column rising on the first kicks in npm run debug:viz",
+            "AC7: Given the full change, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Custom colors and speed: Colors section with three pickers and a bounded hue-speed slider writing into the existing PalettePair; regenerate the settings-panel baseline",
+          "dependencies": [
+            "S3"
+          ],
+          "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/bassInkControls.ts",
+            "app/features/visualizers/bass-ink/bassInkColor.ts",
+            "app/features/visualizers/bass-ink/bassInkColor.test.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "e2e/visual.spec.ts-snapshots/bassink-settings-panel-chromium-linux.png"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 Bass-ink control ids (ui-config): New persisted controls colorA, colorB, colorC (type color, hex defaults) and colorSpeed (type range, min 0, bounded max); the existing four controls are unchanged",
+            "C4 bassInkColor (function): advanceHuePhase(phase, speed, dt): number; writeCustomPalette(colors, phase, out: PalettePair): void writes in place"
+          ],
+          "acceptance": [
+            "AC4: Given the bass-ink control panel, when the user changes the palette color pickers, then the points use the chosen colors on the next frame, the values persist like other controls, and reset restores the defaults",
+            "AC5: Given the color speed slider, when set to 0, then to its maximum, then at 0 hues stay fixed; at higher values hue rotates around the palette at a rate proportional to the slider, with no flashing beyond the existing WCAG limit",
+            "AC7: Given the full change, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Depth fade: Stretch, droppable: a view-depth fade on alpha and size; the reflection is left for a separate plan",
+          "dependencies": [
+            "S3"
+          ],
+          "base_revision": "ead045fb29a2df167c699d95c18439a513fdc6b8",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/meshes/inkShaders.ts",
+            "app/features/visualizers/meshes/inkShaders.test.ts",
+            "app/features/visualizers/bass-ink/inkCloud.ts",
+            "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C6 S5 depth uniforms (shader-interface): uDepthNear, uDepthFar fade alpha and size by view-space depth"
+          ],
+          "acceptance": [
+            "AC6: Given the depth slice is shipped, when points sit at uDepthNear and at uDepthFar, then a unit test on the shader-side maths shows the far point's alpha and size are at most 0.5 of the near point's, a manual before/after screenshot shows near points separate from far ones, and software-WebGL e2e stays within existing timeouts",
+            "AC7: Given the full change, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size, Lighthouse and e2e pass, only the bassink-settings-panel baseline is regenerated (S4), and no file under app/features/audio/hub, app/features/rhythm, app/lib/three or other visualizers changes"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}
