@@ -35,11 +35,10 @@ describe('bassInkSceneConfig depth fade', () => {
         expect(depth.fade).toBeLessThanOrEqual(1);
     });
 
-    it('puts the camera distance between the near and far depths at the default fit', () => {
-        const near = camera.distance - cloud.radius * depth.halfRange;
-        const far = camera.distance + cloud.radius * depth.halfRange;
-        expect(near).toBeGreaterThan(camera.near);
-        expect(near).toBeLessThan(camera.distance);
-        expect(far).toBeGreaterThan(camera.distance);
+    it('keeps the whole faded range in front of the camera at the default fit', () => {
+        // The range is offsets from the cloud center's depth, so the nearest point is at the distance minus the range.
+        const nearest = camera.distance - cloud.radius * depth.halfRange;
+        expect(nearest).toBeGreaterThan(camera.near);
+        expect(depth.halfRange).toBeGreaterThan(0);
     });
 });

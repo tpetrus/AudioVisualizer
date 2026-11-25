@@ -32,12 +32,12 @@ export const bassInkControls = [
         step: 0.05,
         default: 0.3,
     },
-    // Palette 0's core, the midpoint of its core and edge (in linear light) and its edge, as sRGB hex. A unit test checks
-    // them against writePalette(0). The brightness of a picked color is the user's choice: the picker replaces the
-    // pitch-driven palette, so a very dark color makes a dark cloud.
-    { section: 'Colors', key: 'colorA', label: 'Color A', type: 'color', default: '#f79696' },
-    { section: 'Colors', key: 'colorB', label: 'Color B', type: 'color', default: '#c47b6e' },
-    { section: 'Colors', key: 'colorC', label: 'Color C', type: 'color', default: '#765615' },
+    // Three clearly different, vivid hues that read well blended additively on black: hot pink (the core at rest), amber
+    // and sky blue (the edge at rest). A unit test checks that they stay far apart in hue. The brightness of a picked
+    // color is the user's choice: the picker replaces the pitch-driven palette, so a very dark color makes a dark cloud.
+    { section: 'Colors', key: 'colorA', label: 'Color A', type: 'color', default: '#ff4fa3' },
+    { section: 'Colors', key: 'colorB', label: 'Color B', type: 'color', default: '#ffb21e' },
+    { section: 'Colors', key: 'colorC', label: 'Color C', type: 'color', default: '#3fc8ff' },
     {
         section: 'Colors',
         key: 'colorSpeed',

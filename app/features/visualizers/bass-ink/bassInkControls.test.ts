@@ -1,9 +1,6 @@
-import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { defaultValues, groupBySection } from '~/components/ControlPanel/controls';
 import { bassInkControls } from './bassInkControls';
-import type { PalettePair } from './bassInkTypes';
-import { writePalette } from './chromaPalette';
 
 describe('bassInkControls', () => {
     it('has unique keys', () => {
@@ -54,20 +51,23 @@ describe('bassInkControls', () => {
         expect(Number(speed?.default)).toBeLessThanOrEqual(0.5);
     });
 
-    it('defaults the colors to palette 0 core, the midpoint and the edge', () => {
-        const palette: PalettePair = { core: new Float32Array(3), edge: new Float32Array(3) };
-        writePalette(0, palette);
-        const hex = (r: number, g: number, b: number) =>
-            '#' + new THREE.Color().setRGB(r, g, b, THREE.LinearSRGBColorSpace).getHexString();
+    it('defaults the three colors to clearly different hues', () => {
         const defaults = defaultValues(bassInkControls);
-        expect(defaults.colorA).toBe(hex(palette.core[0], palette.core[1], palette.core[2]));
-        expect(defaults.colorC).toBe(hex(palette.edge[0], palette.edge[1], palette.edge[2]));
-        expect(defaults.colorB).toBe(
-            hex(
-                (palette.core[0] + palette.edge[0]) / 2,
-                (palette.core[1] + palette.edge[1]) / 2,
-                (palette.core[2] + palette.edge[2]) / 2,
-            ),
-        );
+        const hue = (hex: string) => {
+            // Hue of the sRGB value itself, in degrees.
+            const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255);
+            const max = Math.max(r, g, b);
+            const delta = max - Math.min(r, g, b);
+            const sector = max === r ? ((g - b) / delta) % 6 : max === g ? (b - r) / delta + 2 : (r - g) / delta + 4;
+            return (sector * 60 + 360) % 360;
+        };
+        const apart = (a: number, b: number) => {
+            const gap = Math.abs(a - b) % 360;
+            return Math.min(gap, 360 - gap);
+        };
+        const hues = [defaults.colorA, defaults.colorB, defaults.colorC].map((value) => hue(String(value)));
+        expect(apart(hues[0], hues[1])).toBeGreaterThanOrEqual(60);
+        expect(apart(hues[1], hues[2])).toBeGreaterThanOrEqual(60);
+        expect(apart(hues[0], hues[2])).toBeGreaterThanOrEqual(60);
     });
 });

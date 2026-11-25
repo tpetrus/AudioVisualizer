@@ -6,7 +6,7 @@ import type { PalettePair } from './bassInkTypes';
 export const MAX_HUE_CYCLES_PER_SECOND = 0.2;
 
 // How far ahead of the core the edge samples the gradient: two thirds, so at rest the core is color A and the edge is
-// color C, as the pickers' defaults (palette 0's core and edge) and their order say.
+// color C, as the pickers' defaults (hot pink first, sky blue last, amber between) and their order say.
 const EDGE_PHASE_OFFSET = 2 / 3;
 
 // Phase in [0, 1), advanced by speed * MAX_HUE_CYCLES_PER_SECOND * dt. Speed 0 leaves it unchanged, and a non-finite

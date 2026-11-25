@@ -4,13 +4,14 @@ import { KICK_SLOTS, type DirectorCue, type KickRingView, type PalettePair } fro
 import { hash01, writeFormation } from './formations';
 import { inkFragmentShader, inkVertexShader } from '../meshes/inkShaders';
 
-// View depths where the fade starts and ends, around the camera distance and following the fitted radius.
+// Depths where the fade starts and ends, relative to the cloud center's view depth (the shader subtracts the center's),
+// and following the fitted radius. Relative, so zooming the camera in or out never changes a point's fade.
 function depthNear(radius: number): number {
-    return bassInkSceneConfig.camera.distance - radius * bassInkSceneConfig.depth.halfRange;
+    return -radius * bassInkSceneConfig.depth.halfRange;
 }
 
 function depthFar(radius: number): number {
-    return bassInkSceneConfig.camera.distance + radius * bassInkSceneConfig.depth.halfRange;
+    return radius * bassInkSceneConfig.depth.halfRange;
 }
 
 // Contract C4: the point cloud of the Bass Ink visualizer.

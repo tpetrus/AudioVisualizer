@@ -36,10 +36,11 @@ export const bassInkSceneConfig = {
         tilt: 0.5,
         // Share of the viewport's smaller half-dimension that the 95th-percentile point of the resting cloud reaches. The
         // scene scales the cloud's world radius to get there (framing.ts), so the picture fills the screen at any window
-        // shape. Perspective magnifies the points nearer the camera, so the measured 95th percentile lands about 8 percent
-        // beyond this number (about 0.83 to 0.86 of the half-dimension at 0.8), which keeps the loudest moments
-        // (breathing, punch, waves) mostly inside the view.
-        fill: 0.8,
+        // shape. Perspective magnifies the points nearer the camera, so the measured 95th percentile lands about 5 to 6
+        // percent beyond this number (0.72 to 0.74 at 0.7), the 99th percentile at 0.78 to 0.82 and the farthest outer
+        // point at 0.88 at most, so the whole resting cloud, outer points included, sits inside the view with a margin
+        // for the breathing, punch and waves. At 0.8 the top and bottom of the cloud were slightly out of view.
+        fill: 0.7,
     },
     bass: {
         // The bump envelope's output below this is its noise floor (a steady bassline leaves it at a few percent), so
@@ -139,9 +140,10 @@ export const bassInkSceneConfig = {
         // the near ones (under the 0.5 the plan requires): visible, not harsh. Points are additive, so the fade only
         // removes light; it cannot add flashing.
         fade: 0.55,
-        // The range is centered on the camera distance and spans this many fitted radii each way, so the nearest part of
-        // the cloud is at full strength and the farthest is at the faded end. It follows the fit (framing.ts) because
-        // the radius does: near = distance - radius * halfRange, far = distance + radius * halfRange.
+        // The range is centered on the cloud's own view depth (not the camera distance, so zooming never dims it) and
+        // spans this many fitted radii each way, so the nearest part of the cloud is at full strength and the farthest
+        // is at the faded end. It follows the fit (framing.ts) because the radius does: near = -radius * halfRange,
+        // far = +radius * halfRange, as offsets from the center's depth.
         halfRange: 1,
     },
     camera: {
