@@ -58,13 +58,13 @@ describe('writeCustomPalette', () => {
         expect(out.edge).toBe(edge);
     });
 
-    it('starts the core on color A and the edge a third of the way around, on color B', () => {
+    it('starts the core on color A and the edge two thirds of the way around, on color C', () => {
         const out = palette();
         writeCustomPalette(colors, 0, out);
         expect(Array.from(out.core)).toEqual([1, 0, 0]);
         expect(out.edge[0]).toBeCloseTo(0, 5);
-        expect(out.edge[1]).toBeCloseTo(1, 5);
-        expect(out.edge[2]).toBeCloseTo(0, 5);
+        expect(out.edge[1]).toBeCloseTo(0, 5);
+        expect(out.edge[2]).toBeCloseTo(1, 5);
     });
 
     it('passes through B and C and closes back on A', () => {
