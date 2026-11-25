@@ -129,10 +129,11 @@ export const bassInkConfig = {
         // Torus: ring radius and tube radius, so the whole shape stays inside radius 1.
         torusMajorRadius: 0.7,
         torusMinorRadius: 0.3,
-        // Double helix: strand radius, number of turns and half height.
-        helixRadius: 0.45,
-        helixTurns: 3,
-        helixHalfHeight: 0.95,
+        // Armillary rings: three rings in the three orthogonal planes (the count is fixed by the axes, which is what
+        // keeps the shape from being dominated by one axis). Ring radius plus tube radius stays under 1, and the tube
+        // is thin with scatter across it so the rings read as dust, not wires.
+        armillaryRadius: 0.85,
+        armillaryTubeRadius: 0.12,
         // Disc galaxy: spiral arms, how much each arm winds, and the thickness of the flat disc.
         discArms: 2,
         discTwist: 3,

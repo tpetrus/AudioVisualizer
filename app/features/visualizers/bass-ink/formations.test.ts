@@ -95,28 +95,51 @@ describe('writeFormation', () => {
         expect(maxY).toBeLessThanOrEqual(0.31);
     });
 
-    it('double helix spans the height with two strands', () => {
-        const points = fill(2);
-        let minY = Infinity;
-        let maxY = -Infinity;
-        for (let i = 0; i < COUNT; i++) {
-            minY = Math.min(minY, points[i * 3 + 1]);
-            maxY = Math.max(maxY, points[i * 3 + 1]);
+    describe('armillary rings', () => {
+        const N = 4000;
+        const points = new Float32Array(N * 3);
+        writeFormation(2, 5, points, N, 0, N);
+
+        function extent(axis: number): number {
+            const values: number[] = [];
+            for (let i = 0; i < N; i++) values.push(points[i * 3 + axis]);
+            values.sort((x, y) => x - y);
+            return values[Math.floor(N * 0.98)] - values[Math.floor(N * 0.02)];
         }
-        expect(minY).toBeLessThan(-0.9);
-        expect(maxY).toBeGreaterThan(0.9);
-        // The two strands sit on opposite sides: even and odd points at the same height have opposite x on average.
-        let evenX = 0;
-        let oddX = 0;
-        for (let i = 0; i < COUNT; i++) {
-            const y = points[i * 3 + 1];
-            if (Math.abs(y - 0.5 / 3) < 0.01) {
-                // Only points near one height, where the angle is shared.
-                if (i % 2 === 0) evenX += points[i * 3];
-                else oddX += points[i * 3];
+
+        // Occupied cells of a 64x64 grid over [-1.2, 1.2]^2 after dropping the viewing axis.
+        function silhouette(dropAxis: number): number {
+            const [ua, va] = [0, 1, 2].filter((axis) => axis !== dropAxis);
+            const occupied = new Set<number>();
+            for (let i = 0; i < N; i++) {
+                const gu = Math.floor(((points[i * 3 + ua] + 1.2) / 2.4) * 64);
+                const gv = Math.floor(((points[i * 3 + va] + 1.2) / 2.4) * 64);
+                occupied.add(gv * 64 + gu);
             }
+            return occupied.size;
         }
-        expect(evenX * oddX).toBeLessThanOrEqual(0);
+
+        it('has about the same extent along x, y and z', () => {
+            const extents = [extent(0), extent(1), extent(2)];
+            expect(Math.max(...extents) / Math.min(...extents)).toBeLessThanOrEqual(1.25);
+        });
+
+        it('has a similar silhouette when viewed along x, y and z', () => {
+            const areas = [silhouette(0), silhouette(1), silhouette(2)];
+            expect(Math.min(...areas) / Math.max(...areas)).toBeGreaterThanOrEqual(0.5);
+        });
+
+        it('is hollow in the middle and stays inside the unit sphere', () => {
+            for (let i = 0; i < N; i++) {
+                const r = Math.hypot(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+                expect(r).toBeGreaterThan(0.7);
+                expect(r).toBeLessThanOrEqual(1);
+            }
+        });
+    });
+
+    it('never mentions a helix', () => {
+        expect(FORMATION_NAMES.join(' ').toLowerCase()).not.toContain('helix');
     });
 
     it('disc is flat and wide', () => {
