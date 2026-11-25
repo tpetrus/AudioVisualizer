@@ -10,9 +10,9 @@ const POINTS = 20000;
 const ASPECTS = [1920 / 1080, 1024 / 768];
 const { camera: cameraConfig, cloud } = bassInkSceneConfig;
 
-// Fraction of the smaller half-dimension that the 95th-percentile point reaches on screen, measured by projecting the
+// Sorted fractions of the smaller half-dimension that the points reach on screen, measured by projecting the
 // real formation points (tilted and scaled as the scene does) through a real perspective camera.
-function projectedP95(index: number, aspect: number): number {
+function projectedRadii(index: number, aspect: number): number[] {
     const camera = new THREE.PerspectiveCamera(cameraConfig.fov, aspect, cameraConfig.near, cameraConfig.far);
     camera.position.set(0, 0, cameraConfig.distance);
     camera.updateMatrixWorld();
@@ -36,19 +36,22 @@ function projectedP95(index: number, aspect: number): number {
         radii.push(Math.hypot(point.x * aspect, point.y) / Math.min(1, aspect));
     }
     radii.sort((a, b) => a - b);
-    return radii[Math.floor(0.95 * POINTS)];
+    return radii;
 }
 
+const percentile = (sorted: number[], share: number): number => sorted[Math.floor(share * POINTS)];
+
 describe('framing', () => {
-    describe('AC1: the cloud fills the screen', () => {
+    describe('AC1: the whole resting cloud is in view and still fills most of the screen', () => {
         for (const aspect of ASPECTS) {
             // Iterated over the count, so a new formation is covered without editing this spec.
             for (let index = 0; index < FORMATION_COUNT; index++) {
-                it(`formation ${index} reaches at least 80% of the smaller half-dimension at aspect ${aspect.toFixed(2)}`, () => {
-                    const fraction = projectedP95(index, aspect);
-                    expect(fraction).toBeGreaterThanOrEqual(0.8);
-                    // And the resting picture stays inside the view.
-                    expect(fraction).toBeLessThanOrEqual(1);
+                it(`formation ${index} keeps its 99th percentile within 95% and its 95th at 65% or more at aspect ${aspect.toFixed(2)}`, () => {
+                    const radii = projectedRadii(index, aspect);
+                    // Outer points sit inside the view with a small margin ...
+                    expect(percentile(radii, 0.99)).toBeLessThanOrEqual(0.95);
+                    // ... and the cloud still fills most of it (the floor follows cloud.fill, which is 0.7).
+                    expect(percentile(radii, 0.95)).toBeGreaterThanOrEqual(0.65);
                 });
             }
         }

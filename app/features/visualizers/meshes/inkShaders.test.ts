@@ -50,6 +50,24 @@ describe('ink shaders', () => {
             expect(depthFade(12, 14, 10, fade)).toBe(1);
         });
 
+        it('measures depth from the cloud center, so zooming the camera never dims the cloud', () => {
+            // The GLSL computes `-mv.z - (-center.z)` (the point's view depth minus the center's) and feeds it to the
+            // same maths as depthFade, with near below 0 and far above 0.
+            expect(inkVertexShader).toContain('float relativeDepth = -mv.z - (-center.z);');
+            expect(inkVertexShader).toMatch(/clamp\(\(relativeDepth - uDepthNear\)/);
+            expect(inkVertexShader).not.toMatch(/-mv\.z - uDepthNear/);
+        });
+
+        it('gives a point at the cloud center the same fade at any camera distance', () => {
+            const near = -3;
+            const far = 3;
+            for (const cameraDistance of [4, 12, 40, 200]) {
+                // The center's view depth is the camera distance, so a point there has relative depth 0.
+                const relative = cameraDistance - cameraDistance;
+                expect(depthFade(relative, near, far, fade)).toBeCloseTo(1 - fade / 2, 12);
+            }
+        });
+
         it('is declared and used by the shaders', () => {
             for (const name of ['uDepthNear', 'uDepthFar', 'uDepthFade']) {
                 expect(inkVertexShader).toContain(`uniform float ${name};`);

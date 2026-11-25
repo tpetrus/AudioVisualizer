@@ -317,16 +317,21 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uRadius')).toBe(5.25);
         });
 
-        it('keeps the depth fade range around the camera distance, following the radius', () => {
+        it('keeps the depth fade range symmetric around the cloud center, following the radius', () => {
             const { cloud } = setup();
-            const { distance } = bassInkSceneConfig.camera;
             const { halfRange, fade } = bassInkSceneConfig.depth;
             expect(uniformOf(cloud, 'uDepthFade')).toBe(fade);
 
             for (const radius of [bassInkSceneConfig.cloud.radius, 2, 5.25]) {
                 cloud.setRadius(radius);
-                expect(uniformOf(cloud, 'uDepthNear')).toBeCloseTo(distance - radius * halfRange, 12);
-                expect(uniformOf(cloud, 'uDepthFar')).toBeCloseTo(distance + radius * halfRange, 12);
+                const near = uniformOf(cloud, 'uDepthNear') as number;
+                const far = uniformOf(cloud, 'uDepthFar') as number;
+                // Offsets from the center's view depth: independent of where the camera is.
+                expect(near).toBeLessThan(0);
+                expect(far).toBeGreaterThan(0);
+                expect(near).toBeCloseTo(-radius * halfRange, 12);
+                expect(far).toBeCloseTo(radius * halfRange, 12);
+                expect(near + far).toBeCloseTo(0, 12);
             }
             expect(uniformOf(cloud, 'uDepthFade')).toBe(fade);
         });
