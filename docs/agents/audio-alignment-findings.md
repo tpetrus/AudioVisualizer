@@ -448,6 +448,21 @@ character, and `bassBump.test.ts` checks equal settling at 30, 60 and 144 fps. `
 the frozen pre-hub reference for the scorecard's pre-hub column (`scripts/scorecard/engine/prehubBass.ts` is the only
 place that builds it). Closed under the alignment-tracker-leftovers plan (decision D1) with no code change.
 
+**Status on 2026-11-24.** The alignment-tracker-leftovers plan (`docs/plans/alignment-tracker-leftovers/`) is closed.
+It probed for evidence first, then ran one pre-registered grid per item through the scorecard ladder. Its outcome per
+item:
+
+| # | Item | Outcome | Evidence |
+|---|---|---|---|
+| 1 | AC9, tab and device capture delay | **Pending.** The run sheet is in `capture-delay.md` (#142). The four loopback runs need Trevor at the machine. S2b (the defaults) runs only if a kind is stable | `capture-delay.md`, "AC9 run sheet" |
+| 2 | `FU-S10-basspulse-time-based` | **Done** by `BassBump`, with no code change (#141) | "Status on 2026-11-23" above |
+| 3 | AC5, `syncopation-no-kick`'s first lock | **Accepted as measured**: 8.02 s, 2 of 10 start variations lock wrong. The probe found no bar evidence that separates it (level and meter family, no-go) | `probe-report.md` (#144) |
+| 4 | 3/4 click at 180; `high-bpm-dnb` first lock; abrupt grid move | 3/4 at 180: **accepted as measured**, level family no-go, and its `it.fails` stays. `high-bpm-dnb`: **fixed** by S7 (#147), which first locks at 172.9 and moves no other track's lock. Grid move: **fixed** by S5 (#145, a 100 ms glide) and S9 (#149, never backwards; the glide starts at the first read) | `hub-scorecard.md`, S5, S7 and S9 |
+| 5 | Beat level: `6-8-time`, `half-time-shuffle` | **Accepted as measured**: no function of the probed evidence reaches the pre-registered margin, so S6 did not run | `probe-report.md` |
+| 6 | `beatless` locks on a 140 bpm periodicity | **Accepted as measured**: `beatless` scores above every other track on all three presence functions | `probe-report.md` |
+| 7 | AC7 dance-clip consistency | `high-bpm-dnb` 0.034 and `syncopation-no-kick` 0.133 **pass**. `low-bpm-rnb`, `6-8-time` and `syncopationbass` are **unavailable** (too little of the span scored after late locks) and **accepted as measured** | `hub-scorecard.md`, S8 |
+| 8 | Gate after lock: `lonley`, `half-time-shuffle`, `low-bpm-rnb`; `bassline-kick-120` onset | **Accepted as measured**: offline `lonley` 5.37 s (10.83 s before S9), `half-time-shuffle` 7.18 s, `low-bpm-rnb` 14.92 s. The `bassline-kick-120` onset miss is a non-goal (D11) | `hub-scorecard.cells.md` |
+
 This records where the audio alignment plan (`docs/plans/audio-engine-alignment/`) stands, and every follow-up that is
 still open. The full task packets (owned paths, acceptance, verification) are kept in the verified-diamond follow-up
 state outside the repository, so each one is listed here by its ID with enough detail to rebuild it. Before starting
@@ -469,7 +484,8 @@ an older item, check that it still applies: some were recorded against code that
 
 Acceptance criteria still open:
 - **AC5** is met for tempo on the live plays but not as a guarantee: `syncopation-no-kick` locks wrong in 2 of 10
-  offline start variations. Moved to the tracker plan (2026-11-22).
+  offline start variations. Moved to the tracker plan (2026-11-22). Accepted as measured by the
+  alignment-tracker-leftovers plan (2026-11-24): the probe found no evidence that separates it.
 - **AC9** has only the self-check (`--source direct`). The `tab` and `device` loopback runs of
   `npm run measure:capture-delay` need a person and real hardware.
 - **AC10** is met by S7 (architecture, conventions and the add-visualizer skill describe the hub). **AC6** and **AC7**
@@ -556,17 +572,18 @@ dancing-character `lowEnd` probe column and `replay:gate --bump-margin/--bump-ga
 - Known weaknesses without a packet yet, from "Known costs and what is left" under S6 and the bass gate above. Status
   updated 2026-11-23 from the D11 tracker plan and the tracker replan ("Tracker plan D11" and "Tracker replan, S0" in
   `hub-scorecard.md`):
-  - the 3/4 click at 180 BPM reads 90 (still open: its `it.fails` spec still fails after D11 S8)
-  - `syncopation-no-kick`'s first lock (still open: 8.02 s, stretch-open in D11 S8; AC5)
-  - `high-bpm-dnb` first locks at 115 (still open, not measured since; its beat error is 21.5 ms and it locks at
-    8.02 s in the replan's S0)
-  - the abrupt grid move (still open)
+  - the 3/4 click at 180 BPM reads 90 (accepted as measured, 2026-11-24: the level and meter family is a no-go in
+    `probe-report.md`; its `it.fails` spec stays as the record)
+  - `syncopation-no-kick`'s first lock (accepted as measured, 2026-11-24: 8.02 s, no separating evidence; AC5)
+  - `high-bpm-dnb` first locks at 115 (fixed by alignment-tracker-leftovers S7, #147: it first locks at 172.9)
+  - the abrupt grid move (fixed by alignment-tracker-leftovers S5, #145, and S9, #149: the phase glides to the new
+    grid and never runs backwards)
   - the gate opens more than 4 s after lock on `lonley`, `summer2000` and `syncopationbass` (`syncopationbass` is
     fixed, 1.73 s in the replan's S0; `lonley` 10.83 s and `summer2000` 6.10 s are accepted as measured, with
-    `half-time-shuffle` 7.18 s)
+    `half-time-shuffle` 7.18 s; `lonley` is 5.37 s offline since S9, still accepted)
   - `low-bpm-rnb` never opens (it opens since D11 S4b, at 14.92 s after the lock, accepted as measured)
-  - `beatless` opens on a weak pulse (still open: it locks, and neither D11 S6's presence signals nor kick support
-    separate it from a beat)
+  - `beatless` opens on a weak pulse (accepted as measured, 2026-11-24: it locks, and neither D11 S6's presence signals,
+    kick support nor the probe's three presence functions separate it from a beat)
   - the onset miss on `bassline-kick-120` in `scripts/ground-truth/alignment.test.ts` (`no-kick-124`'s was fixed in
     hub-regressions S6; see "S6 findings" in `hub-scorecard.md`). Accepted by D11 as a non-goal: a finer low-end
     spectrum is a separate onset project.
