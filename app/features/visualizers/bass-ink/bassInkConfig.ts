@@ -124,16 +124,18 @@ export const bassInkConfig = {
         decayTauSeconds: 0.35,
     },
     formations: {
-        // Inner radius of the thick sphere shell (the outer one is 1).
-        sphereInnerRadius: 0.7,
-        // Torus: ring radius and tube radius, so the whole shape stays inside radius 1.
+        // Inner radius of the sphere shell (the outer one is 1). A thin shell reads as a solid surface at rest instead of
+        // a fuzzy ball.
+        sphereInnerRadius: 0.85,
+        // Torus: ring radius and tube radius, so the whole shape stays inside radius 1. The tube is slim so the ring
+        // reads as a solid band.
         torusMajorRadius: 0.7,
-        torusMinorRadius: 0.3,
+        torusMinorRadius: 0.18,
         // Armillary rings: three rings in the three orthogonal planes (the count is fixed by the axes, which is what
         // keeps the shape from being dominated by one axis). Ring radius plus tube radius stays under 1, and the tube
-        // is thin with scatter across it so the rings read as dust, not wires.
+        // is thin so the rings read as crisp hoops at rest.
         armillaryRadius: 0.85,
-        armillaryTubeRadius: 0.12,
+        armillaryTubeRadius: 0.07,
         // Disc galaxy: spiral arms, how much each arm winds, and the thickness of the flat disc.
         discArms: 2,
         discTwist: 3,

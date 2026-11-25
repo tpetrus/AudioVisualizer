@@ -14,7 +14,8 @@ import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
-import type { DirectorCue, PalettePair } from './bassInkTypes';
+import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
+import { fitScale, formationOuterRadius } from './framing';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
 
@@ -281,10 +282,22 @@ describe('useBassInkScene', () => {
     describe('fitting the cloud to the view', () => {
         const radiusOf = (cloud: FakeCloud) => cloud.setRadius.mock.calls.at(-1)![0] as number;
 
-        it('sets a fitted radius on mount, larger than the unfitted one', () => {
+        it('sets a fitted radius on mount that keeps the pulsing cloud inside the view', () => {
             mountScene();
             const first = currentCloud().setRadius.mock.calls[0][0] as number;
-            expect(first).toBeGreaterThan(bassInkSceneConfig.cloud.radius);
+            // The fit leaves room for every pulse, so the resting cloud is smaller than the unfitted radius ...
+            expect(first).toBeGreaterThan(1);
+            expect(first).toBeLessThan(bassInkSceneConfig.cloud.radius);
+            // ... and it is the solved fit of one of the formations for the 800 x 600 view the scene is mounted in.
+            const { fov, distance } = bassInkSceneConfig.camera;
+            const fits = Array.from({ length: FORMATION_COUNT }, (_, index) => {
+                const outer = formationOuterRadius(index, bassInkConfig.director.formationSeed);
+                return (
+                    bassInkSceneConfig.cloud.radius *
+                    fitScale(outer, distance, fov, 800 / 600, bassInkSceneConfig.cloud.fill)
+                );
+            });
+            expect(fits.some((fit) => Math.abs(fit - first) < 1e-9)).toBe(true);
         });
 
         it('refits the radius on resize and leaves the camera where it was', () => {
