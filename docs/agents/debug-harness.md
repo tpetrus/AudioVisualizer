@@ -132,7 +132,7 @@ the scene feeds its envelopes: mean of the analyser's byte spectrum below 120 Hz
 governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `novelty`, `phase` (0 groove, 1 build,
 2 drop, 3 afterglow), `tension`, `grants` (brightness increases granted so far), `lockWeight` (motion-clock beat lock),
 `kicks` (shockwaves started so far), `transitions` (formation changes started so far), `formation` (0 sphere, 1 torus,
-2 double helix, 3 galaxy disc), `tempoConf` and `beats` (the tracker's tempo confidence and beat counter), `mid` (the
+2 armillary rings, 3 galaxy disc), `tempoConf` and `beats` (the tracker's tempo confidence and beat counter), `mid` (the
 followed mid-band level that drives the swirl), `gateOpen` (1 while the shared bass gate has found the bassline) and
 `gateIn` (the `BassPulse` level fed to the gate), `gateRaw` (the hub's gate bass before the envelope) and
 `sceneBuiltAt` (when this scene was built, on the recording's `t` clock exactly like the dancer's mark of that name, see

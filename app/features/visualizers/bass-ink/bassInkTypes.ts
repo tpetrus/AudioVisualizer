@@ -9,7 +9,7 @@
 // formation, and the afterglow is the settling time after a drop before another build can start.
 export type DirectorPhase = 'groove' | 'build' | 'drop' | 'afterglow';
 
-// Number of distinct rest formations (sphere, torus, double helix, disc).
+// Number of distinct rest formations (sphere, torus, armillary rings, disc).
 export const FORMATION_COUNT = 4;
 
 // How many recent kicks the shader sums as shockwaves.
