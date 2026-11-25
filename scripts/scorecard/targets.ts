@@ -5,6 +5,7 @@
 // A new visualizer whose cells are only added (no existing cell changes) does not bump it.
 
 import type { OnsetBand } from '../../app/features/rhythm/eval/evalTypes';
+import { TEMPO_UPDATE_SECONDS } from '../../app/features/rhythm/rhythmConfig';
 import type { ScenarioMeasures, TrackClass, TrackMeasures } from './types';
 
 export const TARGETS_VERSION = 9;
@@ -503,6 +504,23 @@ export function directionOf(metricId: string): MetricDirection | null {
     const live = LIVE_METRICS.find((candidate) => candidate.id === metricId);
     if (live) return live.direction;
     return SCENARIO_TARGETS.find((candidate) => candidate.id === metricId)?.direction ?? null;
+}
+
+// The smallest worsening a live cell may show before the ratchet fails it. A baseline whose runs agree exactly has a
+// spread of 0, and then any difference at all would fail, though browser runs jitter by about a frame. Where a metric
+// has a pre-hub tolerance (its own jitter allowance) that is the minimum; the two metrics without one get a value of
+// their own below. 0 means the baseline's spread alone decides, as it does for metrics this table does not know.
+const LIVE_ALLOWANCE_OVERRIDES: Readonly<Record<string, number>> = {
+    // Same fires and fire-to-beat rule as live.hit.share50ms, so the same 0.05 jitter allowance.
+    'live.falseFire.share': 0.05,
+    // A lock time moves in steps of one tempo update, so a quarter second is the smallest change that means anything.
+    'live.lock.spreadSeconds': TEMPO_UPDATE_SECONDS,
+};
+
+export function liveAllowanceOf(metricId: string): number {
+    const override = LIVE_ALLOWANCE_OVERRIDES[metricId];
+    if (override !== undefined) return override;
+    return LIVE_METRICS.find((candidate) => candidate.id === metricId)?.prehubTolerance ?? 0;
 }
 
 export function unitOf(metricId: string): MetricUnit {
