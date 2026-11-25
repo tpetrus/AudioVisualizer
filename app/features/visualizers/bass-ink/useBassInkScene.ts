@@ -4,6 +4,7 @@ import { bassInkConfig } from './bassInkConfig';
 import type { BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
+import { swellFromBump, type BassSwell } from './bassInkBass';
 import { BrightnessMix } from './brightnessMix';
 import { blendPalette, writePalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
@@ -187,6 +188,8 @@ export function useBassInkScene(
         let lastBrightness = 0;
         let lastKickStrength = 0;
         let lastGateBass = 0;
+        // The bass swell and glow derived from lastGateBass each frame; preallocated so nothing is created per frame.
+        const swellOut: BassSwell = { swell: 0, glow: 0 };
         // The hub's gate bass before the envelope, kept to tell a weak hub signal from a weak envelope in telemetry.
         let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
@@ -219,6 +222,8 @@ export function useBassInkScene(
                     'gateIn',
                     'gateRaw',
                     'sceneBuiltAt',
+                    'swell',
+                    'glow',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -241,6 +246,8 @@ export function useBassInkScene(
                     out[17] = lastGateBass;
                     out[18] = lastGateRaw;
                     out[19] = onRecordingClock(sceneBuiltMs, analyserRef.current?.context.currentTime);
+                    out[20] = swellOut.swell;
+                    out[21] = swellOut.glow;
                 },
             );
         }
@@ -298,6 +305,7 @@ export function useBassInkScene(
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
                 lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
                 lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
+                swellFromBump(lastGateBass, swellOut);
                 stepBassGate(lastGateBass, state, clock.locked, bassGate, gateDt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
@@ -327,6 +335,7 @@ export function useBassInkScene(
                     cloud.dispose();
                     cloud = next;
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+                    cloud.setSwell(swellOut.swell);
                     cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt, turned, 0);
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.
                     cloud.showFormation(cue.formationIndex, formationSeed);
@@ -353,7 +362,10 @@ export function useBassInkScene(
                 const paletteProgress = paletteSeconds > 0 ? (now - paletteStart) / paletteSeconds : 1;
                 blendPalette(paletteFrom, paletteTo, Math.min(1, Math.max(0, paletteProgress)), paletteShown);
 
-                lastBrightness = brightnessMix.update(cue, kickFired, lastKickStrength, now, dt, values.intensity);
+                brightnessMix.update(cue, kickFired, lastKickStrength, now, dt, values.intensity);
+                // After the kick flash, so a kick and a bass pulse on one frame share the soft cap in that order.
+                brightnessMix.requestBassGlow(swellOut.glow, now, values.intensity);
+                lastBrightness = brightnessMix.level;
 
                 const { turbulence, sparkle } = bassInkSceneConfig;
                 midLevel = followLevel(
@@ -375,6 +387,7 @@ export function useBassInkScene(
                 // The punch fades with the bass, so a breakdown with the bass pulled out calms down with it.
                 cloud.setSpectrum(field.texture, field.headCoordinate, spectrumSpan);
                 cloud.setPunch(beatPunch(clock) * Math.min(1, energy.ratio));
+                cloud.setSwell(swellOut.swell);
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 applyFit(dt);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.

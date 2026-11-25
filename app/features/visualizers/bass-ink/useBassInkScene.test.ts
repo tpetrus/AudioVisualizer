@@ -100,6 +100,7 @@ interface FakeCloud {
     update: ReturnType<typeof vi.fn>;
     setTexture: ReturnType<typeof vi.fn>;
     setPunch: ReturnType<typeof vi.fn>;
+    setSwell: ReturnType<typeof vi.fn>;
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
     setRadius: ReturnType<typeof vi.fn>;
@@ -123,6 +124,7 @@ vi.mock('./inkCloud', async () => {
             update = vi.fn();
             setTexture = vi.fn();
             setPunch = vi.fn();
+            setSwell = vi.fn();
             setSpectrum = vi.fn();
             setViewport = vi.fn();
             setRadius = vi.fn();
@@ -145,7 +147,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(20);
+    const out = new Float32Array(22);
     probeRead()(out);
     return out;
 }
@@ -461,6 +463,49 @@ describe('useBassInkScene', () => {
             }
             expect(Math.max(...punches)).toBeGreaterThan(0.5);
             expect(Math.min(...punches.slice(120))).toBeLessThan(0.05);
+        });
+
+        it('swells the cloud on a hub bass pulse with the tempo unlocked, and reports swell and glow', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            // A steady bassline first, so the unseeded envelope has settled and the pulse stands out.
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
+
+            hub.setGateBass(0.16);
+            const swells: number[] = [];
+            for (let i = 0; i < 3; i++) {
+                frame(16);
+                swells.push(currentCloud().setSwell.mock.calls.at(-1)![0] as number);
+            }
+            expect(Math.max(...swells)).toBeGreaterThan(0.3);
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            const probe = readProbe();
+            expect(probe[20]).toBeCloseTo(swells[2], 6);
+            expect(probe[21]).toBeCloseTo(swells[2], 6);
+        });
+
+        it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.16);
+            for (let i = 0; i < 4; i++) frame(16);
+            expect(lastUpdate().brightness).toBeGreaterThan(0);
+        });
+
+        it('shows no bass glow at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, valuesRef } = mountScene({ analyser: node });
+            valuesRef.current = { ...valuesRef.current, intensity: 0 };
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.16);
+            for (let i = 0; i < 4; i++) frame(16);
+            expect(lastUpdate().brightness).toBe(0);
         });
 
         it('gives the gate the tempo lock of the breathing clock', () => {
@@ -918,6 +963,8 @@ describe('useBassInkScene', () => {
                     'gateIn',
                     'gateRaw',
                     'sceneBuiltAt',
+                    'swell',
+                    'glow',
                 ],
                 expect.any(Function),
             );

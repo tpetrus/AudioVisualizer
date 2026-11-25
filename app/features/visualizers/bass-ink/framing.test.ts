@@ -98,7 +98,7 @@ describe('framing', () => {
         it('sums the multiplied scale terms and the added displacements from the config', () => {
             const radius = 4;
             const expected =
-                radius * (1 + cloud.breathingAmplitude) * (1 + cloud.beatPunch) +
+                radius * (1 + cloud.breathingAmplitude) * (1 + cloud.beatPunch) * (1 + cloud.swellAmplitude) +
                 bassInkSceneConfig.wave.maxDisplacement +
                 bassInkSceneConfig.spectrum.amplitude;
             expect(worstCaseExtent(radius)).toBeCloseTo(expected, 10);
@@ -107,7 +107,7 @@ describe('framing', () => {
         it('follows a config passed in and grows with the radius', () => {
             const quiet = {
                 ...bassInkSceneConfig,
-                cloud: { ...cloud, breathingAmplitude: 0, beatPunch: 0 },
+                cloud: { ...cloud, breathingAmplitude: 0, beatPunch: 0, swellAmplitude: 0 },
                 wave: { ...bassInkSceneConfig.wave, maxDisplacement: 0 },
                 spectrum: { ...bassInkSceneConfig.spectrum, amplitude: 0 },
             };

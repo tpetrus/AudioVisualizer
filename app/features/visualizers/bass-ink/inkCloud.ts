@@ -65,6 +65,7 @@ export class InkCloud {
             uTension: { value: 0 },
             uBreath: { value: 0 },
             uPunch: { value: 0 },
+            uSwell: { value: 0 },
             uMid: { value: 0 },
             uHigh: { value: 0 },
             uTurbulence: { value: 1 },
@@ -79,6 +80,7 @@ export class InkCloud {
             uSqueeze: { value: config.cloud.tensionSqueeze },
             uBreathAmp: { value: config.cloud.breathingAmplitude },
             uPunchAmp: { value: config.cloud.beatPunch },
+            uSwellAmp: { value: config.cloud.swellAmplitude },
             uWaveSpeed: { value: config.wave.speed },
             uWaveWidth: { value: config.wave.width },
             uWaveDecay: { value: config.wave.decay },
@@ -227,6 +229,11 @@ export class InkCloud {
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
     setPunch(value: number): void {
         this.uniforms.uPunch.value = value;
+    }
+
+    // 0..1 bass swell for this frame (from the hub's bass bump; needs no tempo lock). Displacement only.
+    setSwell(value: number): void {
+        this.uniforms.uSwell.value = value;
     }
 
     // Band onsets (0..1) for the turbulence and the sparkle, and the turbulence control's multiplier.

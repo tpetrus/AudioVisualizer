@@ -18,6 +18,7 @@ uniform float uRadius;
 uniform float uTension;
 uniform float uBreath;
 uniform float uPunch;
+uniform float uSwell;
 uniform float uMid;
 uniform float uHigh;
 uniform float uTurbulence;
@@ -35,6 +36,7 @@ uniform float uSpectrumAmp;
 uniform float uSqueeze;
 uniform float uBreathAmp;
 uniform float uPunchAmp;
+uniform float uSwellAmp;
 uniform float uWaveSpeed;
 uniform float uWaveWidth;
 uniform float uWaveDecay;
@@ -60,8 +62,9 @@ void main() {
     vec3 rest = mix(from, to, s);
     vRadial = clamp(length(rest), 0.0, 1.0);
 
-    // The build squeezes the cloud, the breathing phase swells it, and every beat punches it outward.
-    float breath = (1.0 + uBreathAmp * sin(6.2831853 * uBreath)) * (1.0 + uPunchAmp * uPunch);
+    // The build squeezes the cloud, the breathing phase swells it, every beat punches it outward, and every bass pulse
+    // swells it (displacement only: the swell never touches size, alpha or color).
+    float breath = (1.0 + uBreathAmp * sin(6.2831853 * uBreath)) * (1.0 + uPunchAmp * uPunch) * (1.0 + uSwellAmp * uSwell);
     float scale = uRadius * (1.0 - uTension * uSqueeze) * breath;
     vec3 p = rest * scale;
 

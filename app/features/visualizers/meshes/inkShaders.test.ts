@@ -15,6 +15,12 @@ describe('ink shaders', () => {
         expect(inkVertexShader.match(/^varying .*$/gm)).toEqual(['varying float vRadial;']);
     });
 
+    it('scales the radius by the bass swell, as displacement only', () => {
+        expect(inkVertexShader).toContain('uSwell');
+        expect(inkVertexShader).toContain('(1.0 + uSwellAmp * uSwell)');
+        expect(inkFragmentShader).not.toContain('uSwell');
+    });
+
     it('uses the high band for the sparkle size only, never for the color', () => {
         expect(inkVertexShader).toContain('uHigh');
         expect(inkFragmentShader).not.toContain('uHigh');
