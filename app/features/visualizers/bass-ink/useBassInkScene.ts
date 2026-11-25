@@ -9,7 +9,7 @@ import { BrightnessMix } from './brightnessMix';
 import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
 import { blendPalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
-import { fitScale, formationP95Radius } from './framing';
+import { fitScale, formationOuterRadius } from './framing';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
 import { advance, beatPunch, createMotionClock } from './motionClock';
@@ -127,9 +127,12 @@ export function useBassInkScene(
         scene.add(cloud.object);
 
         // Fit the cloud to the view: the camera stays put and the cloud's world radius is scaled instead. Each formation
-        // has its own extent, so each has its own fit; the fits depend on the aspect, so they are redone on resize.
+        // has its own outermost point, so each has its own fit, solved so the cloud stays on screen at the peak of every
+        // pulse; the fits depend on the aspect, so they are redone on resize.
         // The extents are measured once here (allocating is fine on mount) and never per frame.
-        const extents = Array.from({ length: FORMATION_COUNT }, (_, index) => formationP95Radius(index, formationSeed));
+        const extents = Array.from({ length: FORMATION_COUNT }, (_, index) =>
+            formationOuterRadius(index, formationSeed),
+        );
         const fits = new Float64Array(FORMATION_COUNT);
         const computeFits = (width: number, height: number) => {
             const aspect = height > 0 ? width / height : 1;

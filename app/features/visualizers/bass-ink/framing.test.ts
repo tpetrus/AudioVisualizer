@@ -3,127 +3,167 @@ import { describe, expect, it } from 'vitest';
 import { FORMATION_COUNT } from './bassInkTypes';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { writeFormation } from './formations';
-import { fitScale, formationP95Radius, worstCaseExtent } from './framing';
+import { fitScale, formationOuterRadius, worstCaseExtent } from './framing';
 
 const SEED = 7;
 const POINTS = 20000;
 const ASPECTS = [1920 / 1080, 1024 / 768];
 const { camera: cameraConfig, cloud } = bassInkSceneConfig;
+const { fov, distance } = cameraConfig;
 
-// Sorted fractions of the smaller half-dimension that the points reach on screen, measured by projecting the
-// real formation points (tilted and scaled as the scene does) through a real perspective camera.
-function projectedRadii(index: number, aspect: number): number[] {
-    const camera = new THREE.PerspectiveCamera(cameraConfig.fov, aspect, cameraConfig.near, cameraConfig.far);
-    camera.position.set(0, 0, cameraConfig.distance);
+interface Measure {
+    // Largest projected radius of any point after every pulse peaks (share of the smaller half-dimension).
+    worst: number;
+    // 95th percentile of the resting projected radii (the same share).
+    restP95: number;
+}
+
+// Projects the real formation points (tilted and scaled as the scene does) through a real perspective camera, at rest
+// and again pushed out by the worst case at the default controls: the scale terms at their peak, then the kick-wave cap
+// and the turbulence bound outward along the point's direction, then the spectrum amplitude outward in the view plane
+// (as the shader does after the camera transform).
+function measure(index: number, aspect: number): Measure {
+    const camera = new THREE.PerspectiveCamera(fov, aspect, cameraConfig.near, cameraConfig.far);
+    camera.position.set(0, 0, distance);
     camera.updateMatrixWorld();
 
     const points = new Float32Array(POINTS * 3);
     writeFormation(index, SEED, points, POINTS, 0, POINTS);
-    const fit = fitScale(formationP95Radius(index, SEED), cameraConfig.distance, cameraConfig.fov, aspect, cloud.fill);
+    const radius = cloud.radius * fitScale(formationOuterRadius(index, SEED), distance, fov, aspect, cloud.fill);
     const object = new THREE.Object3D();
     object.rotation.x = cloud.tilt;
-    object.scale.setScalar(cloud.radius * fit);
     object.updateMatrixWorld();
+    const factor = (1 + cloud.breathingAmplitude) * (1 + cloud.beatPunch) * (1 + cloud.swellAmplitude);
+    // Turbulence control 1 and mid level 1; the swirl vector is at most sqrt(3) * 2 long and is scaled by amount * 0.5.
+    const turbulence = Math.sqrt(3) * (bassInkSceneConfig.turbulence.base + bassInkSceneConfig.turbulence.midGain);
+    const absolute = bassInkSceneConfig.wave.maxDisplacement + turbulence;
 
+    // NDC spans -1..1 on both axes and the width is `aspect` times the height, so scale x to height units first.
+    const smaller = Math.min(1, aspect);
+    const share = (v: THREE.Vector3) => Math.hypot(v.x * aspect, v.y) / smaller;
     const point = new THREE.Vector3();
-    const radii: number[] = [];
+    const view = new THREE.Vector3();
+    const rest: number[] = [];
+    let worst = 0;
     for (let i = 0; i < POINTS; i++) {
         point
             .fromArray(points, i * 3)
-            .applyMatrix4(object.matrixWorld)
-            .project(camera);
-        // NDC is -1..1 on both axes; the width spans `aspect` times the height, so scale x to height units first.
-        radii.push(Math.hypot(point.x * aspect, point.y) / Math.min(1, aspect));
+            .multiplyScalar(radius)
+            .applyMatrix4(object.matrixWorld);
+        rest.push(share(view.copy(point).project(camera)));
+
+        // Scale peak, then the absolute pushes outward along the point's own direction from the center.
+        const length = point.length() * factor;
+        point.multiplyScalar(factor);
+        if (length > 0) point.multiplyScalar(1 + absolute / length);
+        view.copy(point).applyMatrix4(camera.matrixWorldInverse);
+        const sideways = Math.hypot(view.x, view.y);
+        if (sideways > 0) {
+            view.x += (view.x / sideways) * bassInkSceneConfig.spectrum.amplitude;
+            view.y += (view.y / sideways) * bassInkSceneConfig.spectrum.amplitude;
+        }
+        view.applyMatrix4(camera.projectionMatrix);
+        worst = Math.max(worst, share(view));
     }
-    radii.sort((a, b) => a - b);
-    return radii;
+    rest.sort((a, b) => a - b);
+    return { worst, restP95: rest[Math.floor(0.95 * POINTS)] };
 }
 
-const percentile = (sorted: number[], share: number): number => sorted[Math.floor(share * POINTS)];
-
 describe('framing', () => {
-    describe('AC1: the whole resting cloud is in view and still fills most of the screen', () => {
+    describe('AC1: the whole cloud stays on screen at the peak of every pulse and the rest shape still fills it', () => {
         for (const aspect of ASPECTS) {
             // Iterated over the count, so a new formation is covered without editing this spec.
             for (let index = 0; index < FORMATION_COUNT; index++) {
-                it(`formation ${index} keeps its 99th percentile within 95% and its 95th at 65% or more at aspect ${aspect.toFixed(2)}`, () => {
-                    const radii = projectedRadii(index, aspect);
-                    // Outer points sit inside the view with a small margin ...
-                    expect(percentile(radii, 0.99)).toBeLessThanOrEqual(0.95);
-                    // ... and the cloud still fills most of it (the floor follows cloud.fill, which is 0.7).
-                    expect(percentile(radii, 0.95)).toBeGreaterThanOrEqual(0.65);
+                it(`formation ${index} stays within 95% at the worst case and fills at least 40% at rest at aspect ${aspect.toFixed(2)}`, () => {
+                    const { worst, restP95 } = measure(index, aspect);
+                    expect(worst).toBeLessThanOrEqual(0.95);
+                    expect(restP95).toBeGreaterThanOrEqual(0.4);
                 });
             }
         }
     });
 
     describe('fitScale', () => {
-        it('scales a unit radius so it projects to the fill share of the smaller half-dimension', () => {
-            const halfHeight = cameraConfig.distance * Math.tan((cameraConfig.fov * Math.PI) / 360);
-            // Wide view: the height is the smaller dimension.
-            expect(fitScale(1, cameraConfig.distance, cameraConfig.fov, 16 / 9, 0.8) * cloud.radius).toBeCloseTo(
-                0.8 * halfHeight,
-                10,
-            );
-            // Portrait view: the width is, so the cloud shrinks with the aspect.
-            expect(fitScale(1, cameraConfig.distance, cameraConfig.fov, 0.5, 0.8) * cloud.radius).toBeCloseTo(
-                0.8 * halfHeight * 0.5,
-                10,
-            );
-        });
-
-        it('grows when the formation is smaller and shrinks as the fill falls', () => {
-            const base = fitScale(1, cameraConfig.distance, cameraConfig.fov, 1.5, 0.8);
-            expect(fitScale(0.5, cameraConfig.distance, cameraConfig.fov, 1.5, 0.8)).toBeCloseTo(base * 2, 10);
-            expect(fitScale(1, cameraConfig.distance, cameraConfig.fov, 1.5, 0.4)).toBeCloseTo(base / 2, 10);
-        });
-    });
-
-    describe('formationP95Radius', () => {
-        it('measures every formation as a positive radius of about one unit', () => {
-            for (let index = 0; index < FORMATION_COUNT; index++) {
-                const radius = formationP95Radius(index, SEED);
-                expect(radius).toBeGreaterThan(0.3);
-                expect(radius).toBeLessThan(1.6);
+        it('solves the radius so the worst-case extent is exactly the fill share', () => {
+            for (const aspect of [16 / 9, 4 / 3, 0.5]) {
+                const radius = cloud.radius * fitScale(1, distance, fov, aspect, 0.95);
+                expect(worstCaseExtent(radius, 1, distance, fov, aspect)).toBeCloseTo(0.95, 6);
             }
         });
 
-        it('is the 95th percentile of the sampled points, so fewer samples give a similar answer', () => {
-            expect(formationP95Radius(0, SEED, 2000)).toBeCloseTo(formationP95Radius(0, SEED), 1);
+        it('shrinks the cloud in a portrait view, where the width is the smaller dimension', () => {
+            expect(fitScale(1, distance, fov, 0.5, 0.95)).toBeLessThan(fitScale(1, distance, fov, 16 / 9, 0.95));
         });
 
-        it('never reads past the last sample for a tiny sample count', () => {
-            expect(formationP95Radius(0, SEED, 1)).toBeGreaterThan(0);
-        });
-    });
-
-    describe('worstCaseExtent', () => {
-        it('sums the multiplied scale terms and the added displacements from the config', () => {
-            const radius = 4;
-            const expected =
-                radius * (1 + cloud.breathingAmplitude) * (1 + cloud.beatPunch) * (1 + cloud.swellAmplitude) +
-                bassInkSceneConfig.wave.maxDisplacement +
-                bassInkSceneConfig.spectrum.amplitude;
-            expect(worstCaseExtent(radius)).toBeCloseTo(expected, 10);
+        it('grows when the formation is smaller and shrinks as the fill falls', () => {
+            expect(fitScale(0.6, distance, fov, 1.5, 0.95)).toBeGreaterThan(fitScale(1, distance, fov, 1.5, 0.95));
+            expect(fitScale(1, distance, fov, 1.5, 0.5)).toBeLessThan(fitScale(1, distance, fov, 1.5, 0.95));
         });
 
-        it('follows a config passed in and grows with the radius', () => {
+        it('is zero when even a point-sized cloud would pass the fill share', () => {
+            expect(fitScale(1, distance, fov, 16 / 9, 0.01)).toBe(0);
+        });
+
+        it('follows a config passed in: with no pulses the radius is a plain share of the view', () => {
             const quiet = {
                 ...bassInkSceneConfig,
                 cloud: { ...cloud, breathingAmplitude: 0, beatPunch: 0, swellAmplitude: 0 },
                 wave: { ...bassInkSceneConfig.wave, maxDisplacement: 0 },
                 spectrum: { ...bassInkSceneConfig.spectrum, amplitude: 0 },
+                turbulence: { ...bassInkSceneConfig.turbulence, base: 0, midGain: 0 },
             };
-            expect(worstCaseExtent(3, quiet)).toBe(3);
-            expect(worstCaseExtent(6)).toBeGreaterThan(worstCaseExtent(3));
+            const radius = cloud.radius * fitScale(1, distance, fov, 16 / 9, 0.8, quiet);
+            // A bare sphere of this radius projects to tan(asin(r / d)), against the half-height tan(fov / 2).
+            const expected = distance * Math.sin(Math.atan(0.8 * Math.tan((fov * Math.PI) / 360)));
+            // The worst direction is sampled every degree, so the answer is within a thousandth of a world unit.
+            expect(radius).toBeCloseTo(expected, 2);
+        });
+    });
+
+    describe('formationOuterRadius', () => {
+        it('measures every formation as a positive radius of about one unit, never above one', () => {
+            for (let index = 0; index < FORMATION_COUNT; index++) {
+                const radius = formationOuterRadius(index, SEED);
+                expect(radius).toBeGreaterThan(0.8);
+                expect(radius).toBeLessThanOrEqual(1.001);
+            }
         });
 
-        // Loud peaks may reach past the edge of the view by design; the fit is for the resting cloud. This only
-        // documents by how much, so a tuning change that makes peaks clip far more shows up here.
-        it('lets a loud peak of the fitted cloud reach at most about 1.6 times the view edge', () => {
-            const halfHeight = cameraConfig.distance * Math.tan((cameraConfig.fov * Math.PI) / 360);
-            const fitted = cloud.radius * fitScale(1, cameraConfig.distance, cameraConfig.fov, 16 / 9, cloud.fill);
-            expect(worstCaseExtent(fitted)).toBeLessThan(1.6 * halfHeight);
+        it('is the maximum of the sampled points, so fewer samples give a similar answer', () => {
+            expect(formationOuterRadius(0, SEED, 2000)).toBeCloseTo(formationOuterRadius(0, SEED), 1);
+        });
+    });
+
+    describe('worstCaseExtent', () => {
+        it('grows with the radius and with the outermost point', () => {
+            expect(worstCaseExtent(6, 1, distance, fov, 1.5)).toBeGreaterThan(
+                worstCaseExtent(3, 1, distance, fov, 1.5),
+            );
+            expect(worstCaseExtent(3, 1, distance, fov, 1.5)).toBeGreaterThan(
+                worstCaseExtent(3, 0.5, distance, fov, 1.5),
+            );
+        });
+
+        it('is larger in a portrait view of the same height, where the width limits', () => {
+            expect(worstCaseExtent(3, 1, distance, fov, 0.5)).toBeGreaterThan(
+                worstCaseExtent(3, 1, distance, fov, 1.5),
+            );
+        });
+
+        it('is infinite once the pushed-out cloud reaches the camera', () => {
+            expect(worstCaseExtent(distance, 1, distance, fov, 1.5)).toBe(Infinity);
+        });
+
+        it('adds the absolute displacements on top of the scaled radius', () => {
+            const none = {
+                ...bassInkSceneConfig,
+                wave: { ...bassInkSceneConfig.wave, maxDisplacement: 0 },
+                spectrum: { ...bassInkSceneConfig.spectrum, amplitude: 0 },
+                turbulence: { ...bassInkSceneConfig.turbulence, base: 0, midGain: 0 },
+            };
+            expect(worstCaseExtent(3, 1, distance, fov, 1.5)).toBeGreaterThan(
+                worstCaseExtent(3, 1, distance, fov, 1.5, none),
+            );
         });
     });
 });

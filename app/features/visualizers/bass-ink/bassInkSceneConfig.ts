@@ -34,13 +34,11 @@ export const bassInkSceneConfig = {
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
-        // Share of the viewport's smaller half-dimension that the 95th-percentile point of the resting cloud reaches. The
-        // scene scales the cloud's world radius to get there (framing.ts), so the picture fills the screen at any window
-        // shape. Perspective magnifies the points nearer the camera, so the measured 95th percentile lands about 5 to 6
-        // percent beyond this number (0.72 to 0.74 at 0.7), the 99th percentile at 0.78 to 0.82 and the farthest outer
-        // point at 0.88 at most, so the whole resting cloud, outer points included, sits inside the view with a margin
-        // for the breathing, punch and waves. At 0.8 the top and bottom of the cloud were slightly out of view.
-        fill: 0.7,
+        // Share of the viewport's smaller half-dimension that the cloud's outermost point reaches when every pulse
+        // peaks together at the default controls (breathing, beat punch, swell, the kick-wave cap, the spectrum and the
+        // turbulence at full mid level). The scene solves the cloud's world radius for it (framing.ts), so the whole
+        // object stays on screen while it pulses, at any window shape. The rest shape therefore fills about half.
+        fill: 0.95,
     },
     bass: {
         // The bump envelope's output below this is its noise floor (a steady bassline leaves it at a few percent), so
@@ -65,9 +63,9 @@ export const bassInkSceneConfig = {
         // Seconds for a wave's strength to fall by a factor of e; the front fades before it leaves the cloud.
         decay: 0.7,
         // Outward push of a full-strength kick at the front, in world units.
-        amplitude: 0.9,
+        amplitude: 0.55,
         // The sum of overlapping waves is limited so a kick train never tears the cloud apart.
-        maxDisplacement: 1.3,
+        maxDisplacement: 0.8,
     },
     spectrum: {
         // 48 log-spaced frequencies from the sub-bass to the air band: enough for distinct waves, few enough to blur.
@@ -94,14 +92,15 @@ export const bassInkSceneConfig = {
         releaseSeconds: 0.22,
         // World units a point on the rim moves outward at full level (less toward the center), so the outline becomes
         // the spectrum without leaving the view.
-        amplitude: 1.1,
+        amplitude: 0.65,
     },
     turbulence: {
         // Spatial frequency of the swirling displacement (smaller means broader swirls).
         scale: 0.55,
-        // Always-on drift so the cloud never looks frozen, plus a share that follows the mid band.
-        base: 0.06,
-        midGain: 0.3,
+        // Always-on drift, kept small so a resting formation reads as a solid shape yet never looks frozen, plus a share that
+        // follows the mid band.
+        base: 0.03,
+        midGain: 0.1,
         // The mid band is followed with these time constants (seconds), so the swirl grows over a busy passage and
         // settles in a quiet one rather than jumping on each snare or clap.
         midAttackSeconds: 0.3,

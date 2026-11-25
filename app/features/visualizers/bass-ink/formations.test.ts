@@ -77,9 +77,9 @@ describe('writeFormation', () => {
         expect(out[60]).toBe(0);
     });
 
-    it('sphere is a shell with a hollow middle', () => {
+    it('sphere is a thin shell with a hollow middle', () => {
         const r = radii(fill(0));
-        expect(Math.min(...r)).toBeGreaterThanOrEqual(0.69);
+        expect(Math.min(...r)).toBeGreaterThanOrEqual(0.84);
         expect(Math.max(...r)).toBeLessThanOrEqual(1.001);
     });
 
@@ -92,7 +92,7 @@ describe('writeFormation', () => {
             maxY = Math.max(maxY, Math.abs(points[i * 3 + 1]));
         }
         expect(minAxisDistance).toBeGreaterThan(0.35);
-        expect(maxY).toBeLessThanOrEqual(0.31);
+        expect(maxY).toBeLessThanOrEqual(0.19);
     });
 
     describe('armillary rings', () => {
@@ -132,7 +132,7 @@ describe('writeFormation', () => {
         it('is hollow in the middle and stays inside the unit sphere', () => {
             for (let i = 0; i < N; i++) {
                 const r = Math.hypot(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
-                expect(r).toBeGreaterThan(0.7);
+                expect(r).toBeGreaterThan(0.75);
                 expect(r).toBeLessThanOrEqual(1);
             }
         });
