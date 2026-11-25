@@ -219,6 +219,11 @@ export class InkCloud {
         this.uniforms.uSpectrumSpan.value = span;
     }
 
+    // World radius of the unit formations. The scene refits it to the viewport (framing.ts) on mount, resize and rebuild.
+    setRadius(worldRadius: number): void {
+        this.uniforms.uRadius.value = worldRadius;
+    }
+
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
     setPunch(value: number): void {
         this.uniforms.uPunch.value = value;

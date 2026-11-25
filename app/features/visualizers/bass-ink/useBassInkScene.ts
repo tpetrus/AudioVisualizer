@@ -3,10 +3,11 @@ import * as THREE from 'three';
 import { bassInkConfig } from './bassInkConfig';
 import type { BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
-import type { PalettePair } from './bassInkTypes';
+import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
 import { BrightnessMix } from './brightnessMix';
 import { blendPalette, writePalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
+import { fitScale, formationP95Radius } from './framing';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
 import { advance, beatPunch, createMotionClock } from './motionClock';
@@ -28,6 +29,8 @@ import { createOrbitView } from '~/lib/three/orbitView';
 const MAX_PIXEL_RATIO = 2;
 // The density slider must rest this long before the cloud is rebuilt.
 const DENSITY_SETTLE_SECONDS = 0.25;
+// The fit follows a change of target (a formation baked mid-fade) with this time constant, so the size never jumps.
+const FIT_FOLLOW_SECONDS = 0.15;
 
 interface BassInkSceneOptions {
     // Still owned for the spectrum field and the energy level; the gate's bass comes from the hub.
@@ -120,6 +123,47 @@ export function useBassInkScene(
         cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
         cloud.object.rotation.x = bassInkSceneConfig.cloud.tilt;
         scene.add(cloud.object);
+
+        // Fit the cloud to the view: the camera stays put and the cloud's world radius is scaled instead. Each formation
+        // has its own extent, so each has its own fit; the fits depend on the aspect, so they are redone on resize.
+        // The extents are measured once here (allocating is fine on mount) and never per frame.
+        const extents = Array.from({ length: FORMATION_COUNT }, (_, index) => formationP95Radius(index, formationSeed));
+        const fits = new Float64Array(FORMATION_COUNT);
+        const computeFits = (width: number, height: number) => {
+            const aspect = height > 0 ? width / height : 1;
+            for (let i = 0; i < FORMATION_COUNT; i++) {
+                fits[i] = fitScale(
+                    extents[i],
+                    cameraConfig.distance,
+                    cameraConfig.fov,
+                    aspect,
+                    bassInkSceneConfig.cloud.fill,
+                );
+            }
+        };
+        // The fit for what the cloud shows now: a blend of the two formations while a fade runs, with the same smoothing
+        // the shader applies. Right after a retarget froze a blend (no active formation) it aims at the prepared one.
+        let fit = 1;
+        const fitTarget = (): number => {
+            const from = cloud.activeIndex;
+            const to = cloud.preparedIndex;
+            if (from < 0) {
+                return to >= 0 ? fits[to] : fit;
+            }
+            if (!cloud.transitioning || to < 0) {
+                return fits[from];
+            }
+            const t = cloud.blendProgress;
+            return fits[from] + (fits[to] - fits[from]) * t * t * (3 - 2 * t);
+        };
+        // Sets the radius at once (mount, resize, a rebuilt cloud) or lets it follow over `dt` seconds.
+        const applyFit = (dt: number) => {
+            const target = fitTarget();
+            fit = dt > 0 ? fit + (target - fit) * (1 - Math.exp(-dt / FIT_FOLLOW_SECONDS)) : target;
+            cloud.setRadius(bassInkSceneConfig.cloud.radius * fit);
+        };
+        computeFits(size.width, size.height);
+        applyFit(0);
 
         // The palette fades from the previous pair to the latest one across each transition.
         const paletteFrom = createPalette();
@@ -287,6 +331,7 @@ export function useBassInkScene(
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.
                     cloud.showFormation(cue.formationIndex, formationSeed);
                     scene.add(cloud.object);
+                    applyFit(0);
                 }
 
                 // Fill the next formation ahead of time, while no fade is running.
@@ -331,6 +376,7 @@ export function useBassInkScene(
                 cloud.setSpectrum(field.texture, field.headCoordinate, spectrumSpan);
                 cloud.setPunch(beatPunch(clock) * Math.min(1, energy.ratio));
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
+                applyFit(dt);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
                 cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
 
@@ -342,6 +388,8 @@ export function useBassInkScene(
             resize: (next) => {
                 viewHeight = next.height;
                 cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+                computeFits(next.width, next.height);
+                applyFit(0);
             },
 
             dispose: () => {

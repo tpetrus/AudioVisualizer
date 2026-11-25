@@ -307,6 +307,17 @@ describe('InkCloud', () => {
         });
     });
 
+    describe('setRadius', () => {
+        it('starts at the configured radius and sets the world radius uniform', () => {
+            const { cloud } = setup();
+            expect(uniformOf(cloud, 'uRadius')).toBe(bassInkSceneConfig.cloud.radius);
+
+            cloud.setRadius(5.25);
+
+            expect(uniformOf(cloud, 'uRadius')).toBe(5.25);
+        });
+    });
+
     describe('update', () => {
         it('copies the kick ring into the shader uniforms in the same call', () => {
             const { cloud, kicks, frame } = setup();
