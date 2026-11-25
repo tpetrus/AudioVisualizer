@@ -14,7 +14,12 @@ each failing cell to a measured cause and the slice that owns it; S3 fills in th
   per visualizer. Live cells are advisory (decision D13): they never block.
 - `npm run scorecard -- --write-baseline` also writes `hub-scorecard.baseline.json`; `npm run scorecard:check` then fails
   on any blocking cell that passed in the baseline and no longer does, on a changed `.beats.json` hash, or on a changed
-  targets version.
+  targets version. It also fails on a live cell that got worse than the baseline by more than its allowance. The
+  allowance is the larger of the baseline cell's spread and a minimum per metric (`liveAllowanceOf` in `targets.ts`,
+  Trevor, 2026-11-25). The minimum is the metric's pre-hub tolerance where it has one: one 60 Hz frame for reaction
+  latency, 0.05 for hit share and 0.5 s for the gate. It is 0.05 for false fires, one tempo update (0.25 s) for lock
+  spread, and 0 for clip deviation. Before, the spread alone decided, so a baseline whose four runs agreed exactly
+  failed on any jitter: S8's check failed on a 2 ms difference.
 - The contracts are in `scripts/scorecard/types.ts` (C2 cell, C3 commands, revision 2 of the lock and false-song-change
   definitions); floors, stretch targets and the applicability matrix are in `scripts/scorecard/targets.ts` and
   `tracks.ts`.
@@ -1440,6 +1445,9 @@ differently:
 - three lock sooner, two of them 5 s sooner.
 
 No scorecard track shows any of this. The fix would keep whichever rival gives the closer tie, and it needs bytes.
+Trevor accepted it as measured on 2026-11-25. No real track is affected, and the synthetic cases mostly cancel out (5
+better and 3 sooner against 4 worse). Fixing it would take a full R2 run and part of the 125 B left under the size
+limit.
 Two R0 items are fast-lane follow-ups: `FU-ATL-S7-mirror` (the offline `firstLockRivalBpm` in
 `scripts/rhythm-tools/autocorrelation.ts` does not mirror the faster rival) and `FU-ATL-S7-specs` (no spec engages at
 the shipped 0.7, or pins a faster rival replacing a present dotted one).

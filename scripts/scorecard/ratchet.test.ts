@@ -83,6 +83,48 @@ describe('compareToBaseline', () => {
         expect(compareToBaseline(higher, higherNow(0.8)).ok).toBe(false);
     });
 
+    describe('live minimum allowance', () => {
+        const live = { source: 'live' as const, blocking: false, runs: 4 };
+        const check = (metric: string, before: number, now: number, spread = 0) =>
+            compareToBaseline(
+                card([cell({ ...live, metric, value: before, spread })]),
+                card([cell({ ...live, metric, value: now, spread })]),
+            );
+
+        it.each([
+            ['live.reaction.latencyMs', 60, 1000 / 60, 'lower'],
+            ['live.hit.share50ms', 0.9, 0.05, 'higher'],
+            ['live.gate.secondsAfterLock', 2, 0.5, 'lower'],
+            ['live.falseFire.share', 0.1, 0.05, 'lower'],
+            ['live.lock.spreadSeconds', 1, 0.25, 'lower'],
+        ])('with spread 0, %s passes just inside its minimum and fails just outside', (metric, base, minimum, dir) => {
+            const sign = dir === 'lower' ? 1 : -1;
+            expect(check(metric, base, base + sign * (minimum - 0.001)).ok).toBe(true);
+            const outside = check(metric, base, base + sign * (minimum + 0.001));
+            expect(outside.ok).toBe(false);
+            expect(outside.problems[0]).toContain('by more than its allowance');
+            expect(outside.problems[0]).toContain('spread 0');
+        });
+
+        it('lets a baseline spread larger than the minimum win', () => {
+            expect(check('live.lock.spreadSeconds', 1, 1.9, 1).ok).toBe(true);
+            expect(check('live.lock.spreadSeconds', 1, 2.1, 1).ok).toBe(false);
+        });
+
+        it('keeps the spread alone for the clip deviation', () => {
+            expect(check('live.clip.maxDeviationBeats', 0.1, 0.1).ok).toBe(true);
+            expect(check('live.clip.maxDeviationBeats', 0.1, 0.1001).ok).toBe(false);
+            expect(check('live.clip.maxDeviationBeats', 0.1, 0.15, 0.05).ok).toBe(true);
+        });
+
+        it('passes and fails the S8 cases as recorded', () => {
+            expect(check('live.lock.spreadSeconds', 0, 0.0213).ok).toBe(true);
+            expect(check('live.reaction.latencyMs', 61.33, 70.58, 7.67).ok).toBe(true);
+            expect(check('live.lock.spreadSeconds', 0.0107, 4.9093, 0.1013).ok).toBe(false);
+            expect(check('live.falseFire.share', 0, 0.0143).ok).toBe(true);
+        });
+    });
+
     it('skips live comparison for missing values, missing cells, offline cells and unknown metrics', () => {
         const live = { source: 'live' as const, blocking: false };
         expect(compareToBaseline(card([cell({ ...live, value: null })]), card([cell({ ...live, value: 99 })])).ok).toBe(

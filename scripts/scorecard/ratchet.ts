@@ -1,7 +1,9 @@
 // Compares a fresh scorecard with the committed baseline. The ratchet only ever tightens: a blocking cell that passed
-// must keep passing and a live median must not worsen beyond its recorded spread. Improvements and new cells are fine.
+// must keep passing and a live median must not worsen beyond its allowance: the larger of its recorded spread and a
+// per-metric minimum (liveAllowanceOf), because a baseline whose runs agree exactly has a spread of 0 and would
+// otherwise fail on any jitter. Improvements and new cells are fine.
 
-import { directionOf } from './targets';
+import { directionOf, liveAllowanceOf } from './targets';
 import type { Scorecard, ScorecardCell } from './types';
 
 const keyOf = (cell: ScorecardCell): string => `${cell.metric}|${cell.track}|${cell.visualizer}`;
@@ -40,9 +42,11 @@ export function compareToBaseline(baseline: Scorecard, current: Scorecard): { ok
         const direction = directionOf(before.metric);
         if (direction === null) continue;
         const worse = direction === 'lower' ? now.value - before.value : before.value - now.value;
-        if (worse > before.spread) {
+        const minimum = liveAllowanceOf(before.metric);
+        const allowance = Math.max(before.spread, minimum);
+        if (worse > allowance) {
             problems.push(
-                `${nameOf(before)}: live value ${now.value} is worse than the baseline's ${before.value} by more than its spread ${before.spread}`,
+                `${nameOf(before)}: live value ${now.value} is worse than the baseline's ${before.value} by more than its allowance ${allowance} (spread ${before.spread}, minimum ${minimum})`,
             );
         }
     }
