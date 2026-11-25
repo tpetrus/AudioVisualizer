@@ -5,6 +5,7 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { KICK_SLOTS, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { writeFormation } from './formations';
 import { InkCloud } from './inkCloud';
+import { depthFade } from '../meshes/inkShaders';
 import { KickRing } from './kickRing';
 
 const POINTS = 50000;
@@ -332,6 +333,9 @@ describe('InkCloud', () => {
                 expect(near).toBeCloseTo(-radius * halfRange, 12);
                 expect(far).toBeCloseTo(radius * halfRange, 12);
                 expect(near + far).toBeCloseTo(0, 12);
+                // The values the cloud really sets: the far side is at most half as bright as the near side.
+                const uFade = uniformOf(cloud, 'uDepthFade') as number;
+                expect(depthFade(far, near, far, uFade) / depthFade(near, near, far, uFade)).toBeLessThanOrEqual(0.5);
             }
             expect(uniformOf(cloud, 'uDepthFade')).toBe(fade);
         });
