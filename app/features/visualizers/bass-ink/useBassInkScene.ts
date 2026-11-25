@@ -243,6 +243,8 @@ export function useBassInkScene(
                     'sceneBuiltAt',
                     'swell',
                     'glow',
+                    'fit',
+                    'huePhase',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -267,6 +269,9 @@ export function useBassInkScene(
                     out[19] = onRecordingClock(sceneBuiltMs, analyserRef.current?.context.currentTime);
                     out[20] = swellOut.swell;
                     out[21] = swellOut.glow;
+                    // The applied radius over the base radius, and the color cycle's position.
+                    out[22] = fit;
+                    out[23] = huePhase;
                 },
             );
         }
@@ -421,6 +426,8 @@ export function useBassInkScene(
             },
 
             resize: (next) => {
+                // A hidden or collapsed container reports a zero side; keep the previous fit rather than fitting to 0.
+                if (!(next.width > 0 && next.height > 0)) return;
                 viewHeight = next.height;
                 cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                 computeFits(next.width, next.height);

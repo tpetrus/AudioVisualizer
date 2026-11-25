@@ -12,6 +12,7 @@ import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import { getActivePlayback, type FilePlayback } from '~/features/audio/devFileSource';
 import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
+import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { DirectorCue, PalettePair } from './bassInkTypes';
 import { pointCountFor } from './renderBudget';
@@ -146,7 +147,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(22);
+    const out = new Float32Array(24);
     probeRead()(out);
     return out;
 }
@@ -301,6 +302,19 @@ describe('useBassInkScene', () => {
             expect(camera.position.z).toBe(bassInkSceneConfig.camera.distance);
         });
 
+        it('keeps the previous fit when a resize gives no width or no height', () => {
+            const { resizes, frame } = mountScene();
+            frame();
+            const before = radiusOf(currentCloud());
+            resizes.resize(0, 600);
+            resizes.resize(800, 0);
+            resizes.resize(0, 0);
+            const after = radiusOf(currentCloud());
+            expect(Number.isFinite(after)).toBe(true);
+            expect(after).toBeGreaterThan(0);
+            expect(after).toBe(before);
+        });
+
         it('treats a view with no height as square instead of dividing by zero', () => {
             const { resizes } = mountScene();
             resizes.resize(800, 0);
@@ -314,12 +328,19 @@ describe('useBassInkScene', () => {
             cloud.preparedIndex = 1;
             cloud.transitioning = true;
             cloud.blendProgress = 0;
-            for (let i = 0; i < 60; i++) frame();
+            for (let i = 0; i < 200; i++) frame();
             const atStart = radiusOf(cloud);
             cloud.blendProgress = 1;
-            for (let i = 0; i < 60; i++) frame();
+            for (let i = 0; i < 200; i++) frame();
             const atEnd = radiusOf(cloud);
             expect(atEnd).not.toBe(atStart);
+
+            // Halfway through the fade the smoothstep is exactly 0.5, so the fit is the mean of the two fits.
+            cloud.blendProgress = 0.5;
+            for (let i = 0; i < 200; i++) frame();
+            expect(radiusOf(cloud)).toBeCloseTo((atStart + atEnd) / 2, 4);
+            cloud.blendProgress = 1;
+            for (let i = 0; i < 200; i++) frame();
 
             cloud.activeIndex = -1;
             cloud.transitioning = false;
@@ -849,6 +870,25 @@ describe('useBassInkScene', () => {
             expect(lastUpdate().core).toEqual(first);
         });
 
+        it('changes the color by a bounded step per frame when the color speed changes mid-run', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0.2 };
+            for (let i = 0; i < 20; i++) frame();
+            let previous = Array.from(lastUpdate().core);
+            // A channel moves at most 3 per unit of phase (three gradient segments), and the phase moves
+            // speed * MAX_HUE_CYCLES_PER_SECOND * dt per frame, so a speed change cannot jump the hue.
+            const bound = 3 * MAX_HUE_CYCLES_PER_SECOND * 1 * 0.016 + 1e-6;
+            for (const speed of [1, 0.1, 1, 0]) {
+                valuesRef.current = { ...valuesRef.current, colorSpeed: speed };
+                for (let i = 0; i < 40; i++) {
+                    frame(16);
+                    const now = Array.from(lastUpdate().core);
+                    for (let c = 0; c < 3; c++) expect(Math.abs(now[c] - previous[c])).toBeLessThanOrEqual(bound);
+                    previous = now;
+                }
+            }
+        });
+
         it('cycles the palette at color speed above 0', () => {
             const { frame, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, colorSpeed: 1 };
@@ -1002,6 +1042,8 @@ describe('useBassInkScene', () => {
                     'sceneBuiltAt',
                     'swell',
                     'glow',
+                    'fit',
+                    'huePhase',
                 ],
                 expect.any(Function),
             );
@@ -1033,6 +1075,19 @@ describe('useBassInkScene', () => {
             expect(row[15]).toBeGreaterThan(0);
             expect(row[16]).toBe(0);
             expect(row[17]).toBe(0);
+        });
+
+        it('appends the fit multiplier and hue phase after glow', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 1 };
+            for (let i = 0; i < 10; i++) frame();
+            const row = readProbe();
+            expect(row[22]).toBeCloseTo(
+                (currentCloud().setRadius.mock.calls.at(-1)![0] as number) / bassInkSceneConfig.cloud.radius,
+                6,
+            );
+            expect(row[23]).toBeGreaterThan(0);
+            expect(row[23]).toBeLessThan(1);
         });
     });
 

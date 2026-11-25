@@ -58,14 +58,9 @@ describe('ink shaders', () => {
             expect(inkVertexShader).not.toMatch(/-mv\.z - uDepthNear/);
         });
 
-        it('gives a point at the cloud center the same fade at any camera distance', () => {
-            const near = -3;
-            const far = 3;
-            for (const cameraDistance of [4, 12, 40, 200]) {
-                // The center's view depth is the camera distance, so a point there has relative depth 0.
-                const relative = cameraDistance - cameraDistance;
-                expect(depthFade(relative, near, far, fade)).toBeCloseTo(1 - fade / 2, 12);
-            }
+        it('ships the fade line and the center-relative depth line', () => {
+            expect(inkVertexShader).toContain('vDepth = 1.0 - uDepthFade * depthK;');
+            expect(inkVertexShader).toContain('float relativeDepth = -mv.z - (-center.z);');
         });
 
         it('is declared and used by the shaders', () => {
