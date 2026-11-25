@@ -30,6 +30,9 @@ export function formationP95Radius(index: number, seed: number, sampleCount?: nu
   after a resize.
 - Config: `bassInkSceneConfig.cloud.fill` (the target fill, a number around 0.85) is added; the stale "fills about 60
   percent" camera comment is corrected.
+- Amended after the user's review (2026-11-25): the default was too zoomed in (top and bottom out of view), so `fill`
+  is lowered until the whole cloud is in view at rest at 16:9; AC1's 0.80 bound is replaced by that measured fill, and
+  the user's look review is the acceptance.
 
 ## C2 swellFromBump (`bassInkBass.ts`, slice S3)
 
@@ -71,6 +74,9 @@ New controls appended in a `Colors` section after the existing four, which do no
 
 The defaults are derived from `writePalette(0, ...)` once and written as hex literals (sRGB) in the control list.
 
+Amended after the user's review (2026-11-25): the three defaults are three clearly different hues (no longer palette
+0), and a test asserts they are pairwise far apart. The edge still sits on `colorC` at rest.
+
 ## C4 bassInkColor (`bassInkColor.ts`, slice S4)
 
 ```ts
@@ -96,3 +102,13 @@ export function writeCustomPalette(colors: readonly [THREE.Color, THREE.Color, T
   `../meshes/inkShaders.ts` so a unit test can check far/near <= 0.5; the GLSL must match it.
 - Since the cloud is refit in S1, `near`/`far` follow the camera distance and the fitted radius (computed in
   `InkCloud.setRadius` or the scene), not fixed numbers that the fit can outgrow.
+- Amended after the user's review (2026-11-25): with fixed near/far, zooming out pushed every point past `far` and the
+  whole cloud dimmed. `uDepthNear`/`uDepthFar` are now offsets from the cloud center's view depth (negative and
+  positive, `-/+ radius * halfRange`), and the shader measures a point's depth relative to the center, so the fade is
+  the same at any zoom. `depthFade(depth, near, far, fade)` is unchanged and is called with relative depths.
+
+## Size budget (integration repair, 2026-11-25)
+
+The total JS budget (339.25 kB) was exceeded by 342 B. Fix without raising the limit: the GLSL `//` comments, which ship
+verbatim inside the shader strings, move into TypeScript comments by splitting each shader into named GLSL pieces
+joined into `inkVertexShader`/`inkFragmentShader`, each piece with its why-comment above it. No comment is dropped.
