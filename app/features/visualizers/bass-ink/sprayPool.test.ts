@@ -256,6 +256,16 @@ describe('SprayPool', () => {
         }
     });
 
+    it('keeps one burst a tiny share of the light of the cloud', () => {
+        // Additive blending sums every point, so a burst must stay a small share of the cloud's total light or a single
+        // hit would read as a flash. The cloud is the shell's points at their density and alpha.
+        const cloud =
+            bassInkSceneConfig.points.basePointCount *
+            bassInkSceneConfig.points.defaultDensity *
+            bassInkSceneConfig.sprite.baseAlpha;
+        expect(config.perBurst * config.alpha).toBeLessThanOrEqual(0.05 * cloud);
+    });
+
     it('sets the point scale from the viewport', () => {
         const pool = new SprayPool(4, 2, 64);
         pool.setViewport(1000, 50);

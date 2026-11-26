@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import type { PalettePair } from './bassInkTypes';
 import { DustField } from './dustField';
+import { dustTwinkle } from '../meshes/dustShaders';
 
 const config = bassInkSceneConfig.dust;
 const palette: PalettePair = { core: new Float32Array([1, 0.5, 0]), edge: new Float32Array([0.2, 0.4, 0.8]) };
@@ -113,6 +114,21 @@ describe('DustField', () => {
         expect(uniformsOf(field)).toBe(uniforms);
         expect(Object.values(uniformsOf(field))).toEqual(slots);
         expect(uniforms.uColor.value).toBe(before[Object.keys(uniforms).indexOf('uColor')]);
+    });
+
+    it('keeps the mean twinkle over the real points at 1 on every phase', () => {
+        // The shader multiplies each point by its own factor around 1, so the total light only stays constant if the
+        // average over the field is 1 at every phase. Check it on the points the field really builds, not random draws.
+        for (const count of [800, 6400]) {
+            for (const seed of [1, 2, 3]) {
+                const rand = new DustField(count, seed, 64).object.geometry.getAttribute('aRand').array;
+                for (const phase of [0, 0.25, 0.5, 0.8]) {
+                    let sum = 0;
+                    for (let i = 0; i < rand.length; i++) sum += dustTwinkle(rand[i], phase, config.twinkleDepth);
+                    expect(Math.abs(sum / rand.length - 1)).toBeLessThanOrEqual(0.015);
+                }
+            }
+        }
     });
 
     it('disposes the geometry and the material', () => {

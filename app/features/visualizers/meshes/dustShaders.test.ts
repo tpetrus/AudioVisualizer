@@ -18,6 +18,11 @@ describe('dustTwinkle', () => {
         }
     });
 
+    it('puts the same twinkle expression in the vertex shader as the mirror', () => {
+        // The CPU mirror and the GLSL must agree, or the checked mean is not the mean the screen shows.
+        expect(dustVertexShader).toContain('vTwinkle = 1.0 + uDepth * sin(6.2831853 * (uPhase + aRand));');
+    });
+
     it('swings by exactly the depth around 1 and never goes negative at depth 1', () => {
         for (let i = 0; i <= 100; i++) {
             const v = dustTwinkle(i / 100, 0.2, 0.5);
