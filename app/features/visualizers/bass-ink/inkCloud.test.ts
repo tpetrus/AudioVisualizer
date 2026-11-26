@@ -402,13 +402,15 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uPunchAmp')).toBe(bassInkSceneConfig.cloud.beatPunch);
         });
 
-        it('takes the bass swell through setSwell, with a constant amplitude below the beat punch', () => {
+        // The swell is the reaction shown before the beat locks, so it outweighs the punch on purpose (see contracts.md,
+        // "Instant bass swell").
+        it('takes the bass swell through setSwell, with a constant amplitude above the beat punch', () => {
             const { cloud } = setup();
             expect(uniformOf(cloud, 'uSwell')).toBe(0);
             cloud.setSwell(0.8);
             expect(uniformOf(cloud, 'uSwell')).toBe(0.8);
             expect(uniformOf(cloud, 'uSwellAmp')).toBe(bassInkSceneConfig.cloud.swellAmplitude);
-            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeLessThan(bassInkSceneConfig.cloud.beatPunch);
+            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeGreaterThan(bassInkSceneConfig.cloud.beatPunch);
         });
 
         it('takes the band onsets and the turbulence control through setTexture', () => {
