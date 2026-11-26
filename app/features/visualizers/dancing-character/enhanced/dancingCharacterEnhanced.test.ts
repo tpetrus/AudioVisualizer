@@ -20,12 +20,27 @@ import {
 import { ENHANCED_ASSET_URLS } from './enhancedAssetUrls';
 
 // The PMREM generator needs a GPU; this stand-in hands out render targets whose textures are plain disposable stubs.
-const pmremState = vi.hoisted(() => ({ instances: [] as unknown[] }));
+const pmremState = vi.hoisted(() => ({ instances: [] as unknown[], failScene: false }));
+// Lets a spec make the Reflector's construction throw, as a GPU without the needed support would.
+const reflectorState = vi.hoisted(() => ({ fail: false }));
+vi.mock('three/addons/objects/Reflector.js', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('three/addons/objects/Reflector.js')>();
+    class MaybeFailingReflector extends actual.Reflector {
+        constructor(...args: ConstructorParameters<typeof actual.Reflector>) {
+            if (reflectorState.fail) throw new Error('Reflector failed');
+            super(...args);
+        }
+    }
+    return { ...actual, Reflector: MaybeFailingReflector };
+});
 vi.mock('three', async (importOriginal) => {
     const actual = await importOriginal<typeof import('three')>();
     class FakePmrem {
         readonly targets: { texture: THREE.Texture; dispose: ReturnType<typeof vi.fn> }[] = [];
-        readonly fromScene = vi.fn(() => this.makeTarget());
+        readonly fromScene = vi.fn(() => {
+            if (pmremState.failScene) throw new Error('PMREM failed');
+            return this.makeTarget();
+        });
         readonly fromEquirectangular = vi.fn((_source: unknown) => this.makeTarget());
         readonly dispose = vi.fn();
         constructor() {
@@ -141,6 +156,8 @@ function makeModel(
 
 beforeEach(() => {
     pmremState.instances = [];
+    pmremState.failScene = false;
+    reflectorState.fail = false;
     bitmaps.length = 0;
     parse.mockReturnValue({ width: 2, height: 1, data: new Uint16Array(8), type: THREE.HalfFloatType });
     vi.stubGlobal(
@@ -168,6 +185,25 @@ describe('apply', () => {
         expect(keyLight.shadow.radius).toBe(ENHANCED_SHADOW_RADIUS);
         expect(keyLight.castShadow).toBe(true);
         expect(keyLight.shadow.mapSize.x).toBe(ENHANCED_SHADOW_MAP_SIZE);
+        look.dispose();
+    });
+
+    it.each([
+        ['the Reflector', () => (reflectorState.fail = true)],
+        ['the PMREM generator', () => (pmremState.failScene = true)],
+    ])('leaves the renderer, key light and club materials unchanged when %s throws', (_name, breakIt) => {
+        const { renderer, keyLight, club, look } = setup();
+        breakIt();
+        expect(() => look.apply()).toThrow();
+        expect(renderer.toneMapping).toBe(THREE.NoToneMapping);
+        expect(renderer.toneMappingExposure).toBe(0);
+        expect(renderer.outputColorSpace).toBe(THREE.LinearSRGBColorSpace);
+        expect(renderer.shadowMap.enabled).toBe(false);
+        expect(renderer.shadowMap.type).toBe(THREE.BasicShadowMap);
+        expect(keyLight.castShadow).toBe(false);
+        expect(keyLight.shadow.radius).not.toBe(ENHANCED_SHADOW_RADIUS);
+        const { tile, seam, cones } = club.materials;
+        for (const material of [tile, seam, ...cones]) expect(material.toneMapped).toBe(true);
         look.dispose();
     });
 
@@ -294,6 +330,22 @@ describe('asset loading', () => {
         look.dispose();
     });
 
+    it('decodes images flipped, without alpha premultiplication or color conversion', async () => {
+        const { look } = setup();
+        look.apply();
+        await flush();
+        const calls = vi.mocked(createImageBitmap).mock.calls;
+        expect(calls).toHaveLength(4);
+        for (const [, options] of calls) {
+            expect(options).toEqual({
+                imageOrientation: 'flipY',
+                premultiplyAlpha: 'none',
+                colorSpaceConversion: 'none',
+            });
+        }
+        look.dispose();
+    });
+
     it('caps anisotropy by what the GPU supports', async () => {
         const { club, renderer, look } = setup();
         (renderer.capabilities as { getMaxAnisotropy: () => number }).getMaxAnisotropy = () => 2;
@@ -368,10 +420,11 @@ describe('asset loading', () => {
         await flush();
 
         // Three late results: the HDR source, the sky and the frame map. The generator was already disposed and is
-        // never asked for the late environment; the decoded bitmaps are released.
+        // never asked for the late environment. All four bitmaps are released: the two late ones when they arrive, the two
+        // that had already loaded by dispose().
         expect(dispose).toHaveBeenCalledTimes(3);
         expect(generators()[0].fromEquirectangular).not.toHaveBeenCalled();
-        expect(bitmaps.filter((bitmap) => bitmap.close.mock.calls.length > 0)).toHaveLength(2);
+        expect(bitmaps.filter((bitmap) => bitmap.close.mock.calls.length > 0)).toHaveLength(4);
         expect(scene.environment).toBeNull();
         expect(warn).not.toHaveBeenCalled();
         expect(statuses).toEqual(['loading']);
@@ -527,6 +580,16 @@ describe('dispose', () => {
         expect(generator.targets[1].dispose).toHaveBeenCalledTimes(1);
         expect(scene.environment).toBeNull();
         expect(generator.dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes the decoded bitmap of every applied texture', async () => {
+        const { look } = setup();
+        look.apply();
+        await flush();
+        expect(bitmaps).toHaveLength(4);
+        for (const bitmap of bitmaps) expect(bitmap.close).not.toHaveBeenCalled();
+        look.dispose();
+        for (const bitmap of bitmaps) expect(bitmap.close).toHaveBeenCalledTimes(1);
     });
 
     it('frees the room environment when the HDR never arrived', () => {
