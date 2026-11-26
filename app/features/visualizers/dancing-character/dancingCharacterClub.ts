@@ -152,6 +152,14 @@ function createTileGeometry(size: number): THREE.BufferGeometry {
 
 const LIGHT_COUNT = CLUB_LIGHT_COLORS.length;
 
+// The materials the enhanced look needs to reach: the three self-lit kinds and the lit frame.
+export interface ClubMaterials {
+    readonly tile: THREE.MeshBasicMaterial;
+    readonly seam: THREE.MeshBasicMaterial;
+    readonly cones: readonly THREE.MeshBasicMaterial[];
+    readonly frame: THREE.MeshStandardMaterial;
+}
+
 // The club: a dark room (background and haze), a square LED dance floor in a light frame under the dancer, sweeping
 // spotlight beams and two color-spill lights that take the floor's colors. The floor runs slowly changing color
 // patterns, a ripple on each beat and a lift on the bass, with a hard cap on large flashes.
@@ -203,6 +211,7 @@ export class ClubSet {
     private sweepPhase = 0;
     private time = 0;
     private disposed = false;
+    private readonly materialHandles: ClubMaterials;
 
     constructor(scene: THREE.Scene) {
         this.scene = scene;
@@ -315,9 +324,27 @@ export class ClubSet {
             scene.add(light);
         }
 
+        this.materialHandles = {
+            tile: this.tiles.material,
+            seam: this.seams.material,
+            cones: this.cones.map((cone) => cone.material),
+            frame: this.frameMaterial,
+        };
+
         this.setColors('#2b3a55', '#ff7ab6');
         this.setFloorY(0);
         this.update(undefined, 0, 0, 0);
+    }
+
+    // Read-only handles on the club's materials, for the enhanced look: it marks the self-lit ones (tiles, seams, beams)
+    // as not tone mapped and gives the lit frame its maps. Nothing here changes what the club renders.
+    get materials(): ClubMaterials {
+        return this.materialHandles;
+    }
+
+    // The world y of the tops of the LED tiles, which move with the dancer's feet (setFloorY).
+    get floorSurfaceY(): number {
+        return this.tiles.position.y;
     }
 
     // The number of floor tiles.
@@ -477,3 +504,6 @@ export class ClubSet {
         if (this.scene.fog === this.fog) this.scene.fog = null;
     }
 }
+
+// The name the enhanced look's contract uses for the club.
+export type DancingCharacterClub = ClubSet;

@@ -592,3 +592,25 @@ describe('dispose', () => {
         expect(scene.background).toBe(other);
     });
 });
+
+describe('read-only accessors for the enhanced look', () => {
+    it('exposes the tile, seam, cone and frame materials the club itself renders with', () => {
+        const { scene, club, floor, cones } = setup();
+        const { tile, seam, cones: coneMaterials, frame } = club.materials;
+        expect(tile).toBe(floor.material);
+        expect(coneMaterials).toEqual(cones.map((cone) => cone.material));
+        const meshes = scene.children.filter((child) => (child as THREE.Mesh).isMesh) as THREE.Mesh[];
+        expect(meshes.some((mesh) => mesh.material === seam)).toBe(true);
+        expect(meshes.some((mesh) => mesh.material === frame)).toBe(true);
+        expect(frame).toBeInstanceOf(THREE.MeshStandardMaterial);
+        // Nothing changes by reading them: the self-lit materials are still tone mapped as three defaults.
+        expect(tile.toneMapped).toBe(true);
+    });
+
+    it('reports the top of the LED tiles, which follows the dancer feet', () => {
+        const { club } = setup();
+        club.setFloorY(-1.2);
+        expect(club.floorSurfaceY).toBeGreaterThan(-1.2);
+        expect(club.floorSurfaceY).toBeLessThan(-1.1);
+    });
+});
