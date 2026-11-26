@@ -14,7 +14,7 @@ export interface EnhancedGraphicsToggleProps {
 
 export function EnhancedGraphicsToggle({ status, className }: EnhancedGraphicsToggleProps) {
     const enhanced = useEnhancedGraphics();
-    const capable = useCapabilityHint();
+    const capable = useCapabilityHint(!enhanced);
     const descriptionId = useId();
 
     return (
@@ -28,7 +28,8 @@ export function EnhancedGraphicsToggle({ status, className }: EnhancedGraphicsTo
                 className="inline-flex items-center gap-2 rounded border border-gray-500 px-2 py-1 hover:border-white"
             >
                 <span>{ENHANCED_GRAPHICS_STRINGS.label}</span>
-                <span className="text-gray-300">
+                {/* Hidden from the accessible name; aria-checked already says the state. */}
+                <span aria-hidden="true" className="text-gray-300">
                     {enhanced ? ENHANCED_GRAPHICS_STRINGS.on : ENHANCED_GRAPHICS_STRINGS.off}
                 </span>
             </button>

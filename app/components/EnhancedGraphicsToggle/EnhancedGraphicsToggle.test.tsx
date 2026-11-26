@@ -18,7 +18,7 @@ afterEach(() => {
 describe('EnhancedGraphicsToggle', () => {
     it('is a switch named Enhanced graphics, off by default, described by the explanation', () => {
         render(<EnhancedGraphicsToggle />);
-        const toggle = screen.getByRole('switch', { name: /^Enhanced graphics/ });
+        const toggle = screen.getByRole('switch', { name: 'Enhanced graphics', exact: true });
 
         expect(toggle).toHaveAttribute('aria-checked', 'false');
         expect(toggle).toHaveTextContent('Off');
@@ -33,6 +33,7 @@ describe('EnhancedGraphicsToggle', () => {
         await user.click(toggle);
         expect(toggle).toHaveAttribute('aria-checked', 'true');
         expect(toggle).toHaveTextContent('On');
+        expect(screen.getByRole('switch', { name: 'Enhanced graphics', exact: true })).toBe(toggle);
         expect(localStorage.getItem(ENHANCED_GRAPHICS_KEY)).toBe('true');
 
         toggle.focus();
