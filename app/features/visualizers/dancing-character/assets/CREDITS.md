@@ -155,3 +155,79 @@ hashed under `/assets/` with immutable caching.
 - Results: `model.glb` 2077164 bytes sha256 `0abba69c724dcb6dd7d08a769df3c0af966f461d700b0a53684032c8f7247afe`; `dances.glb`
   196968 bytes sha256 `906344d44f8758c4238a526a9cc437c8d301ab61e2fa592196a6eb121df818ca`.
 - Rebuild: as for Mr Incredible.
+
+# Enhanced graphics assets
+
+The files in `enhanced/` are CC0 1.0 (public domain) assets from Poly Haven (https://polyhaven.com); no attribution is
+required, and every Poly Haven asset is CC0. They are imported with `?url` (see `../enhanced/enhancedAssetUrls.ts`), so
+only the lazily loaded enhanced chunk references them and they are fetched only when enhanced graphics is on. Each
+file is under 20 MiB and the folder totals under 30 MB (`../enhanced/enhancedAssets.test.ts` checks both, the image
+sizes and the sha256 values below).
+
+## ferndale_studio_02_2k.hdr
+
+- Source: https://polyhaven.com/a/ferndale_studio_02 (original file `ferndale_studio_02_2k.hdr`, the 2K HDR)
+- Authors: Dimitrios Savva (photography), Greg Zaal (processing)
+- License: CC0 1.0
+- Use: lights the scene through PMREM; never shown directly
+- Changes: none, committed as downloaded (md5 `64b8b1c5b3a05c37def2893f60627c55` matches Poly Haven's API)
+- Resolution: 2048x1024, RGBE (32-bit_rle_rgbe)
+- Size: 5206683 bytes
+- sha256: `135c58c25481d661a58cb4330da46f4e9d64c3af0249c621571419cafa32164f`
+
+## qwantani_night_puresky_4k.jpg
+
+- Source: https://polyhaven.com/a/qwantani_night_puresky (original file `qwantani_night_puresky_4k.hdr`, the 4K HDR,
+  21221482 bytes, md5 `acd645e92308841aa0c82eada9830f2d`, sha256
+  `7f064792a1b9108f4aacd004e8ee86364e98faf2e0a0ee5dfb33a9593da28db3`, not committed)
+- Authors: Greg Zaal (photography), Jarod Guest (processing)
+- License: CC0 1.0 (the converted image is a derivative of a CC0 work)
+- Use: the sky dome's equirectangular texture (sRGB)
+- Changes: converted by `scripts/dancing-character-enhanced/convert-sky.ts` from the 4K HDR to a 4096x2048 sRGB JPG:
+  linear radiance times an exposure of 0.1, Reinhard tone map (x / (1 + x)), sRGB encode, JPEG quality 85 with 4:4:4
+  chroma (the 4K HDR is already 4096x2048, so there is no resize). The exposure makes it read as a dark night sky; the
+  scene darkens it further. The HDR is parsed with three's `HDRLoader`. Regenerate (from the repository root,
+  `<dir>` holds the downloaded HDR):
+  `npx esbuild scripts/dancing-character-enhanced/convert-sky.ts --bundle --platform=node --format=esm --packages=external
+  --log-level=warning --outfile=node_modules/.cache/convert-sky.mjs
+  && node node_modules/.cache/convert-sky.mjs <dir>/qwantani_night_puresky_4k.hdr
+  --out app/features/visualizers/dancing-character/assets/enhanced/qwantani_night_puresky_4k.jpg --exposure 0.1`
+  (no arguments prints usage; the output is byte-identical with the same sharp/libvips build)
+- Size: 346675 bytes
+- sha256: `6743c88916921295d751de70bc15d4fe4fc22590d696cee3f641866fb50fb789`
+
+## concrete_floor_worn_001_diff_2k.jpg
+
+- Source: https://polyhaven.com/a/concrete_floor_worn_001 (original file `concrete_floor_worn_001_diff_2k.jpg`, the
+  2K JPG diffuse map)
+- Authors: Dimitrios Savva (photography), Rico Cilliers (processing)
+- License: CC0 1.0
+- Use: base color of the club frame (sRGB)
+- Changes: none, committed as downloaded (md5 `6a3645f19f2ac4b7f60f43419c5d09ec` matches Poly Haven's API)
+- Resolution: 2048x2048
+- Size: 482906 bytes
+- sha256: `e29b45cdcd6d02fae3c087c456196ffa750779a9b62e7071aa3831dc322a0cc4`
+
+## concrete_floor_worn_001_nor_gl_2k.jpg
+
+- Source: https://polyhaven.com/a/concrete_floor_worn_001 (original file `concrete_floor_worn_001_nor_gl_2k.jpg`, the
+  2K JPG OpenGL normal map)
+- Authors: Dimitrios Savva (photography), Rico Cilliers (processing)
+- License: CC0 1.0
+- Use: normal map of the club frame (OpenGL convention, linear)
+- Changes: none, committed as downloaded (md5 `210fbc9fe40492177e79fdb4afda268e` matches Poly Haven's API)
+- Resolution: 2048x2048
+- Size: 870609 bytes
+- sha256: `3b782137e34d63fd59b2e92b4e27b2ee4d082caf9dd23f00dc7ab4da5513daef`
+
+## concrete_floor_worn_001_rough_2k.jpg
+
+- Source: https://polyhaven.com/a/concrete_floor_worn_001 (original file `concrete_floor_worn_001_rough_2k.jpg`, the
+  2K JPG roughness map)
+- Authors: Dimitrios Savva (photography), Rico Cilliers (processing)
+- License: CC0 1.0
+- Use: roughness map of the club frame (linear)
+- Changes: none, committed as downloaded (md5 `169cac76d6499d7d70d1dbb237fcc976` matches Poly Haven's API)
+- Resolution: 2048x2048
+- Size: 735249 bytes
+- sha256: `b904992f0d75da2c41edf832bbb838622cca076f48f7913065a152c3b640690e`
