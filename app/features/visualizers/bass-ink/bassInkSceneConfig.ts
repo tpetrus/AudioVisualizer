@@ -140,6 +140,72 @@ export const bassInkSceneConfig = {
         // far = +radius * halfRange, as offsets from the center's depth.
         halfRange: 1,
     },
+    core: {
+        // A small dense nucleus inside the main cloud gives the object inner structure instead of one surface. It takes
+        // this share of the cloud's points, so the total the GPU draws does not grow.
+        pointShare: 0.2,
+        // Its radius as a share of the fitted shell radius, small enough that its whole pulse envelope stays inside
+        // the shell's (framing.ts checks it), so the fit is unchanged.
+        radiusScale: 0.38,
+        // Always the sphere: a round nucleus reads inside every shell formation.
+        formation: 0,
+        // The core is the bass's part: it swells much more than the shell, relative to its size ...
+        swellAmplitude: 0.35,
+        // ... while the absolute displacements (kick waves, spectrum, turbulence) are scaled down, so it pulses as
+        // one body and never pokes through the shell.
+        displacementScale: 0.35,
+        // Its points are packed into a small volume, so each is fainter, or additive blending turns it white.
+        alphaScale: 0.6,
+    },
+    dust: {
+        // A sparse field of faint points around everything fills the black void and gives depth and parallax. Its count
+        // is this share of the cloud's, capped on a software renderer.
+        pointShare: 0.08,
+        softwareCap: 800,
+        // A shell around the origin that the camera (at distance 12) sits inside, so dust shows in every direction at
+        // any orbit angle, and the nearest dust stays well away from the lens.
+        innerRadius: 18,
+        outerRadius: 45,
+        // World size of a dust point: about 2.5 px at distance 30 on a 900 px tall view.
+        size: 0.08,
+        // Faint on purpose: it is a backdrop.
+        alpha: 0.3,
+        // Each point twinkles around its own mean by this share of its alpha, with a random phase, so the field's total
+        // light stays constant and twinkling can never read as a flash.
+        twinkleDepth: 0.5,
+        // Twinkle cycles per second at rest; the followed high band speeds it up by up to highGain times this.
+        twinkleSpeed: 0.5,
+        highGain: 2,
+        // Slow rotation of the whole field (radians per second), so it drifts even when the camera is still.
+        driftSpeed: 0.01,
+        // Dust takes the palette's edge color mixed toward white by this share, so it follows the pickers but stays
+        // a neutral backdrop.
+        whiteMix: 0.4,
+    },
+    spray: {
+        // Points thrown off the shell on bass hits, from a fixed pool that is reused, newest overwriting oldest.
+        poolSize: 2048,
+        softwarePoolSize: 256,
+        // Points per burst (software renderer: softwarePerBurst).
+        perBurst: 160,
+        softwarePerBurst: 24,
+        // A burst fires when the swell rises through `arm`, re-arms only below `rearm`, and never more often than
+        // every minIntervalSeconds, so there are at most 3 bursts a second.
+        arm: 0.6,
+        rearm: 0.3,
+        minIntervalSeconds: 0.34,
+        // Outward speed at birth (world units per second); drag slows it with this time constant, so a point travels
+        // at most speed * dragSeconds (about 1 world unit) and stays inside the fit's worst-case envelope.
+        speed: 3,
+        dragSeconds: 0.35,
+        // A point lives this long, fading in over attackSeconds and out over the rest, so a burst eases in rather
+        // than appearing at once.
+        lifeSeconds: 0.9,
+        attackSeconds: 0.06,
+        // Peak alpha, scaled by the burst strength and the flash-intensity control.
+        alpha: 0.4,
+        size: 0.05,
+    },
     camera: {
         // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).
         distance: 12,

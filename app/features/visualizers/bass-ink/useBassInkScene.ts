@@ -9,12 +9,14 @@ import { BrightnessMix } from './brightnessMix';
 import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 import { fitScale, formationOuterRadius } from './framing';
+import { DustField } from './dustField';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
 import { advance, beatPunch, createMotionClock } from './motionClock';
 import { isSoftwareRenderer, maxPointSize, pointCountFor } from './renderBudget';
 import { SetDirector } from './setDirector';
 import { SpectrumField } from './spectrumField';
+import { SprayPool, SprayTrigger } from './sprayPool';
 import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
@@ -110,15 +112,59 @@ export function useBassInkScene(
         const spectrumSpan = (field.rows - 1) / field.rows;
         const cue = director.cue;
 
-        let cloud = new InkCloud(pointCountFor(valuesRef.current.density, software), formationSeed, pointSizeLimit);
-        // The point count the slider asks for and how long it has held, for the rebuild's wait.
-        let pendingPoints = cloud.pointCount;
-        let pendingSeconds = 0;
-        // Kept current by resize, for clouds built later.
+        const { core: coreConfig, dust: dustConfig, spray: sprayConfig } = bassInkSceneConfig;
+        // The core takes its points out of the shell's, so the two together draw what the shell alone used to.
+        const shellPointsFor = (total: number) => Math.round(total * (1 - coreConfig.pointShare));
+        const dustPointsFor = (total: number) => {
+            const wanted = Math.round(total * dustConfig.pointShare);
+            return software ? Math.min(wanted, dustConfig.softwareCap) : wanted;
+        };
+        const sprayPoolSize = software ? sprayConfig.softwarePoolSize : sprayConfig.poolSize;
+        const sprayPerBurst = software ? sprayConfig.softwarePerBurst : sprayConfig.perBurst;
+        // Kept current by resize, for objects built later.
         let viewHeight = size.height;
+        // The core is always the core formation: only the shell is ever prepared or transitioned (the core's update
+        // reads the cue's tension only, never its formation), so it keeps this shape for its life.
+        const buildCore = (total: number) => {
+            const built = new InkCloud(total - shellPointsFor(total), formationSeed, pointSizeLimit, {
+                swellAmplitude: coreConfig.swellAmplitude,
+                displacementScale: coreConfig.displacementScale,
+                alphaScale: coreConfig.alphaScale,
+            });
+            built.showFormation(coreConfig.formation, formationSeed);
+            built.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+            return built;
+        };
+        const buildDust = (total: number) => {
+            const built = new DustField(dustPointsFor(total), formationSeed, pointSizeLimit);
+            built.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+            return built;
+        };
+        const buildSpray = () => {
+            const built = new SprayPool(sprayPoolSize, formationSeed, pointSizeLimit);
+            built.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+            return built;
+        };
+
+        // The density control's total; the shell, core, dust and spray sizes all derive from it.
+        let builtTotal = pointCountFor(valuesRef.current.density, software);
+        let cloud = new InkCloud(shellPointsFor(builtTotal), formationSeed, pointSizeLimit);
+        let core = buildCore(builtTotal);
+        let dust = buildDust(builtTotal);
+        let spray = buildSpray();
+        const sprayTrigger = new SprayTrigger();
+        // The point count the slider asks for and how long it has held, for the rebuild's wait.
+        let pendingPoints = builtTotal;
+        let pendingSeconds = 0;
         cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
         cloud.object.rotation.x = bassInkSceneConfig.cloud.tilt;
-        scene.add(cloud.object);
+        // The core and the spray turn with the shell; the dust has its own slow drift.
+        const syncRotation = () => {
+            core.object.rotation.copy(cloud.object.rotation);
+            spray.object.rotation.copy(cloud.object.rotation);
+        };
+        syncRotation();
+        scene.add(cloud.object, core.object, dust.object, spray.object);
 
         // Fit the cloud to the view: the camera stays put and the cloud's world radius is scaled instead. Each formation
         // has its own outermost point, so each has its own fit, solved so the cloud stays on screen at the peak of every
@@ -143,6 +189,8 @@ export function useBassInkScene(
         // The fit for what the cloud shows now: a blend of the two formations while a fade runs, with the same smoothing
         // the shader applies. Right after a retarget froze a blend (no active formation) it aims at the prepared one.
         let fit = 1;
+        // The shell's world radius as last given to setRadius, which spray bursts leave from.
+        let shellRadius = bassInkSceneConfig.cloud.radius;
         const fitTarget = (): number => {
             const from = cloud.activeIndex;
             const to = cloud.preparedIndex;
@@ -159,7 +207,11 @@ export function useBassInkScene(
         const applyFit = (dt: number) => {
             const target = fitTarget();
             fit = dt > 0 ? fit + (target - fit) * (1 - Math.exp(-dt / FIT_FOLLOW_SECONDS)) : target;
-            cloud.setRadius(bassInkSceneConfig.cloud.radius * fit);
+            shellRadius = bassInkSceneConfig.cloud.radius * fit;
+            cloud.setRadius(shellRadius);
+            // The core is a share of the shell's world radius (framing.ts checks its envelope at that size), not of the fit
+            // multiplier.
+            core.setRadius(shellRadius * coreConfig.radiusScale);
         };
         computeFits(size.width, size.height);
         applyFit(0);
@@ -237,6 +289,8 @@ export function useBassInkScene(
                     'glow',
                     'fit',
                     'huePhase',
+                    'sprayBursts',
+                    'sprayLive',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -264,6 +318,8 @@ export function useBassInkScene(
                     // The applied radius over the base radius, and the color cycle's position.
                     out[22] = fit;
                     out[23] = huePhase;
+                    out[24] = spray.burstCount;
+                    out[25] = spray.liveCount;
                 },
             );
         }
@@ -339,23 +395,31 @@ export function useBassInkScene(
                 } else {
                     pendingSeconds += dt;
                 }
-                if (
-                    wantedPoints !== cloud.pointCount &&
-                    pendingSeconds >= DENSITY_SETTLE_SECONDS &&
-                    !cloud.transitioning
-                ) {
+                if (wantedPoints !== builtTotal && pendingSeconds >= DENSITY_SETTLE_SECONDS && !cloud.transitioning) {
                     const turned = cloud.object.rotation.y;
-                    // The new cloud is built before the old one is freed, so the shader program is reused.
-                    const next = new InkCloud(wantedPoints, formationSeed, pointSizeLimit);
-                    scene.remove(cloud.object);
+                    // The new objects are built before the old ones are freed, so the shader programs are reused.
+                    const next = new InkCloud(shellPointsFor(wantedPoints), formationSeed, pointSizeLimit);
+                    const nextCore = buildCore(wantedPoints);
+                    const nextDust = buildDust(wantedPoints);
+                    const nextSpray = buildSpray();
+                    scene.remove(cloud.object, core.object, dust.object, spray.object);
                     cloud.dispose();
+                    core.dispose();
+                    dust.dispose();
+                    spray.dispose();
                     cloud = next;
+                    core = nextCore;
+                    dust = nextDust;
+                    spray = nextSpray;
+                    builtTotal = wantedPoints;
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                     cloud.setSwell(swellOut.swell);
+                    core.setSwell(swellOut.swell);
                     cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt, turned, 0);
+                    syncRotation();
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.
                     cloud.showFormation(cue.formationIndex, formationSeed);
-                    scene.add(cloud.object);
+                    scene.add(cloud.object, core.object, dust.object, spray.object);
                     applyFit(0);
                 }
 
@@ -398,14 +462,28 @@ export function useBassInkScene(
                 );
                 // The glints add a little light, so they follow the flash intensity like every other brightness term.
                 cloud.setTexture(midLevel, highLevel * values.intensity, values.turbulence);
+                core.setTexture(midLevel, highLevel * values.intensity, values.turbulence);
                 // The punch fades with the bass, so a breakdown with the bass pulled out calms down with it.
                 cloud.setSpectrum(field.texture, field.headCoordinate, spectrumSpan);
-                cloud.setPunch(beatPunch(clock) * Math.min(1, energy.ratio));
+                core.setSpectrum(field.texture, field.headCoordinate, spectrumSpan);
+                const punch = beatPunch(clock) * Math.min(1, energy.ratio);
+                cloud.setPunch(punch);
+                core.setPunch(punch);
                 cloud.setSwell(swellOut.swell);
+                core.setSwell(swellOut.swell);
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
+                core.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 applyFit(dt);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
                 cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
+                syncRotation();
+
+                // A bass hit throws points off the shell, from where its points are now (its local, unrotated space).
+                if (sprayTrigger.step(swellOut.swell, now)) {
+                    spray.emit(cloud, shellRadius, sprayPerBurst, now, swellOut.swell);
+                }
+                spray.update(now, paletteShown, values.intensity);
+                dust.update(now, highLevel, paletteShown);
 
                 if (import.meta.env.DEV) {
                     tickTelemetry(delta / 1000);
@@ -417,6 +495,9 @@ export function useBassInkScene(
                 if (!(next.width > 0 && next.height > 0)) return;
                 viewHeight = next.height;
                 cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+                core.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+                dust.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
+                spray.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                 computeFits(next.width, next.height);
                 applyFit(0);
             },
@@ -425,6 +506,9 @@ export function useBassInkScene(
                 orbit.dispose();
                 field.dispose();
                 cloud.dispose();
+                core.dispose();
+                dust.dispose();
+                spray.dispose();
                 unregisterProbe?.();
             },
         };
