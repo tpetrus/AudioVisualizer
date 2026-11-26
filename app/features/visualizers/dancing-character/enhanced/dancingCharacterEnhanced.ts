@@ -35,6 +35,7 @@ import {
     ENHANCED_SHADOW_MARGIN,
     ENHANCED_SHADOW_MIN_NEAR,
     ENHANCED_SHADOW_NORMAL_BIAS,
+    ENHANCED_SHADOW_RADIUS,
     ENHANCED_SKY_DARKEN,
     ENHANCED_SKY_HEIGHT_SEGMENTS,
     ENHANCED_SKY_HORIZON_END,
@@ -435,12 +436,13 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
             renderer.toneMappingExposure = ENHANCED_TONE_MAPPING_EXPOSURE;
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.shadowMap.enabled = true;
-            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            renderer.shadowMap.type = THREE.PCFShadowMap;
 
             keyLight.castShadow = true;
             keyLight.shadow.mapSize.set(ENHANCED_SHADOW_MAP_SIZE, ENHANCED_SHADOW_MAP_SIZE);
             keyLight.shadow.bias = ENHANCED_SHADOW_BIAS;
             keyLight.shadow.normalBias = ENHANCED_SHADOW_NORMAL_BIAS;
+            keyLight.shadow.radius = ENHANCED_SHADOW_RADIUS;
 
             // The self-lit materials keep their exact colors: tone mapping would desaturate the rainbow floor and the
             // beams. The lit frame and the character are the ones that get tone mapped.

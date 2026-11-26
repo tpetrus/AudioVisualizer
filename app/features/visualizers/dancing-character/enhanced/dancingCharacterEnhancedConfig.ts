@@ -20,6 +20,9 @@ export const ENHANCED_SHADOW_MAP_SIZE = 2048;
 // feet. Both are in world units, and the shadow camera is about 3 units wide.
 export const ENHANCED_SHADOW_BIAS = -0.0004;
 export const ENHANCED_SHADOW_NORMAL_BIAS = 0.02;
+// r186 has no PCFSoftShadowMap (it falls back with a warning); PCFShadowMap blurs over this many shadow-map texels
+// instead, which gives the dancer a soft contact shadow.
+export const ENHANCED_SHADOW_RADIUS = 4;
 // World units added around the character's box on every side when the shadow camera is fitted, so limbs that swing
 // outside the measured box (the box is taken from the pose at load time) still cast.
 export const ENHANCED_SHADOW_MARGIN = 0.6;
@@ -72,14 +75,14 @@ export const ENHANCED_SKY_RADIUS = 150;
 export const ENHANCED_SKY_WIDTH_SEGMENTS = 32;
 export const ENHANCED_SKY_HEIGHT_SEGMENTS = 16;
 // The sky texture's brightness: the club is a dark room and the sky is only a backdrop, so it is dimmed a lot.
-export const ENHANCED_SKY_DARKEN = 0.28;
+export const ENHANCED_SKY_DARKEN = 0.6;
 // The sky fades into the fog color between these elevations (sine of the angle above the horizon, 0 at the horizon and
 // 1 straight up). The converted sky has a bright glow band right at the horizon; the gradient hides it and makes the
 // horizon match the club's fog color exactly, so there is no seam where the floor's fog meets the sky.
-export const ENHANCED_SKY_HORIZON_START = 0.04;
-export const ENHANCED_SKY_HORIZON_END = 0.5;
+export const ENHANCED_SKY_HORIZON_START = 0.03;
+export const ENHANCED_SKY_HORIZON_END = 0.3;
 // The shape of the gradient: higher keeps the sky dark and fog-like for longer before it shows.
-export const ENHANCED_SKY_HORIZON_POWER = 1.5;
+export const ENHANCED_SKY_HORIZON_POWER = 1.2;
 // Draw order of the dome: before everything else.
 export const ENHANCED_SKY_RENDER_ORDER = -1000;
 

@@ -15,6 +15,7 @@ import {
     ENHANCED_MAX_ANISOTROPY,
     ENHANCED_ROOM_ENVIRONMENT_INTENSITY,
     ENHANCED_SHADOW_MAP_SIZE,
+    ENHANCED_SHADOW_RADIUS,
 } from './dancingCharacterEnhancedConfig';
 import { ENHANCED_ASSET_URLS } from './enhancedAssetUrls';
 
@@ -163,7 +164,8 @@ describe('apply', () => {
         expect(renderer.toneMapping).toBe(THREE.AgXToneMapping);
         expect(renderer.outputColorSpace).toBe(THREE.SRGBColorSpace);
         expect(renderer.shadowMap.enabled).toBe(true);
-        expect(renderer.shadowMap.type).toBe(THREE.PCFSoftShadowMap);
+        expect(renderer.shadowMap.type).toBe(THREE.PCFShadowMap);
+        expect(keyLight.shadow.radius).toBe(ENHANCED_SHADOW_RADIUS);
         expect(keyLight.castShadow).toBe(true);
         expect(keyLight.shadow.mapSize.x).toBe(ENHANCED_SHADOW_MAP_SIZE);
         look.dispose();
