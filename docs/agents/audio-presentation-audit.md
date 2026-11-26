@@ -45,8 +45,16 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
    `GATE_BASS_BUMP` is unseeded on purpose (see `bassBump.ts`), so its slow follower climbs from 0 and the ratio reads
    as bumps meanwhile; in a unit test a steady bass needed about 480 frames (8 s at 60 fps) to stop reading as bumps.
    Since bass-ink-refine, bass-ink's lock-free swell and glow follow this envelope, so they can pulse on steady bass
-   just after a source starts. No hub change was made; measure it with `npm run debug:viz` (`bass-ink.swell`) before
-   deciding whether bass-ink needs its own warm-up.
+   just after a source starts. No hub change was made.
+
+   Measured on 2026-11-25 (`npm run debug:viz -- --viz bass-ink --seconds 20 --from 0 --headless`, one run each, 60
+   fps): the share of frames with `bass-ink.swell` above 0.3 was 0.79 and 0.71 in the first two 4 s windows of
+   `beatless` against 0.86 and 0.22 later. On `syncopation-no-kick` it was 0.88 and 0.82 against 0.74 and 0.70, and on
+   `low-bpm-rnb` 0.88 and 0.67 against 0.69 and 0.70. The first 8 s do not stand out, so bass-ink gets no warm-up. The
+   measurement shows a different effect: `bass-ink.gateIn` (the bump) has a median of 0.22 to 0.50 on every track, and
+   at bass-ink's swell gain of 3 the swell sits near full most of the time instead of pulsing (mean 0.52 on
+   `beatless`, 0.74 on `drums-128`). That is a bass-ink tuning question (the cubes use the bump linearly), recorded as
+   a follow-up, not a hub fault.
 
 ## Fixes and reasons
 
