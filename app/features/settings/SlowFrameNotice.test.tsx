@@ -13,10 +13,10 @@ describe('SlowFrameNotice', () => {
         setEnhancedGraphics(true);
     });
 
-    it('is a polite status message that does not take focus', () => {
+    it('shows the message without taking focus', () => {
         render(<SlowFrameNotice onClose={vi.fn()} />);
 
-        expect(screen.getByRole('status')).toHaveTextContent('Enhanced graphics looks slow on this device.');
+        expect(screen.getByText('Enhanced graphics looks slow on this device.')).toBeInTheDocument();
         expect(document.body).toHaveFocus();
     });
 

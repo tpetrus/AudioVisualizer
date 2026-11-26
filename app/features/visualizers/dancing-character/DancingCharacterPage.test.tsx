@@ -270,12 +270,16 @@ describe('DancingCharacterPage enhanced graphics', () => {
     it('shows no slow-frame notice until the scene reports slow frames, inside the fullscreen wrapper', () => {
         const { container } = renderWithProviders(<DancingCharacterPage />);
         expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+        // The live region exists, empty, before the text appears, so screen readers announce the change.
+        const region = container.querySelector('.fixed.inset-0 > [role="status"]') as HTMLElement;
+        expect(region).toBeInTheDocument();
+        expect(region).toBeEmptyDOMElement();
 
         act(() => latestOptions().onEnhancedStatus?.('ready'));
         act(() => latestOptions().onSlowFrames?.());
 
         const notice = screen.getByText('Enhanced graphics looks slow on this device.').closest('[role="status"]');
-        expect(notice).toBeInTheDocument();
+        expect(notice).toBe(region);
         expect(container.querySelector('.fixed.inset-0')).toContainElement(notice as HTMLElement);
     });
 
@@ -324,5 +328,23 @@ describe('DancingCharacterPage enhanced graphics', () => {
 
         act(() => latestOptions().onEnhancedStatus?.(undefined));
         expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('does not show the notice again after standard and back until the monitor fires again', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        act(() => latestOptions().onEnhancedStatus?.(undefined));
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
     });
 });

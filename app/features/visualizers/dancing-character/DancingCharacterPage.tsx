@@ -47,7 +47,11 @@ export function DancingCharacterPage() {
         reducedMotion: controls !== dancingCharacterControls,
         onViewChanged: setViewChanged,
         onStatus: setStatus,
-        onEnhancedStatus: setEnhancedStatus,
+        onEnhancedStatus: (next) => {
+            setEnhancedStatus(next);
+            // Back to the standard look: forget the notice, so turning enhanced on again waits for the monitor to fire.
+            if (next === undefined) setSlowNoticeShown(false);
+        },
         // A dismissed notice stays dismissed for the page visit, however often the scene is rebuilt.
         onSlowFrames: () => setSlowNoticeShown(!isSlowNoticeDismissed()),
         // A failed choice puts the default back in the select and says why; a good load clears the message.
@@ -67,10 +71,14 @@ export function DancingCharacterPage() {
             <div ref={fullscreenRef} className="fixed inset-0 bg-black">
                 <div ref={containerRef} className="absolute inset-0" />
                 <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
-                {/* Inside the wrapper so it is also visible in fullscreen. */}
-                {slowNoticeShown && enhancedStatus !== undefined && (
-                    <SlowFrameNotice onClose={() => setSlowNoticeShown(false)} />
-                )}
+                {/* Inside the wrapper so it is also visible in fullscreen. The live region is always rendered, because
+                    screen readers announce changes to a region that already exists, not one inserted with its text.
+                    It never takes focus. */}
+                <div role="status">
+                    {slowNoticeShown && enhancedStatus !== undefined && (
+                        <SlowFrameNotice onClose={() => setSlowNoticeShown(false)} />
+                    )}
+                </div>
             </div>
             {!fullscreen.active && status === 'modelFailed' && (
                 <p
