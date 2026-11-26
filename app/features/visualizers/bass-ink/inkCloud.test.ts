@@ -497,6 +497,19 @@ describe('InkCloud options', () => {
         expect(plain(new InkCloud(100, SEED, 64, {}))).toEqual(plain(cloud));
     });
 
+    it('sets the four band tint uniforms from the config, whatever the options', () => {
+        const { bands } = bassInkSceneConfig;
+        for (const cloud of [
+            new InkCloud(100, SEED, 64),
+            new InkCloud(100, SEED, 64, { displacementScale: 0.5, alphaScale: 2 }),
+        ]) {
+            expect(uniformOf(cloud, 'uBassTint')).toBe(bands.bassTint);
+            expect(uniformOf(cloud, 'uSwellTint')).toBe(bands.swellTint);
+            expect(uniformOf(cloud, 'uHighTint')).toBe(bands.highTint);
+            expect(uniformOf(cloud, 'uHighWhite')).toBe(bands.highWhite);
+        }
+    });
+
     it('swellAmplitude sets uSwellAmp and nothing else', () => {
         const base = plain(new InkCloud(100, SEED, 64));
         const cloud = new InkCloud(100, SEED, 64, { swellAmplitude: 0.35 });
