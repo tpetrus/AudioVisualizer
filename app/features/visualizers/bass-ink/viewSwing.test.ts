@@ -80,8 +80,9 @@ describe('ViewSwing', () => {
         const full = read(new ViewSwing(5), cue(1, 0, 2), 3, 1);
         const half = read(new ViewSwing(5), cue(1, 0, 2), 3, 0.5);
         expect(Math.abs(half.yaw)).toBeLessThan(Math.abs(full.yaw));
-        // The targets are scaled when the change starts and the output every frame, so a half amount gives a quarter.
-        expect(half.yaw).toBeCloseTo(full.yaw * 0.25, 9);
+        // Only the output is scaled, so the swing is proportional to the amount.
+        expect(half.yaw).toBeCloseTo(full.yaw * 0.5, 9);
+        expect(half.tilt).toBeCloseTo(full.tilt * 0.5, 9);
     });
 
     it('gives the same targets for the same seed and different ones for another', () => {

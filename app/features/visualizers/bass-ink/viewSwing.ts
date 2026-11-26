@@ -29,8 +29,8 @@ export class ViewSwing {
         this.seed = seed;
     }
 
-    // Call every frame. `amount` (0..1) scales the targets when a change starts and the output every frame, so 0 gives
-    // no offset at once. Writes into `out`, so nothing is allocated per frame.
+    // Call every frame. `amount` (0..1) scales the output every frame (the targets themselves are unscaled, so the
+    // swing is proportional to the amount and follows a slider move at once); 0 gives no offset at once. Writes into `out`, so nothing is allocated per frame.
     step(cue: Readonly<DirectorCue>, nowSeconds: number, amount: number, out: ViewAngles): void {
         const { transitionCount, transitionStart, transitionSeconds } = cue;
         if (
@@ -51,8 +51,8 @@ export class ViewSwing {
             // A new change eases from wherever the last one had got to, so a quick succession never jumps.
             this.fromTilt = this.currentTilt;
             this.fromYaw = this.currentYaw;
-            this.toTilt = (hash01(transitionCount, this.seed, TILT_SALT) * 2 - 1) * tiltSwing * scale;
-            this.toYaw = (hash01(transitionCount, this.seed, YAW_SALT) * 2 - 1) * yawSwing * scale;
+            this.toTilt = (hash01(transitionCount, this.seed, TILT_SALT) * 2 - 1) * tiltSwing;
+            this.toYaw = (hash01(transitionCount, this.seed, YAW_SALT) * 2 - 1) * yawSwing;
         }
         let progress = 1;
         if (transitionCount > 0 && transitionSeconds > 0) {

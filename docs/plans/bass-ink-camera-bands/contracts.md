@@ -12,8 +12,8 @@ export class ViewSwing {
     constructor(seed: number);
     // Call every frame with the director's cue. When cue.transitionCount changes, the swing starts easing (smoothstep)
     // from its current offsets to new hashed targets, over cue.transitionSeconds from cue.transitionStart; between
-    // changes it holds. `amount` is clamp(cameraDrift / view.fullAtDrift, 0, 1) and scales the targets at the time of
-    // the change and the output every frame, so amount 0 gives 0 offsets at once. Writes into `out`, no allocation.
+    // changes it holds. `amount` is clamp(cameraDrift / view.fullAtDrift, 0, 1) and scales the output every frame (the
+    // targets are unscaled), so amount 0 gives 0 offsets at once. Writes into `out`, no allocation.
     step(cue: Readonly<DirectorCue>, nowSeconds: number, amount: number, out: ViewAngles): void;
 }
 ```
