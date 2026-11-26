@@ -124,15 +124,29 @@ describe('BassInkPost', () => {
         expect(post.active).toBe(false);
     });
 
-    it('renders plainly and builds nothing while both controls are 0', () => {
+    it('renders plainly before the first apply', () => {
         const { post, renderer, scene, camera } = setup();
 
-        post.apply({ trails: 0, glow: 0 });
         post.render();
 
         expect(composers()).toHaveLength(0);
         expect(renderer.render).toHaveBeenCalledWith(scene, camera);
         expect(post.active).toBe(false);
+    });
+
+    // A plain render blends the points after the sRGB conversion and the composer in linear light, so switching
+    // between them would make the frame jump; on a real GPU the composer is the only path.
+    it('draws through the composer with both passes off, so the look never switches paths', () => {
+        const { post, renderer } = setup();
+
+        post.apply({ trails: 0, glow: 0 });
+        post.render();
+
+        expect(composers()).toHaveLength(1);
+        expect(afterimages()[0].enabled).toBe(false);
+        expect(composers()[0].render).toHaveBeenCalledTimes(1);
+        expect(renderer.render).not.toHaveBeenCalled();
+        expect(post.active).toBe(true);
     });
 
     it('builds the composer on the first pass turned on, with the four passes in order', () => {
@@ -186,7 +200,7 @@ describe('BassInkPost', () => {
         expect(blooms()[0].enabled).toBe(true);
     });
 
-    it('falls back to a plain render when both go back to 0, keeping the composer for later', () => {
+    it('stays on the composer when both go back to 0, with both passes off', () => {
         const { post, renderer } = setup();
         post.apply({ trails: 0.4, glow: 0.4 });
         post.render();
@@ -194,9 +208,10 @@ describe('BassInkPost', () => {
         post.apply({ trails: 0, glow: 0 });
         post.render();
 
-        expect(composers()[0].render).toHaveBeenCalledTimes(1);
-        expect(renderer.render).toHaveBeenCalledTimes(1);
-        expect(post.active).toBe(false);
+        expect(composers()[0].render).toHaveBeenCalledTimes(2);
+        expect(renderer.render).not.toHaveBeenCalled();
+        expect(afterimages().at(-1)!.enabled).toBe(false);
+        expect(post.active).toBe(true);
     });
 
     it('clears the old frame when trails turn back on, by replacing the afterimage pass in place', () => {

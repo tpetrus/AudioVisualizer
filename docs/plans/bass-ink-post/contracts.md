@@ -20,7 +20,7 @@ export class BassInkPost {
     // Per frame, before render(): applies the control values (damp = trails * trailsDampMax; bloom strength =
     // glow * bloomStrengthMax) and turns each pass on or off (a value of 0 is off). No allocation.
     apply(settings: Readonly<PostSettings>): void;
-    // Draws the frame: through the composer when a pass is on, else a plain render (so both at 0 cost nothing).
+    // Draws the frame: through the composer once built (on a real GPU it is the only path, see below), else plainly.
     render(): void;
     setSize(size: SceneSize): void; // composer and bloom (at bloomResolutionScale) follow the drawing size
     dispose(): void; // the composer, every pass and their render targets
@@ -29,13 +29,19 @@ export class BassInkPost {
 ```
 
 - Passes, from `three/addons/postprocessing/`: `RenderPass` → `AfterimagePass` → `UnrealBloomPass` → `OutputPass`.
-  The `OutputPass` does the sRGB conversion that a plain render does, so colors look the same with the passes on and
-  off. Pixel ratio follows `renderer.getPixelRatio()`.
+  The `OutputPass` does the sRGB conversion once at the end. Pixel ratio follows `renderer.getPixelRatio()`.
+- Amended after review: the composer blends the additive points in linear light, while a plain render blends them
+  after the sRGB conversion, so dense areas look different between the two. On a real GPU every frame therefore goes
+  through the composer from the first `apply()`, even with both passes off, so moving a slider to 0 never switches
+  paths. Only a software renderer renders plainly.
 - When trails switch from off to on, the afterimage's old frame is cleared (or the pass re-created), so a stale frame
   never fades in.
 - **Flash safety:** neither the damp nor the bloom strength, radius or threshold follows the music. The afterimage
   is a max, not a sum, so trails never add light; they only slow the fall of a bright frame. Bloom is a fixed,
-  monotonic function of the frame, so it cannot add flashes that `BrightnessMix` did not grant.
+  monotonic function of the frame, so it cannot add flashes that `BrightnessMix` did not grant. It can make a
+  granted flash larger and brighter (a halo past the threshold); WCAG 2.3.1's three-flashes-per-second rule bounds the
+  count, which `BrightnessMix` keeps at 3, so that still passes. Measuring the size change on a real GPU is a
+  follow-up.
 
 ## C2 controls and wiring (`bassInkControls.ts`, `useBassInkScene.ts`)
 

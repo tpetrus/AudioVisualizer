@@ -28,7 +28,6 @@ export class BassInkPost {
     // The bloom's resolution, created once and updated in place by setSize.
     private readonly bloomResolution = new THREE.Vector2(1, 1);
     private trailsOn = false;
-    private glowOn = false;
     private disposed = false;
     private activeNow = false;
     private width: number;
@@ -58,10 +57,11 @@ export class BassInkPost {
         const { post } = bassInkSceneConfig;
         const trailsWanted = settings.trails > 0;
         const glowWanted = settings.glow > 0;
-        if (this.software || !(trailsWanted || glowWanted)) {
-            // Plain render: the passes keep their state, but a later return of the trails must start clean.
-            this.trailsOn = false;
-            this.glowOn = false;
+        // On a real GPU every frame goes through the composer, even with both passes off. The composer blends the points
+        // in linear light and a plain render blends them after the sRGB conversion, so dense areas look different
+        // between the two; switching between them as the sliders reach 0 would make the whole frame jump. A software
+        // renderer (e2e, CI) is too slow for the passes and always renders plainly.
+        if (this.software) {
             return;
         }
         // A pass built just now has no old frame to clear.
@@ -79,7 +79,6 @@ export class BassInkPost {
             composer.insertPass(this.afterimage, AFTERIMAGE_INDEX);
         }
         this.trailsOn = trailsWanted;
-        this.glowOn = glowWanted;
         const afterimage = this.afterimage!;
         afterimage.enabled = trailsWanted;
         afterimage.uniforms['damp'].value = settings.trails * post.trailsDampMax;
@@ -88,9 +87,10 @@ export class BassInkPost {
         bloom.strength = settings.glow * post.bloomStrengthMax;
     }
 
-    // Draws the frame through the composer when a pass is on, else with one plain render.
+    // Draws the frame through the composer once it exists (a real GPU after the first apply), else with one plain
+    // render.
     render(): void {
-        if (this.composer && !this.disposed && (this.trailsOn || this.glowOn)) {
+        if (this.composer && !this.disposed) {
             this.activeNow = true;
             this.composer.render();
             return;
