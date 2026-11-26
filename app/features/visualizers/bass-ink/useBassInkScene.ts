@@ -18,6 +18,7 @@ import { isSoftwareRenderer, maxPointSize, pointCountFor } from './renderBudget'
 import { SetDirector } from './setDirector';
 import { SpectrumField } from './spectrumField';
 import { SprayPool, SprayTrigger } from './sprayPool';
+import { ViewSwing, type ViewAngles } from './viewSwing';
 import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
@@ -162,6 +163,11 @@ export function useBassInkScene(
         let pendingSeconds = 0;
         cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
         cloud.object.rotation.x = bassInkSceneConfig.cloud.tilt;
+        // The slow turn is its own accumulated angle; the section swing is added on top each frame and never
+        // accumulates into it, so a rebuild carries only the drift and the swing keeps its own state.
+        let drift = 0;
+        const viewSwing = new ViewSwing(formationSeed);
+        const viewAngles: ViewAngles = { tilt: 0, yaw: 0 };
         // The core and the spray turn with the shell; the dust has its own slow drift.
         const syncRotation = () => {
             core.object.rotation.copy(cloud.object.rotation);
@@ -296,6 +302,8 @@ export function useBassInkScene(
                     'sprayBursts',
                     'sprayLive',
                     'postActive',
+                    'viewTilt',
+                    'viewYaw',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -326,6 +334,8 @@ export function useBassInkScene(
                     out[24] = spray.burstCount;
                     out[25] = spray.liveCount;
                     out[26] = post.active ? 1 : 0;
+                    out[27] = viewAngles.tilt;
+                    out[28] = viewAngles.yaw;
                 },
             );
         }
@@ -402,7 +412,6 @@ export function useBassInkScene(
                     pendingSeconds += dt;
                 }
                 if (wantedPoints !== builtTotal && pendingSeconds >= DENSITY_SETTLE_SECONDS && !cloud.transitioning) {
-                    const turned = cloud.object.rotation.y;
                     // The new objects are built before the old ones are freed, so the shader programs are reused.
                     const next = new InkCloud(shellPointsFor(wantedPoints), formationSeed, pointSizeLimit);
                     const nextCore = buildCore(wantedPoints);
@@ -421,7 +430,11 @@ export function useBassInkScene(
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                     cloud.setSwell(swellOut.swell);
                     core.setSwell(swellOut.swell);
-                    cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt, turned, 0);
+                    cloud.object.rotation.set(
+                        bassInkSceneConfig.cloud.tilt + viewAngles.tilt,
+                        drift + viewAngles.yaw,
+                        0,
+                    );
                     syncRotation();
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.
                     cloud.showFormation(cue.formationIndex, formationSeed);
@@ -481,7 +494,11 @@ export function useBassInkScene(
                 core.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 applyFit(dt);
                 // The cloud turns slowly; rotating the object (not the camera) keeps the orbit's reset position.
-                cloud.object.rotation.y += values.cameraDrift * cameraConfig.driftSpeed * dt;
+                drift += values.cameraDrift * cameraConfig.driftSpeed * dt;
+                // The swing is full at the control's default and above, and off at 0, so a still view stays still.
+                const swingAmount = Math.min(1, Math.max(0, values.cameraDrift / bassInkSceneConfig.view.fullAtDrift));
+                viewSwing.step(cue, now, swingAmount, viewAngles);
+                cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt + viewAngles.tilt, drift + viewAngles.yaw, 0);
                 syncRotation();
 
                 // A bass hit throws points off the shell, from where its points are now (its local, unrotated space).
