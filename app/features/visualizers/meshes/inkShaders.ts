@@ -21,6 +21,32 @@ export function depthFade(depth: number, near: number, far: number, fade: number
     return 1 - fade * k;
 }
 
+// The fragment tint, the same maths as FRAGMENT_TINT below, over arrays of 3 (linear RGB). Writes into `out` and
+// allocates nothing, so a spec can check that the luminance is kept and the tints move the right way; the GLSL must match.
+export function bandColor(
+    base: ArrayLike<number>,
+    core: ArrayLike<number>,
+    edge: ArrayLike<number>,
+    bass: number,
+    high: number,
+    highWhite: number,
+    out: number[] | Float32Array,
+): void {
+    const lumaBase = 0.2126 * base[0] + 0.7152 * base[1] + 0.0722 * base[2];
+    for (let k = 0; k < 3; k++) {
+        const toward = edge[k] + (1 - edge[k]) * highWhite;
+        const withBass = base[k] + (core[k] - base[k]) * bass;
+        out[k] = withBass + (toward - withBass) * high;
+    }
+    const lumaTinted = 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2];
+    if (lumaBase > 1e-4 && lumaTinted > 1e-4) {
+        const ratio = lumaBase / lumaTinted;
+        out[0] *= ratio;
+        out[1] *= ratio;
+        out[2] *= ratio;
+    }
+}
+
 // Declarations. The spectrum is the recent frequency history: x is frequency (log-spaced), y is time as a ring whose
 // newest row is at uSpectrumHead. The uniforms after it are constants from bassInkSceneConfig, set once.
 const VERTEX_HEADER = /*glsl*/ `
@@ -68,9 +94,14 @@ uniform float uTensionSize;
 uniform float uDepthNear;
 uniform float uDepthFar;
 uniform float uDepthFade;
+uniform float uBassTint;
+uniform float uSwellTint;
+uniform float uHighTint;
 
 varying float vRadial;
 varying float vDepth;
+varying float vBass;
+varying float vHigh;
 `;
 
 // Rest position: a smooth fade between the two formation sides. The build then squeezes the cloud, the breathing phase
@@ -102,6 +133,7 @@ const VERTEX_KICKS = /*glsl*/ `
             push += uKickStrengths[i] * uWaveAmp * exp(-age / uWaveDecay) * exp(-x * x);
         }
     }
+    vBass = clamp((uWaveMax > 0.0 ? push / uWaveMax : 0.0) * uBassTint + uSwell * uSwellTint, 0.0, 1.0);
     p += outward * min(push, uWaveMax);
 `;
 
@@ -146,6 +178,7 @@ const VERTEX_SPECTRUM = /*glsl*/ `
 // changes the fade. It only removes light, so it cannot add flashing.
 const VERTEX_SIZE = /*glsl*/ `
     float glint = step(1.0 - uSparkleFraction, fract(aRand * 91.7)) * uHigh * uSparkleAmp;
+    vHigh = clamp((glint > 0.0 ? uHigh : 0.0) * uHighTint, 0.0, 1.0);
     float relativeDepth = -mv.z - (-center.z);
     float depthK = uDepthFar > uDepthNear ? clamp((relativeDepth - uDepthNear) / (uDepthFar - uDepthNear), 0.0, 1.0) : 0.0;
     vDepth = 1.0 - uDepthFade * depthK;
@@ -171,9 +204,12 @@ uniform float uBrightness;
 uniform float uAlpha;
 uniform float uTension;
 uniform float uAlphaNormalization;
+uniform float uHighWhite;
 
 varying float vRadial;
 varying float vDepth;
+varying float vBass;
+varying float vHigh;
 `;
 
 // A soft round sprite: fully transparent at the rim, brightest in the middle.
@@ -189,6 +225,20 @@ void main() {
     vec3 color = mix(uCore, uEdge, vRadial);
 `;
 
+// Band colors: the kick-wave push and the bass swell pull a point's color toward the palette core, and the glint pulls
+// it toward the palette edge mixed with white. The rescale then restores the gradient color's own luminance (linear
+// Rec. 709 weights), so a tint moves the hue only and never adds light. A near-black color is left alone, since its
+// luminance ratio would be noise. bandColor above does the same maths for specs.
+const FRAGMENT_TINT = /*glsl*/ `
+    float lumaBase = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(color, uCore, vBass);
+    color = mix(color, mix(uEdge, vec3(1.0), uHighWhite), vHigh);
+    float lumaTinted = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    if (lumaBase > 0.0001 && lumaTinted > 0.0001) {
+        color *= lumaBase / lumaTinted;
+    }
+`;
+
 // The squeezed cloud overlaps itself more, so its alpha is normalized down. uBrightness (from BrightnessMix) is the only
 // global brightness input; ripples never reach this shader stage.
 const FRAGMENT_ALPHA = /*glsl*/ `
@@ -198,4 +248,4 @@ const FRAGMENT_ALPHA = /*glsl*/ `
 }
 `;
 
-export const inkFragmentShader = [FRAGMENT_HEADER, FRAGMENT_SPRITE, FRAGMENT_ALPHA].join('');
+export const inkFragmentShader = [FRAGMENT_HEADER, FRAGMENT_SPRITE, FRAGMENT_TINT, FRAGMENT_ALPHA].join('');
