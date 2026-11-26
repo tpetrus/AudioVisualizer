@@ -153,6 +153,40 @@ vi.mock('./inkCloud', async () => {
         },
     };
 });
+// The post-processing has its own spec; here it records how the scene drives it. Its render still draws plainly, so
+// the specs that read the renderer's calls keep working.
+const posts = vi.hoisted(() => ({ instances: [] as unknown[] }));
+vi.mock('./bassInkPost', () => ({
+    BassInkPost: class {
+        active = false;
+        apply = vi.fn();
+        setSize = vi.fn();
+        dispose = vi.fn();
+        render = vi.fn(() => {
+            (this.renderer as { render: (scene: unknown, camera: unknown) => void }).render(this.scene, this.camera);
+        });
+        constructor(
+            public renderer: unknown,
+            public scene: unknown,
+            public camera: unknown,
+            public size: { width: number; height: number },
+            public software: boolean,
+        ) {
+            posts.instances.push(this);
+        }
+    },
+}));
+interface FakePost {
+    active: boolean;
+    apply: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+    render: ReturnType<typeof vi.fn>;
+    size: { width: number; height: number };
+    software: boolean;
+}
+const currentPost = () => posts.instances.at(-1) as FakePost;
+
 // The shell is built without options and the core with them, so most specs read the shell through these two.
 const everyCloud = () => clouds.instances as FakeCloud[];
 const allClouds = () => everyCloud().filter((cloud) => cloud.options === undefined);
@@ -162,7 +196,7 @@ const currentCore = () => allCores().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(26);
+    const out = new Float32Array(27);
     probeRead()(out);
     return out;
 }
@@ -242,6 +276,7 @@ function scroll(element: HTMLElement, deltaY: number): void {
 describe('useBassInkScene', () => {
     beforeEach(() => {
         clouds.instances = [];
+        posts.instances = [];
         gateScript.pulse = false;
         gateScript.calls = [];
         telemetry.register.mockClear();
@@ -1082,6 +1117,7 @@ describe('useBassInkScene', () => {
                     'huePhase',
                     'sprayBursts',
                     'sprayLive',
+                    'postActive',
                 ],
                 expect.any(Function),
             );
@@ -1371,6 +1407,73 @@ describe('useBassInkScene', () => {
             // The scene teardown walks the children as well, so a second dispose is harmless.
             expect(dustDispose).toHaveBeenCalled();
             expect(sprayDispose).toHaveBeenCalled();
+        });
+    });
+
+    describe('post-processing', () => {
+        it('draws each frame through the post, built after the camera at the view size', () => {
+            const { renderer, scene, camera } = mountScene();
+            const post = currentPost();
+
+            expect(posts.instances).toHaveLength(1);
+            expect(post.size).toEqual({ width: 800, height: 600 });
+            expect(post.software).toBe(false);
+            expect(post.render).toHaveBeenCalled();
+            expect(renderer.render).toHaveBeenCalledWith(scene, camera);
+        });
+
+        it('hands the trails and glow control values to the post every frame', () => {
+            const { frame, valuesRef } = mountScene();
+            const post = currentPost();
+            expect(post.apply).toHaveBeenLastCalledWith({ trails: 0.4, glow: 0.4 });
+
+            valuesRef.current = { ...valuesRef.current, trails: 0, glow: 0.85 };
+            frame();
+
+            expect(post.apply).toHaveBeenLastCalledWith({ trails: 0, glow: 0.85 });
+        });
+
+        it('reuses one settings object, so applying allocates nothing', () => {
+            const { frame } = mountScene();
+            frame();
+            const post = currentPost();
+
+            expect(post.apply.mock.calls.at(-1)![0]).toBe(post.apply.mock.calls.at(-2)![0]);
+        });
+
+        it('sizes the post on resize and ignores a collapsed view', () => {
+            const { resizes } = mountScene();
+            const post = currentPost();
+
+            resizes.resize(1000, 900);
+            expect(post.setSize).toHaveBeenLastCalledWith({ width: 1000, height: 900 });
+
+            post.setSize.mockClear();
+            resizes.resize(0, 0);
+            expect(post.setSize).not.toHaveBeenCalled();
+        });
+
+        it('disposes the post once on unmount', () => {
+            const { unmount, frame } = mountScene();
+            frame();
+            const post = currentPost();
+
+            unmount();
+
+            expect(post.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('appends postActive as the last telemetry column', () => {
+            const { frame } = mountScene();
+            frame();
+            const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
+            expect(columns.at(-1)).toBe('postActive');
+            expect(columns.at(-2)).toBe('sprayLive');
+
+            currentPost().active = true;
+            expect(readProbe()[26]).toBe(1);
+            currentPost().active = false;
+            expect(readProbe()[26]).toBe(0);
         });
     });
 

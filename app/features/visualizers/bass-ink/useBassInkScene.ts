@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { bassInkConfig } from './bassInkConfig';
 import type { BassInkControlValues } from './bassInkControls';
+import { BassInkPost, type PostSettings } from './bassInkPost';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
 import { swellFromBump, type BassSwell } from './bassInkBass';
@@ -82,6 +83,9 @@ export function useBassInkScene(
         resetViewRef.current = orbit.reset;
 
         const software = isSoftwareRenderer(renderer);
+        // Trails and a glow over the picture. One settings object is reused so applying them allocates nothing.
+        const post = new BassInkPost(renderer, scene, camera, size, software);
+        const postSettings: PostSettings = { trails: 0, glow: 0 };
         const pointSizeLimit = maxPointSize(renderer);
         const formationSeed = bassInkConfig.director.formationSeed;
         const pixelHeight = (height: number) => height * Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
@@ -291,6 +295,7 @@ export function useBassInkScene(
                     'huePhase',
                     'sprayBursts',
                     'sprayLive',
+                    'postActive',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -320,6 +325,7 @@ export function useBassInkScene(
                     out[23] = huePhase;
                     out[24] = spray.burstCount;
                     out[25] = spray.liveCount;
+                    out[26] = post.active ? 1 : 0;
                 },
             );
         }
@@ -485,10 +491,16 @@ export function useBassInkScene(
                 spray.update(now, paletteShown, values.intensity);
                 dust.update(now, highLevel, paletteShown);
 
+                postSettings.trails = values.trails;
+                postSettings.glow = values.glow;
+                post.apply(postSettings);
+
                 if (import.meta.env.DEV) {
                     tickTelemetry(delta / 1000);
                 }
             },
+
+            render: () => post.render(),
 
             resize: (next) => {
                 // A hidden or collapsed container reports a zero side; keep the previous fit rather than fitting to 0.
@@ -500,6 +512,7 @@ export function useBassInkScene(
                 spray.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                 computeFits(next.width, next.height);
                 applyFit(0);
+                post.setSize(next);
             },
 
             dispose: () => {
@@ -509,6 +522,7 @@ export function useBassInkScene(
                 core.dispose();
                 dust.dispose();
                 spray.dispose();
+                post.dispose();
                 unregisterProbe?.();
             },
         };
