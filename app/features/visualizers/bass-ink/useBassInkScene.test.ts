@@ -196,7 +196,7 @@ const currentCore = () => allCores().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(27);
+    const out = new Float32Array(29);
     probeRead()(out);
     return out;
 }
@@ -497,6 +497,65 @@ describe('useBassInkScene', () => {
             const after = currentCloud().setTexture.mock.calls.at(-1)![0] as number;
             // The release is slower than the attack, so one quiet frame barely lowers it.
             expect(after).toBeGreaterThan(0.98);
+        });
+
+        it('swings the view to new offsets over a director transition and the core and spray follow', () => {
+            const { frame, scene } = mountScene();
+            frame();
+            const shell = currentCloud().object.rotation;
+            const tilt = bassInkSceneConfig.cloud.tilt;
+            expect(shell.x).toBe(tilt);
+
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0.02;
+            script.cue.transitionSeconds = 2;
+            // Drift 0 would hold the view, so use the default control, which is full swing.
+            const seen: number[] = [];
+            for (let i = 0; i < 20; i++) {
+                frame(16);
+                seen.push(shell.y);
+            }
+            for (let i = 0; i < 200; i++) frame(16);
+            const yawAfter = shell.y - bassInkSceneConfig.camera.driftSpeed * 0;
+            expect(Math.abs(shell.x - tilt)).toBeLessThanOrEqual(bassInkSceneConfig.view.tiltSwing + 1e-9);
+            expect(shell.x).not.toBe(tilt);
+            expect(Number.isFinite(yawAfter)).toBe(true);
+            // Both follow the shell exactly.
+            for (const index of [1, 3]) {
+                expect(scene.children[index].rotation.x).toBe(shell.x);
+                expect(scene.children[index].rotation.y).toBe(shell.y);
+            }
+            // The turn changed gradually, not in one step.
+            expect(seen[0]).not.toBe(seen.at(-1));
+        });
+
+        it('keeps the plain tilt and no yaw offset when the camera drift is 0', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 0 };
+            frame();
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0.02;
+            script.cue.transitionSeconds = 2;
+            for (let i = 0; i < 200; i++) frame(16);
+            const shell = currentCloud().object.rotation;
+            expect(shell.x).toBe(bassInkSceneConfig.cloud.tilt);
+            expect(shell.y).toBe(0);
+            const probe = readProbe();
+            expect(probe[27]).toBe(0);
+            expect(probe[28]).toBe(0);
+        });
+
+        it('reports the swing offsets in the viewTilt and viewYaw columns', () => {
+            const { frame } = mountScene();
+            frame();
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0.02;
+            script.cue.transitionSeconds = 2;
+            for (let i = 0; i < 200; i++) frame(16);
+            const probe = readProbe();
+            const shell = currentCloud().object.rotation;
+            expect(probe[27]).toBeCloseTo(shell.x - bassInkSceneConfig.cloud.tilt, 6);
+            expect(probe[28]).not.toBe(0);
         });
 
         it('turns the cloud object by the camera drift and not at all when it is 0', () => {
@@ -975,10 +1034,9 @@ describe('useBassInkScene', () => {
             const { frame, scene, valuesRef } = mountScene();
             frame();
             const old = currentCloud();
-            old.object.rotation.y = 1.25;
             script.cue.formationIndex = 2;
 
-            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            valuesRef.current = { ...valuesRef.current, density: 0.5, cameraDrift: 1 };
             frame();
             for (let i = 0; i < 5; i++) frame(100);
 
@@ -990,7 +1048,9 @@ describe('useBassInkScene', () => {
             expect(next.pointCount).toBe(shellPoints(pointCountFor(0.5, false)));
             expect(next.showFormation).toHaveBeenCalledWith(2, bassInkConfig.director.formationSeed);
             // The old cloud keeps turning while the rebuild waits, so the new one carries on from where it stood.
-            expect(next.object.rotation.y).toBeGreaterThanOrEqual(1.25);
+            // The drift is carried in the scene, not read back from the old object, so the turn never restarts.
+            expect(old.object.rotation.y).toBeGreaterThan(0.01);
+            expect(next.object.rotation.y).toBeGreaterThanOrEqual(old.object.rotation.y);
             expect(next.object.rotation.y).toBeCloseTo(old.object.rotation.y, 1);
             expect(next.update).toHaveBeenCalled();
         });
@@ -1118,6 +1178,8 @@ describe('useBassInkScene', () => {
                     'sprayBursts',
                     'sprayLive',
                     'postActive',
+                    'viewTilt',
+                    'viewYaw',
                 ],
                 expect.any(Function),
             );
@@ -1463,12 +1525,14 @@ describe('useBassInkScene', () => {
             expect(post.dispose).toHaveBeenCalledTimes(1);
         });
 
-        it('appends postActive as the last telemetry column', () => {
+        it('appends postActive, viewTilt and viewYaw as the last telemetry columns', () => {
             const { frame } = mountScene();
             frame();
             const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
-            expect(columns.at(-1)).toBe('postActive');
-            expect(columns.at(-2)).toBe('sprayLive');
+            expect(columns.at(-1)).toBe('viewYaw');
+            expect(columns.at(-2)).toBe('viewTilt');
+            expect(columns.at(-3)).toBe('postActive');
+            expect(columns.at(-4)).toBe('sprayLive');
 
             currentPost().active = true;
             expect(readProbe()[26]).toBe(1);
