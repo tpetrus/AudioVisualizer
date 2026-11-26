@@ -41,4 +41,15 @@ describe('bassInkSceneConfig depth fade', () => {
         expect(nearest).toBeGreaterThan(camera.near);
         expect(depth.halfRange).toBeGreaterThan(0);
     });
+
+    // WCAG 2.3.1: the swell follows every bass bump with no rate limit and would tint the whole cloud at once, and a
+    // picked core can be saturated red, so a nonzero swell tint could become a red flash.
+    it('keeps the bass swell from tinting the whole cloud', () => {
+        expect(bassInkSceneConfig.bands.swellTint).toBe(0);
+    });
+
+    it('turns the view no faster than about 0.7 rad a second at the peak of a swing', () => {
+        const peakRate = (1.5 * 2 * bassInkSceneConfig.view.yawSwing) / 2;
+        expect(peakRate).toBeLessThanOrEqual(0.7);
+    });
 });

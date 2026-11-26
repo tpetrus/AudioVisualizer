@@ -226,8 +226,10 @@ export const bassInkSceneConfig = {
         // cloud's largest 3D radius, the same at any angle) still keeps everything on screen.
         // The tilt moves within cloud.tilt +/- tiltSwing (radians), staying clear of edge-on views of the flat disc ...
         tiltSwing: 0.2,
-        // ... and the turn by up to +/- yawSwing on top of the drift.
-        yawSwing: 0.7,
+        // ... and the turn by up to +/- yawSwing on top of the drift. The smoothstep over the 2 s transition peaks at 1.5
+        // times the average rate, so a full swing turns at most about 0.68 rad (39 degrees) a second, slow enough to
+        // read as a reframe rather than a spin.
+        yawSwing: 0.45,
         // The swing is full at the camera-drift control's default (0.3) and above, scales down below it, and is off at
         // 0, so a user who wants a still view gets one.
         fullAtDrift: 0.3,

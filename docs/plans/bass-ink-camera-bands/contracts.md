@@ -47,3 +47,6 @@ export class ViewSwing {
 - Amended at integration: `bands.swellTint` is 0. The swell follows every bass bump with no rate limit and would tint
   the whole cloud at once; with a saturated red core picked, that could become a red flash (WCAG 2.3.1). The uniform
   stays, so a later rate-limited swell tint needs no shader change.
+- Amended at integration: `view.yawSwing` is 0.45 (was 0.7), so a full swing turns at most about 0.68 rad a
+  second at the smoothstep peak, which reads as a reframe rather than a spin. A config test bounds it, and another pins
+  `bands.swellTint` at 0.
