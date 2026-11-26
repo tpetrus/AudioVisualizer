@@ -37,6 +37,24 @@ describe('bassInkControls', () => {
         ]);
     });
 
+    it('appends Trails and Glow at the end of the Look section, 0 to 1 and on by default', () => {
+        const look = groupBySection(bassInkControls).find((section) => section.name === 'Look')!;
+        expect(look.controls.slice(-2).map((control) => control.key)).toEqual(['trails', 'glow']);
+        expect(look.controls.slice(-2)).toEqual([
+            {
+                section: 'Look',
+                key: 'trails',
+                label: 'Trails',
+                type: 'range',
+                min: 0,
+                max: 1,
+                step: 0.05,
+                default: 0.4,
+            },
+            { section: 'Look', key: 'glow', label: 'Glow', type: 'range', min: 0, max: 1, step: 0.05, default: 0.4 },
+        ]);
+    });
+
     it('adds three color pickers and a bounded color speed with a small nonzero default', () => {
         const byKey = (key: string) => bassInkControls.find((control) => control.key === key);
         for (const key of ['colorA', 'colorB', 'colorC']) {
