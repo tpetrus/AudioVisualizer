@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderWithProviders } from '~/test/renderWithProviders';
 import { ControlPanel } from './ControlPanel';
@@ -50,6 +51,7 @@ interface HarnessProps {
     cameraLocked?: boolean;
     fullscreenActive?: boolean;
     onToggleFullscreen?: () => void;
+    header?: ReactNode;
 }
 
 // Holds the values the way a visualizer page does, so changes made through the panel show up in it.
@@ -61,6 +63,7 @@ function Harness({
     cameraLocked = true,
     fullscreenActive,
     onToggleFullscreen,
+    header,
 }: HarnessProps) {
     const { values, setValue, resetAll } = useControlValues(definitions);
     return (
@@ -78,6 +81,7 @@ function Harness({
             onResetView={onResetView}
             fullscreenActive={fullscreenActive}
             onToggleFullscreen={onToggleFullscreen}
+            header={header}
         />
     );
 }
@@ -244,6 +248,17 @@ describe('ControlPanel', () => {
 
         await user.click(screen.getByRole('button', { name: 'Close' }));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('renders a header above the first section only while the panel is open', async () => {
+        const { user, container } = renderWithProviders(<Harness header={<p>Panel header</p>} />);
+        expect(screen.queryByText('Panel header')).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        const header = screen.getByText('Panel header');
+        const firstSection = container.querySelector('details');
+        expect(header.compareDocumentPosition(firstSection as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(firstSection).not.toContainElement(header);
     });
 
     it('has no fullscreen button without a handler', () => {

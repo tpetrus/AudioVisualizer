@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { version } from '../../../package.json';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { asWebAudio } from '~/test/fakeWebAudio';
@@ -13,7 +13,21 @@ function capturingEngine() {
     return engine;
 }
 
+// The toggle's capability probe asks a canvas for WebGL, which jsdom does not implement.
+beforeEach(() => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+});
+
 describe('LandingPage', () => {
+    it('offers the enhanced graphics switch above the cards', () => {
+        renderWithProviders(<LandingPage />, { engine: capturingEngine() });
+
+        const toggle = screen.getByRole('switch', { name: /Enhanced graphics/ });
+        expect(toggle).toHaveAttribute('aria-checked', 'false');
+        const grid = screen.getByRole('link', { name: 'Cubes' }).parentElement;
+        expect(toggle.compareDocumentPosition(grid as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
     it('shows the version, the title banner, the visualizations and the coming-soon card', () => {
         renderWithProviders(<LandingPage />, { engine: capturingEngine() });
 
