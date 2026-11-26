@@ -32,6 +32,22 @@ export const bassInkControls = [
         step: 0.05,
         default: 0.3,
     },
+    // Three clearly different, vivid hues that read well blended additively on black: hot pink (the core at rest), amber
+    // and sky blue (the edge at rest). A unit test checks that they stay far apart in hue. The brightness of a picked
+    // color is the user's choice: the picker replaces the pitch-driven palette, so a very dark color makes a dark cloud.
+    { section: 'Colors', key: 'colorA', label: 'Color A', type: 'color', default: '#ff4fa3' },
+    { section: 'Colors', key: 'colorB', label: 'Color B', type: 'color', default: '#ffb21e' },
+    { section: 'Colors', key: 'colorC', label: 'Color C', type: 'color', default: '#3fc8ff' },
+    {
+        section: 'Colors',
+        key: 'colorSpeed',
+        label: 'Color speed (0 = static)',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.2,
+    },
 ] as const satisfies readonly ControlDefinition[];
 
 export type BassInkControlValues = ControlValues<typeof bassInkControls>;

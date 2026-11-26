@@ -1,7 +1,7 @@
 import { bassInkConfig, type FormationsConfig } from './bassInkConfig';
 import { FORMATION_COUNT } from './bassInkTypes';
 
-export const FORMATION_NAMES: readonly string[] = ['sphere', 'torus', 'double helix', 'galaxy disc'];
+export const FORMATION_NAMES: readonly string[] = ['sphere', 'torus', 'armillary rings', 'galaxy disc'];
 
 // Deterministic hash of (point, seed, salt) to [0, 1). A per-point hash instead of a sequential random generator means
 // any slice of the cloud can be filled on its own, so filling in chunks over several frames gives the same points as
@@ -56,14 +56,21 @@ export function writeFormation(
                 break;
             }
             case 2: {
-                // Two strands half a turn apart, with some scatter so they read as tubes of dust, not wires.
-                const along = a * 2 - 1;
-                const strand = i % 2;
-                const angle = along * config.helixTurns * TAU + strand * Math.PI;
-                const radius = config.helixRadius * (0.8 + 0.4 * b);
-                out[o] = radius * Math.cos(angle) + (c - 0.5) * 0.12;
-                out[o + 1] = along * config.helixHalfHeight;
-                out[o + 2] = radius * Math.sin(angle) + (hash01(i, seed, 4) - 0.5) * 0.12;
+                // Three thin rings of dust in the three orthogonal planes, like an armillary sphere. The shape has the
+                // same extent along every axis, so it reads as 3D from any orbit angle. The ring is chosen
+                // by the point index, so the rings get equal shares and any slice of points still fills on its own.
+                const ringIndex = i % 3;
+                const around = a * TAU;
+                const tube = b * TAU;
+                const tubeRadius = config.armillaryTubeRadius * Math.sqrt(c);
+                const inPlane = config.armillaryRadius + tubeRadius * Math.cos(tube);
+                const u = inPlane * Math.cos(around);
+                const v = inPlane * Math.sin(around);
+                const n = tubeRadius * Math.sin(tube);
+                // The ring's normal is x, y or z in turn; the other two coordinates run around the ring.
+                out[o] = ringIndex === 0 ? n : u;
+                out[o + 1] = ringIndex === 1 ? n : ringIndex === 0 ? u : v;
+                out[o + 2] = ringIndex === 2 ? n : v;
                 break;
             }
             default: {

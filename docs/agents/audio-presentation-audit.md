@@ -41,6 +41,12 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
    pulse rises and settles at a different speed. Not measured here (all recordings ran at 60 fps). No visualizer uses it
    any more: the cubes, the dancer and (since hub-regressions S9) `bass-ink` read the hub through the time-based
    `BassBump`.
+8. **The gate envelope reads bumps for the first seconds of a source** (found in bass-ink-refine S3, not a fault).
+   `GATE_BASS_BUMP` is unseeded on purpose (see `bassBump.ts`), so its slow follower climbs from 0 and the ratio reads
+   as bumps meanwhile; in a unit test a steady bass needed about 480 frames (8 s at 60 fps) to stop reading as bumps.
+   Since bass-ink-refine, bass-ink's lock-free swell and glow follow this envelope, so they can pulse on steady bass
+   just after a source starts. No hub change was made; measure it with `npm run debug:viz` (`bass-ink.swell`) before
+   deciding whether bass-ink needs its own warm-up.
 
 ## Fixes and reasons
 

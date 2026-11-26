@@ -27,9 +27,33 @@ export const bassInkSceneConfig = {
         // cloud keeps the tempo even before the bass gate has found the kick. A 9 percent swell moves points apart
         // without adding light (the point count and sizes stay the same).
         beatPunch: 0.09,
+        // Every bass pulse swells the whole cloud outward by up to this fraction, with no tempo lock needed. It stays
+        // below beatPunch so the swell never outshouts the beat, and like the punch it moves points apart without
+        // adding light.
+        swellAmplitude: 0.07,
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
+        // Share of the viewport's smaller half-dimension that the cloud's outermost point reaches when every pulse
+        // peaks together at the default controls (breathing, beat punch, swell, the kick-wave cap, the spectrum and the
+        // turbulence at full mid level). The scene solves the cloud's world radius for it (framing.ts), so the whole
+        // object stays on screen while it pulses, at any window shape. The rest shape therefore fills about half.
+        fill: 0.95,
+    },
+    bass: {
+        // The bump envelope's output below this is its noise floor (a steady bassline leaves it at a few percent), so
+        // the cloud stays still until a real pulse.
+        swellFloor: 0.04,
+        // Scales what is above the floor so a kick-sized pulse (about 0.15 to 0.5) reaches a clearly visible swell
+        // within a couple of frames; the result is clamped to 1.
+        swellGain: 3,
+        // The glow arms at this swell and re-arms only below the lower one, so a pulse that wobbles around one level
+        // is one flash, not several.
+        glowArm: 0.6,
+        glowRearm: 0.25,
+        // Peak of a bass glow at full swell. Smaller than a kick flash (0.35): every bass pulse glows, so it is only a
+        // lift, and it goes through the BrightnessMix's soft cap and the governor like every other flash.
+        glowAmount: 0.25,
     },
     wave: {
         // Kick shockwave: world units per second the front travels, so it crosses the cloud in about a second.
@@ -39,9 +63,9 @@ export const bassInkSceneConfig = {
         // Seconds for a wave's strength to fall by a factor of e; the front fades before it leaves the cloud.
         decay: 0.7,
         // Outward push of a full-strength kick at the front, in world units.
-        amplitude: 0.9,
+        amplitude: 0.55,
         // The sum of overlapping waves is limited so a kick train never tears the cloud apart.
-        maxDisplacement: 1.3,
+        maxDisplacement: 0.8,
     },
     spectrum: {
         // 48 log-spaced frequencies from the sub-bass to the air band: enough for distinct waves, few enough to blur.
@@ -68,14 +92,15 @@ export const bassInkSceneConfig = {
         releaseSeconds: 0.22,
         // World units a point on the rim moves outward at full level (less toward the center), so the outline becomes
         // the spectrum without leaving the view.
-        amplitude: 1.1,
+        amplitude: 0.65,
     },
     turbulence: {
         // Spatial frequency of the swirling displacement (smaller means broader swirls).
         scale: 0.55,
-        // Always-on drift so the cloud never looks frozen, plus a share that follows the mid band.
-        base: 0.06,
-        midGain: 0.3,
+        // Always-on drift, kept small so a resting formation reads as a solid shape yet never looks frozen, plus a share that
+        // follows the mid band.
+        base: 0.03,
+        midGain: 0.1,
         // The mid band is followed with these time constants (seconds), so the swirl grows over a busy passage and
         // settles in a quiet one rather than jumping on each snare or clap.
         midAttackSeconds: 0.3,
@@ -109,8 +134,19 @@ export const bassInkSceneConfig = {
         // the cloud spreading out, not as a flash (global brightness is the BrightnessMix's job alone).
         tensionAlphaNormalization: 0.14,
     },
+    depth: {
+        // A point at the far end of the range keeps 1 - fade of its size and its alpha, so far points are at most 0.45 of
+        // the near ones (under the 0.5 the plan requires): visible, not harsh. Points are additive, so the fade only
+        // removes light; it cannot add flashing.
+        fade: 0.55,
+        // The range is centered on the cloud's own view depth (not the camera distance, so zooming never dims it) and
+        // spans this many fitted radii each way, so the nearest part of the cloud is at full strength and the farthest
+        // is at the faded end. It follows the fit (framing.ts) because the radius does: near = -radius * halfRange,
+        // far = +radius * halfRange, as offsets from the center's depth.
+        halfRange: 1,
+    },
     camera: {
-        // The cloud fills about 60 percent of the height at this distance and field of view.
+        // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).
         distance: 12,
         fov: 50,
         // Radians per second of cloud rotation at the camera-drift control's full value.

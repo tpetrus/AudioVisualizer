@@ -12,9 +12,10 @@ import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import { getActivePlayback, type FilePlayback } from '~/features/audio/devFileSource';
 import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
+import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
-import type { DirectorCue, PalettePair } from './bassInkTypes';
-import { writePalette } from './chromaPalette';
+import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
+import { fitScale, formationOuterRadius } from './framing';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
 
@@ -100,8 +101,12 @@ interface FakeCloud {
     update: ReturnType<typeof vi.fn>;
     setTexture: ReturnType<typeof vi.fn>;
     setPunch: ReturnType<typeof vi.fn>;
+    setSwell: ReturnType<typeof vi.fn>;
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
+    setRadius: ReturnType<typeof vi.fn>;
+    activeIndex: number;
+    blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
 }
@@ -120,8 +125,12 @@ vi.mock('./inkCloud', async () => {
             update = vi.fn();
             setTexture = vi.fn();
             setPunch = vi.fn();
+            setSwell = vi.fn();
             setSpectrum = vi.fn();
             setViewport = vi.fn();
+            setRadius = vi.fn();
+            activeIndex = 0;
+            blendProgress = 0;
             showFormation = vi.fn();
             dispose = vi.fn();
             constructor(
@@ -139,7 +148,7 @@ const currentCloud = () => allClouds().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(20);
+    const out = new Float32Array(24);
     probeRead()(out);
     return out;
 }
@@ -270,6 +279,107 @@ describe('useBassInkScene', () => {
         });
     });
 
+    describe('fitting the cloud to the view', () => {
+        const radiusOf = (cloud: FakeCloud) => cloud.setRadius.mock.calls.at(-1)![0] as number;
+
+        it('sets a fitted radius on mount that keeps the pulsing cloud inside the view', () => {
+            mountScene();
+            const first = currentCloud().setRadius.mock.calls[0][0] as number;
+            // The fit leaves room for every pulse, so the resting cloud is smaller than the unfitted radius ...
+            expect(first).toBeGreaterThan(1);
+            expect(first).toBeLessThan(bassInkSceneConfig.cloud.radius);
+            // ... and it is the solved fit of one of the formations for the 800 x 600 view the scene is mounted in.
+            const { fov, distance } = bassInkSceneConfig.camera;
+            const fits = Array.from({ length: FORMATION_COUNT }, (_, index) => {
+                const outer = formationOuterRadius(index, bassInkConfig.director.formationSeed);
+                return (
+                    bassInkSceneConfig.cloud.radius *
+                    fitScale(outer, distance, fov, 800 / 600, bassInkSceneConfig.cloud.fill)
+                );
+            });
+            expect(fits.some((fit) => Math.abs(fit - first) < 1e-9)).toBe(true);
+        });
+
+        it('refits the radius on resize and leaves the camera where it was', () => {
+            const { resizes, frame, camera } = mountScene();
+            frame();
+            const before = radiusOf(currentCloud());
+            const position = camera.position.clone();
+
+            // A portrait view: the width is now the smaller dimension, so the cloud must shrink to fit it.
+            resizes.resize(500, 1000);
+            const after = radiusOf(currentCloud());
+
+            expect(after).toBeLessThan(before);
+            expect(camera.position.equals(position)).toBe(true);
+            expect(camera.position.z).toBe(bassInkSceneConfig.camera.distance);
+        });
+
+        it('keeps the previous fit when a resize gives no width or no height', () => {
+            const { resizes, frame } = mountScene();
+            frame();
+            const before = radiusOf(currentCloud());
+            resizes.resize(0, 600);
+            resizes.resize(800, 0);
+            resizes.resize(0, 0);
+            const after = radiusOf(currentCloud());
+            expect(Number.isFinite(after)).toBe(true);
+            expect(after).toBeGreaterThan(0);
+            expect(after).toBe(before);
+        });
+
+        it('treats a view with no height as square instead of dividing by zero', () => {
+            const { resizes } = mountScene();
+            resizes.resize(800, 0);
+            expect(Number.isFinite(radiusOf(currentCloud()))).toBe(true);
+        });
+
+        it('blends the fits of the two formations during a fade and aims at the prepared one after a bake', () => {
+            const { frame } = mountScene();
+            const cloud = currentCloud();
+            cloud.activeIndex = 0;
+            cloud.preparedIndex = 1;
+            cloud.transitioning = true;
+            cloud.blendProgress = 0;
+            for (let i = 0; i < 200; i++) frame();
+            const atStart = radiusOf(cloud);
+            cloud.blendProgress = 1;
+            for (let i = 0; i < 200; i++) frame();
+            const atEnd = radiusOf(cloud);
+            expect(atEnd).not.toBe(atStart);
+
+            // Halfway through the fade the smoothstep is exactly 0.5, so the fit is the mean of the two fits.
+            cloud.blendProgress = 0.5;
+            for (let i = 0; i < 200; i++) frame();
+            expect(radiusOf(cloud)).toBeCloseTo((atStart + atEnd) / 2, 4);
+            cloud.blendProgress = 1;
+            for (let i = 0; i < 200; i++) frame();
+
+            cloud.activeIndex = -1;
+            cloud.transitioning = false;
+            // The scene prepares the director's next formation (1) again, and the fit aims at it.
+            for (let i = 0; i < 120; i++) frame();
+            expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
+
+            // Nothing prepared either: it holds the last fit.
+            cloud.prepareFormation.mockImplementation(() => {});
+            cloud.preparedIndex = -1;
+            frame();
+            expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
+        });
+
+        it('refits a cloud rebuilt for a density change', () => {
+            const { frame, valuesRef } = mountScene();
+            frame();
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            frame();
+            for (let i = 0; i < 5; i++) frame(100);
+
+            expect(allClouds()).toHaveLength(2);
+            expect(currentCloud().setRadius).toHaveBeenCalled();
+        });
+    });
+
     describe('frames', () => {
         it('updates the same cloud every frame, on a scene clock built from clamped deltas', () => {
             const { frame } = mountScene();
@@ -386,6 +496,49 @@ describe('useBassInkScene', () => {
             }
             expect(Math.max(...punches)).toBeGreaterThan(0.5);
             expect(Math.min(...punches.slice(120))).toBeLessThan(0.05);
+        });
+
+        it('swells the cloud on a hub bass pulse with the tempo unlocked, and reports swell and glow', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            // A steady bassline first, so the unseeded envelope has settled and the pulse stands out.
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
+
+            hub.setGateBass(0.16);
+            const swells: number[] = [];
+            for (let i = 0; i < 3; i++) {
+                frame(16);
+                swells.push(currentCloud().setSwell.mock.calls.at(-1)![0] as number);
+            }
+            expect(Math.max(...swells)).toBeGreaterThan(0.3);
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            const probe = readProbe();
+            expect(probe[20]).toBeCloseTo(swells[2], 6);
+            expect(probe[21]).toBeCloseTo(swells[2], 6);
+        });
+
+        it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.16);
+            for (let i = 0; i < 4; i++) frame(16);
+            expect(lastUpdate().brightness).toBeGreaterThan(0);
+        });
+
+        it('shows no bass glow at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, valuesRef } = mountScene({ analyser: node });
+            valuesRef.current = { ...valuesRef.current, intensity: 0 };
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.16);
+            for (let i = 0; i < 4; i++) frame(16);
+            expect(lastUpdate().brightness).toBe(0);
         });
 
         it('gives the gate the tempo lock of the breathing clock', () => {
@@ -661,44 +814,101 @@ describe('useBassInkScene', () => {
             expect(prepared).toBeLessThan(cloud.beginTransition.mock.invocationCallOrder[0]);
         });
 
-        it('fades the palette from the previous pair to the latest one across the transition', () => {
-            const { frame } = mountScene();
+        it('fades from the colors shown when the transition began to the picked ones', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
             frame();
-            const start = Array.from(lastUpdate().core);
-            const target: PalettePair = { core: new Float32Array(3), edge: new Float32Array(3) };
-            writePalette(5, target);
-            expect(Array.from(target.core)).not.toEqual(start);
+            expect(lastUpdate().core[1]).toBeCloseTo(0, 5);
 
-            script.cue.paletteIndex = 5;
             script.cue.transitionCount = 1;
             script.cue.transitionStart = 0.016;
             script.cue.transitionSeconds = 1;
+            valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
             // Frames are clamped to 0.1 s, so the one second transition takes about ten of them.
             for (let i = 0; i < 5; i++) frame(100);
-            const halfway = lastUpdate().core;
+            const halfway = lastUpdate().core[1];
             for (let i = 0; i < 8; i++) frame(100);
-            const done = lastUpdate().core;
+            const done = lastUpdate().core[1];
 
-            for (let i = 0; i < 3; i++) {
-                expect(halfway[i]).toBeGreaterThanOrEqual(Math.min(start[i], target.core[i]) - 1e-6);
-                expect(halfway[i]).toBeLessThanOrEqual(Math.max(start[i], target.core[i]) + 1e-6);
-                expect(done[i]).toBeCloseTo(target.core[i], 5);
-            }
-            expect(halfway).not.toEqual(done);
+            expect(halfway).toBeGreaterThan(0.05);
+            expect(halfway).toBeLessThan(0.95);
+            expect(done).toBeCloseTo(1, 5);
         });
 
-        it('keeps the palette when a transition has zero length', () => {
-            const { frame } = mountScene();
+        it('shows the picked colors at once when a transition has zero length', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
             frame();
-            script.cue.paletteIndex = 7;
             script.cue.transitionCount = 1;
             script.cue.transitionSeconds = 0;
+            valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
 
             frame();
 
-            const target: PalettePair = { core: new Float32Array(3), edge: new Float32Array(3) };
-            writePalette(7, target);
-            expect(lastUpdate().core[0]).toBeCloseTo(target.core[0], 6);
+            expect(lastUpdate().core[1]).toBeCloseTo(1, 5);
+        });
+    });
+
+    describe('picked colors', () => {
+        it('shows a changed color picker on the next frame, with no transition', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
+            frame();
+            expect(lastUpdate().core[0]).toBeCloseTo(1, 5);
+            expect(lastUpdate().core[1]).toBeCloseTo(0, 5);
+
+            valuesRef.current = { ...valuesRef.current, colorA: '#0000ff' };
+            frame();
+
+            expect(lastUpdate().core[0]).toBeCloseTo(0, 5);
+            expect(lastUpdate().core[2]).toBeCloseTo(1, 5);
+        });
+
+        it('ignores the director palette index', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0 };
+            frame();
+            const before = lastUpdate().core;
+            script.cue.paletteIndex = 7;
+            frame();
+            expect(lastUpdate().core).toEqual(before);
+        });
+
+        it('keeps the palette fixed across frames at color speed 0', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0 };
+            frame();
+            const first = lastUpdate().core;
+            for (let i = 0; i < 30; i++) frame();
+            expect(lastUpdate().core).toEqual(first);
+        });
+
+        it('changes the color by a bounded step per frame when the color speed changes mid-run', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 0.2 };
+            for (let i = 0; i < 20; i++) frame();
+            let previous = Array.from(lastUpdate().core);
+            // A channel moves at most 3 per unit of phase (three gradient segments), and the phase moves
+            // speed * MAX_HUE_CYCLES_PER_SECOND * dt per frame, so a speed change cannot jump the hue.
+            const bound = 3 * MAX_HUE_CYCLES_PER_SECOND * 1 * 0.016 + 1e-6;
+            for (const speed of [1, 0.1, 1, 0]) {
+                valuesRef.current = { ...valuesRef.current, colorSpeed: speed };
+                for (let i = 0; i < 40; i++) {
+                    frame(16);
+                    const now = Array.from(lastUpdate().core);
+                    for (let c = 0; c < 3; c++) expect(Math.abs(now[c] - previous[c])).toBeLessThanOrEqual(bound);
+                    previous = now;
+                }
+            }
+        });
+
+        it('cycles the palette at color speed above 0', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 1 };
+            frame();
+            const first = lastUpdate().core;
+            for (let i = 0; i < 30; i++) frame();
+            expect(lastUpdate().core).not.toEqual(first);
         });
     });
 
@@ -843,6 +1053,10 @@ describe('useBassInkScene', () => {
                     'gateIn',
                     'gateRaw',
                     'sceneBuiltAt',
+                    'swell',
+                    'glow',
+                    'fit',
+                    'huePhase',
                 ],
                 expect.any(Function),
             );
@@ -874,6 +1088,19 @@ describe('useBassInkScene', () => {
             expect(row[15]).toBeGreaterThan(0);
             expect(row[16]).toBe(0);
             expect(row[17]).toBe(0);
+        });
+
+        it('appends the fit multiplier and hue phase after glow', () => {
+            const { frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, colorSpeed: 1 };
+            for (let i = 0; i < 10; i++) frame();
+            const row = readProbe();
+            expect(row[22]).toBeCloseTo(
+                (currentCloud().setRadius.mock.calls.at(-1)![0] as number) / bassInkSceneConfig.cloud.radius,
+                6,
+            );
+            expect(row[23]).toBeGreaterThan(0);
+            expect(row[23]).toBeLessThan(1);
         });
     });
 

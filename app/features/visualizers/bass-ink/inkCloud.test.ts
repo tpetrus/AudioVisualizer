@@ -5,6 +5,7 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { KICK_SLOTS, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { writeFormation } from './formations';
 import { InkCloud } from './inkCloud';
+import { depthFade } from '../meshes/inkShaders';
 import { KickRing } from './kickRing';
 
 const POINTS = 50000;
@@ -307,6 +308,39 @@ describe('InkCloud', () => {
         });
     });
 
+    describe('setRadius', () => {
+        it('starts at the configured radius and sets the world radius uniform', () => {
+            const { cloud } = setup();
+            expect(uniformOf(cloud, 'uRadius')).toBe(bassInkSceneConfig.cloud.radius);
+
+            cloud.setRadius(5.25);
+
+            expect(uniformOf(cloud, 'uRadius')).toBe(5.25);
+        });
+
+        it('keeps the depth fade range symmetric around the cloud center, following the radius', () => {
+            const { cloud } = setup();
+            const { halfRange, fade } = bassInkSceneConfig.depth;
+            expect(uniformOf(cloud, 'uDepthFade')).toBe(fade);
+
+            for (const radius of [bassInkSceneConfig.cloud.radius, 2, 5.25]) {
+                cloud.setRadius(radius);
+                const near = uniformOf(cloud, 'uDepthNear') as number;
+                const far = uniformOf(cloud, 'uDepthFar') as number;
+                // Offsets from the center's view depth: independent of where the camera is.
+                expect(near).toBeLessThan(0);
+                expect(far).toBeGreaterThan(0);
+                expect(near).toBeCloseTo(-radius * halfRange, 12);
+                expect(far).toBeCloseTo(radius * halfRange, 12);
+                expect(near + far).toBeCloseTo(0, 12);
+                // The values the cloud really sets: the far side is at most half as bright as the near side.
+                const uFade = uniformOf(cloud, 'uDepthFade') as number;
+                expect(depthFade(far, near, far, uFade) / depthFade(near, near, far, uFade)).toBeLessThanOrEqual(0.5);
+            }
+            expect(uniformOf(cloud, 'uDepthFade')).toBe(fade);
+        });
+    });
+
     describe('update', () => {
         it('copies the kick ring into the shader uniforms in the same call', () => {
             const { cloud, kicks, frame } = setup();
@@ -366,6 +400,15 @@ describe('InkCloud', () => {
             cloud.setPunch(0.7);
             expect(uniformOf(cloud, 'uPunch')).toBe(0.7);
             expect(uniformOf(cloud, 'uPunchAmp')).toBe(bassInkSceneConfig.cloud.beatPunch);
+        });
+
+        it('takes the bass swell through setSwell, with a constant amplitude below the beat punch', () => {
+            const { cloud } = setup();
+            expect(uniformOf(cloud, 'uSwell')).toBe(0);
+            cloud.setSwell(0.8);
+            expect(uniformOf(cloud, 'uSwell')).toBe(0.8);
+            expect(uniformOf(cloud, 'uSwellAmp')).toBe(bassInkSceneConfig.cloud.swellAmplitude);
+            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeLessThan(bassInkSceneConfig.cloud.beatPunch);
         });
 
         it('takes the band onsets and the turbulence control through setTexture', () => {

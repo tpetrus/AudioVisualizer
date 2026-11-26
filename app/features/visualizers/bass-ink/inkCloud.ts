@@ -4,6 +4,16 @@ import { KICK_SLOTS, type DirectorCue, type KickRingView, type PalettePair } fro
 import { hash01, writeFormation } from './formations';
 import { inkFragmentShader, inkVertexShader } from '../meshes/inkShaders';
 
+// Depths where the fade starts and ends, relative to the cloud center's view depth (the shader subtracts the center's),
+// and following the fitted radius. Relative, so zooming the camera in or out never changes a point's fade.
+function depthNear(radius: number): number {
+    return -radius * bassInkSceneConfig.depth.halfRange;
+}
+
+function depthFar(radius: number): number {
+    return radius * bassInkSceneConfig.depth.halfRange;
+}
+
 // Contract C4: the point cloud of the Bass Ink visualizer.
 //
 // The two unit formations live in two ping-pong attributes (`position` is side A, `restB` is side B). One side is
@@ -65,6 +75,7 @@ export class InkCloud {
             uTension: { value: 0 },
             uBreath: { value: 0 },
             uPunch: { value: 0 },
+            uSwell: { value: 0 },
             uMid: { value: 0 },
             uHigh: { value: 0 },
             uTurbulence: { value: 1 },
@@ -79,6 +90,7 @@ export class InkCloud {
             uSqueeze: { value: config.cloud.tensionSqueeze },
             uBreathAmp: { value: config.cloud.breathingAmplitude },
             uPunchAmp: { value: config.cloud.beatPunch },
+            uSwellAmp: { value: config.cloud.swellAmplitude },
             uWaveSpeed: { value: config.wave.speed },
             uWaveWidth: { value: config.wave.width },
             uWaveDecay: { value: config.wave.decay },
@@ -93,6 +105,9 @@ export class InkCloud {
             uSparkleAmp: { value: config.sparkle.amplitude },
             uBaseSize: { value: config.sprite.baseSize },
             uTensionSize: { value: config.sprite.tensionSizeShrink },
+            uDepthNear: { value: depthNear(config.cloud.radius) },
+            uDepthFar: { value: depthFar(config.cloud.radius) },
+            uDepthFade: { value: config.depth.fade },
             uCore: { value: this.core },
             uEdge: { value: this.edge },
             uBrightness: { value: 0 },
@@ -219,9 +234,22 @@ export class InkCloud {
         this.uniforms.uSpectrumSpan.value = span;
     }
 
+    // World radius of the unit formations. The scene refits it to the viewport (framing.ts) on mount, resize and rebuild.
+    setRadius(worldRadius: number): void {
+        this.uniforms.uRadius.value = worldRadius;
+        // The depth fade follows the fit, so it spans the cloud at any window shape.
+        this.uniforms.uDepthNear.value = depthNear(worldRadius);
+        this.uniforms.uDepthFar.value = depthFar(worldRadius);
+    }
+
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
     setPunch(value: number): void {
         this.uniforms.uPunch.value = value;
+    }
+
+    // 0..1 bass swell for this frame (from the hub's bass bump; needs no tempo lock). Displacement only.
+    setSwell(value: number): void {
+        this.uniforms.uSwell.value = value;
     }
 
     // Band onsets (0..1) for the turbulence and the sparkle, and the turbulence control's multiplier.
