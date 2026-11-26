@@ -505,7 +505,8 @@ describe('useBassInkScene', () => {
             hub.setGateBass(0.1);
             for (let i = 0; i < 600; i++) frame(16);
             expect(gateScript.calls.at(-1)!.locked).toBe(false);
-            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
+            // The bump has decayed to (almost) nothing on a steady bass, so the cloud is at rest.
+            expect(currentCloud().setSwell.mock.calls.at(-1)![0]).toBeLessThan(1e-6);
 
             hub.setGateBass(0.16);
             const swells: number[] = [];
@@ -520,12 +521,13 @@ describe('useBassInkScene', () => {
             expect(probe[21]).toBeCloseTo(swells[2], 6);
         });
 
-        it('lets the swell fall back to 0 while the bump stays high, and reports it in telemetry', () => {
+        it('follows the shared bump as it is, with no shaper of its own, and reports it in telemetry', () => {
             const { node } = createAnalyser();
             const { frame, hub } = mountScene({ analyser: node });
             hub.setGateBass(0.1);
             for (let i = 0; i < 600; i++) frame(16);
-            // A louder bassline that then stays loud: the first frames swell, and the shaper's running level absorbs it.
+            // The swell is the bump itself (like the cubes), with no running level of its own: instant feedback matters
+            // more than accuracy, so only the shared envelope shapes it and it follows the bump down as well as up.
             hub.setGateBass(0.3);
             let peak = 0;
             for (let i = 0; i < 20; i++) {
@@ -534,8 +536,10 @@ describe('useBassInkScene', () => {
             }
             expect(peak).toBeGreaterThan(0.3);
             for (let i = 0; i < 300; i++) frame(16);
-            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
-            expect(readProbe()[20]).toBe(0);
+            const held = currentCloud().setSwell.mock.calls.at(-1)![0] as number;
+            expect(held).toBeLessThan(peak);
+            expect(readProbe()[20]).toBeCloseTo(held, 6);
+            expect(readProbe()[21]).toBeCloseTo(held, 6);
         });
 
         it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {
