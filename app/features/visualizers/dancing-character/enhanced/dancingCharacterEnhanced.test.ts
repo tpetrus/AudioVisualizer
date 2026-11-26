@@ -537,3 +537,20 @@ describe('small canvases', () => {
         look.dispose();
     });
 });
+
+describe('resize', () => {
+    it('resizes the glass target with the drawing buffer', () => {
+        const { renderer, scene, look } = setup();
+        look.resize(); // before apply there is no glass yet
+        look.apply();
+        (renderer as unknown as { getDrawingBufferSize: (v: THREE.Vector2) => THREE.Vector2 }).getDrawingBufferSize = (
+            v,
+        ) => v.set(2000, 1200);
+        look.resize();
+        const target = (scene.children.find((child) => child instanceof Reflector) as Reflector).getRenderTarget();
+        expect(target.width).toBe(Math.round(2000 * ENHANCED_GLASS_RESOLUTION_FACTOR));
+        expect(target.height).toBe(Math.round(1200 * ENHANCED_GLASS_RESOLUTION_FACTOR));
+        look.dispose();
+        look.resize(); // after dispose it is a no-op
+    });
+});

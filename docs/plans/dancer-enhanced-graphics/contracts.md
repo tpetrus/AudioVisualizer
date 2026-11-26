@@ -66,6 +66,7 @@ export interface EnhancedLookContext {
 export interface EnhancedLook {
     apply(): void;
     onModelChanged(model: THREE.Object3D): void;
+    resize(): void;
     dispose(): void;
 }
 export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook;
@@ -83,6 +84,11 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook;
   shadow camera to the model's world bounding box (a preallocated `Box3`, a margin from config).
 - Refinement of plan C2: the plan's `framing` field is dropped because no framing type exists in the repo
   (`computeFraming` returns a distance); the model's bounds are what the shadow camera needs.
+- `resize()` (added by the orchestrator after task C): resizes the glass layer's render target to the factor of the
+  renderer's current drawing buffer; the hook calls it from the scene's `resize`. A no-op before `apply()` and after
+  `dispose()`.
+- Club and scene accessors (from task C): `club.materials` ({ tile, seam, cones, frame }), `club.floorSurfaceY`,
+  `DancingCharacterScene.keyLight`, `DancingCharacterScene.clubSet`; `DancingCharacterClub` is a type alias of `ClubSet`.
 - `dispose()`: frees every env map, render target, texture, geometry and material it created, including anything that
   resolves after `signal` aborted. It does not restore renderer state (the toggle rebuilds the renderer, D9). The
   club, character and dances are never removed or restructured.

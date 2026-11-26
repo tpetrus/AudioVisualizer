@@ -63,6 +63,8 @@ export interface EnhancedLookContext {
 export interface EnhancedLook {
     apply(): void;
     onModelChanged(model: THREE.Object3D): void;
+    // Called from the scene's resize: the glass layer's render target follows the drawing buffer.
+    resize(): void;
     dispose(): void;
 }
 
@@ -176,6 +178,9 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
 
     // ---- Floor layers ----
 
+    const glassSide = (pixels: number): number =>
+        Math.max(ENHANCED_GLASS_MIN_RESOLUTION, Math.round(pixels * ENHANCED_GLASS_RESOLUTION_FACTOR));
+
     function placeFloorLayers(): void {
         const y = club.floorSurfaceY;
         if (catcher) catcher.position.y = y + ENHANCED_CATCHER_LIFT;
@@ -204,12 +209,10 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
 
         // The reflection renders at a share of the drawing buffer; it is faint and soft, so the saving costs nothing.
         renderer.getDrawingBufferSize(bufferSize);
-        const side = (pixels: number): number =>
-            Math.max(ENHANCED_GLASS_MIN_RESOLUTION, Math.round(pixels * ENHANCED_GLASS_RESOLUTION_FACTOR));
         reflector = new Reflector(geometry, {
             color: new THREE.Color(ENHANCED_GLASS_COLOR),
-            textureWidth: side(bufferSize.x),
-            textureHeight: side(bufferSize.y),
+            textureWidth: glassSide(bufferSize.x),
+            textureHeight: glassSide(bufferSize.y),
             clipBias: ENHANCED_GLASS_CLIP_BIAS,
             multisample: ENHANCED_GLASS_SAMPLES,
             shader: GLASS_SHADER,
@@ -469,6 +472,13 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
             fitShadowCamera(model);
             // The floor moved with the new dancer's feet.
             placeFloorLayers();
+        },
+
+        resize(): void {
+            if (disposed || !reflector) return;
+            // A fixed target would stay at the size the page started with, so going fullscreen would blur the glass.
+            renderer.getDrawingBufferSize(bufferSize);
+            reflector.getRenderTarget().setSize(glassSide(bufferSize.x), glassSide(bufferSize.y));
         },
 
         dispose(): void {
