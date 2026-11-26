@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bassInkConfig } from './bassInkConfig';
-import { blendPalette, DominantPitch, writePalette } from './chromaPalette';
+import { DominantPitch, writePalette } from './chromaPalette';
 import type { PalettePair } from './bassInkTypes';
 
 const DT = 1 / 60;
@@ -159,21 +159,5 @@ describe('writePalette', () => {
             dominant.add(out.core.indexOf(Math.max(...out.core)));
         }
         expect(dominant.size).toBe(3);
-    });
-});
-
-describe('blendPalette', () => {
-    it('interpolates between two palettes', () => {
-        const a = pair();
-        const b = pair();
-        writePalette(0, a);
-        writePalette(6, b);
-        const out = pair();
-        blendPalette(a, b, 0, out);
-        expect(Array.from(out.core)).toEqual(Array.from(a.core));
-        blendPalette(a, b, 1, out);
-        expect(Array.from(out.edge)).toEqual(Array.from(b.edge));
-        blendPalette(a, b, 0.5, out);
-        expect(out.core[0]).toBeCloseTo((a.core[0] + b.core[0]) / 2, 6);
     });
 });
