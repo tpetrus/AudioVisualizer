@@ -47,10 +47,10 @@ function whenIdle(): Promise<void> {
 export async function probeCapability(): Promise<CapabilityProbe | undefined> {
     try {
         await whenIdle();
-        // Never attached to the DOM.
-        const canvas =
-            typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
-        const gl = canvas.getContext('webgl2');
+        // Never attached to the DOM. Some browsers have an OffscreenCanvas but no WebGL 2 on it, so a detached
+        // ordinary canvas gets a second chance before the probe gives up.
+        let gl = typeof OffscreenCanvas === 'function' ? new OffscreenCanvas(1, 1).getContext('webgl2') : null;
+        gl ??= document.createElement('canvas').getContext('webgl2');
         if (!gl) {
             return undefined;
         }

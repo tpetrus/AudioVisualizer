@@ -9,10 +9,14 @@ function probeOnce(): Promise<boolean> {
     return cached;
 }
 
-// False until the probe resolves true, so a failed or slow probe shows no hint.
-export function useCapabilityHint(): boolean {
+// False until the probe resolves true, so a failed or slow probe shows no hint. While `enabled` is false (the
+// preference is already on, so no hint can show) no probe is taken and no WebGL context is created.
+export function useCapabilityHint(enabled: boolean): boolean {
     const [capable, setCapable] = useState(false);
     useEffect(() => {
+        if (!enabled) {
+            return;
+        }
         let active = true;
         void probeOnce().then((result) => {
             if (active) {
@@ -22,11 +26,6 @@ export function useCapabilityHint(): boolean {
         return () => {
             active = false;
         };
-    }, []);
-    return capable;
-}
-
-// Lets specs start from an unprobed page.
-export function resetCapabilityHintForTests(): void {
-    cached = undefined;
+    }, [enabled]);
+    return enabled && capable;
 }
