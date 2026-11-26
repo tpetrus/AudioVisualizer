@@ -27,10 +27,10 @@ export const bassInkSceneConfig = {
         // cloud keeps the tempo even before the bass gate has found the kick. A 9 percent swell moves points apart
         // without adding light (the point count and sizes stay the same).
         beatPunch: 0.09,
-        // Every bass pulse swells the whole cloud outward by up to this fraction, with no tempo lock needed. It stays
-        // below beatPunch so the swell never outshouts the beat, and like the punch it moves points apart without
-        // adding light.
-        swellAmplitude: 0.07,
+        // Every bass bump swells the whole cloud outward by up to this fraction, at once and with no tempo lock needed.
+        // It is the pre-lock reaction (the lock takes seconds), so it is deliberately larger than beatPunch: the user
+        // asked for instant, clearly visible feedback. Like the punch it moves points apart without adding light.
+        swellAmplitude: 0.12,
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
@@ -41,18 +41,7 @@ export const bassInkSceneConfig = {
         fill: 0.95,
     },
     bass: {
-        // The swell is the bump above its own running level (see BassSwellShaper), so a bump that merely stays high
-        // rests at 0 and only a fresh rise swells the cloud. The running level climbs with this time constant
-        // (seconds): slow enough that a kick's own rise stays visible for a few frames.
-        swellRiseSeconds: 0.25,
-        // The running level drops with this one: fast, so the reference is back down by the next hit.
-        swellFallSeconds: 0.05,
-        // The rise above the running level that still counts as rest, so wobble in the bass line does not swell the
-        // cloud.
-        swellOffset: 0.15,
-        // Scales the rise above the offset so a kick-sized pulse reaches a clearly visible swell within a couple of
-        // frames; the result is clamped to 1.
-        swellGain: 1.8,
+        // The swell and the glow are the bump itself (see swellFromBump), so there is nothing to tune for the swell.
         // The glow arms at this swell and re-arms only below the lower one, so a pulse that wobbles around one level
         // is one flash, not several.
         glowArm: 0.6,
