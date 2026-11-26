@@ -1213,12 +1213,18 @@ describe('useBassInkScene', () => {
             const fitOf = () =>
                 (currentCloud().setRadius.mock.calls.at(-1)![0] as number) / bassInkSceneConfig.cloud.radius;
 
-            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(fitOf() * radiusScale, 9);
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                bassInkSceneConfig.cloud.radius * fitOf() * radiusScale,
+                9,
+            );
 
             resizes.resize(1000, 400);
             frame();
 
-            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(fitOf() * radiusScale, 9);
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                bassInkSceneConfig.cloud.radius * fitOf() * radiusScale,
+                9,
+            );
             expect(currentCore().setViewport.mock.calls.at(-1)![0]).toBeGreaterThanOrEqual(400);
         });
 

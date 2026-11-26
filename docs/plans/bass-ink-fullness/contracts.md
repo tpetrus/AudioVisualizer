@@ -120,7 +120,7 @@ export class SprayPool {
   `softwarePerBurst`. A density rebuild rebuilds all four.
 - The core is an `InkCloud` with the core options, showing `core.formation` and never transitioning. It gets the same
   per-frame calls as the shell (cue, breathing, kick ring, palette, brightness, punch, swell, texture, spectrum) and
-  `setRadius(fit * core.radiusScale)` wherever the shell's radius is set.
+  `setRadius(shellRadius * core.radiusScale)` (the shell's world radius, `cloud.radius * fit`) wherever the shell's radius is set.
 - The scene steps `SprayTrigger` with the frame's swell and, on a burst, calls
   `spray.emit(shell, shellRadius, perBurst, now, swell)`. The dust gets `update(now, highLevel, paletteShown)`, the
   spray `update(now, paletteShown, values.intensity)`. Every object goes into the scene and is disposed in the

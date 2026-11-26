@@ -209,7 +209,9 @@ export function useBassInkScene(
             fit = dt > 0 ? fit + (target - fit) * (1 - Math.exp(-dt / FIT_FOLLOW_SECONDS)) : target;
             shellRadius = bassInkSceneConfig.cloud.radius * fit;
             cloud.setRadius(shellRadius);
-            core.setRadius(fit * coreConfig.radiusScale);
+            // The core is a share of the shell's world radius (framing.ts checks its envelope at that size), not of the fit
+            // multiplier.
+            core.setRadius(shellRadius * coreConfig.radiusScale);
         };
         computeFits(size.width, size.height);
         applyFit(0);

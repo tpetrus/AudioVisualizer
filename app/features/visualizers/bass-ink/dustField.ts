@@ -18,8 +18,14 @@ export class DustField {
     private readonly uniforms: Record<string, THREE.IUniform>;
     private readonly color = new Float32Array(3);
 
-    // The twinkle phase in cycles, integrated here so a change of speed never jumps it.
+    // The twinkle phase in cycles, integrated here so a change of speed never jumps it. Kept unwrapped (a double) for
+    // tests; the shader gets it wrapped to [0, 1).
     private phase = 0;
+
+    // The unwrapped twinkle phase in cycles, for tests and telemetry.
+    get phaseCycles(): number {
+        return this.phase;
+    }
     private lastSeconds = Number.NaN;
 
     constructor(pointCount: number, seed: number, maxPointSize: number) {
@@ -77,9 +83,12 @@ export class DustField {
         // The first call and a clock that steps back advance nothing, so the phase never runs backward.
         const dt = Number.isFinite(this.lastSeconds) ? Math.max(0, nowSeconds - this.lastSeconds) : 0;
         this.lastSeconds = nowSeconds;
-        const level = Math.min(1, Math.max(0, high));
-        this.phase += dt * config.twinkleSpeed * (1 + config.highGain * level);
-        this.uniforms.uPhase.value = this.phase;
+        // A NaN high band (or clock) reads as calm; otherwise it would poison the phase and hide the dust for good.
+        const level = Number.isFinite(high) ? Math.min(1, Math.max(0, high)) : 0;
+        this.phase += Number.isFinite(dt) ? dt * config.twinkleSpeed * (1 + config.highGain * level) : 0;
+        // The phase only enters sin(2 pi (phase + rand)), so dropping whole cycles is seamless, and it keeps the
+        // single-precision GPU sine accurate however long the page runs.
+        this.uniforms.uPhase.value = this.phase % 1;
 
         this.object.rotation.y = nowSeconds * config.driftSpeed;
 

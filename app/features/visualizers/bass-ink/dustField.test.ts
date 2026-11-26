@@ -47,15 +47,15 @@ describe('DustField', () => {
         loud.update(0, 1, palette);
         calm.update(1, 0, palette);
         loud.update(1, 1, palette);
-        const calmPhase = uniformsOf(calm).uPhase.value as number;
-        const loudPhase = uniformsOf(loud).uPhase.value as number;
+        const calmPhase = calm.phaseCycles;
+        const loudPhase = loud.phaseCycles;
         expect(calmPhase).toBeCloseTo(config.twinkleSpeed, 9);
         expect(loudPhase).toBeCloseTo(config.twinkleSpeed * (1 + config.highGain), 9);
         // Values past 1 count as 1.
         const over = new DustField(10, 1, 64);
         over.update(0, 5, palette);
         over.update(1, 5, palette);
-        expect(uniformsOf(over).uPhase.value).toBeCloseTo(loudPhase, 9);
+        expect(over.phaseCycles).toBeCloseTo(loudPhase, 9);
 
         let last = calmPhase;
         for (const [t, high] of [
@@ -65,10 +65,30 @@ describe('DustField', () => {
             [3.5, 0.3],
         ]) {
             calm.update(t, high, palette);
-            const phase = uniformsOf(calm).uPhase.value as number;
+            const phase = calm.phaseCycles;
             expect(phase).toBeGreaterThanOrEqual(last);
             last = phase;
         }
+    });
+
+    it('hands the shader the phase wrapped to whole cycles', () => {
+        const field = new DustField(10, 1, 64);
+        field.update(0, 1, palette);
+        field.update(1, 1, palette);
+        expect(field.phaseCycles).toBeGreaterThan(1);
+        expect(uniformsOf(field).uPhase.value).toBeCloseTo(field.phaseCycles % 1, 9);
+        expect(uniformsOf(field).uPhase.value).toBeLessThan(1);
+    });
+
+    it('reads a NaN high band or clock as no advance in speed and keeps the phase finite', () => {
+        const field = new DustField(10, 1, 64);
+        field.update(0, 0, palette);
+        field.update(1, Number.NaN, palette);
+        expect(field.phaseCycles).toBeCloseTo(config.twinkleSpeed, 9);
+        field.update(Number.NaN, 0, palette);
+        field.update(2, 0, palette);
+        expect(Number.isFinite(field.phaseCycles)).toBe(true);
+        expect(Number.isFinite(uniformsOf(field).uPhase.value as number)).toBe(true);
     });
 
     it('turns slowly and follows the palette edge mixed toward white', () => {
