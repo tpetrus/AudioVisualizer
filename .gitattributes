@@ -3,3 +3,5 @@
 # The tapped sidecars are checked byte for byte (the scorecard baseline stores each .beats.json's SHA-256), so git never
 # converts them.
 .debug-in/** -text
+# Radiance HDR files start with a text header, so text=auto could treat one as text and convert its line endings.
+*.hdr binary
