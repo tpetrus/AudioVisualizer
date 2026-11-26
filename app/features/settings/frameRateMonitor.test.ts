@@ -57,18 +57,34 @@ describe('FrameRateMonitor', () => {
         expect(feed(monitor, 40, 50)).toBe(1);
     });
 
-    it('ignores hidden frames, stalls and non-positive gaps; none of them count toward the warm-up', () => {
+    it('ignores hidden frames and non-positive gaps; none of them count toward the warm-up', () => {
         const monitor = new FrameRateMonitor(options);
         feed(monitor, 100, 50, true);
-        feed(monitor, 100, 300); // above maxDtMs
+        feed(monitor, 1, 50); // the first visible frame after hidden ones carries the hidden gap
         feed(monitor, 5, 0);
         feed(monitor, 5, -3);
         feed(monitor, 5, NaN);
         // The warm-up has not advanced, so 500 ms of slow frames is still warm-up and silent.
         expect(feed(monitor, 10, 50)).toBe(0);
-        // Then the window: stalls in the middle do not disturb it.
-        expect(feed(monitor, 10, 300)).toBe(0);
         expect(feed(monitor, 20, 50)).toBe(1);
+    });
+
+    it('ignores one long frame right after hidden frames', () => {
+        const monitor = new FrameRateMonitor(options);
+        feed(monitor, 3, 16, true);
+        expect(feed(monitor, 1, 5000)).toBe(0);
+        // It did not count toward the warm-up: 500 ms of fast frames still leaves the warm-up unfinished.
+        feed(monitor, 20, 25);
+        expect(feed(monitor, 40, 50)).toBe(1);
+    });
+
+    it('counts a long visible frame as maxDtMs, so a steady 3 fps device reports once after the warm-up', () => {
+        const monitor = new FrameRateMonitor(options);
+        // 333 ms frames clamp to 250: two fill the warm-up, then four fill the 1000 ms window.
+        expect(feed(monitor, 2, 333)).toBe(0);
+        expect(feed(monitor, 3, 333)).toBe(0);
+        expect(feed(monitor, 1, 333)).toBe(1);
+        expect(feed(monitor, 20, 333)).toBe(0);
     });
 
     it('slides the window so an old slow stretch does not outlive a recovery', () => {
