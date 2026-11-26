@@ -210,8 +210,10 @@ export const bassInkSceneConfig = {
         // Points take a color from what moves them, so the reactions read apart by color as well as by motion. A point
         // pushed by a kick wave shifts toward the palette core by up to this share at the wave's cap ...
         bassTint: 0.6,
-        // ... and every point shifts by this share of the bass swell, so the instant bass reaction tints too.
-        swellTint: 0.25,
+        // ... and every point would shift by this share of the bass swell. It is 0: the swell follows every bass bump with
+        // no rate limit and tints the whole cloud at once, and the picked core can be a saturated red, so a whole-frame
+        // hue pulse could become a red flash (WCAG 2.3.1). The kick-wave tint above is a thin moving ring instead.
+        swellTint: 0,
         // The glinting points shift toward the palette edge, mixed toward white by highWhite, by this share of the
         // followed high band.
         highTint: 0.7,

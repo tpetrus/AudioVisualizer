@@ -44,3 +44,6 @@ export class ViewSwing {
 - Comments outside the GLSL strings, as in the existing pieces. The shell and the core share the shader, so both get
   the tints. The `InkCloudOptions` `displacementScale` already scales `uWaveMax`, so `push / uWaveMax` stays 0..1 for
   the core.
+- Amended at integration: `bands.swellTint` is 0. The swell follows every bass bump with no rate limit and would tint
+  the whole cloud at once; with a saturated red core picked, that could become a red flash (WCAG 2.3.1). The uniform
+  stays, so a later rate-limited swell tint needs no shader change.
