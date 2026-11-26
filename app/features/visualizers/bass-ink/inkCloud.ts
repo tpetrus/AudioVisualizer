@@ -14,6 +14,18 @@ function depthFar(radius: number): number {
     return radius * bassInkSceneConfig.depth.halfRange;
 }
 
+// Set-once scales for a cloud that is not the shell, such as the dense core inside it. Each maps onto uniforms written
+// at construction that no per-frame method touches (update, setRadius, setPunch, setSwell and setTexture write other
+// uniforms), so the scaled value stays for the cloud's life.
+export interface InkCloudOptions {
+    // Bass swell as a share of the radius (uSwellAmp); the default is the shell's.
+    swellAmplitude?: number;
+    // Multiplies the absolute displacements: uWaveAmp, uWaveMax, uSpectrumAmp, uNoiseBase and uNoiseMid. Default 1.
+    displacementScale?: number;
+    // Multiplies uAlpha. Default 1.
+    alphaScale?: number;
+}
+
 // Contract C4: the point cloud of the Bass Ink visualizer.
 //
 // The two unit formations live in two ping-pong attributes (`position` is side A, `restB` is side B). One side is
@@ -47,9 +59,12 @@ export class InkCloud {
     // Raw 0..1 progress of the cross-fade; the shader (and restPosition) smooth it.
     private blend = 0;
 
-    constructor(pointCount: number, seed: number, maxPointSize: number) {
+    constructor(pointCount: number, seed: number, maxPointSize: number, options: InkCloudOptions = {}) {
         this.pointCount = pointCount;
         const config = bassInkSceneConfig;
+        const swellAmplitude = options.swellAmplitude ?? config.cloud.swellAmplitude;
+        const displacementScale = options.displacementScale ?? 1;
+        const alphaScale = options.alphaScale ?? 1;
 
         const a = new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3);
         const b = new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3);
@@ -86,19 +101,19 @@ export class InkCloud {
             uSpectrum: { value: null },
             uSpectrumHead: { value: 0 },
             uSpectrumSpan: { value: 0 },
-            uSpectrumAmp: { value: config.spectrum.amplitude },
+            uSpectrumAmp: { value: config.spectrum.amplitude * displacementScale },
             uSqueeze: { value: config.cloud.tensionSqueeze },
             uBreathAmp: { value: config.cloud.breathingAmplitude },
             uPunchAmp: { value: config.cloud.beatPunch },
-            uSwellAmp: { value: config.cloud.swellAmplitude },
+            uSwellAmp: { value: swellAmplitude },
             uWaveSpeed: { value: config.wave.speed },
             uWaveWidth: { value: config.wave.width },
             uWaveDecay: { value: config.wave.decay },
-            uWaveAmp: { value: config.wave.amplitude },
-            uWaveMax: { value: config.wave.maxDisplacement },
+            uWaveAmp: { value: config.wave.amplitude * displacementScale },
+            uWaveMax: { value: config.wave.maxDisplacement * displacementScale },
             uNoiseScale: { value: config.turbulence.scale },
-            uNoiseBase: { value: config.turbulence.base },
-            uNoiseMid: { value: config.turbulence.midGain },
+            uNoiseBase: { value: config.turbulence.base * displacementScale },
+            uNoiseMid: { value: config.turbulence.midGain * displacementScale },
             uNoiseSpeed: { value: config.turbulence.speed },
             uJitter: { value: config.turbulence.tensionJitter },
             uSparkleFraction: { value: config.sparkle.fraction },
@@ -111,7 +126,7 @@ export class InkCloud {
             uCore: { value: this.core },
             uEdge: { value: this.edge },
             uBrightness: { value: 0 },
-            uAlpha: { value: config.sprite.baseAlpha },
+            uAlpha: { value: config.sprite.baseAlpha * alphaScale },
             uAlphaNormalization: { value: config.sprite.tensionAlphaNormalization },
         };
         this.kickTimes.fill(-1e6);

@@ -3,7 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { FORMATION_COUNT } from './bassInkTypes';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { writeFormation } from './formations';
-import { fitScale, formationOuterRadius, worstCaseExtent } from './framing';
+import { bassInkConfig } from './bassInkConfig';
+import {
+    coreWorstCaseExtent,
+    fitScale,
+    formationOuterRadius,
+    shellWorstCaseReach,
+    sprayMaxReach,
+    worstCaseExtent,
+} from './framing';
 
 const SEED = 7;
 const POINTS = 20000;
@@ -68,6 +76,35 @@ function measure(index: number, aspect: number): Measure {
     rest.sort((a, b) => a - b);
     return { worst, restP95: rest[Math.floor(0.95 * POINTS)] };
 }
+
+describe('core and spray fit inside the shell', () => {
+    for (const aspect of ASPECTS) {
+        for (let index = 0; index < FORMATION_COUNT; index++) {
+            it(`formation ${index} at aspect ${aspect.toFixed(2)}: the core's envelope and the spray's reach stay within the shell's worst-case extent`, () => {
+                const outer = formationOuterRadius(index, bassInkConfig.director.formationSeed);
+                const radius = cloud.radius * fitScale(outer, distance, fov, aspect, cloud.fill);
+                const shell = shellWorstCaseReach(radius, outer);
+                const core = coreWorstCaseExtent(radius);
+                const spray = sprayMaxReach(radius, index);
+                expect(core).toBeLessThanOrEqual(shell);
+                expect(spray).toBeLessThanOrEqual(shell);
+            });
+        }
+    }
+
+    it('coreWorstCaseExtent grows with the shell radius and is below a core with the shell displacements', () => {
+        const { core } = bassInkSceneConfig;
+        const outer = formationOuterRadius(core.formation, bassInkConfig.director.formationSeed);
+        expect(coreWorstCaseExtent(6)).toBeGreaterThan(coreWorstCaseExtent(3));
+        expect(coreWorstCaseExtent(4)).toBeLessThan(shellWorstCaseReach(4 * core.radiusScale, outer));
+    });
+
+    it('sprayMaxReach is the rest radius plus speed times drag', () => {
+        const { speed, dragSeconds } = bassInkSceneConfig.spray;
+        const outer = formationOuterRadius(1, bassInkConfig.director.formationSeed);
+        expect(sprayMaxReach(5, 1)).toBeCloseTo(outer * 5 + speed * dragSeconds, 12);
+    });
+});
 
 describe('framing', () => {
     describe('AC1: the whole cloud stays on screen at the peak of every pulse and the rest shape still fills it', () => {
