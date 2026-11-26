@@ -149,6 +149,11 @@ function isAbort(error: unknown): boolean {
     return error instanceof Error && error.name === 'AbortError';
 }
 
+// Frees the decoded pixels an image texture holds; the GPU copy is freed by texture.dispose().
+function closeBitmap(texture: THREE.Texture | null): void {
+    (texture?.image as ImageBitmap | undefined)?.close();
+}
+
 export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
     const { renderer, scene, club, keyLight, signal, onStatus } = ctx;
     const materials = club.materials;
@@ -287,7 +292,13 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
     // does nothing for an ImageBitmap), the way three's ImageBitmapLoader does it.
     async function loadImageTexture(url: string, colorSpace: THREE.ColorSpace): Promise<THREE.Texture> {
         const blob = await (await fetchResponse(url)).blob();
-        const bitmap = await createImageBitmap(blob, { imageOrientation: 'flipY' });
+        const bitmap = await createImageBitmap(blob, {
+            imageOrientation: 'flipY',
+            // Keep the decoder from touching the pixels beyond the flip: no alpha premultiplication, no color
+            // conversion (the texture's colorSpace says how the values are read).
+            premultiplyAlpha: 'none',
+            colorSpaceConversion: 'none',
+        });
         const texture = new THREE.Texture(bitmap);
         texture.flipY = false;
         texture.colorSpace = colorSpace;
@@ -434,6 +445,15 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
             if (disposed || applied) return;
             applied = true;
 
+            // Everything that can throw (the Reflector's render target, the dome, the PMREM generator and the room's
+            // environment target) is created first, so a failure leaves the renderer, the key light and the club
+            // materials as they were. Their own parts are freed by dispose().
+            createFloorLayers();
+            const domeMaterial = createDome();
+            const generator = new THREE.PMREMGenerator(renderer);
+            pmrem = generator;
+            createRoomEnvironment(generator);
+
             renderer.toneMapping = TONE_MAPPINGS[ENHANCED_TONE_MAPPING];
             renderer.toneMappingExposure = ENHANCED_TONE_MAPPING_EXPOSURE;
             renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -453,11 +473,6 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
                 material.needsUpdate = true;
             }
 
-            createFloorLayers();
-            const domeMaterial = createDome();
-            const generator = new THREE.PMREMGenerator(renderer);
-            pmrem = generator;
-            createRoomEnvironment(generator);
             startLoads(generator, domeMaterial);
         },
 
@@ -503,6 +518,7 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
                 dome.material.dispose();
             }
             skyTexture?.dispose();
+            closeBitmap(skyTexture);
 
             // The frame outlives this look, so it must not keep pointing at textures freed here.
             const frame = materials.frame;
@@ -510,7 +526,10 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
             frame.normalMap = null;
             frame.roughnessMap = null;
             frame.needsUpdate = true;
-            for (const texture of frameTextures) texture.dispose();
+            for (const texture of frameTextures) {
+                texture.dispose();
+                closeBitmap(texture);
+            }
 
             if (scene.environment === roomTarget?.texture || scene.environment === hdrTarget?.texture) {
                 scene.environment = null;

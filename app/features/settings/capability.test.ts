@@ -111,6 +111,34 @@ describe('probeCapability', () => {
         expect(loseContext).not.toHaveBeenCalled();
     });
 
+    it('falls back to a detached canvas when the OffscreenCanvas has no WebGL 2, and loses that context too', async () => {
+        vi.stubGlobal(
+            'OffscreenCanvas',
+            class {
+                getContext() {
+                    return null;
+                }
+            },
+        );
+        stubCanvas(() => fakeGl());
+
+        expect(await probeCapability()).toMatchObject({ webgl2: true, maxTextureSize: 16384 });
+        expect(loseContext).toHaveBeenCalledTimes(1);
+    });
+
+    it('resolves undefined when neither canvas gives WebGL 2', async () => {
+        vi.stubGlobal(
+            'OffscreenCanvas',
+            class {
+                getContext() {
+                    return null;
+                }
+            },
+        );
+        stubCanvas(() => null);
+        expect(await probeCapability()).toBeUndefined();
+    });
+
     it('resolves undefined when WebGL 2 is missing', async () => {
         stubCanvas(() => null);
         expect(await probeCapability()).toBeUndefined();

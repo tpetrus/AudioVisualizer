@@ -7,7 +7,8 @@ interface SlowFrameNoticeProps {
     onClose: () => void;
 }
 
-// A non-modal note: it is a status message, never takes focus and never blocks the picture.
+// A non-modal note that never takes focus and never blocks the picture. The page wraps it in a persistent
+// role="status" region so the message is announced.
 export function SlowFrameNotice({ onClose }: SlowFrameNoticeProps) {
     const close = () => {
         dismissSlowNotice();
@@ -16,10 +17,7 @@ export function SlowFrameNotice({ onClose }: SlowFrameNoticeProps) {
     const buttonClass = 'rounded border border-gray-400 px-2 py-1 hover:border-white';
 
     return (
-        <div
-            role="status"
-            className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded bg-black/70 px-4 py-2 text-sm text-white"
-        >
+        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded bg-black/70 px-4 py-2 text-sm text-white">
             <span>{SLOW_FRAME_NOTICE_STRINGS.message}</span>
             <button
                 type="button"

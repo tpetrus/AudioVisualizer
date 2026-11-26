@@ -15,8 +15,9 @@ const SLOW_WINDOW_MS = 5000;
 // The first seconds after a build or an asset swap are slow for reasons that do not last: shader compiles, texture
 // uploads and environment map generation. Measuring them would blame the device for a one-time cost.
 const SLOW_WARMUP_MS = 4000;
-// A frame this long is a stall (tab switch, debugger, the whole page frozen), not a rendering speed, so it is
-// ignored instead of dragging the average down.
+// A visible frame longer than this counts as this long, not as its real length: one stall must not swamp the average,
+// yet a device that really renders every frame this slowly (3 fps) must still be seen as slow, so the frame is clamped
+// instead of dropped.
 const SLOW_MAX_DT_MS = 250;
 
 export const SLOW_FRAME_OPTIONS: FrameRateMonitorOptions = {
@@ -39,14 +40,27 @@ export class FrameRateMonitor {
     private sumMs = 0;
     private warmedMs = 0;
     private reported = false;
+    // True after a hidden frame: the next visible frame carries the whole hidden gap and says nothing about speed.
+    private afterHidden = false;
 
     constructor(private readonly options: FrameRateMonitorOptions) {}
 
     // Call once per frame. `hidden` is true while the page is not visible, when frame times mean nothing.
     // Returns true exactly once per warm-up cycle.
     sample(dtMs: number, hidden: boolean): boolean {
+        if (hidden) {
+            this.afterHidden = true;
+            return false;
+        }
+        if (this.afterHidden) {
+            this.afterHidden = false;
+            return false;
+        }
         // The first frame of a loop has no previous frame and reports 0.
-        if (hidden || !(dtMs > 0) || dtMs > this.options.maxDtMs) return false;
+        if (!(dtMs > 0)) return false;
+        // A display or power mode capped at 30 Hz averages below the threshold too and will see the offer. That is
+        // acceptable: the notice only offers the standard look and never changes the setting.
+        if (dtMs > this.options.maxDtMs) dtMs = this.options.maxDtMs;
         if (this.warmedMs < this.options.warmupMs) {
             this.warmedMs += dtMs;
             return false;
@@ -66,6 +80,7 @@ export class FrameRateMonitor {
         this.sumMs = 0;
         this.warmedMs = 0;
         this.reported = false;
+        this.afterHidden = false;
     }
 
     private push(dtMs: number): void {
