@@ -1317,3 +1317,15 @@ describe('real MakeHumanDancer.glb', () => {
         dancing.dispose();
     });
 });
+
+describe('read-only accessors for the enhanced look', () => {
+    it('exposes the key light and the club the scene itself uses', () => {
+        const { scene, dancing } = setup();
+        const lights = scene.children.filter((child) => (child as THREE.DirectionalLight).isDirectionalLight);
+        expect(lights).toEqual([dancing.keyLight]);
+        // Shadows stay off until something asks for them: standard mode is unchanged.
+        expect(dancing.keyLight.castShadow).toBe(false);
+        expect(dancing.clubSet.tileCount).toBeGreaterThan(0);
+        dancing.dispose();
+    });
+});
