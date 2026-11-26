@@ -63,7 +63,9 @@ export interface EnhancedLookContext {
 
 export interface EnhancedLook {
     apply(): void;
-    onModelChanged(model: THREE.Object3D): void;
+    // `bounds` is the dance's full-size world box (DancingCharacterScene.danceBounds): the model itself is still
+    // scaled down for its fade-in when this is called.
+    onModelChanged(model: THREE.Object3D, bounds: THREE.Box3): void;
     // Called from the scene's resize: the glass layer's render target follows the drawing buffer.
     resize(): void;
     dispose(): void;
@@ -381,8 +383,8 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
 
     // ---- The character ----
 
-    function fitShadowCamera(model: THREE.Object3D): void {
-        modelBox.setFromObject(model);
+    function fitShadowCamera(bounds: THREE.Box3): void {
+        modelBox.copy(bounds);
         if (modelBox.isEmpty()) return;
         const shadow = keyLight.shadow;
         const camera = shadow.camera;
@@ -459,7 +461,7 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
             startLoads(generator, domeMaterial);
         },
 
-        onModelChanged(model: THREE.Object3D): void {
+        onModelChanged(model: THREE.Object3D, bounds: THREE.Box3): void {
             if (disposed) return;
             const anisotropy = maxAnisotropy();
             model.traverse((object) => {
@@ -470,8 +472,7 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook {
                     prepareMaterial(material, anisotropy);
                 }
             });
-            model.updateWorldMatrix(true, true);
-            fitShadowCamera(model);
+            fitShadowCamera(bounds);
             // The floor moved with the new dancer's feet.
             placeFloorLayers();
         },

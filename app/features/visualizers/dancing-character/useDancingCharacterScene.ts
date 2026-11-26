@@ -202,7 +202,7 @@ export function useDancingCharacterScene(
                         );
                         shownId = id;
                         currentModel = assets.model;
-                        look?.onModelChanged(assets.model);
+                        look?.onModelChanged(assets.model, character.danceBounds);
                         if (!danced && id !== DEFAULT_CHARACTER_ID) {
                             failLoad(entry, id, 'it cannot dance', missing);
                             return;
@@ -241,7 +241,7 @@ export function useDancingCharacterScene(
                             },
                         });
                         look.apply();
-                        if (currentModel) look.onModelChanged(currentModel);
+                        if (currentModel) look.onModelChanged(currentModel, character.danceBounds);
                     })
                     .catch((error: unknown) => {
                         if (signal.aborted) return;

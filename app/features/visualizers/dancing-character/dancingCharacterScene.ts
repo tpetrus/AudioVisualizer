@@ -204,6 +204,13 @@ export class DancingCharacterScene {
         return this.club;
     }
 
+    // The widest the current dance ever gets, in world space at full size (a nominal dancer until a model loads).
+    // The enhanced look fits its shadow camera to this, not to the model: a new model starts scaled almost to nothing
+    // for its fade-in, so its own box would be a point at the feet. Read-only.
+    get danceBounds(): THREE.Box3 {
+        return this.framingBox;
+    }
+
     // `dances` are the loader's clips, which stay owned by the loader result: they hold no GPU resources, and the mixer
     // is dropped with the character. With none, the model keeps its rest pose, which still renders. The materials named
     // in `bodyMaterialNames` are the ones the Skin tint colors. The result says whether the model can dance: `danced`

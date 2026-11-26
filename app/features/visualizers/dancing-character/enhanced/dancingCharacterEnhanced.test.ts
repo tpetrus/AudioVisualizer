@@ -378,7 +378,35 @@ describe('asset loading', () => {
     });
 });
 
+// The full-size world box the scene passes as `bounds`.
+function boundsOf(model: THREE.Object3D): THREE.Box3 {
+    model.updateWorldMatrix(true, true);
+    return new THREE.Box3().setFromObject(model);
+}
+
 describe('onModelChanged', () => {
+    it('fits the shadow camera to the dance bounds, not to a model still scaled down for its fade-in', () => {
+        const { keyLight, look } = setup();
+        look.apply();
+        const full = makeModel(0, 2);
+        const bounds = boundsOf(full.model);
+        // What setCharacter leaves behind: the fade-in starts the model at a thousandth of its size.
+        full.model.scale.setScalar(0.001);
+        look.onModelChanged(full.model, bounds);
+        const camera = keyLight.shadow.camera;
+        const point = new THREE.Vector3();
+        for (const x of [bounds.min.x, bounds.max.x])
+            for (const y of [bounds.min.y, bounds.max.y])
+                for (const z of [bounds.min.z, bounds.max.z]) {
+                    point.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+                    expect(point.x).toBeGreaterThanOrEqual(camera.left);
+                    expect(point.x).toBeLessThanOrEqual(camera.right);
+                    expect(point.y).toBeGreaterThanOrEqual(camera.bottom);
+                    expect(point.y).toBeLessThanOrEqual(camera.top);
+                }
+        look.dispose();
+    });
+
     it('casts shadows, sets environment and anisotropy and fits the shadow camera for two successive models', () => {
         const { club, keyLight, look } = setup();
         look.apply();
@@ -388,7 +416,7 @@ describe('onModelChanged', () => {
         const standard = new THREE.MeshStandardMaterial({ map });
         const basic = new THREE.MeshBasicMaterial();
         const first = makeModel(0, 2, [standard, basic]);
-        look.onModelChanged(first.model);
+        look.onModelChanged(first.model, boundsOf(first.model));
         expect(first.mesh.castShadow).toBe(true);
         expect(standard.envMapIntensity).toBe(1);
         expect(map.anisotropy).toBe(ENHANCED_MAX_ANISOTROPY);
@@ -417,7 +445,7 @@ describe('onModelChanged', () => {
         inside(first.model);
 
         const second = makeModel(1.5, 4, standard);
-        look.onModelChanged(second.model);
+        look.onModelChanged(second.model, boundsOf(second.model));
         expect(second.mesh.castShadow).toBe(true);
         expect(camera.right - camera.left).toBeGreaterThan(firstExtent);
         expect(camera.far).not.toBe(firstFar);
@@ -430,7 +458,7 @@ describe('onModelChanged', () => {
         look.apply();
         const before = keyLight.shadow.camera.right;
         club.setFloorY(-0.8);
-        look.onModelChanged(new THREE.Group());
+        look.onModelChanged(new THREE.Group(), new THREE.Box3());
         const reflector = scene.children.find((child) => child instanceof Reflector) as Reflector;
         expect(reflector.position.y).toBeCloseTo(club.floorSurfaceY + ENHANCED_GLASS_LIFT);
         expect(keyLight.shadow.camera.right).toBe(before);
@@ -440,12 +468,12 @@ describe('onModelChanged', () => {
     it('works before apply and after dispose without touching anything', () => {
         const { look, keyLight } = setup();
         const early = makeModel(0, 1);
-        look.onModelChanged(early.model);
+        look.onModelChanged(early.model, boundsOf(early.model));
         expect(early.mesh.castShadow).toBe(true);
         const fitted = keyLight.shadow.camera.right;
         look.dispose();
         const late = makeModel(0, 6);
-        look.onModelChanged(late.model);
+        look.onModelChanged(late.model, boundsOf(late.model));
         expect(late.mesh.castShadow).toBe(false);
         expect(keyLight.shadow.camera.right).toBe(fitted);
     });

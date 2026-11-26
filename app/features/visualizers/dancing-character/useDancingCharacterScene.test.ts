@@ -75,6 +75,8 @@ vi.mock('./dancingCharacterScene', () => ({
         // What the DEV probe reads from the real scene.
         readonly timing = { timeScale: 0, phaseNudge: 0 };
         readonly timingState = { meterLocked: false };
+        // What the enhanced look fits its shadow camera to.
+        readonly danceBounds = { min: {}, max: {} };
         clipPhase = 0;
         constructor(
             readonly scene: unknown,
@@ -1168,7 +1170,10 @@ describe('useDancingCharacterScene', () => {
             await flush();
 
             expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(1);
-            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledWith(first.model);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledWith(
+                first.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
         });
 
         it('tells the look about a model that arrives after it, and about every later character', async () => {
@@ -1179,7 +1184,10 @@ describe('useDancingCharacterScene', () => {
             loads[0].resolve(first);
             await flush();
             expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(1);
-            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(first.model);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(
+                first.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
 
             valuesRef.current = { ...valuesRef.current, character: 'robot' };
             renderer.renderFrame(0);
@@ -1188,7 +1196,10 @@ describe('useDancingCharacterScene', () => {
             await flush();
 
             expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(2);
-            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(robot.model);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(
+                robot.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
         });
 
         it('resizes the look with the scene and disposes it with the scene', async () => {

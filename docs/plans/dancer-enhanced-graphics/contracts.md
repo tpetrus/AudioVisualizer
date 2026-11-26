@@ -65,7 +65,7 @@ export interface EnhancedLookContext {
 }
 export interface EnhancedLook {
     apply(): void;
-    onModelChanged(model: THREE.Object3D): void;
+    onModelChanged(model: THREE.Object3D, bounds: THREE.Box3): void;
     resize(): void;
     dispose(): void;
 }
@@ -79,9 +79,10 @@ export function createEnhancedLook(ctx: EnhancedLookContext): EnhancedLook;
   S3 swaps in when loaded). Calls `onStatus('loading')` when asset loads start and `onStatus('ready')` when every
   asset has swapped in (immediately when there are none), `onStatus('error')` plus one `console.warn` on any asset
   failure, leaving the standard-equivalent look in place.
-- `onModelChanged(model)`: called from the hook for every character load (after `setCharacter`): sets
+- `onModelChanged(model, bounds)` (bounds added after review finding F1: the model is scaled to 0.001 for its fade-in
+  when this runs, so the shadow camera fits `DancingCharacterScene.danceBounds`, the full-size dance box): called from the hook for every character load (after `setCharacter`): sets
   `castShadow` on its meshes, `envMapIntensity` and texture anisotropy on its materials, and fits the key light's
-  shadow camera to the model's world bounding box (a preallocated `Box3`, a margin from config).
+  shadow camera to `bounds` (a margin from config).
 - Refinement of plan C2: the plan's `framing` field is dropped because no framing type exists in the repo
   (`computeFraming` returns a distance); the model's bounds are what the shadow camera needs.
 - `resize()` (added by the orchestrator after task C): resizes the glass layer's render target to the factor of the

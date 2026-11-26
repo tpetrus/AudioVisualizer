@@ -23,8 +23,8 @@ export const ENHANCED_SHADOW_NORMAL_BIAS = 0.02;
 // r186 has no PCFSoftShadowMap (it falls back with a warning); PCFShadowMap blurs over this many shadow-map texels
 // instead, which gives the dancer a soft contact shadow.
 export const ENHANCED_SHADOW_RADIUS = 4;
-// World units added around the character's box on every side when the shadow camera is fitted, so limbs that swing
-// outside the measured box (the box is taken from the pose at load time) still cast.
+// World units added around the dance's box on every side when the shadow camera is fitted, so the soft shadow's blur
+// at the edge of the box is not clipped.
 export const ENHANCED_SHADOW_MARGIN = 0.6;
 // Extra depth behind the character in the light's view. The shadow lands on the floor, which is farther from the light
 // than the figure, and a receiver beyond the shadow camera's far plane would never be shadowed.
