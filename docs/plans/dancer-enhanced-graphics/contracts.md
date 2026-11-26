@@ -22,9 +22,9 @@ export function subscribeEnhancedGraphics(listener: () => void): () => void;
 Binding: `app/features/settings/useEnhancedGraphics.ts` exports `useEnhancedGraphics(): boolean`, built on
 `useSyncExternalStore(subscribeEnhancedGraphics, getEnhancedGraphics, () => false)`.
 
-Rollout flag (D11): `app/features/settings/enhancedGraphicsFlags.ts` exports
-`export const ENHANCED_GRAPHICS_UI: boolean`, `import.meta.env.DEV` until S3, then `true`. When false, neither the
-landing toggle nor the panel header toggle renders and the dancer ignores the stored value (renders standard).
+Rollout flag (D11): dropped. All slices ship in one PR that merges only when complete, so no production user can
+see a partial toggle; a constant that is always true at merge would be dead code. Recorded with the user's approval
+of the single-PR rollout.
 
 ## C5 ControlPanel header slot (`app/components/ControlPanel/ControlPanel.tsx`)
 
@@ -47,13 +47,12 @@ Reads and writes C1 through `useEnhancedGraphics`/`setEnhancedGraphics`. A `<but
 with the visible label "Enhanced graphics", a visible On/Off state, `aria-describedby` pointing at the description
 "Richer lighting, reflections and sky for the dancing character. Needs a strong GPU; downloads up to about 30 MB.",
 and an `aria-live="polite"` status line: loading "Loading enhanced assets", ready "Enhanced graphics on", error
-"Could not load enhanced assets, using standard". S4 adds the capability hint inside this component (no prop).
+"Could not load enhanced assets, using standard". The capability hint (C3, `useCapabilityHint`) renders inside this component while it is off (no prop).
 Strings live in a `strings.ts` beside it. No three.js import anywhere on this path.
 
 ## C2 EnhancedLook (`app/features/visualizers/dancing-character/enhanced/dancingCharacterEnhanced.ts`)
 
-Only ever reached through `import()` from `useDancingCharacterScene`, only when the preference is on and
-`ENHANCED_GRAPHICS_UI` is true.
+Only ever reached through `import()` from `useDancingCharacterScene`, only when the preference is on.
 
 ```ts
 export interface EnhancedLookContext {
@@ -133,3 +132,30 @@ export function dismissSlowNotice(): void;
 Hidden frames and frames with `dtMs > maxDtMs` are ignored and do not count toward warm-up. Fixed-size buffer, no
 allocation in `sample`. `SlowFrameNotice.tsx` (role="status", never takes focus, "Switch to standard" and "Dismiss")
 renders inside the page's fullscreen wrapper; accept calls `setEnhancedGraphics(false)`, both buttons dismiss.
+
+## C6 Enhanced asset URLs (`app/features/visualizers/dancing-character/enhanced/enhancedAssetUrls.ts`)
+
+```ts
+export interface EnhancedAssetUrls {
+    environmentHdr: string;   // 2K RGBE .hdr, lights the scene through PMREM; never shown directly
+    skyTexture: string;       // 4K equirectangular LDR (.jpg or .avif, sRGB), mapped on the sky dome
+    frame: { map: string; normalMap: string; roughnessMap: string }; // 2K PBR maps (.jpg) for the club frame
+}
+export const ENHANCED_ASSET_URLS: EnhancedAssetUrls;
+```
+
+Every value comes from a Vite `?url` import of a file under `dancing-character/assets/enhanced/`, so only the lazy
+enhanced chunk references them and standard mode fetches none. Normal maps are OpenGL convention (`nor_gl`). Each file
+is under 20 MiB, the folder totals at most 30 MB, and every file is credited (source URL, license CC0, sha256, any
+conversion step) in `dancing-character/assets/CREDITS.md`. The EnhancedLook loads them with `fetch(url, { signal })`
+plus `HDRLoader`/`TextureLoader` parsing, so an abort stops the download.
+
+## Ownership (one owner per file)
+
+| Task | Owns |
+|---|---|
+| A | `app/features/settings/{enhancedGraphicsStore,useEnhancedGraphics,capability,useCapabilityHint}.ts(x)` and specs, `app/components/EnhancedGraphicsToggle/`, `ControlPanel.tsx` and its spec, `LandingPage.tsx` and its spec |
+| B | `dancing-character/assets/enhanced/`, `assets/CREDITS.md`, `enhanced/enhancedAssetUrls.ts`, `enhanced/enhancedAssets.test.ts`, `scripts/dancing-character-enhanced/` |
+| C | `enhanced/dancingCharacterEnhanced.ts`, `enhanced/dancingCharacterEnhancedConfig.ts` and spec, `dancingCharacterScene.ts`, `dancingCharacterClub.ts` and their specs |
+| D | `useDancingCharacterScene.ts`, `DancingCharacterPage.tsx` and their specs, `app/features/settings/{frameRateMonitor.ts,SlowFrameNotice.tsx}` and specs |
+| E | `e2e/enhanced-graphics.spec.ts`, docs, budgets |
