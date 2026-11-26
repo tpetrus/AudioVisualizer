@@ -22,6 +22,7 @@ export interface SceneContext {
 export interface SceneHandle {
     camera: THREE.PerspectiveCamera; // hook renders with it and fixes its aspect ratio
     update?: (time: number, delta: number) => void; // called every frame before render
+    render?: () => void; // draws the frame instead of renderer.render(scene, camera), for post-processing
     resize?: (size: SceneSize) => void; // extra resize work
     dispose?: () => void; // anything traversing the scene won't reach
 }
@@ -101,7 +102,12 @@ export function useThreeScene(
             const delta = lastTime === undefined ? 0 : time - lastTime;
             lastTime = time;
             handle.update?.(time, delta);
-            renderer.render(scene, camera);
+            // A scene with post-processing draws through its own composer; everything else is one plain render.
+            if (handle.render) {
+                handle.render();
+            } else {
+                renderer.render(scene, camera);
+            }
         });
 
         const teardown = () => {

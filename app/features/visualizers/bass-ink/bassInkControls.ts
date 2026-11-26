@@ -32,6 +32,8 @@ export const bassInkControls = [
         step: 0.05,
         default: 0.3,
     },
+    { section: 'Look', key: 'trails', label: 'Trails', type: 'range', min: 0, max: 1, step: 0.05, default: 0.4 },
+    { section: 'Look', key: 'glow', label: 'Glow', type: 'range', min: 0, max: 1, step: 0.05, default: 0.4 },
     // Three clearly different, vivid hues that read well blended additively on black: hot pink (the core at rest), amber
     // and sky blue (the edge at rest). A unit test checks that they stay far apart in hue. The brightness of a picked
     // color is the user's choice: the picker replaces the pitch-driven palette, so a very dark color makes a dark cloud.

@@ -141,13 +141,16 @@ must not touch `window`/`document` unguarded. Browser-only work goes in effects 
 One hook owns everything every three.js scene needs; a visualizer supplies only its content.
 ```ts
 useThreeScene(containerRef, setup, { antialias? });
-// setup({ scene, renderer, size, signal }) => { camera, update?(time, delta), resize?(size), dispose?() }
+// setup({ scene, renderer, size, signal }) => { camera, update?(time, delta), render?(), resize?(size), dispose?() }
 ```
 - **The hook owns:** renderer creation (pixel ratio capped at 2), sizing from the container (not the window), a
   `ResizeObserver`, the `renderer.setAnimationLoop` loop, and teardown in reverse order: stop loop → disconnect observer →
   abort `signal` → `handle.dispose()` → `disposeScene(scene)` → `renderer.dispose()` → `forceContextLoss()` → remove the canvas.
 - **The visualizer owns:** its camera (settings differ per scene), its content, per-frame `update`, extra `resize` work,
-  and `dispose` for anything `disposeScene` can't reach (orbit controls, audio nodes, mesh classes).
+  and `dispose` for anything `disposeScene` can't reach (orbit controls, audio nodes, mesh classes, render targets).
+- `render`, when given, draws each frame instead of the hook's `renderer.render(scene, camera)`, right after `update`.
+  It is for post-processing (an `EffectComposer`), which the visualizer then owns, sizes in `resize` and frees in
+  `dispose`.
 - `setup` runs **once**; the hook reads it through a ref so inline setup functions don't rebuild the scene.
 - `signal` is aborted on teardown; async work in setup (e.g. loading a texture or font) checks `signal.aborted` before
   touching the scene.
