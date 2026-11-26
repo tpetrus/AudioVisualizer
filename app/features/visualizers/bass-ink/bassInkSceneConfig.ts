@@ -206,6 +206,21 @@ export const bassInkSceneConfig = {
         alpha: 0.4,
         size: 0.05,
     },
+    post: {
+        // Trails: each frame keeps the brighter of itself and the previous frame dimmed by `damp` (three's afterimage,
+        // a max and not a sum, so trails never add light). The trails control maps 0..1 onto damp 0..dampMax; 0 turns
+        // the pass off.
+        trailsDampMax: 0.9,
+        // Bloom: a soft glow around the brightest areas. The glow control maps 0..1 onto strength 0..strengthMax; 0
+        // turns the pass off. Only light above `threshold` blooms, so the faint dust and the cloud's thin edge stay
+        // crisp. The strength never follows the music: global brightness stays BrightnessMix's job.
+        bloomStrengthMax: 1.2,
+        bloomRadius: 0.4,
+        bloomThreshold: 0.55,
+        // The bloom's blur runs at this share of the drawing size, which costs a quarter of the pixels and looks the
+        // same for a soft glow.
+        bloomResolutionScale: 0.5,
+    },
     camera: {
         // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).
         distance: 12,
