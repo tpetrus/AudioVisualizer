@@ -53,8 +53,12 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
    `low-bpm-rnb` 0.88 and 0.67 against 0.69 and 0.70. The first 8 s do not stand out, so bass-ink gets no warm-up. The
    measurement shows a different effect: `bass-ink.gateIn` (the bump) has a median of 0.22 to 0.50 on every track, and
    at bass-ink's swell gain of 3 the swell sits near full most of the time instead of pulsing (mean 0.52 on
-   `beatless`, 0.74 on `drums-128`). That is a bass-ink tuning question (the cubes use the bump linearly), recorded as
-   a follow-up, not a hub fault.
+   `beatless`, 0.74 on `drums-128`). That was a bass-ink tuning question, not a hub fault. bass-ink now measures the
+   bump against its own running level (`BassSwellShaper` in `bassInkBass.ts`), so a plateau rests at 0 and a rise
+   stands out. Re-measured the same way on 2026-11-26: mean swell 0.11 on `beatless`, 0.18 on `drums-128` and
+   `low-bpm-rnb`, 0.14 on `syncopation-no-kick`; upward crossings of 0.6 per 20 s were 15, 19, 24 and 21. Open: the hub's
+   gate bass carries bursts of the same size on tracks without a kick, so `syncopation-no-kick` pulses about as often
+   as `drums-128`. Separating them needs a better gate input from the hub, which bass-ink-refine did not change.
 
 ## Fixes and reasons
 

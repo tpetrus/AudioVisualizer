@@ -131,3 +131,18 @@ tighter and more solid.
 - **Tighter rest shapes:** thinner formation shells and tubes (`bassInkConfig.formations`) and a calmer always-on
   turbulence (`turbulence.base`), so a formation reads as a solid shape when nothing pulses. The armillary AC2 tests
   stay green.
+
+## Follow-ups (2026-11-26)
+
+- **C2 superseded.** The measured gate bump sits at a median of 0.22 to 0.50 on every track, so the pure
+  `swellFromBump` (floor 0.04, gain 3) held the swell near 1 instead of pulsing. It is replaced by
+  `BassSwellShaper.step(lastGateBass, dt, out: BassSwell)` in `bassInkBass.ts`: the swell is the bump's rise above its
+  own running level (rise 0.25 s, fall 0.05 s, offset 0.15, gain 1.8, from `bassInkSceneConfig.bass`). It is still
+  lock-free, allocation-free and time-based, with glow equal to swell, and AC3 still holds. The framing worst case is
+  unchanged because it already assumes a full swell.
+- **D11 reversed by the user.** The palette transition fade is gone: the picked colors are written straight into the
+  shown palette every frame, so a picker change shows at full strength on the next frame. `blendPalette` was removed.
+- **BrightnessMix.** A core step that the soft cap turns down stays pending and is retried until it is granted, while
+  kick flashes and bass glows hold back. It is dropped when tension falls below it or nothing can be granted (intensity
+  0, a non-finite clock). Every increase still goes through `grantSoft` and the governor, so the 3-per-second bound is
+  unchanged.
