@@ -42,6 +42,7 @@ standards below are the ones agreed during that port. Follow them so new code re
 | Estimate the capture delay of tab audio or an input device on this machine by loopback (dev only, see `docs/agents/capture-delay.md`) | `npm run measure:capture-delay -- --source <tab, device or direct> [--device <label>] [--clicks N] [--interval S] [--out <file.json>]` (no args prints usage) |
 | Regenerate the dancing-character model (`MakeHumanDancer.glb`) from the CC0 MakeHuman and outfit files; inputs, commit and sha256s are in `app/features/visualizers/dancing-character/assets/CREDITS.md` and the script's `--help`. Dev only: the inputs are not committed | `npx esbuild scripts/dancing-character-model/build-model.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/build-model.mjs && node node_modules/.cache/build-model.mjs <input-dir> --outfit <outfit-dir> [--out <file.glb>] [--no-check]` (`--check <glb>` only checks an existing GLB; no args prints usage) |
 | Build the dances file (`MakeHumanDances.glb`) from the CMU mocap files (downloaded into memory and sha256-verified when no `<input-dir>` is given, about 25 MB, or read from a local folder), then validate it against the dance contracts. Dev only | `npx esbuild scripts/dancing-character-dances/build.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/build-dances.mjs && node node_modules/.cache/build-dances.mjs [<input-dir>] [--model <character.glb>] [--out <file>] [--approved <SpikeDances.glb>]` |
+| Convert the dancing character's enhanced-graphics sky from the CC0 4K HDR (not committed; source and sha256 in `app/features/visualizers/dancing-character/assets/CREDITS.md`) to the committed 4K JPG. Dev only | `npx esbuild scripts/dancing-character-enhanced/convert-sky.ts --bundle --platform=node --format=esm --packages=external --log-level=warning --outfile=node_modules/.cache/convert-sky.mjs && node node_modules/.cache/convert-sky.mjs <input.hdr> --out <file.jpg> [--exposure N]` (no args prints usage) |
 | Regenerate the E2E audio fixture | `npm run e2e:fixture` |
 | Regenerate the AVIF/WebP card images from the PNGs in `public/visualization-images/` | `npm run images` |
 | Re-render the landing title image after changing `scripts/title-banner/` | `npm run title-banner` |
@@ -103,6 +104,7 @@ scripts/                         node scripts that stay local (rhythm evaluation
   title-banner/                  landing title scene, font JSON and renderer (`npm run title-banner`)
   dancing-character-model/       builds the dancing character's rigged GLB from the CC0 MakeHuman files (see the Commands table)
   dancing-character-dances/      builds and validates the dance clips GLB from the CMU mocap files (see the Commands table)
+  dancing-character-enhanced/    converts the enhanced-graphics sky HDR to the committed JPG (see the Commands table)
 .github/                         thin caller workflows (the actual CI/CD logic lives in `tpetrus/ci-workflows`) and
                                   Dependabot config
 ```
