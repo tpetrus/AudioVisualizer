@@ -60,6 +60,12 @@ the hit (p95 80 to 95 ms) in all eight recordings. That misses the target by 2 t
    gate bass carries bursts of the same size on tracks without a kick, so `syncopation-no-kick` pulses about as often
    as `drums-128`. Separating them needs a better gate input from the hub, which bass-ink-refine did not change.
 
+   Later the same day the user chose instant feedback over accuracy, because the beat lock takes a few seconds and
+   everything large waits for it. The swell is now the bump itself (`swellFromBump`, like the cubes' `bump * bgPulse`),
+   at amplitude 0.12. In 15 s headless runs it first passed 0.3 within 0.0 to 0.5 s of the start, against a lock at
+   about 3.8 s and a first kick ripple at 4.4 to 6.9 s (`imyourgirl`, `drums-128`, `beatless`). The mean swell is 0.50
+   to 0.64 again, and it pulses on `beatless` too, by design.
+
 ## Fixes and reasons
 
 | Delay above target | Fix or reason |

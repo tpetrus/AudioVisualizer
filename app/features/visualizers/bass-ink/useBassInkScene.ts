@@ -4,7 +4,7 @@ import { bassInkConfig } from './bassInkConfig';
 import type { BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
-import { BassSwellShaper, type BassSwell } from './bassInkBass';
+import { swellFromBump, type BassSwell } from './bassInkBass';
 import { BrightnessMix } from './brightnessMix';
 import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
@@ -201,8 +201,6 @@ export function useBassInkScene(
         let lastGateBass = 0;
         // The bass swell and glow derived from lastGateBass each frame; preallocated so nothing is created per frame.
         const swellOut: BassSwell = { swell: 0, glow: 0 };
-        // Measures the bump against its own running level so the swell pulses on hits instead of holding.
-        const swellShaper = new BassSwellShaper();
         // The hub's gate bass before the envelope, kept to tell a weak hub signal from a weak envelope in telemetry.
         let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
@@ -323,7 +321,7 @@ export function useBassInkScene(
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
                 lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
                 lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
-                swellShaper.step(lastGateBass, dt, swellOut);
+                swellFromBump(lastGateBass, swellOut);
                 stepBassGate(lastGateBass, state, clock.locked, bassGate, gateDt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {

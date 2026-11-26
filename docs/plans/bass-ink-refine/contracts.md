@@ -146,3 +146,20 @@ tighter and more solid.
   kick flashes and bass glows hold back. It is dropped when tension falls below it or nothing can be granted (intensity
   0, a non-finite clock). Every increase still goes through `grantSoft` and the governor, so the 3-per-second bound is
   unchanged.
+
+## Instant bass swell (2026-11-26, user request)
+
+The beat lock takes a few seconds on most songs, and everything large waits for it (kick ripples, beat punch, kick
+flashes), so the cloud barely reacts at first. The user asked for the swell to react the way the cubes do: instantly,
+even if it is not always accurate.
+
+- **Replaces the follow-up's shaper.** The swell and the glow are the bump itself, like `stepCubesBass`
+  (`bump * bgPulse`): `swell = glow = clamp(lastGateBass, 0, 1)`, with NaN read as 0, no lock, no clock and no running
+  level. `BassSwellShaper` and its rise, fall and offset constants go; a pure `swellFromBump(lastGateBass, out)` comes
+  back with that mapping.
+- `cloud.swellAmplitude` rises from 0.07 to 0.12, so the swell is clearly visible before the lock. The framing worst
+  case already includes a full swell, so the fit keeps the whole cloud on screen. 0.15 was the target, but it put the
+  torus's rest p95 fill at 0.39, under the 0.40 floor; 0.12 is the largest value that holds it (torus 0.4005, the other
+  formations 0.42 to 0.43) at 16:9 and 4:3.
+- The glow still goes through `BrightnessMix.requestBassGlow` and the shared soft cap, so the governor's 3-per-second
+  bound is unchanged. No control and no settings-panel change.
