@@ -16,6 +16,7 @@ import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { fitScale, formationOuterRadius } from './framing';
+import { SprayPool } from './sprayPool';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
 
@@ -1274,6 +1275,28 @@ describe('useBassInkScene', () => {
             expect(probe[24]).toBeGreaterThanOrEqual(1);
             expect(probe[25]).toBeGreaterThan(0);
             expect(currentCloud().restPosition).toHaveBeenCalled();
+        });
+
+        it('throws each burst from the current shell radius, and sizes the core from the same radius', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            const emit = vi.spyOn(SprayPool.prototype, 'emit');
+            try {
+                hitBass(frame, hub);
+
+                expect(emit).toHaveBeenCalled();
+                const [source, radius] = emit.mock.calls.at(-1)!;
+                expect(source).toBe(currentCloud());
+                const shellRadius = currentCloud().setRadius.mock.calls.at(-1)![0] as number;
+                expect(radius).toBe(shellRadius);
+                expect(shellRadius).toBeGreaterThan(1);
+                expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                    shellRadius * bassInkSceneConfig.core.radiusScale,
+                    9,
+                );
+            } finally {
+                emit.mockRestore();
+            }
         });
 
         it('shows no spray at intensity 0', () => {
