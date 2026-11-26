@@ -3,6 +3,7 @@ import { useAudio } from '../audio/audioEngineContext';
 import { useCapturing } from '../audio/useAudioState';
 import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
+import { EnhancedGraphicsToggle } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
 import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
 import { VISUALIZATIONS } from './visualizations';
@@ -33,6 +34,7 @@ export function LandingPage() {
                     {capturing ? 'Audio settings' : 'Connect audio'}
                 </button>
             </div>
+            <EnhancedGraphicsToggle className="flex flex-col items-center px-2 pb-2 text-center" />
 
             {/* One column below sm and two from sm up, so an even number of cards makes full rows; the coming-soon
                 strip sits under the grid instead of in it. */}

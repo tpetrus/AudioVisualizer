@@ -1,4 +1,4 @@
-import { type SyntheticEvent, useMemo, useState } from 'react';
+import { type ReactNode, type SyntheticEvent, useMemo, useState } from 'react';
 import { ControlInput } from './ControlInput';
 import { type ControlDefinition, type ControlValue, groupBySection, isModified, isShown } from './controls';
 import styles from './ControlPanel.module.css';
@@ -20,6 +20,8 @@ interface ControlPanelProps {
     fullscreenActive?: boolean;
     // The fullscreen button only exists when the page passes this.
     onToggleFullscreen?: () => void;
+    // Extra content at the top of the open panel, above the first section and outside the control table.
+    header?: ReactNode;
 }
 
 export function ControlPanel({
@@ -33,6 +35,7 @@ export function ControlPanel({
     onResetView,
     fullscreenActive = false,
     onToggleFullscreen,
+    header,
 }: ControlPanelProps) {
     const [collapsed, setCollapsed] = useState(true);
     const [showStats, setShowStats] = useState(false);
@@ -130,6 +133,7 @@ export function ControlPanel({
 
                 {!collapsed && (
                     <div>
+                        {header}
                         {sections.map((section) => {
                             const modifiedCount = section.controls.filter((definition) =>
                                 isModified(definition, values[definition.key]),
