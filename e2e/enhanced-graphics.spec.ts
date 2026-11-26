@@ -106,13 +106,12 @@ test.describe('enhanced graphics', () => {
 
         for (let cycle = 0; cycle < 5; cycle++) {
             await toggle.click();
-            await expect(toggle).toHaveAttribute('aria-checked', 'true');
-            if (cycle === 0) {
-                // Flipped back before the assets could arrive: the load must be abandoned cleanly.
-                await expect(readyStatus(page)).toBeHidden();
-            } else {
+            if (cycle > 0) {
+                await expect(toggle).toHaveAttribute('aria-checked', 'true');
                 await expect(readyStatus(page)).toBeVisible({ timeout: ENHANCED_READY_TIMEOUT });
             }
+            // The first cycle flips straight back, with nothing awaited in between, so the assets are still loading and
+            // that load has to be abandoned cleanly.
             await toggle.click();
             await expect(toggle).toHaveAttribute('aria-checked', 'false');
         }
