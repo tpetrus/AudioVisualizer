@@ -16,6 +16,7 @@ import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { fitScale, formationOuterRadius } from './framing';
+import { SprayPool } from './sprayPool';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
 
@@ -90,10 +91,11 @@ vi.mock('./setDirector', () => ({
 
 // The cloud has its own spec; here only how the scene drives it matters.
 interface FakeCloud {
-    object: { rotation: { x: number; y: number } };
+    object: { rotation: { x: number; y: number; z: number } };
     pointCount: number;
     seed: number;
     maxPointSize: number;
+    options: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number } | undefined;
     preparedIndex: number;
     transitioning: boolean;
     prepareFormation: ReturnType<typeof vi.fn>;
@@ -109,6 +111,7 @@ interface FakeCloud {
     blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
+    restPosition: ReturnType<typeof vi.fn>;
 }
 const clouds = vi.hoisted(() => ({ instances: [] as unknown[] }));
 vi.mock('./inkCloud', async () => {
@@ -133,25 +136,73 @@ vi.mock('./inkCloud', async () => {
             blendProgress = 0;
             showFormation = vi.fn();
             dispose = vi.fn();
+            // A unit point on the x axis, enough for the spray to leave from.
+            restPosition = vi.fn((_index: number, out: Float32Array) => {
+                out[0] = 1;
+                out[1] = 0;
+                out[2] = 0;
+            });
             constructor(
                 public pointCount: number,
                 public seed: number,
                 public maxPointSize: number,
+                public options?: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number },
             ) {
                 clouds.instances.push(this);
             }
         },
     };
 });
-const allClouds = () => clouds.instances as FakeCloud[];
+// The post-processing has its own spec; here it records how the scene drives it. Its render still draws plainly, so
+// the specs that read the renderer's calls keep working.
+const posts = vi.hoisted(() => ({ instances: [] as unknown[] }));
+vi.mock('./bassInkPost', () => ({
+    BassInkPost: class {
+        active = false;
+        apply = vi.fn();
+        setSize = vi.fn();
+        dispose = vi.fn();
+        render = vi.fn(() => {
+            (this.renderer as { render: (scene: unknown, camera: unknown) => void }).render(this.scene, this.camera);
+        });
+        constructor(
+            public renderer: unknown,
+            public scene: unknown,
+            public camera: unknown,
+            public size: { width: number; height: number },
+            public software: boolean,
+        ) {
+            posts.instances.push(this);
+        }
+    },
+}));
+interface FakePost {
+    active: boolean;
+    apply: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+    render: ReturnType<typeof vi.fn>;
+    size: { width: number; height: number };
+    software: boolean;
+}
+const currentPost = () => posts.instances.at(-1) as FakePost;
+
+// The shell is built without options and the core with them, so most specs read the shell through these two.
+const everyCloud = () => clouds.instances as FakeCloud[];
+const allClouds = () => everyCloud().filter((cloud) => cloud.options === undefined);
+const allCores = () => everyCloud().filter((cloud) => cloud.options !== undefined);
 const currentCloud = () => allClouds().at(-1)!;
+const currentCore = () => allCores().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(24);
+    const out = new Float32Array(27);
     probeRead()(out);
     return out;
 }
+
+// The shell's share of the density control's total: the core takes the rest.
+const shellPoints = (total: number) => Math.round(total * (1 - bassInkSceneConfig.core.pointShare));
 
 function createAnalyser() {
     const context = new FakeAudioContext();
@@ -225,6 +276,7 @@ function scroll(element: HTMLElement, deltaY: number): void {
 describe('useBassInkScene', () => {
     beforeEach(() => {
         clouds.instances = [];
+        posts.instances = [];
         gateScript.pulse = false;
         gateScript.calls = [];
         telemetry.register.mockClear();
@@ -259,7 +311,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(1);
             const cloud = currentCloud();
-            expect(cloud.pointCount).toBe(pointCountFor(0.8, false));
+            expect(cloud.pointCount).toBe(shellPoints(pointCountFor(0.8, false)));
             expect(cloud.seed).toBe(bassInkConfig.director.formationSeed);
             expect(cloud.maxPointSize).toBe(bassInkSceneConfig.points.fallbackMaxPointSize);
             expect(scene.children).toContain(cloud.object);
@@ -505,7 +557,8 @@ describe('useBassInkScene', () => {
             hub.setGateBass(0.1);
             for (let i = 0; i < 600; i++) frame(16);
             expect(gateScript.calls.at(-1)!.locked).toBe(false);
-            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
+            // The bump has decayed to (almost) nothing on a steady bass, so the cloud is at rest.
+            expect(currentCloud().setSwell.mock.calls.at(-1)![0]).toBeLessThan(1e-6);
 
             hub.setGateBass(0.16);
             const swells: number[] = [];
@@ -520,12 +573,13 @@ describe('useBassInkScene', () => {
             expect(probe[21]).toBeCloseTo(swells[2], 6);
         });
 
-        it('lets the swell fall back to 0 while the bump stays high, and reports it in telemetry', () => {
+        it('follows the shared bump as it is, with no shaper of its own, and reports it in telemetry', () => {
             const { node } = createAnalyser();
             const { frame, hub } = mountScene({ analyser: node });
             hub.setGateBass(0.1);
             for (let i = 0; i < 600; i++) frame(16);
-            // A louder bassline that then stays loud: the first frames swell, and the shaper's running level absorbs it.
+            // The swell is the bump itself (like the cubes), with no running level of its own: instant feedback matters
+            // more than accuracy, so only the shared envelope shapes it and it follows the bump down as well as up.
             hub.setGateBass(0.3);
             let peak = 0;
             for (let i = 0; i < 20; i++) {
@@ -534,8 +588,10 @@ describe('useBassInkScene', () => {
             }
             expect(peak).toBeGreaterThan(0.3);
             for (let i = 0; i < 300; i++) frame(16);
-            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
-            expect(readProbe()[20]).toBe(0);
+            const held = currentCloud().setSwell.mock.calls.at(-1)![0] as number;
+            expect(held).toBeLessThan(peak);
+            expect(readProbe()[20]).toBeCloseTo(held, 6);
+            expect(readProbe()[21]).toBeCloseTo(held, 6);
         });
 
         it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {
@@ -931,7 +987,7 @@ describe('useBassInkScene', () => {
             expect(scene.children).not.toContain(old.object);
             const next = currentCloud();
             expect(scene.children).toContain(next.object);
-            expect(next.pointCount).toBe(pointCountFor(0.5, false));
+            expect(next.pointCount).toBe(shellPoints(pointCountFor(0.5, false)));
             expect(next.showFormation).toHaveBeenCalledWith(2, bassInkConfig.director.formationSeed);
             // The old cloud keeps turning while the rebuild waits, so the new one carries on from where it stood.
             expect(next.object.rotation.y).toBeGreaterThanOrEqual(1.25);
@@ -953,7 +1009,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(2);
             expect(old.dispose).toHaveBeenCalledTimes(1);
-            expect(currentCloud().pointCount).toBe(pointCountFor(0.5, false));
+            expect(currentCloud().pointCount).toBe(shellPoints(pointCountFor(0.5, false)));
             expect(currentCloud().showFormation).toHaveBeenCalledWith(
                 expect.any(Number),
                 bassInkConfig.director.formationSeed,
@@ -1059,6 +1115,9 @@ describe('useBassInkScene', () => {
                     'glow',
                     'fit',
                     'huePhase',
+                    'sprayBursts',
+                    'sprayLive',
+                    'postActive',
                 ],
                 expect.any(Function),
             );
@@ -1146,6 +1205,275 @@ describe('useBassInkScene', () => {
             const bare = mountScene();
             bare.frame();
             expect(readProbe()[19]).toBeNaN();
+        });
+    });
+
+    describe('the core, the dust and the spray', () => {
+        // The scene adds the shell, the core, the dust and the spray in this order.
+        const sprayAlphaScale = (scene: Scene) =>
+            (scene.children[3] as unknown as { material: { uniforms: { uAlphaScale: { value: number } } } }).material
+                .uniforms.uAlphaScale.value;
+        const geometryOf = (object: unknown) => (object as { geometry: { dispose: () => void } }).geometry;
+
+        // Settles a steady bassline, then hits it, which pushes the swell through the spray arm level.
+        function hitBass(frame: (milliseconds?: number) => void, hub: FakeAudioHub) {
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.3);
+            for (let i = 0; i < 4; i++) frame(16);
+        }
+
+        it('adds the shell, the core, the dust and the spray to the scene', () => {
+            const { scene } = mountScene();
+
+            expect(scene.children).toHaveLength(4);
+            expect(scene.children[0]).toBe(currentCloud().object);
+            expect(scene.children[1]).toBe(currentCore().object);
+        });
+
+        it('splits the old total between the shell and the core', () => {
+            mountScene();
+
+            const total = pointCountFor(0.8, false);
+            expect(currentCloud().pointCount + currentCore().pointCount).toBe(total);
+            expect(currentCore().pointCount).toBeGreaterThan(0);
+            expect(currentCore().options).toEqual({
+                swellAmplitude: bassInkSceneConfig.core.swellAmplitude,
+                displacementScale: bassInkSceneConfig.core.displacementScale,
+                alphaScale: bassInkSceneConfig.core.alphaScale,
+            });
+        });
+
+        it('sets the core radius to the shell fit times the radius scale, also after a resize', () => {
+            const { resizes, frame } = mountScene();
+            const radiusScale = bassInkSceneConfig.core.radiusScale;
+            const fitOf = () =>
+                (currentCloud().setRadius.mock.calls.at(-1)![0] as number) / bassInkSceneConfig.cloud.radius;
+
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                bassInkSceneConfig.cloud.radius * fitOf() * radiusScale,
+                9,
+            );
+
+            resizes.resize(1000, 400);
+            frame();
+
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                bassInkSceneConfig.cloud.radius * fitOf() * radiusScale,
+                9,
+            );
+            expect(currentCore().setViewport.mock.calls.at(-1)![0]).toBeGreaterThanOrEqual(400);
+        });
+
+        it('keeps the core on its formation through a director transition', () => {
+            const { frame } = mountScene();
+            const core = currentCore();
+            script.cue.formationIndex = 2;
+            script.cue.nextFormationIndex = 3;
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0;
+            for (let i = 0; i < 5; i++) frame();
+
+            // The shell transitions; the core is shown the core formation once and is never prepared.
+            expect(currentCloud().beginTransition).toHaveBeenCalled();
+            expect(core.showFormation).toHaveBeenCalledTimes(1);
+            expect(core.showFormation).toHaveBeenCalledWith(
+                bassInkSceneConfig.core.formation,
+                bassInkConfig.director.formationSeed,
+            );
+            expect(core.prepareFormation).not.toHaveBeenCalled();
+            expect(core.beginTransition).not.toHaveBeenCalled();
+            // It still gets the same cue as the shell every frame.
+            expect(core.update.mock.calls.at(-1)![0]).toBe(currentCloud().update.mock.calls.at(-1)![0]);
+        });
+
+        it('gives the core the same per-frame values as the shell', () => {
+            const { frame } = mountScene();
+            frame();
+
+            const shell = currentCloud();
+            const core = currentCore();
+            for (const name of ['setPunch', 'setSwell', 'setTexture', 'setSpectrum'] as const) {
+                expect(core[name].mock.calls.at(-1)).toEqual(shell[name].mock.calls.at(-1));
+            }
+            expect(core.update.mock.calls.at(-1)).toEqual(shell.update.mock.calls.at(-1));
+        });
+
+        it('fires a spray burst on a hub bass pulse with the tempo unlocked, and reports it', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            expect(readProbe()[24]).toBe(0);
+
+            hitBass(frame, hub);
+
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            const probe = readProbe();
+            expect(probe[24]).toBeGreaterThanOrEqual(1);
+            expect(probe[25]).toBeGreaterThan(0);
+            expect(currentCloud().restPosition).toHaveBeenCalled();
+        });
+
+        it('throws each burst from the current shell radius, and sizes the core from the same radius', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            const emit = vi.spyOn(SprayPool.prototype, 'emit');
+            try {
+                hitBass(frame, hub);
+
+                expect(emit).toHaveBeenCalled();
+                const [source, radius] = emit.mock.calls.at(-1)!;
+                expect(source).toBe(currentCloud());
+                const shellRadius = currentCloud().setRadius.mock.calls.at(-1)![0] as number;
+                expect(radius).toBe(shellRadius);
+                expect(shellRadius).toBeGreaterThan(1);
+                expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(
+                    shellRadius * bassInkSceneConfig.core.radiusScale,
+                    9,
+                );
+            } finally {
+                emit.mockRestore();
+            }
+        });
+
+        it('shows no spray at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, scene, valuesRef } = mountScene({ analyser: node });
+            hitBass(frame, hub);
+            expect(sprayAlphaScale(scene)).toBeGreaterThan(0);
+
+            valuesRef.current = { ...valuesRef.current, intensity: 0 };
+            frame();
+
+            expect(sprayAlphaScale(scene)).toBe(0);
+        });
+
+        it('turns the core and the spray with the shell, and the dust not at all', () => {
+            const { frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 1 };
+            for (let i = 0; i < 10; i++) frame();
+
+            const shell = currentCloud().object.rotation;
+            expect(shell.y).toBeGreaterThan(0);
+            for (const index of [1, 3]) {
+                const turned = scene.children[index].rotation;
+                expect(turned.x).toBe(shell.x);
+                expect(turned.y).toBe(shell.y);
+                expect(turned.z).toBe(shell.z);
+            }
+            // The dust drifts on its own slow clock and never copies the shell.
+            expect(scene.children[2].rotation.y).not.toBe(shell.y);
+        });
+
+        it('rebuilds and frees all four on a density change, keeping the rotation shared', () => {
+            const { frame, scene, valuesRef } = mountScene();
+            frame();
+            const [oldShell, oldCore, oldDust, oldSpray] = [...scene.children];
+            const dustDispose = vi.spyOn(geometryOf(oldDust), 'dispose');
+            const sprayDispose = vi.spyOn(geometryOf(oldSpray), 'dispose');
+            currentCloud().object.rotation.y = 1.25;
+
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            for (let i = 0; i < 6; i++) frame(100);
+
+            expect(allClouds()).toHaveLength(2);
+            expect(allCores()).toHaveLength(2);
+            for (const old of [oldShell, oldCore, oldDust, oldSpray]) expect(scene.children).not.toContain(old);
+            expect(scene.children).toHaveLength(4);
+            expect(dustDispose).toHaveBeenCalledTimes(1);
+            expect(sprayDispose).toHaveBeenCalledTimes(1);
+            expect(allCores()[0].dispose).toHaveBeenCalledTimes(1);
+            expect(allClouds()[0].dispose).toHaveBeenCalledTimes(1);
+            const total = pointCountFor(0.5, false);
+            expect(currentCloud().pointCount + currentCore().pointCount).toBe(total);
+            expect(currentCore().showFormation).toHaveBeenCalledWith(
+                bassInkSceneConfig.core.formation,
+                bassInkConfig.director.formationSeed,
+            );
+            expect(currentCore().setRadius).toHaveBeenCalled();
+            expect(scene.children[1].rotation.y).toBe(currentCloud().object.rotation.y);
+            expect(scene.children[3].rotation.y).toBe(currentCloud().object.rotation.y);
+        });
+
+        it('frees the core, the dust and the spray on unmount', () => {
+            const { unmount, scene, frame } = mountScene();
+            frame();
+            const dustDispose = vi.spyOn(geometryOf(scene.children[2]), 'dispose');
+            const sprayDispose = vi.spyOn(geometryOf(scene.children[3]), 'dispose');
+            const core = currentCore();
+
+            unmount();
+
+            expect(core.dispose).toHaveBeenCalledTimes(1);
+            // The scene teardown walks the children as well, so a second dispose is harmless.
+            expect(dustDispose).toHaveBeenCalled();
+            expect(sprayDispose).toHaveBeenCalled();
+        });
+    });
+
+    describe('post-processing', () => {
+        it('draws each frame through the post, built after the camera at the view size', () => {
+            const { renderer, scene, camera } = mountScene();
+            const post = currentPost();
+
+            expect(posts.instances).toHaveLength(1);
+            expect(post.size).toEqual({ width: 800, height: 600 });
+            expect(post.software).toBe(false);
+            expect(post.render).toHaveBeenCalled();
+            expect(renderer.render).toHaveBeenCalledWith(scene, camera);
+        });
+
+        it('hands the trails and glow control values to the post every frame', () => {
+            const { frame, valuesRef } = mountScene();
+            const post = currentPost();
+            expect(post.apply).toHaveBeenLastCalledWith({ trails: 0.4, glow: 0.4 });
+
+            valuesRef.current = { ...valuesRef.current, trails: 0, glow: 0.85 };
+            frame();
+
+            expect(post.apply).toHaveBeenLastCalledWith({ trails: 0, glow: 0.85 });
+        });
+
+        it('reuses one settings object, so applying allocates nothing', () => {
+            const { frame } = mountScene();
+            frame();
+            const post = currentPost();
+
+            expect(post.apply.mock.calls.at(-1)![0]).toBe(post.apply.mock.calls.at(-2)![0]);
+        });
+
+        it('sizes the post on resize and ignores a collapsed view', () => {
+            const { resizes } = mountScene();
+            const post = currentPost();
+
+            resizes.resize(1000, 900);
+            expect(post.setSize).toHaveBeenLastCalledWith({ width: 1000, height: 900 });
+
+            post.setSize.mockClear();
+            resizes.resize(0, 0);
+            expect(post.setSize).not.toHaveBeenCalled();
+        });
+
+        it('disposes the post once on unmount', () => {
+            const { unmount, frame } = mountScene();
+            frame();
+            const post = currentPost();
+
+            unmount();
+
+            expect(post.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('appends postActive as the last telemetry column', () => {
+            const { frame } = mountScene();
+            frame();
+            const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
+            expect(columns.at(-1)).toBe('postActive');
+            expect(columns.at(-2)).toBe('sprayLive');
+
+            currentPost().active = true;
+            expect(readProbe()[26]).toBe(1);
+            currentPost().active = false;
+            expect(readProbe()[26]).toBe(0);
         });
     });
 

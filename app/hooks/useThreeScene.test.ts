@@ -151,6 +151,21 @@ describe('useThreeScene', () => {
             expect(renderer.render).toHaveBeenLastCalledWith(expect.objectContaining({ isScene: true }), camera);
         });
 
+        it('draws through the handle render instead of the plain render when it has one', () => {
+            const update = vi.fn();
+            const render = vi.fn();
+            mount(() => ({ camera: new PerspectiveCamera(), update, render }));
+            const renderer = FakeRenderer.last;
+
+            renderer.renderFrame(0);
+            renderer.renderFrame(16);
+
+            expect(render).toHaveBeenCalledTimes(2);
+            expect(renderer.render).not.toHaveBeenCalled();
+            // Update still runs first, so the composer draws the frame the update just prepared.
+            expect(update.mock.invocationCallOrder[1]).toBeLessThan(render.mock.invocationCallOrder[1]);
+        });
+
         it('renders even when the handle has no update', () => {
             mount(() => ({ camera: new PerspectiveCamera() }));
             const renderer = FakeRenderer.last;

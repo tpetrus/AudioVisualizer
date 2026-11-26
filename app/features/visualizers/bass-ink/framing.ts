@@ -1,3 +1,4 @@
+import { bassInkConfig } from './bassInkConfig';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { writeFormation } from './formations';
 
@@ -101,4 +102,45 @@ export function formationOuterRadius(index: number, seed: number, sampleCount: n
         outer = Math.max(outer, Math.hypot(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]));
     }
     return outer;
+}
+
+// World-space distance from the cloud's center beyond which nothing of a cloud of world radius `radius` and outermost
+// rest point `outerRadius` can reach: the scaled rest radius at the peak of every pulse plus the absolute displacements
+// and the spectrum amplitude (which moves a point sideways, so adding it is a safe upper bound). Used to compare the
+// core and the spray against the shell in one unit; the shell's own fit keeps using worstCaseExtent.
+function worldReach(radius: number, outerRadius: number, config: typeof bassInkSceneConfig): number {
+    return radius * outerRadius * scaleFactor(config) + absoluteDisplacement(config) + config.spectrum.amplitude;
+}
+
+// The shell's worst-case world reach for a fit of `shellRadius` and a formation with outermost rest point
+// `outerRadius`, in the same unit as coreWorstCaseExtent and sprayMaxReach.
+export function shellWorstCaseReach(shellRadius: number, outerRadius: number): number {
+    return worldReach(shellRadius, outerRadius, bassInkSceneConfig);
+}
+
+// World extent of the core's pulse envelope for a shell fitted to `shellRadius`: the same envelope as the shell's, for a
+// cloud of radius shellRadius * core.radiusScale showing core.formation, with the core's own swell and with every
+// absolute displacement (kick-wave cap, turbulence, spectrum) scaled by core.displacementScale, because InkCloud scales
+// the uniforms that produce them by the same factor.
+export function coreWorstCaseExtent(shellRadius: number): number {
+    const { core, cloud, wave, spectrum, turbulence } = bassInkSceneConfig;
+    const scale = core.displacementScale;
+    const coreConfig: typeof bassInkSceneConfig = {
+        ...bassInkSceneConfig,
+        cloud: { ...cloud, swellAmplitude: core.swellAmplitude },
+        wave: { ...wave, maxDisplacement: wave.maxDisplacement * scale },
+        spectrum: { ...spectrum, amplitude: spectrum.amplitude * scale },
+        turbulence: { ...turbulence, base: turbulence.base * scale, midGain: turbulence.midGain * scale },
+    };
+    const outer = formationOuterRadius(core.formation, bassInkConfig.director.formationSeed);
+    return worldReach(shellRadius * core.radiusScale, outer, coreConfig);
+}
+
+// Farthest a spray point can reach from the center for that shell: the formation's outermost rest point at shellRadius
+// (a burst is born on the shell) plus the distance the drag lets it travel, speed * dragSeconds (speed times the drag
+// time constant is the limit of an exponentially slowed outward motion).
+export function sprayMaxReach(shellRadius: number, formationIndex: number): number {
+    const { speed, dragSeconds } = bassInkSceneConfig.spray;
+    const outer = formationOuterRadius(formationIndex, bassInkConfig.director.formationSeed);
+    return outer * shellRadius + speed * dragSeconds;
 }

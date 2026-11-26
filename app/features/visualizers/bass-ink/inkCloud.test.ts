@@ -402,13 +402,15 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uPunchAmp')).toBe(bassInkSceneConfig.cloud.beatPunch);
         });
 
-        it('takes the bass swell through setSwell, with a constant amplitude below the beat punch', () => {
+        // The swell is the reaction shown before the beat locks, so it outweighs the punch on purpose (see contracts.md,
+        // "Instant bass swell").
+        it('takes the bass swell through setSwell, with a constant amplitude above the beat punch', () => {
             const { cloud } = setup();
             expect(uniformOf(cloud, 'uSwell')).toBe(0);
             cloud.setSwell(0.8);
             expect(uniformOf(cloud, 'uSwell')).toBe(0.8);
             expect(uniformOf(cloud, 'uSwellAmp')).toBe(bassInkSceneConfig.cloud.swellAmplitude);
-            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeLessThan(bassInkSceneConfig.cloud.beatPunch);
+            expect(bassInkSceneConfig.cloud.swellAmplitude).toBeGreaterThan(bassInkSceneConfig.cloud.beatPunch);
         });
 
         it('takes the band onsets and the turbulence control through setTexture', () => {
@@ -462,5 +464,76 @@ describe('InkCloud', () => {
 
         expect(geometryDispose).toHaveBeenCalledTimes(1);
         expect(materialDispose).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('InkCloud options', () => {
+    const { cloud: c, wave, spectrum, turbulence, sprite } = bassInkSceneConfig;
+    // Every displacement uniform an option may change, with the value the config gives it at a scale.
+    const scaled = (scale: number) => ({
+        uWaveAmp: wave.amplitude * scale,
+        uWaveMax: wave.maxDisplacement * scale,
+        uSpectrumAmp: spectrum.amplitude * scale,
+        uNoiseBase: turbulence.base * scale,
+        uNoiseMid: turbulence.midGain * scale,
+    });
+    // The numeric uniforms, to compare the untouched ones between two clouds.
+    const plain = (cloud: InkCloud): Record<string, unknown> =>
+        Object.fromEntries(
+            Object.entries(
+                (cloud.object.material as unknown as { uniforms: Record<string, { value: unknown }> }).uniforms,
+            )
+                .filter(([, u]) => typeof u.value === 'number')
+                .map(([name, u]) => [name, u.value]),
+        );
+
+    it('leaves every uniform as it was when no options are given', () => {
+        const cloud = new InkCloud(100, SEED, 64);
+        expect(uniformOf(cloud, 'uSwellAmp')).toBe(c.swellAmplitude);
+        expect(uniformOf(cloud, 'uAlpha')).toBe(sprite.baseAlpha);
+        for (const [name, value] of Object.entries(scaled(1))) {
+            expect(uniformOf(cloud, name)).toBe(value);
+        }
+        expect(plain(new InkCloud(100, SEED, 64, {}))).toEqual(plain(cloud));
+    });
+
+    it('swellAmplitude sets uSwellAmp and nothing else', () => {
+        const base = plain(new InkCloud(100, SEED, 64));
+        const cloud = new InkCloud(100, SEED, 64, { swellAmplitude: 0.35 });
+        expect(uniformOf(cloud, 'uSwellAmp')).toBe(0.35);
+        expect({ ...plain(cloud), uSwellAmp: base.uSwellAmp }).toEqual(base);
+    });
+
+    it('displacementScale multiplies the five displacement uniforms and nothing else', () => {
+        const base = plain(new InkCloud(100, SEED, 64));
+        const cloud = new InkCloud(100, SEED, 64, { displacementScale: 0.35 });
+        const expected = scaled(0.35);
+        for (const [name, value] of Object.entries(expected)) {
+            expect(uniformOf(cloud, name)).toBeCloseTo(value, 12);
+        }
+        const rest = { ...plain(cloud) };
+        for (const name of Object.keys(expected)) {
+            rest[name] = base[name];
+        }
+        expect(rest).toEqual(base);
+    });
+
+    it('alphaScale multiplies uAlpha and nothing else', () => {
+        const base = plain(new InkCloud(100, SEED, 64));
+        const cloud = new InkCloud(100, SEED, 64, { alphaScale: 0.6 });
+        expect(uniformOf(cloud, 'uAlpha')).toBeCloseTo(sprite.baseAlpha * 0.6, 12);
+        expect({ ...plain(cloud), uAlpha: base.uAlpha }).toEqual(base);
+    });
+
+    it('keeps the scaled values through update and the per-frame setters', () => {
+        const cloud = new InkCloud(100, SEED, 64, { swellAmplitude: 0.35, displacementScale: 0.5, alphaScale: 0.6 });
+        cloud.update(makeCue(), 0.25, new KickRing(), palette, 0.1, 1);
+        cloud.setRadius(3);
+        cloud.setPunch(1);
+        cloud.setSwell(1);
+        cloud.setTexture(1, 1, 2);
+        expect(uniformOf(cloud, 'uSwellAmp')).toBe(0.35);
+        expect(uniformOf(cloud, 'uWaveMax')).toBeCloseTo(wave.maxDisplacement * 0.5, 12);
+        expect(uniformOf(cloud, 'uAlpha')).toBeCloseTo(sprite.baseAlpha * 0.6, 12);
     });
 });

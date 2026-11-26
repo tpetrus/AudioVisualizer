@@ -27,10 +27,10 @@ export const bassInkSceneConfig = {
         // cloud keeps the tempo even before the bass gate has found the kick. A 9 percent swell moves points apart
         // without adding light (the point count and sizes stay the same).
         beatPunch: 0.09,
-        // Every bass pulse swells the whole cloud outward by up to this fraction, with no tempo lock needed. It stays
-        // below beatPunch so the swell never outshouts the beat, and like the punch it moves points apart without
-        // adding light.
-        swellAmplitude: 0.07,
+        // Every bass bump swells the whole cloud outward by up to this fraction, at once and with no tempo lock needed.
+        // It is the pre-lock reaction (the lock takes seconds), so it is deliberately larger than beatPunch: the user
+        // asked for instant, clearly visible feedback. Like the punch it moves points apart without adding light.
+        swellAmplitude: 0.12,
         // The cloud is tipped toward the camera by this angle (radians). Seen exactly from the side, the flat disc and the
         // ring-shaped formations collapse into a bright line.
         tilt: 0.5,
@@ -41,18 +41,7 @@ export const bassInkSceneConfig = {
         fill: 0.95,
     },
     bass: {
-        // The swell is the bump above its own running level (see BassSwellShaper), so a bump that merely stays high
-        // rests at 0 and only a fresh rise swells the cloud. The running level climbs with this time constant
-        // (seconds): slow enough that a kick's own rise stays visible for a few frames.
-        swellRiseSeconds: 0.25,
-        // The running level drops with this one: fast, so the reference is back down by the next hit.
-        swellFallSeconds: 0.05,
-        // The rise above the running level that still counts as rest, so wobble in the bass line does not swell the
-        // cloud.
-        swellOffset: 0.15,
-        // Scales the rise above the offset so a kick-sized pulse reaches a clearly visible swell within a couple of
-        // frames; the result is clamped to 1.
-        swellGain: 1.8,
+        // The swell and the glow are the bump itself (see swellFromBump), so there is nothing to tune for the swell.
         // The glow arms at this swell and re-arms only below the lower one, so a pulse that wobbles around one level
         // is one flash, not several.
         glowArm: 0.6,
@@ -150,6 +139,87 @@ export const bassInkSceneConfig = {
         // is at the faded end. It follows the fit (framing.ts) because the radius does: near = -radius * halfRange,
         // far = +radius * halfRange, as offsets from the center's depth.
         halfRange: 1,
+    },
+    core: {
+        // A small dense nucleus inside the main cloud gives the object inner structure instead of one surface. It takes
+        // this share of the cloud's points, so the total the GPU draws does not grow.
+        pointShare: 0.2,
+        // Its radius as a share of the fitted shell radius, small enough that its whole pulse envelope stays inside
+        // the shell's (framing.ts checks it), so the fit is unchanged.
+        radiusScale: 0.38,
+        // Always the sphere: a round nucleus reads inside every shell formation.
+        formation: 0,
+        // The core is the bass's part: it swells much more than the shell, relative to its size ...
+        swellAmplitude: 0.35,
+        // ... while the absolute displacements (kick waves, spectrum, turbulence) are scaled down, so it pulses as
+        // one body and never pokes through the shell.
+        displacementScale: 0.35,
+        // Its points are packed into a small volume, so each is fainter, or additive blending turns it white.
+        alphaScale: 0.6,
+    },
+    dust: {
+        // A sparse field of faint points around everything fills the black void and gives depth and parallax. Its count
+        // is this share of the cloud's, capped on a software renderer.
+        pointShare: 0.08,
+        softwareCap: 800,
+        // A shell around the origin that the camera (at distance 12) sits inside, so dust shows in every direction at
+        // any orbit angle, and the nearest dust stays well away from the lens.
+        innerRadius: 18,
+        outerRadius: 45,
+        // World size of a dust point: about 2.5 px at distance 30 on a 900 px tall view.
+        size: 0.08,
+        // Faint on purpose: it is a backdrop.
+        alpha: 0.3,
+        // Each point twinkles around its own mean by this share of its alpha, with a random phase, so the field's total
+        // light stays constant and twinkling can never read as a flash.
+        twinkleDepth: 0.5,
+        // Twinkle cycles per second at rest; the followed high band speeds it up by up to highGain times this.
+        twinkleSpeed: 0.5,
+        highGain: 2,
+        // Slow rotation of the whole field (radians per second), so it drifts even when the camera is still.
+        driftSpeed: 0.01,
+        // Dust takes the palette's edge color mixed toward white by this share, so it follows the pickers but stays
+        // a neutral backdrop.
+        whiteMix: 0.4,
+    },
+    spray: {
+        // Points thrown off the shell on bass hits, from a fixed pool that is reused, newest overwriting oldest.
+        poolSize: 2048,
+        softwarePoolSize: 256,
+        // Points per burst (software renderer: softwarePerBurst).
+        perBurst: 160,
+        softwarePerBurst: 24,
+        // A burst fires when the swell rises through `arm`, re-arms only below `rearm`, and never more often than
+        // every minIntervalSeconds, so there are at most 3 bursts a second.
+        arm: 0.6,
+        rearm: 0.3,
+        minIntervalSeconds: 0.34,
+        // Outward speed at birth (world units per second); drag slows it with this time constant, so a point travels
+        // at most speed * dragSeconds (about 1 world unit) and stays inside the fit's worst-case envelope.
+        speed: 3,
+        dragSeconds: 0.35,
+        // A point lives this long, fading in over attackSeconds and out over the rest, so a burst eases in rather
+        // than appearing at once.
+        lifeSeconds: 0.9,
+        attackSeconds: 0.06,
+        // Peak alpha, scaled by the burst strength and the flash-intensity control.
+        alpha: 0.4,
+        size: 0.05,
+    },
+    post: {
+        // Trails: each frame keeps the brighter of itself and the previous frame dimmed by `damp` (three's afterimage,
+        // a max and not a sum, so trails never add light). The trails control maps 0..1 onto damp 0..dampMax; 0 turns
+        // the pass off.
+        trailsDampMax: 0.9,
+        // Bloom: a soft glow around the brightest areas. The glow control maps 0..1 onto strength 0..strengthMax; 0
+        // turns the pass off. Only light above `threshold` blooms, so the faint dust and the cloud's thin edge stay
+        // crisp. The strength never follows the music: global brightness stays BrightnessMix's job.
+        bloomStrengthMax: 1.2,
+        bloomRadius: 0.4,
+        bloomThreshold: 0.55,
+        // The bloom's blur runs at this share of the drawing size, which costs a quarter of the pixels and looks the
+        // same for a soft glow.
+        bloomResolutionScale: 0.5,
     },
     camera: {
         // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).

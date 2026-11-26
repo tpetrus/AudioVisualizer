@@ -136,7 +136,9 @@ governed global brightness), `fast`, `slow` and `ratio` (the energy envelope), `
 followed mid-band level that drives the swirl), `gateOpen` (1 while the shared bass gate has found the bassline) and
 `gateIn` (the `BassPulse` level fed to the gate), `gateRaw` (the hub's gate bass before the envelope) and
 `sceneBuiltAt` (when this scene was built, on the recording's `t` clock exactly like the dancer's mark of that name, see
-"Dancer marks"; negative when it was built before the track started).
+"Dancer marks"; negative when it was built before the track started), `fit` (the applied radius over the base radius),
+`huePhase` (the color cycle's position), `sprayBursts` (spray bursts fired so far) and `sprayLive` (spray points still
+alive) and `postActive` (1 while the last frame went through the trails and glow composer, 0 for a plain render).
 
 Shockwaves come from the shared bass gate (`app/features/rhythm/bassGate.ts`, as in the dancing character), not from
 the raw kick onset. The onset also fires on syncopated bass notes, toms and claps: on the reference clips it fired 2.5
