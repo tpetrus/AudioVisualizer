@@ -90,10 +90,11 @@ vi.mock('./setDirector', () => ({
 
 // The cloud has its own spec; here only how the scene drives it matters.
 interface FakeCloud {
-    object: { rotation: { x: number; y: number } };
+    object: { rotation: { x: number; y: number; z: number } };
     pointCount: number;
     seed: number;
     maxPointSize: number;
+    options: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number } | undefined;
     preparedIndex: number;
     transitioning: boolean;
     prepareFormation: ReturnType<typeof vi.fn>;
@@ -109,6 +110,7 @@ interface FakeCloud {
     blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
+    restPosition: ReturnType<typeof vi.fn>;
 }
 const clouds = vi.hoisted(() => ({ instances: [] as unknown[] }));
 vi.mock('./inkCloud', async () => {
@@ -133,25 +135,39 @@ vi.mock('./inkCloud', async () => {
             blendProgress = 0;
             showFormation = vi.fn();
             dispose = vi.fn();
+            // A unit point on the x axis, enough for the spray to leave from.
+            restPosition = vi.fn((_index: number, out: Float32Array) => {
+                out[0] = 1;
+                out[1] = 0;
+                out[2] = 0;
+            });
             constructor(
                 public pointCount: number,
                 public seed: number,
                 public maxPointSize: number,
+                public options?: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number },
             ) {
                 clouds.instances.push(this);
             }
         },
     };
 });
-const allClouds = () => clouds.instances as FakeCloud[];
+// The shell is built without options and the core with them, so most specs read the shell through these two.
+const everyCloud = () => clouds.instances as FakeCloud[];
+const allClouds = () => everyCloud().filter((cloud) => cloud.options === undefined);
+const allCores = () => everyCloud().filter((cloud) => cloud.options !== undefined);
 const currentCloud = () => allClouds().at(-1)!;
+const currentCore = () => allCores().at(-1)!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(24);
+    const out = new Float32Array(26);
     probeRead()(out);
     return out;
 }
+
+// The shell's share of the density control's total: the core takes the rest.
+const shellPoints = (total: number) => Math.round(total * (1 - bassInkSceneConfig.core.pointShare));
 
 function createAnalyser() {
     const context = new FakeAudioContext();
@@ -259,7 +275,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(1);
             const cloud = currentCloud();
-            expect(cloud.pointCount).toBe(pointCountFor(0.8, false));
+            expect(cloud.pointCount).toBe(shellPoints(pointCountFor(0.8, false)));
             expect(cloud.seed).toBe(bassInkConfig.director.formationSeed);
             expect(cloud.maxPointSize).toBe(bassInkSceneConfig.points.fallbackMaxPointSize);
             expect(scene.children).toContain(cloud.object);
@@ -935,7 +951,7 @@ describe('useBassInkScene', () => {
             expect(scene.children).not.toContain(old.object);
             const next = currentCloud();
             expect(scene.children).toContain(next.object);
-            expect(next.pointCount).toBe(pointCountFor(0.5, false));
+            expect(next.pointCount).toBe(shellPoints(pointCountFor(0.5, false)));
             expect(next.showFormation).toHaveBeenCalledWith(2, bassInkConfig.director.formationSeed);
             // The old cloud keeps turning while the rebuild waits, so the new one carries on from where it stood.
             expect(next.object.rotation.y).toBeGreaterThanOrEqual(1.25);
@@ -957,7 +973,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(2);
             expect(old.dispose).toHaveBeenCalledTimes(1);
-            expect(currentCloud().pointCount).toBe(pointCountFor(0.5, false));
+            expect(currentCloud().pointCount).toBe(shellPoints(pointCountFor(0.5, false)));
             expect(currentCloud().showFormation).toHaveBeenCalledWith(
                 expect.any(Number),
                 bassInkConfig.director.formationSeed,
@@ -1063,6 +1079,8 @@ describe('useBassInkScene', () => {
                     'glow',
                     'fit',
                     'huePhase',
+                    'sprayBursts',
+                    'sprayLive',
                 ],
                 expect.any(Function),
             );
@@ -1150,6 +1168,180 @@ describe('useBassInkScene', () => {
             const bare = mountScene();
             bare.frame();
             expect(readProbe()[19]).toBeNaN();
+        });
+    });
+
+    describe('the core, the dust and the spray', () => {
+        // The scene adds the shell, the core, the dust and the spray in this order.
+        const sprayAlphaScale = (scene: Scene) =>
+            (scene.children[3] as unknown as { material: { uniforms: { uAlphaScale: { value: number } } } }).material
+                .uniforms.uAlphaScale.value;
+        const geometryOf = (object: unknown) => (object as { geometry: { dispose: () => void } }).geometry;
+
+        // Settles a steady bassline, then hits it, which pushes the swell through the spray arm level.
+        function hitBass(frame: (milliseconds?: number) => void, hub: FakeAudioHub) {
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            hub.setGateBass(0.3);
+            for (let i = 0; i < 4; i++) frame(16);
+        }
+
+        it('adds the shell, the core, the dust and the spray to the scene', () => {
+            const { scene } = mountScene();
+
+            expect(scene.children).toHaveLength(4);
+            expect(scene.children[0]).toBe(currentCloud().object);
+            expect(scene.children[1]).toBe(currentCore().object);
+        });
+
+        it('splits the old total between the shell and the core', () => {
+            mountScene();
+
+            const total = pointCountFor(0.8, false);
+            expect(currentCloud().pointCount + currentCore().pointCount).toBe(total);
+            expect(currentCore().pointCount).toBeGreaterThan(0);
+            expect(currentCore().options).toEqual({
+                swellAmplitude: bassInkSceneConfig.core.swellAmplitude,
+                displacementScale: bassInkSceneConfig.core.displacementScale,
+                alphaScale: bassInkSceneConfig.core.alphaScale,
+            });
+        });
+
+        it('sets the core radius to the shell fit times the radius scale, also after a resize', () => {
+            const { resizes, frame } = mountScene();
+            const radiusScale = bassInkSceneConfig.core.radiusScale;
+            const fitOf = () =>
+                (currentCloud().setRadius.mock.calls.at(-1)![0] as number) / bassInkSceneConfig.cloud.radius;
+
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(fitOf() * radiusScale, 9);
+
+            resizes.resize(1000, 400);
+            frame();
+
+            expect(currentCore().setRadius.mock.calls.at(-1)![0]).toBeCloseTo(fitOf() * radiusScale, 9);
+            expect(currentCore().setViewport.mock.calls.at(-1)![0]).toBeGreaterThanOrEqual(400);
+        });
+
+        it('keeps the core on its formation through a director transition', () => {
+            const { frame } = mountScene();
+            const core = currentCore();
+            script.cue.formationIndex = 2;
+            script.cue.nextFormationIndex = 3;
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0;
+            for (let i = 0; i < 5; i++) frame();
+
+            // The shell transitions; the core is shown the core formation once and is never prepared.
+            expect(currentCloud().beginTransition).toHaveBeenCalled();
+            expect(core.showFormation).toHaveBeenCalledTimes(1);
+            expect(core.showFormation).toHaveBeenCalledWith(
+                bassInkSceneConfig.core.formation,
+                bassInkConfig.director.formationSeed,
+            );
+            expect(core.prepareFormation).not.toHaveBeenCalled();
+            expect(core.beginTransition).not.toHaveBeenCalled();
+            // It still gets the same cue as the shell every frame.
+            expect(core.update.mock.calls.at(-1)![0]).toBe(currentCloud().update.mock.calls.at(-1)![0]);
+        });
+
+        it('gives the core the same per-frame values as the shell', () => {
+            const { frame } = mountScene();
+            frame();
+
+            const shell = currentCloud();
+            const core = currentCore();
+            for (const name of ['setPunch', 'setSwell', 'setTexture', 'setSpectrum'] as const) {
+                expect(core[name].mock.calls.at(-1)).toEqual(shell[name].mock.calls.at(-1));
+            }
+            expect(core.update.mock.calls.at(-1)).toEqual(shell.update.mock.calls.at(-1));
+        });
+
+        it('fires a spray burst on a hub bass pulse with the tempo unlocked, and reports it', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            expect(readProbe()[24]).toBe(0);
+
+            hitBass(frame, hub);
+
+            expect(gateScript.calls.at(-1)!.locked).toBe(false);
+            const probe = readProbe();
+            expect(probe[24]).toBeGreaterThanOrEqual(1);
+            expect(probe[25]).toBeGreaterThan(0);
+            expect(currentCloud().restPosition).toHaveBeenCalled();
+        });
+
+        it('shows no spray at intensity 0', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, scene, valuesRef } = mountScene({ analyser: node });
+            hitBass(frame, hub);
+            expect(sprayAlphaScale(scene)).toBeGreaterThan(0);
+
+            valuesRef.current = { ...valuesRef.current, intensity: 0 };
+            frame();
+
+            expect(sprayAlphaScale(scene)).toBe(0);
+        });
+
+        it('turns the core and the spray with the shell, and the dust not at all', () => {
+            const { frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 1 };
+            for (let i = 0; i < 10; i++) frame();
+
+            const shell = currentCloud().object.rotation;
+            expect(shell.y).toBeGreaterThan(0);
+            for (const index of [1, 3]) {
+                const turned = scene.children[index].rotation;
+                expect(turned.x).toBe(shell.x);
+                expect(turned.y).toBe(shell.y);
+                expect(turned.z).toBe(shell.z);
+            }
+            // The dust drifts on its own slow clock and never copies the shell.
+            expect(scene.children[2].rotation.y).not.toBe(shell.y);
+        });
+
+        it('rebuilds and frees all four on a density change, keeping the rotation shared', () => {
+            const { frame, scene, valuesRef } = mountScene();
+            frame();
+            const [oldShell, oldCore, oldDust, oldSpray] = [...scene.children];
+            const dustDispose = vi.spyOn(geometryOf(oldDust), 'dispose');
+            const sprayDispose = vi.spyOn(geometryOf(oldSpray), 'dispose');
+            currentCloud().object.rotation.y = 1.25;
+
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            for (let i = 0; i < 6; i++) frame(100);
+
+            expect(allClouds()).toHaveLength(2);
+            expect(allCores()).toHaveLength(2);
+            for (const old of [oldShell, oldCore, oldDust, oldSpray]) expect(scene.children).not.toContain(old);
+            expect(scene.children).toHaveLength(4);
+            expect(dustDispose).toHaveBeenCalledTimes(1);
+            expect(sprayDispose).toHaveBeenCalledTimes(1);
+            expect(allCores()[0].dispose).toHaveBeenCalledTimes(1);
+            expect(allClouds()[0].dispose).toHaveBeenCalledTimes(1);
+            const total = pointCountFor(0.5, false);
+            expect(currentCloud().pointCount + currentCore().pointCount).toBe(total);
+            expect(currentCore().showFormation).toHaveBeenCalledWith(
+                bassInkSceneConfig.core.formation,
+                bassInkConfig.director.formationSeed,
+            );
+            expect(currentCore().setRadius).toHaveBeenCalled();
+            expect(scene.children[1].rotation.y).toBe(currentCloud().object.rotation.y);
+            expect(scene.children[3].rotation.y).toBe(currentCloud().object.rotation.y);
+        });
+
+        it('frees the core, the dust and the spray on unmount', () => {
+            const { unmount, scene, frame } = mountScene();
+            frame();
+            const dustDispose = vi.spyOn(geometryOf(scene.children[2]), 'dispose');
+            const sprayDispose = vi.spyOn(geometryOf(scene.children[3]), 'dispose');
+            const core = currentCore();
+
+            unmount();
+
+            expect(core.dispose).toHaveBeenCalledTimes(1);
+            // The scene teardown walks the children as well, so a second dispose is harmless.
+            expect(dustDispose).toHaveBeenCalled();
+            expect(sprayDispose).toHaveBeenCalled();
         });
     });
 
