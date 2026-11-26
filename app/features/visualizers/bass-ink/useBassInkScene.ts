@@ -4,10 +4,9 @@ import { bassInkConfig } from './bassInkConfig';
 import type { BassInkControlValues } from './bassInkControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type PalettePair } from './bassInkTypes';
-import { swellFromBump, type BassSwell } from './bassInkBass';
+import { BassSwellShaper, type BassSwell } from './bassInkBass';
 import { BrightnessMix } from './brightnessMix';
 import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
-import { blendPalette } from './chromaPalette';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
 import { fitScale, formationOuterRadius } from './framing';
 import { InkCloud } from './inkCloud';
@@ -49,11 +48,6 @@ interface BassInkSceneOptions {
 
 function createPalette(): PalettePair {
     return { core: new Float32Array(3), edge: new Float32Array(3) };
-}
-
-function copyPalette(from: PalettePair, to: PalettePair): void {
-    to.core.set(from.core);
-    to.edge.set(from.edge);
 }
 
 // A cloud of ink-like points that breathes with the tempo, ripples on every kick, tightens during a build and reforms
@@ -170,9 +164,8 @@ export function useBassInkScene(
         computeFits(size.width, size.height);
         applyFit(0);
 
-        // The palette fades from the previous pair to the latest one across each transition.
-        const paletteFrom = createPalette();
-        const paletteTo = createPalette();
+        // The palette the cloud is drawn with. It is written straight from the pickers every frame and never faded
+        // across a formation transition, so a picker change shows at full strength on the next frame.
         const paletteShown = createPalette();
         // The three picked colors (linear) and the hex strings they were parsed from, so a string is parsed only when
         // the control changes. Empty strings never match a control value, so the first write parses all three.
@@ -193,10 +186,6 @@ export function useBassInkScene(
             writeCustomPalette(pickedColors, huePhase, out);
         };
         writePicked(paletteShown);
-        copyPalette(paletteShown, paletteFrom);
-        copyPalette(paletteShown, paletteTo);
-        let paletteStart = 0;
-        let paletteSeconds = 0;
 
         // Compared with the cue's counter each frame to notice a new transition without events or allocation.
         let seenTransitions = cue.transitionCount;
@@ -212,6 +201,8 @@ export function useBassInkScene(
         let lastGateBass = 0;
         // The bass swell and glow derived from lastGateBass each frame; preallocated so nothing is created per frame.
         const swellOut: BassSwell = { swell: 0, glow: 0 };
+        // Measures the bump against its own running level so the swell pulses on hits instead of holding.
+        const swellShaper = new BassSwellShaper();
         // The hub's gate bass before the envelope, kept to tell a weak hub signal from a weak envelope in telemetry.
         let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
@@ -332,7 +323,7 @@ export function useBassInkScene(
                 // The gate trusts the beat exactly when the breathing does, so the two never disagree about the tempo.
                 lastGateRaw = source ? hub.snapshot.gateBass.pulse : 0;
                 lastGateBass = source ? bump.step(lastGateRaw, dt) : 0;
-                swellFromBump(lastGateBass, swellOut);
+                swellShaper.step(lastGateBass, dt, swellOut);
                 stepBassGate(lastGateBass, state, clock.locked, bassGate, gateDt);
                 const kickFired = kickRing.update(bassGate, now);
                 if (kickFired) {
@@ -381,16 +372,11 @@ export function useBassInkScene(
                         cloud.prepareFormation(cue.nextFormationIndex, formationSeed + cue.transitionCount);
                     }
                     cloud.beginTransition(cue.transitionStart, cue.transitionSeconds);
-                    copyPalette(paletteShown, paletteFrom);
-                    paletteStart = cue.transitionStart;
-                    paletteSeconds = cue.transitionSeconds;
                 }
-                // The picked colors drive the palette every frame, so a picker change shows on the next frame; a
-                // transition only fades from what was shown when it began.
+                // The picked colors drive the palette every frame, with no fade over a transition, so a picker change
+                // made at any moment shows at full strength on the next frame.
                 huePhase = advanceHuePhase(huePhase, values.colorSpeed, dt);
-                writePicked(paletteTo);
-                const paletteProgress = paletteSeconds > 0 ? (now - paletteStart) / paletteSeconds : 1;
-                blendPalette(paletteFrom, paletteTo, Math.min(1, Math.max(0, paletteProgress)), paletteShown);
+                writePicked(paletteShown);
 
                 brightnessMix.update(cue, kickFired, lastKickStrength, now, dt, values.intensity);
                 // After the kick flash, so a kick and a bass pulse on one frame share the soft cap in that order.

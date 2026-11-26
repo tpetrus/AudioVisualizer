@@ -5,7 +5,9 @@ import type { DirectorCue } from './bassInkTypes';
 
 // The single place every global-brightness term goes through (plan F3). Kick flashes, the drop burst and the core gain
 // steps all ask the governor, and the level only ever rises on a granted frame, so the total number of brightness
-// increases in any second is bounded no matter how the terms line up. Ripples are displacement only and never come here.
+// increases in any second is bounded no matter how the terms line up. Ripples are displacement only and never come
+// here. A core step that finds the soft cap full waits and is retried, and while it waits it goes ahead of the kick
+// flashes and bass glows (each one held back counts as denied), so a kick-driven build cannot starve it.
 export class BrightnessMix {
     // Current global brightness boost, 0 or more.
     level = 0;
@@ -20,6 +22,10 @@ export class BrightnessMix {
     private softHead = 0;
     // False after a glow crossing until the glow has fallen below the re-arm level.
     private glowArmed = true;
+    // The highest core-step threshold whose request was turned down and is still waiting for a slot, or -1 for none. One
+    // slot is enough: the steps all add the same gain, and one retry after a crossing of several covers the lot.
+    private pendingStepTension = -1;
+    private pendingStepGain = 0;
     private readonly config: BrightnessConfig;
     private readonly governor: BrightnessGovernor;
 
@@ -52,17 +58,46 @@ export class BrightnessMix {
             }
         }
 
-        // One request per upward crossing of each step; coming back down re-arms it.
+        // Nothing can be granted without a finite clock and a positive intensity, so a waiting step is dropped rather
+        // than left to fire stale on the first frame that can show it.
+        const live = intensity > 0 && Number.isFinite(intensity) && Number.isFinite(nowSeconds);
+        if (!live) {
+            this.pendingStepTension = -1;
+        }
+
+        // A step that was turned down waits for a free slot, but only while the tension that asked for it still holds:
+        // if tension fell back below it, the moment has passed and a late step would be a surprise.
+        if (this.pendingStepTension >= 0) {
+            if (cue.tension < this.pendingStepTension) {
+                this.pendingStepTension = -1;
+            } else if (this.grantSoft(this.pendingStepGain, nowSeconds, intensity)) {
+                this.pendingStepTension = -1;
+            }
+        }
+
+        // One request per upward crossing of each step; coming back down re-arms it. A denied request is kept as pending
+        // instead of being lost, and a crossing while one is already waiting just raises it (no second request this frame).
         const steps = config.coreStepTension;
         for (let i = 0; i < steps.length; i++) {
             if (this.lastTension < steps[i] && cue.tension >= steps[i]) {
-                this.grantSoft(config.coreStepGain, nowSeconds, intensity);
+                if (!live) {
+                    continue;
+                }
+                if (this.pendingStepTension >= 0 || !this.grantSoft(config.coreStepGain, nowSeconds, intensity)) {
+                    this.pendingStepTension = Math.max(this.pendingStepTension, steps[i]);
+                    this.pendingStepGain = config.coreStepGain;
+                }
             }
         }
         this.lastTension = cue.tension;
 
+        // While a core step waits, kick flashes stay out so the next free slot goes to the step.
         if (kickFired) {
-            this.grantSoft(config.kickFlash * Math.min(1, Math.max(0, kickStrength)), nowSeconds, intensity);
+            if (this.pendingStepTension < 0) {
+                this.grantSoft(config.kickFlash * Math.min(1, Math.max(0, kickStrength)), nowSeconds, intensity);
+            } else {
+                this.deniedCount++;
+            }
         }
         return this.level;
     }
@@ -75,7 +110,12 @@ export class BrightnessMix {
         if (this.glowArmed) {
             if (glow >= glowArm) {
                 this.glowArmed = false;
-                this.grantSoft(glowAmount * Math.min(1, glow), nowSeconds, intensity);
+                // A glow that arrives while a core step waits is spent without lifting anything, so there is no late glow.
+                if (this.pendingStepTension < 0) {
+                    this.grantSoft(glowAmount * Math.min(1, glow), nowSeconds, intensity);
+                } else {
+                    this.deniedCount++;
+                }
             }
         } else if (glow < glowRearm) {
             this.glowArmed = true;

@@ -316,3 +316,224 @@ describe('BrightnessMix.requestBassGlow', () => {
         expect(mix.grantCount).toBe(granted + 1);
     });
 });
+
+describe('BrightnessMix pending core steps', () => {
+    const { glowArm, glowRearm } = bassInkSceneConfig.bass;
+
+    // Records every granted amount with its time, so a test can tell a core step from a kick flash or a glow.
+    class RecordingGovernor extends BrightnessGovernor {
+        readonly log: { at: number; amount: number }[] = [];
+        override request(strength: number, nowSeconds: number, intensity: number): number {
+            const granted = super.request(strength, nowSeconds, intensity);
+            if (granted > 0) {
+                this.log.push({ at: nowSeconds, amount: granted });
+            }
+            return granted;
+        }
+    }
+
+    // Two kick flashes fill the shared cap at t = 0 and 0.1, so it frees at t = 1.
+    function fillCap(mix: BrightnessMix, cue: DirectorCue): void {
+        mix.update(cue, true, 1, 0, DT, 1);
+        mix.update(cue, true, 1, 0.1, DT, 1);
+        expect(mix.grantCount).toBe(2);
+    }
+
+    it('grants every core step within a second of its crossing during a kick- and glow-driven build at 180 bpm', () => {
+        const governor = new RecordingGovernor();
+        const mix = new BrightnessMix(config, governor);
+        const cue = cueWith({});
+        const beatFrames = 20;
+        const frames = 6 * 60;
+        const steps = config.coreStepTension;
+        const crossedAt: number[] = steps.map(() => -1);
+        for (let f = 0; f < frames; f++) {
+            const now = f * DT;
+            cue.tension = Math.min(1, now / 5);
+            steps.forEach((step, i) => {
+                if (crossedAt[i] < 0 && cue.tension >= step) {
+                    crossedAt[i] = now;
+                }
+            });
+            const onBeat = f % beatFrames === 0;
+            mix.update(cue, onBeat, 1, now, DT, 1);
+            // The glow rises through the arm level on the beat and falls below the re-arm level before the next one.
+            const glow = onBeat ? 1 : f % beatFrames < 6 ? glowArm : glowRearm - 0.1;
+            mix.requestBassGlow(glow, now, 1);
+        }
+        const stepGrants = governor.log.filter((g) => Math.abs(g.amount - config.coreStepGain) < 1e-9);
+        expect(stepGrants).toHaveLength(steps.length);
+        steps.forEach((_, i) => {
+            expect(crossedAt[i]).toBeGreaterThanOrEqual(0);
+            const grant = stepGrants[i];
+            expect(grant.at).toBeGreaterThanOrEqual(crossedAt[i]);
+            expect(grant.at - crossedAt[i]).toBeLessThanOrEqual(1);
+        });
+        expect(mix.grantCount).toBe(governor.log.length);
+    });
+
+    it('never lets a sliding second hold more than 3 grants, counted from grantCount changes', () => {
+        const mix = new BrightnessMix();
+        const cue = cueWith({});
+        const times: number[] = [];
+        for (let f = 0; f < 600; f++) {
+            const now = f * DT;
+            cue.tension = Math.min(1, now / 5);
+            const before = mix.grantCount;
+            const onBeat = f % 20 === 0;
+            mix.update(cue, onBeat, 1, now, DT, 1);
+            mix.requestBassGlow(onBeat ? 1 : glowRearm - 0.1, now, 1);
+            for (let i = before; i < mix.grantCount; i++) {
+                times.push(now);
+            }
+        }
+        expect(times.length).toBeGreaterThan(4);
+        for (const t of times) {
+            expect(times.filter((g) => g >= t && g < t + 1).length).toBeLessThanOrEqual(3);
+        }
+    });
+
+    it('drops a pending step when tension falls below it, so a later kick is a flash and not held back', () => {
+        const governor = new RecordingGovernor();
+        const mix = new BrightnessMix(config, governor);
+        const cue = cueWith({});
+        fillCap(mix, cue);
+        cue.tension = 0.3;
+        mix.update(cue, false, 0, 0.2, DT, 1);
+        cue.tension = 0.2;
+        mix.update(cue, false, 0, 0.3, DT, 1);
+        // The slots free at t = 1; the step is gone, so nothing is granted by waiting.
+        for (let t = 0.4; t < 0.99; t += 0.05) {
+            mix.update(cue, false, 0, t, DT, 1);
+        }
+        expect(mix.grantCount).toBe(2);
+        // With the step dropped, a kick at t = 1 is an ordinary flash (a pending step would have taken the slot instead).
+        mix.update(cue, true, 1, 1.0, DT, 1);
+        expect(governor.log.at(-1)?.amount).toBeCloseTo(config.kickFlash, 9);
+        expect(mix.grantCount).toBe(3);
+        for (let t = 1.05; t < 2; t += 0.05) {
+            mix.update(cue, false, 0, t, DT, 1);
+        }
+        expect(mix.grantCount).toBe(3);
+    });
+
+    it('asks again after tension oscillates across a threshold, one step per upward crossing', () => {
+        const governor = new RecordingGovernor();
+        const mix = new BrightnessMix(config, governor);
+        const cue = cueWith({});
+        fillCap(mix, cue);
+        for (const [t, tension] of [
+            [0.2, 0.3],
+            [0.3, 0.2],
+            [0.4, 0.3],
+            [0.5, 0.2],
+            [0.6, 0.3],
+        ] as const) {
+            cue.tension = tension;
+            mix.update(cue, false, 0, t, DT, 1);
+        }
+        expect(mix.grantCount).toBe(2);
+        for (let t = 0.7; t < 2; t += 0.05) {
+            mix.update(cue, false, 0, t, DT, 1);
+        }
+        // The last crossing is still held, and one slot gives it exactly one step.
+        const steps = governor.log.filter((g) => Math.abs(g.amount - config.coreStepGain) < 1e-9);
+        expect(steps).toHaveLength(1);
+        expect(steps[0].at).toBeGreaterThanOrEqual(1);
+        expect(mix.grantCount).toBe(3);
+    });
+
+    it('does not fire a pending step stale after a stretch at intensity 0, or one that crosses during it', () => {
+        const mix = new BrightnessMix();
+        const cue = cueWith({});
+        fillCap(mix, cue);
+        cue.tension = 0.3;
+        mix.update(cue, false, 0, 0.2, DT, 1);
+        for (let t = 0.3; t < 1.5; t += 0.1) {
+            mix.update(cue, false, 0, t, DT, 0);
+        }
+        mix.update(cue, false, 0, 1.6, DT, 1);
+        mix.update(cue, false, 0, 1.7, DT, 1);
+        expect(mix.grantCount).toBe(2);
+
+        // A crossing made while the intensity is 0 is not remembered either.
+        const quiet = new BrightnessMix();
+        const rising = cueWith({});
+        rising.tension = 0.3;
+        quiet.update(rising, false, 0, 0, DT, 0);
+        quiet.update(rising, false, 0, 0.1, DT, 1);
+        expect(quiet.grantCount).toBe(0);
+
+        // A non-finite intensity or clock drops a waiting step the same way.
+        for (const bad of [
+            { intensity: Number.NaN, now: 0.5 },
+            { intensity: 1, now: Number.NaN },
+        ]) {
+            const m = new BrightnessMix();
+            const c = cueWith({});
+            fillCap(m, c);
+            c.tension = 0.3;
+            m.update(c, false, 0, 0.2, DT, 1);
+            m.update(c, false, 0, bad.now, DT, bad.intensity);
+            m.update(c, false, 0, 1.5, DT, 1);
+            expect(m.grantCount).toBe(2);
+        }
+    });
+
+    it('counts a kick flash and a bass glow held back by a pending step as denied', () => {
+        // The retry of the waiting step is itself a denial each frame, so each run is compared with one without the extra.
+        function deniedAfter(kick: boolean, glow: number): number {
+            const mix = new BrightnessMix();
+            const cue = cueWith({});
+            fillCap(mix, cue);
+            cue.tension = 0.3;
+            mix.update(cue, false, 0, 0.2, DT, 1);
+            mix.update(cue, kick, 1, 0.3, DT, 1);
+            mix.requestBassGlow(glow, 0.35, 1);
+            expect(mix.grantCount).toBe(2);
+            return mix.deniedCount;
+        }
+        const base = deniedAfter(false, 0);
+        expect(deniedAfter(true, 0)).toBe(base + 1);
+        expect(deniedAfter(false, 1)).toBe(base + 1);
+    });
+
+    it('does not grant a glow that arrives while a step is pending, now or later at the same pulse', () => {
+        const mix = new BrightnessMix();
+        const cue = cueWith({});
+        fillCap(mix, cue);
+        cue.tension = 0.3;
+        mix.update(cue, false, 0, 0.2, DT, 1);
+        mix.requestBassGlow(1, 0.25, 1);
+        expect(mix.grantCount).toBe(2);
+        // The glow stays high through the cap freeing: only the step is granted.
+        for (let t = 0.3; t < 2; t += 0.05) {
+            mix.update(cue, false, 0, t, DT, 1);
+            mix.requestBassGlow(1, t, 1);
+        }
+        expect(mix.grantCount).toBe(3);
+        // Once the glow falls and rises again it is granted as usual.
+        mix.requestBassGlow(0, 2.1, 1);
+        mix.requestBassGlow(1, 2.2, 1);
+        expect(mix.grantCount).toBe(4);
+    });
+
+    it('holds back a kick flash while a step is pending', () => {
+        const governor = new RecordingGovernor();
+        const mix = new BrightnessMix(config, governor);
+        const cue = cueWith({});
+        fillCap(mix, cue);
+        cue.tension = 0.3;
+        mix.update(cue, false, 0, 0.2, DT, 1);
+        // A kick at t = 0.5 is held back (and would find the cap full anyway); at t = 1 the step takes the slot first.
+        mix.update(cue, true, 1, 0.5, DT, 1);
+        expect(mix.grantCount).toBe(2);
+        mix.update(cue, true, 1, 1.0, DT, 1);
+        expect(mix.grantCount).toBe(3);
+        // The step is the only thing the governor was granted at t = 1, and the level stays below a kick flash's (the
+        // frames here are one frame apart, so the earlier flash has barely decayed and the level is slightly above the gain).
+        expect(governor.log.at(-1)).toEqual({ at: 1.0, amount: config.coreStepGain });
+        expect(mix.level).toBeGreaterThanOrEqual(config.coreStepGain);
+        expect(mix.level).toBeLessThan(config.kickFlash);
+    });
+});

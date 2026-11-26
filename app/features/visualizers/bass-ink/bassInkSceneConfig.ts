@@ -41,12 +41,18 @@ export const bassInkSceneConfig = {
         fill: 0.95,
     },
     bass: {
-        // The bump envelope's output below this is its noise floor (a steady bassline leaves it at a few percent), so
-        // the cloud stays still until a real pulse.
-        swellFloor: 0.04,
-        // Scales what is above the floor so a kick-sized pulse (about 0.15 to 0.5) reaches a clearly visible swell
-        // within a couple of frames; the result is clamped to 1.
-        swellGain: 3,
+        // The swell is the bump above its own running level (see BassSwellShaper), so a bump that merely stays high
+        // rests at 0 and only a fresh rise swells the cloud. The running level climbs with this time constant
+        // (seconds): slow enough that a kick's own rise stays visible for a few frames.
+        swellRiseSeconds: 0.25,
+        // The running level drops with this one: fast, so the reference is back down by the next hit.
+        swellFallSeconds: 0.05,
+        // The rise above the running level that still counts as rest, so wobble in the bass line does not swell the
+        // cloud.
+        swellOffset: 0.15,
+        // Scales the rise above the offset so a kick-sized pulse reaches a clearly visible swell within a couple of
+        // frames; the result is clamped to 1.
+        swellGain: 1.8,
         // The glow arms at this swell and re-arms only below the lower one, so a pulse that wobbles around one level
         // is one flash, not several.
         glowArm: 0.6,

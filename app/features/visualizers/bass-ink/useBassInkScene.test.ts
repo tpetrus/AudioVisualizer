@@ -520,6 +520,24 @@ describe('useBassInkScene', () => {
             expect(probe[21]).toBeCloseTo(swells[2], 6);
         });
 
+        it('lets the swell fall back to 0 while the bump stays high, and reports it in telemetry', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            // A louder bassline that then stays loud: the first frames swell, and the shaper's running level absorbs it.
+            hub.setGateBass(0.3);
+            let peak = 0;
+            for (let i = 0; i < 20; i++) {
+                frame(16);
+                peak = Math.max(peak, currentCloud().setSwell.mock.calls.at(-1)![0] as number);
+            }
+            expect(peak).toBeGreaterThan(0.3);
+            for (let i = 0; i < 300; i++) frame(16);
+            expect(currentCloud().setSwell).toHaveBeenLastCalledWith(0);
+            expect(readProbe()[20]).toBe(0);
+        });
+
         it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {
             const { node } = createAnalyser();
             const { frame, hub } = mountScene({ analyser: node });
@@ -814,7 +832,7 @@ describe('useBassInkScene', () => {
             expect(prepared).toBeLessThan(cloud.beginTransition.mock.invocationCallOrder[0]);
         });
 
-        it('fades from the colors shown when the transition began to the picked ones', () => {
+        it('shows a color picker change made as a transition starts at full strength on the next frame', () => {
             const { frame, valuesRef } = mountScene();
             valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
             frame();
@@ -822,29 +840,13 @@ describe('useBassInkScene', () => {
 
             script.cue.transitionCount = 1;
             script.cue.transitionStart = 0.016;
-            script.cue.transitionSeconds = 1;
+            script.cue.transitionSeconds = 2;
             valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
-            // Frames are clamped to 0.1 s, so the one second transition takes about ten of them.
-            for (let i = 0; i < 5; i++) frame(100);
-            const halfway = lastUpdate().core[1];
-            for (let i = 0; i < 8; i++) frame(100);
-            const done = lastUpdate().core[1];
-
-            expect(halfway).toBeGreaterThan(0.05);
-            expect(halfway).toBeLessThan(0.95);
-            expect(done).toBeCloseTo(1, 5);
-        });
-
-        it('shows the picked colors at once when a transition has zero length', () => {
-            const { frame, valuesRef } = mountScene();
-            valuesRef.current = { ...valuesRef.current, colorSpeed: 0, colorA: '#ff0000' };
-            frame();
-            script.cue.transitionCount = 1;
-            script.cue.transitionSeconds = 0;
-            valuesRef.current = { ...valuesRef.current, colorA: '#00ff00' };
-
             frame();
 
+            // The transition is only just under way, yet the new color is already whole, with no blend.
+            expect(currentCloud().beginTransition).toHaveBeenCalledTimes(1);
+            expect(lastUpdate().core[0]).toBeCloseTo(0, 5);
             expect(lastUpdate().core[1]).toBeCloseTo(1, 5);
         });
     });

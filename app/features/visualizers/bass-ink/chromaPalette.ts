@@ -166,11 +166,3 @@ export function writePalette(pitchClass: number, out: PalettePair, config: Chrom
     writeEvenHsl(out.core, hue, config.coreSaturation, target.core);
     writeEvenHsl(out.edge, hue + config.edgeHueShiftDegrees, config.edgeSaturation, target.edge);
 }
-
-// Linear blend of two palettes (t 0 gives a, 1 gives b).
-export function blendPalette(a: PalettePair, b: PalettePair, t: number, out: PalettePair): void {
-    for (let i = 0; i < 3; i++) {
-        out.core[i] = a.core[i] + (b.core[i] - a.core[i]) * t;
-        out.edge[i] = a.edge[i] + (b.edge[i] - a.edge[i]) * t;
-    }
-}
