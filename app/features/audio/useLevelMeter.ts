@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAudio } from './audioEngineContext';
 
-const METER_INTERVAL_MS = 100;
+export const METER_INTERVAL_MS = 100;
 // How long the raw input must stay below SIGNAL_THRESHOLD before it counts as silent.
 const SILENCE_TIMEOUT_MS = 4000;
 const SIGNAL_THRESHOLD = 0.01;

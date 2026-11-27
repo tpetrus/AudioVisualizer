@@ -1,6 +1,6 @@
 export function SilenceWarning() {
     return (
-        <div className="mb-3 text-sm text-yellow-400" role="status">
+        <div className="mb-3 text-sm text-warning" role="status">
             No audio signal detected. Make sure something is playing, then check:
             <ul className="mb-0 list-disc pl-8">
                 <li>
