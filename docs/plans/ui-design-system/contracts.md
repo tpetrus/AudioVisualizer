@@ -96,6 +96,22 @@ capability hint comes only from `useCapabilityHint(enabled)`. The store, hook, k
 export `EnhancedGraphicsToggle` and its props `{ status?, className?, description? }` stay (see the parallel branches
 above).
 
-## Q1, asked before S5 (PR2)
+## Q1, approved by the user on 2026-11-27 (design for S5, PR2)
 
-S5 does not start until the user approves the proposal the orchestrator sends.
+1. Control: `EnhancedGraphicsToggle` (path, name and props unchanged) renders the `Switch` primitive (track and thumb in
+   the accent when on, visible On/Off) labelled "Enhanced graphics", a `Badge` "Recommended" beside it, the description
+   and the existing status live region.
+2. Placement: a `Section` titled "Graphics" holds it, both on the landing page (between the audio line and the cards) and
+   as the first block of the open settings panel. The panel keeps rendering it through the existing `header` prop, so
+   the visualizer pages do not change.
+3. First-visit prompt, `app/features/landing/EnhancedGraphicsPrompt.tsx`, on `Dialog`: title "Turn on enhanced
+   graphics?", body "Richer lighting, reflections and sky. Needs a strong GPU and downloads up to about 30 MB. You can
+   change this any time in Graphics settings.", buttons Turn on (primary, focused first) and Not now (secondary).
+   Behavior is set by C3: it shows once, never when an enhanced graphics value is stored, and never while the audio
+   source dialog is open.
+4. Gating: the Recommended badge and the prompt both depend on `useCapabilityHint`. The badge replaces the old "Your
+   device can likely handle this" line and shows only while the hint is true (the setting is off and the probe
+   passed). The prompt opens only once the probe resolves true, which is after first paint by construction (idle
+   callback). Software-GL e2e runs therefore never see it, so its dedicated e2e spec fakes a capable probe with an init
+   script (WebGL 2 parameters, the renderer and navigator.deviceMemory and hardwareConcurrency) and, unlike the rest of
+   the suite, does not seed the flag.
