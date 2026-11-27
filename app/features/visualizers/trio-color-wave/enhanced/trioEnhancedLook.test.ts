@@ -210,12 +210,18 @@ describe('createTrioEnhancedLook build', () => {
 
     it('sizes the bloom at the configured share of the drawing size in device pixels', () => {
         const { look } = setup(true, 2);
-        expect(bloom().resolution.x).toBe(Math.round(800 * 2 * BLOOM_RESOLUTION_SHARE));
-        expect(bloom().resolution.y).toBe(Math.round(600 * 2 * BLOOM_RESOLUTION_SHARE));
+        // The real pass copies the resolution it is given, so only what the look hands to setSize is checked. It is
+        // twice the target because the pass's first target is half of what it gets.
+        expect(bloom().sizes.at(-1)).toEqual([
+            Math.round(800 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+            Math.round(600 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+        ]);
         look.setSize({ width: 1000, height: 500 });
         expect(composer().size).toEqual([1000, 500]);
-        expect(bloom().resolution.x).toBe(Math.round(1000 * 2 * BLOOM_RESOLUTION_SHARE));
-        expect(bloom().sizes.at(-1)).toEqual([bloom().resolution.x * 2, bloom().resolution.y * 2]);
+        expect(bloom().sizes.at(-1)).toEqual([
+            Math.round(1000 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+            Math.round(500 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+        ]);
     });
 });
 
