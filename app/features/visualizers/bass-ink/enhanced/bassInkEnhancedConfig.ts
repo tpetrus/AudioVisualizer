@@ -17,10 +17,10 @@ export const ENHANCED_FRAME_BUDGET_SECONDS = 1 / 58;
 // ---- Second bloom ----
 
 // A wide, soft halo on top of the standard glow control's bloom. Fixed strength, so the glow slider keeps its meaning.
-export const ENHANCED_BLOOM_STRENGTH = 0.45;
-export const ENHANCED_BLOOM_RADIUS = 0.9;
+export const ENHANCED_BLOOM_STRENGTH = 0.5;
+export const ENHANCED_BLOOM_RADIUS = 0.65;
 // Only light above this blooms, so the faint dust does not smear.
-export const ENHANCED_BLOOM_THRESHOLD = 0.6;
+export const ENHANCED_BLOOM_THRESHOLD = 0.7;
 // The bloom's resolution as a share of the drawing size in device pixels (before the render scale). Wide and soft, so a
 // third of the width costs about a ninth of the pixels and looks the same.
 export const ENHANCED_BLOOM_RESOLUTION_SHARE = 0.35;
@@ -49,20 +49,21 @@ export const ENHANCED_INK = {
     fadeBoost: 1.45,
     fadeMax: 0.85,
     // Size of the nearest and the farthest points relative to the standard size. Near points are bigger, far ones smaller.
-    nearSize: 1.3,
-    farSize: 0.5,
+    nearSize: 1.15,
+    farSize: 0.6,
     // Extra alpha at the nearest end of the depth range (quadratic, so only the closest points gain).
-    nearGain: 0.25,
+    nearGain: 0.12,
     // Extra point size that gives the halo room to fade out.
-    spriteScale: 1.2,
-    // The sprite profile: a body (the standard soft falloff), a wide linear halo and a tight hot core. Their sum at the
-    // center is about 1.07 and their light per point is about the standard sprite's, so the look is richer in shape, not
-    // in total light.
-    body: 0.55,
-    halo: 0.22,
-    core: 0.3,
+    spriteScale: 1.1,
+    // The sprite profile: a body (the standard soft falloff), a wide linear halo and a tight hot core. With the sprite
+    // scale their light per point (the profile's integral over the disc times the scale squared) is about the standard
+    // sprite's, so the look is richer in shape, not in total light: a first tune with about 1.6 times the light clipped
+    // the dense cloud to white on a real GPU.
+    body: 0.5,
+    halo: 0.12,
+    core: 0.25,
     // How far the hot core's color moves toward white at the center of a point.
-    coreWhite: 0.2,
+    coreWhite: 0.1,
 } as const;
 
 // ---- The dust ----
@@ -73,12 +74,12 @@ export const ENHANCED_DUST = {
     far: 50,
     nearSize: 1.8,
     farSize: 0.6,
-    nearAlpha: 1.4,
+    nearAlpha: 1.15,
     farAlpha: 0.5,
-    spriteScale: 1.3,
-    body: 0.5,
-    halo: 0.3,
-    core: 0.4,
+    spriteScale: 1.15,
+    body: 0.55,
+    halo: 0.12,
+    core: 0.25,
 } as const;
 
 // ---- The spray ----
@@ -88,10 +89,10 @@ export const ENHANCED_SPRAY = {
     far: 20,
     nearSize: 1.4,
     farSize: 0.7,
-    nearAlpha: 1.2,
+    nearAlpha: 1.15,
     farAlpha: 0.6,
-    spriteScale: 1.3,
-    body: 0.5,
-    halo: 0.3,
-    core: 0.4,
+    spriteScale: 1.15,
+    body: 0.55,
+    halo: 0.12,
+    core: 0.25,
 } as const;

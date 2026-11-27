@@ -185,3 +185,17 @@ unchanged.
 
 S5 repeats these with enhanced off (cells within noise) and with enhanced on (same reaction counts within noise,
 frame time for AC8 on the user's reference GPU).
+
+## Post-change measurements (orchestrator, this machine, headed, 2026-11-27)
+
+| Track | Mode | Median frame | kicks | sprayBursts | grants | enhancedActive | renderScale |
+|---|---|---|---|---|---|---|---|
+| drums-128.wav | standard | 16.7 ms | 51 | 32 | 44 | 0 | 1 |
+| imyourgirl.wav | standard | 16.7 ms | 69 | 67 | 52 | 0 | 1 |
+| imyourgirl.wav | enhanced | 16.7 ms | 69 | 67 | 51 | 1 | 1 |
+
+Reaction counts match the S0 baseline within one event. No console error or warning with enhanced on (the enhanced
+shaders compile on this GPU). The builder's first constants gave about 1.6 times the standard light per point and
+clipped the cloud to white; the orchestrator retuned the sprite and the second bloom (see `bassInkEnhancedConfig.ts`).
+Accepted deviation from C2: `orbit.tilt` is -0.06 (the camera dips at azimuth π), because any rise pushed the flat
+formations past the fill at the swing's most face-on tilt (framing.test.ts).
