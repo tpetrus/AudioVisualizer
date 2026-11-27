@@ -25,6 +25,14 @@ describe('EnhancedGraphicsToggle', () => {
         expect(toggle).toHaveAccessibleDescription(ENHANCED_GRAPHICS_STRINGS.description);
     });
 
+    it('shows and describes the switch by a custom description when one is passed', () => {
+        render(<EnhancedGraphicsToggle description="Only for this page." />);
+
+        expect(screen.getByText('Only for this page.')).toBeInTheDocument();
+        expect(screen.queryByText(ENHANCED_GRAPHICS_STRINGS.description)).not.toBeInTheDocument();
+        expect(screen.getByRole('switch')).toHaveAccessibleDescription('Only for this page.');
+    });
+
     it('flips and persists with the mouse and with the keyboard', async () => {
         const user = userEvent.setup();
         render(<EnhancedGraphicsToggle />);

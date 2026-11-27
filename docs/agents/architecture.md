@@ -303,8 +303,9 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
   "Workers Builds" check run on `main`).
 
 ## 8. Enhanced graphics preference: `app/features/settings/`
-An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting) and for bass ink
-(deeper, glowing points, a color grade, a vignette and a second bloom). It is off by default.
+An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting), the cubes (bloom,
+backdrop and fog, GPU grid waves and shatter, particles, beat motion) and bass ink (deeper, glowing points, a color
+grade, a vignette and a second bloom). It is off by default.
 - **Store:** `enhancedGraphicsStore.ts` keeps one boolean in `localStorage` under `audioVisualizer.enhancedGraphics`
   (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
   `useSyncExternalStore` (server snapshot false), so every component sees the same value. Same-tab writes notify
@@ -346,3 +347,14 @@ An opt-in richer look for the dancing character (reflective floor, sky dome, ima
   `?url` imports in that chunk so standard mode never fetches them, and add its asset names to the request check in
   `e2e/enhanced-graphics.spec.ts`. The landing toggle's description names the dancer, so reword it when a second visualizer
   joins.
+- **Swap in place (cubes):** the cubes need no constructor-only renderer setting, so `useCubesScene` does not rebuild on a
+  toggle. It keeps the current `CubesEnhancedLook` (`cubes/enhanced/`) in a ref and its `SceneHandle.render` delegates to
+  it, so the same canvas, context and camera pose carry over. `loadCubesEnhanced(signal)` is the only importer of the lazy
+  chunk and resolves `{ ok: false }` instead of rejecting. The look saves every scene, renderer and light property it
+  changes and puts them back on `dispose()`, holds its objects (and the grid's mesh) in one scene-root group that its beat
+  motion moves instead of the camera, and gives the grid its own material through `CubeGrid.setMaterialOverride`; the
+  hook re-calls `attach(grid)` whenever a resize rebuilds the grid. The per-frame inputs are a preallocated `CubesFxFrame`
+  turned into uniforms by the pure `CubesFxState`, which zeroes beat and bar terms while the tracker is unlocked and
+  damps motion and flashes under `prefers-reduced-motion`. The cubes panel passes its own `description` to the toggle and
+  shows its Enhanced controls (`cubesEnhancedControls`) only while the preference is on. Contracts:
+  `docs/plans/cubes-enhanced-graphics/contracts.md`; e2e: `e2e/cubes-enhanced.spec.ts`.
