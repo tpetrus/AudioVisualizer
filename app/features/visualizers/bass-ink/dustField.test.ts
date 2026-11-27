@@ -72,6 +72,23 @@ describe('DustField', () => {
         }
     });
 
+    it('carries the phase and the clock from the field it replaces, so the twinkle continues without a jump', () => {
+        const old = new DustField(10, 1, 64);
+        old.update(0, 0.5, palette);
+        old.update(2.3, 0.5, palette);
+        const next = new DustField(20, 1, 64);
+        next.carryFrom(old);
+
+        expect(old.phaseCycles).toBeGreaterThan(0);
+        expect(next.phaseCycles).toBe(old.phaseCycles);
+        expect(uniformsOf(next).uPhase.value).toBe(old.phaseCycles % 1);
+
+        // The next update advances by the time since the old field's last update, exactly as the old one would.
+        old.update(2.4, 0.5, palette);
+        next.update(2.4, 0.5, palette);
+        expect(next.phaseCycles).toBeCloseTo(old.phaseCycles, 12);
+    });
+
     it('hands the shader the phase wrapped to whole cycles', () => {
         const field = new DustField(10, 1, 64);
         field.update(0, 1, palette);

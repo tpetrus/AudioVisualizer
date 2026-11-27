@@ -98,6 +98,13 @@ export class DustField {
         }
     }
 
+    // Continues the twinkle of the field this one replaces (a density rebuild), so the phase does not restart at 0.
+    carryFrom(previous: DustField): void {
+        this.phase = previous.phase;
+        this.lastSeconds = previous.lastSeconds;
+        this.uniforms.uPhase.value = this.phase % 1;
+    }
+
     dispose(): void {
         this.geometry.dispose();
         this.material.dispose();

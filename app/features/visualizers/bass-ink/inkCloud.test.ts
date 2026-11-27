@@ -5,7 +5,7 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { KICK_SLOTS, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { writeFormation } from './formations';
 import { InkCloud } from './inkCloud';
-import { depthFade } from '../meshes/inkShaders';
+import { depthFade, inkVertexShader } from '../meshes/inkShaders';
 import { KickRing } from './kickRing';
 
 const POINTS = 50000;
@@ -383,6 +383,31 @@ describe('InkCloud', () => {
             expect(uniformOf(cloud, 'uBrightness')).toBe(0.3);
             expect(Array.from(uniformOf(cloud, 'uCore') as Float32Array)).toEqual(Array.from(palette.core));
             expect(Array.from(uniformOf(cloud, 'uEdge') as Float32Array)).toEqual(Array.from(palette.edge));
+        });
+
+        it('computes the surface scale from its uniforms, matching the vertex shader line', () => {
+            const { cloud, cue, kicks } = setup();
+            // The same factors in the same order as the shader's `breath` and `scale` lines.
+            expect(inkVertexShader).toContain(
+                'float breath = (1.0 + uBreathAmp * sin(6.2831853 * uBreath)) * (1.0 + uPunchAmp * uPunch) * (1.0 + uSwellAmp * uSwell);',
+            );
+            expect(inkVertexShader).toContain('float scale = uRadius * (1.0 - uTension * uSqueeze) * breath;');
+
+            cloud.update(cue, 0, kicks, palette, 0.1, 0);
+            expect(cloud.surfaceScale).toBe(1);
+
+            cue.tension = 1;
+            cloud.update(cue, 0, kicks, palette, 0.1, 0);
+            expect(cloud.surfaceScale).toBeCloseTo(1 - bassInkSceneConfig.cloud.tensionSqueeze, 9);
+            expect(cloud.surfaceScale).toBeLessThan(1);
+
+            cue.tension = 0;
+            cloud.update(cue, 0, kicks, palette, 0.1, 0);
+            cloud.setSwell(1);
+            expect(cloud.surfaceScale).toBeGreaterThan(1);
+            cloud.setPunch(1);
+            cloud.update(cue, 0.25, kicks, palette, 0.1, 0);
+            expect(Number.isFinite(cloud.surfaceScale)).toBe(true);
         });
 
         it('takes the spectrum field through setSpectrum', () => {
