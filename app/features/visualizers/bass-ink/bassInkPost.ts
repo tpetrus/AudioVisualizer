@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { AfterimagePass } from 'three/addons/postprocessing/AfterimagePass.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import type { Pass } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import type { SceneSize } from '~/hooks/useThreeScene';
@@ -32,6 +33,9 @@ export class BassInkPost {
     private afterimage: AfterimagePass | undefined;
     private bloom: UnrealBloomPass | undefined;
     private output: OutputPass | undefined;
+    // Passes owned by someone else (the enhanced look), drawn between the bloom and the output pass. This class never
+    // enables, disables or frees them; it only keeps them in the composer, also when the composer is built later.
+    private extraPasses: readonly Pass[] = [];
     // The bloom's resolution, created once and updated in place by setSize.
     private readonly bloomResolution = new THREE.Vector2(1, 1);
     private trailsOn = false;
@@ -114,6 +118,19 @@ export class BassInkPost {
         this.renderer.render(this.scene, this.camera);
     }
 
+    // Replaces the extra passes: the previous ones leave the composer (not freed, their owner frees them) and these go in
+    // right before the output pass, in order. Before the composer is built they are only remembered; on a software
+    // renderer, which never builds it, they are never drawn.
+    setExtraPasses(passes: readonly Pass[]): void {
+        if (this.disposed) return;
+        const composer = this.composer;
+        if (composer) {
+            for (const pass of this.extraPasses) composer.removePass(pass);
+        }
+        this.extraPasses = [...passes];
+        if (composer) this.insertExtraPasses(composer);
+    }
+
     setSize(size: SceneSize): void {
         this.width = size.width;
         this.height = size.height;
@@ -137,6 +154,7 @@ export class BassInkPost {
         this.bloom = undefined;
         this.output = undefined;
         this.composer = undefined;
+        this.extraPasses = [];
     }
 
     // Seconds since the previous apply(), clamped to 0..MAX_FRAME_SECONDS; the first frame counts as one 60 Hz frame.
@@ -166,8 +184,19 @@ export class BassInkPost {
         composer.addPass(this.afterimage);
         composer.addPass(this.bloom);
         composer.addPass(this.output);
+        this.insertExtraPasses(composer);
         this.composer = composer;
         this.sizeComposer();
+    }
+
+    // Puts the extra passes right before the output pass, which is always the composer's last pass. insertPass sizes
+    // each one to the composer.
+    private insertExtraPasses(composer: EffectComposer): void {
+        let index = composer.passes.length - 1;
+        for (const pass of this.extraPasses) {
+            composer.insertPass(pass, index);
+            index++;
+        }
     }
 
     // The bloom's resolution is the drawing size in device pixels times the configured share.
