@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
-import type { PerspectiveCamera, Scene } from 'three';
+import type { PerspectiveCamera, Points, Scene, ShaderMaterial } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
@@ -97,6 +97,7 @@ interface FakeCloud {
     maxPointSize: number;
     options: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number } | undefined;
     preparedIndex: number;
+    readonly surfaceScale: number;
     transitioning: boolean;
     prepareFormation: ReturnType<typeof vi.fn>;
     beginTransition: ReturnType<typeof vi.fn>;
@@ -116,9 +117,14 @@ interface FakeCloud {
 const clouds = vi.hoisted(() => ({ instances: [] as unknown[] }));
 vi.mock('./inkCloud', async () => {
     const { Object3D } = await import('three');
+    const { bassInkSceneConfig: sceneConfig } = await import('./bassInkSceneConfig');
     return {
         InkCloud: class {
             object = new Object3D();
+            // The real getter's squeeze term alone (no breath, punch or swell), driven by the director's tension.
+            get surfaceScale(): number {
+                return 1 - script.cue.tension * sceneConfig.cloud.tensionSqueeze;
+            }
             preparedIndex = -1;
             transitioning = false;
             prepareFormation = vi.fn((index: number) => {
@@ -1444,7 +1450,7 @@ describe('useBassInkScene', () => {
             expect(dust.rotation.y).not.toBe(shell.y);
         });
 
-        it('rebuilds and frees all four on a density change, keeping the rotation shared', () => {
+        it('rebuilds the shell, core and dust on a density change, keeping the spray and the rotation shared', () => {
             const { frame, scene, valuesRef } = mountScene();
             frame();
             const [oldShell, oldCore, oldDust, oldSpray] = [...scene.children];
@@ -1457,10 +1463,12 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(2);
             expect(allCores()).toHaveLength(2);
-            for (const old of [oldShell, oldCore, oldDust, oldSpray]) expect(scene.children).not.toContain(old);
+            for (const old of [oldShell, oldCore, oldDust]) expect(scene.children).not.toContain(old);
+            // The spray pool does not depend on density, so the same object stays and is not freed.
+            expect(sprayOf(scene)).toBe(oldSpray);
             expect(scene.children).toHaveLength(4);
             expect(dustDispose).toHaveBeenCalledTimes(1);
-            expect(sprayDispose).toHaveBeenCalledTimes(1);
+            expect(sprayDispose).not.toHaveBeenCalled();
             expect(allCores()[0].dispose).toHaveBeenCalledTimes(1);
             expect(allClouds()[0].dispose).toHaveBeenCalledTimes(1);
             const total = pointCountFor(0.5, false);
@@ -1506,6 +1514,58 @@ describe('useBassInkScene', () => {
             // The new objects carry the same rotation as the shell.
             expect(currentCore().object.rotation.y).toBe(currentCloud().object.rotation.y);
             expect(sprayOf(scene).rotation.y).toBe(currentCloud().object.rotation.y);
+        });
+
+        it('keeps the spray and its burst count, and the dust phase, across a density rebuild', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, scene, valuesRef } = mountScene({ analyser: node });
+            hitBass(frame, hub);
+            const spray = sprayOf(scene);
+            const bursts = readProbe()[24];
+            expect(bursts).toBeGreaterThanOrEqual(1);
+            // The dust is the one child that is neither the shell, the core nor the spray.
+            const dustOf = () =>
+                scene.children.find(
+                    (child) =>
+                        child !== sprayOf(scene) &&
+                        ![...allClouds(), ...allCores()].some((cloud) => cloud.object === child),
+                ) as Points;
+            const phaseOf = () => (dustOf().material as ShaderMaterial).uniforms.uPhase.value as number;
+            const oldDust = dustOf();
+            // Pin the phase to a value a restart could not reach by chance.
+            const phaseBefore = phaseOf();
+            expect(phaseBefore).toBeGreaterThan(0.01);
+
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            for (let i = 0; i < 6; i++) frame(100);
+
+            expect(dustOf()).not.toBe(oldDust);
+            expect(sprayOf(scene)).toBe(spray);
+            expect(readProbe()[24]).toBeGreaterThanOrEqual(bursts);
+            // The twinkle goes on from where it was; a reset to 0 would read near 0 here instead.
+            const advance = (phaseOf() - phaseBefore + 1) % 1;
+            expect(advance).toBeLessThan(0.5);
+            expect(advance).toBeGreaterThan(0);
+        });
+
+        it('throws bursts from the squeezed surface at full tension, not the rest radius', () => {
+            const { node } = createAnalyser();
+            const { frame, hub, scene } = mountScene({ analyser: node });
+            script.cue.tension = 1;
+            expect(currentCloud().surfaceScale).toBeCloseTo(1 - bassInkSceneConfig.cloud.tensionSqueeze, 9);
+            hitBass(frame, hub);
+
+            const shellRadius = currentCloud().setRadius.mock.calls.at(-1)![0] as number;
+            const limit = shellRadius * Math.min(1, currentCloud().surfaceScale);
+            const origins = (sprayOf(scene) as unknown as Points).geometry.getAttribute('position')
+                .array as Float32Array;
+            let farthest = 0;
+            for (let i = 0; i < origins.length; i += 3) {
+                farthest = Math.max(farthest, Math.hypot(origins[i], origins[i + 1], origins[i + 2]));
+            }
+            expect(farthest).toBeGreaterThan(0);
+            expect(limit).toBeLessThan(shellRadius);
+            expect(farthest).toBeLessThanOrEqual(limit + 1e-4);
         });
 
         it('frees the core, the dust and the spray on unmount', () => {

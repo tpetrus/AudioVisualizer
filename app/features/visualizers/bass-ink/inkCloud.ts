@@ -261,6 +261,19 @@ export class InkCloud {
         this.uniforms.uDepthFar.value = depthFar(worldRadius);
     }
 
+    // The factor the vertex shader applies to a rest position on top of uRadius (the `scale` and `breath` lines in
+    // inkShaders.ts), so the spray can leave from where the squeezed shell is drawn. Read it after this frame's update,
+    // setPunch and setSwell.
+    get surfaceScale(): number {
+        const u = this.uniforms;
+        return (
+            (1 - u.uTension.value * u.uSqueeze.value) *
+            (1 + u.uBreathAmp.value * Math.sin(2 * Math.PI * u.uBreath.value)) *
+            (1 + u.uPunchAmp.value * u.uPunch.value) *
+            (1 + u.uSwellAmp.value * u.uSwell.value)
+        );
+    }
+
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
     setPunch(value: number): void {
         this.uniforms.uPunch.value = value;

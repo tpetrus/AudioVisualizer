@@ -130,3 +130,17 @@ export class SprayPool {
   returns, so bursts leave from where the shell's points are. The dust does not take the shell's rotation.
 - Telemetry: the bass-ink probe appends `sprayBursts` and `sprayLive` at the end; the existing column order is
   unchanged. `docs/agents/debug-harness.md` lists them.
+
+## C5 surface-true spray and a seamless density rebuild (follow-up BIF-F4)
+
+- `InkCloud` gets a getter `surfaceScale`: the factor the vertex shader applies to the rest position on top of
+  `uRadius`, computed in TypeScript from the uniforms it already holds:
+  `(1 - uTension * uSqueeze) * (1 + uBreathAmp * sin(2 pi uBreath)) * (1 + uPunchAmp * uPunch) * (1 + uSwellAmp * uSwell)`.
+  A spec pairs it with the GLSL line (string check) and checks it at rest, full tension and full swell.
+- The scene emits a burst with radius `shellRadius * min(1, cloud.surfaceScale)`, read after this frame's `update`,
+  `setPunch` and `setSwell`, so bursts leave from where the shell is drawn when it is squeezed. The cap at 1 keeps every
+  origin within the rest radius, so `sprayMaxReach` and the framing bound (spray reach at most the shell's worst reach)
+  stay as they are. `SprayPool.emit` keeps its signature (C3 is unchanged; only the radius the scene passes changes).
+- Density rebuild: the spray pool's size does not depend on density, so the rebuild keeps the existing pool (live
+  bursts finish). `DustField` gets `carryFrom(previous: DustField)`, copying the unwrapped phase and the last update
+  time, and the rebuild calls it on the new field before freeing the old one, so the twinkle continues without a reset.
