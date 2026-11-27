@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ENHANCED_GRAPHICS_PROMPT_SEEN_KEY } from '~/features/settings/enhancedGraphicsPromptStore';
 import { version } from '../../../package.json';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { asWebAudio } from '~/test/fakeWebAudio';
@@ -13,9 +14,20 @@ function capturingEngine() {
     return engine;
 }
 
-// The toggle's capability probe asks a canvas for WebGL, which jsdom does not implement.
+// The hint's result is decided here (default: the device does not qualify, so no prompt); the probe itself is specced
+// in capability.test.ts. The first-visit prompt also reads storage, so it is cleared between tests.
+const hint = { current: false };
+vi.mock('~/features/settings/useCapabilityHint', () => ({
+    useCapabilityHint: (enabled: boolean) => enabled && hint.current,
+}));
+
 beforeEach(() => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+});
+
+afterEach(() => {
+    hint.current = false;
+    localStorage.clear();
 });
 
 describe('LandingPage', () => {
@@ -137,5 +149,14 @@ describe('LandingPage', () => {
 
         await user.click(screen.getByRole('button', { name: 'Close' }));
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('offers the enhanced graphics prompt on a capable first visit and never again after an answer', async () => {
+        hint.current = true;
+        const { user } = renderWithProviders(<LandingPage />, { engine: new FakeAudioEngine() });
+
+        await user.click(await screen.findByRole('button', { name: 'Not now' }));
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(localStorage.getItem(ENHANCED_GRAPHICS_PROMPT_SEEN_KEY)).toBe('1');
     });
 });

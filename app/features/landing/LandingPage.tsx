@@ -5,6 +5,7 @@ import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
 import { EnhancedGraphicsToggle } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
 import { Button } from '~/components/ui';
+import { EnhancedGraphicsPrompt } from './EnhancedGraphicsPrompt';
 import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
 import { VISUALIZATIONS } from './visualizations';
@@ -24,6 +25,7 @@ export function LandingPage() {
     return (
         <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-surface-0">
             {dialogOpen && <AudioSourceDialog dismissible onClose={() => setDialogOpen(false)} />}
+            <EnhancedGraphicsPrompt blocked={dialogOpen} />
             <span data-testid="app-version" className="pl-3 text-xs text-text-muted">
                 v{version}
             </span>
@@ -35,7 +37,10 @@ export function LandingPage() {
                     {capturing ? 'Audio settings' : 'Connect audio'}
                 </Button>
             </div>
-            <EnhancedGraphicsToggle className="flex flex-col items-center px-2 pb-2 text-center" />
+            {/* The same horizontal padding as the cards below, so the Graphics section lines up with them. */}
+            <div className="px-2 pb-2">
+                <EnhancedGraphicsToggle />
+            </div>
 
             {/* One column below sm and two from sm up, so an even number of cards makes full rows; the coming-soon
                 strip sits under the grid instead of in it. */}
