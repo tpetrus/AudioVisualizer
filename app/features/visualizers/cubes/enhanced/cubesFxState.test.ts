@@ -216,4 +216,26 @@ describe('CubesFxState', () => {
         expect(out.particleEmit).toBe(0);
         expect(out.wavePhase).toBe(0);
     });
+
+    it('wraps time at 3600 s and keeps the drift continuous across the wrap', () => {
+        const state = new CubesFxState();
+        const out = createCubesFxUniforms();
+        const step = frame({ dt: config.maxDt });
+        let previousDrift = 0;
+        let largestDriftStep = 0;
+        let wrapped = false;
+        let previousTime = 0;
+        const steps = Math.ceil(3600 / config.maxDt) + 10;
+        for (let i = 0; i < steps; i++) {
+            state.step(step, false, out);
+            expect(out.time).toBeLessThan(3600);
+            if (out.time < previousTime) wrapped = true;
+            previousTime = out.time;
+            if (i > 0) largestDriftStep = Math.max(largestDriftStep, Math.abs(out.motionDrift - previousDrift));
+            previousDrift = out.motionDrift;
+        }
+        expect(wrapped).toBe(true);
+        // One step of the fastest sine moves the sum by well under this; a jump at the wrap would not.
+        expect(largestDriftStep).toBeLessThan(0.02);
+    });
 });
