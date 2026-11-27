@@ -92,5 +92,17 @@ test('Cubes settings panel with enhanced graphics on', async ({ page }) => {
     await expect(page.getByText('Enhanced graphics on', { exact: true })).toBeVisible({ timeout: 90_000 });
     // Only the first section starts open, and the Enhanced controls are the point of this baseline.
     await openAllSections(page);
+    // A software-rendered enhanced frame (glass, bloom and particles at 1280x800) can take so long that the screenshot
+    // below never gets a frame in time. The canvas is hidden in the picture anyway, so shrink its host: the scene follows
+    // the host's size, the bloom switches off below its minimum size, and frames become cheap. The panel is positioned
+    // on its own, so its picture does not change.
+    await page.evaluate(() => {
+        const host = document.querySelector('canvas')?.parentElement;
+        if (host) {
+            host.style.width = '2px';
+            host.style.height = '2px';
+        }
+    });
+    await expect.poll(() => page.evaluate(() => document.querySelector('canvas')?.width ?? 0)).toBeLessThanOrEqual(8);
     await expectSettingsPanelScreenshot(page, 'cubes-enhanced-settings-panel.png');
 });
