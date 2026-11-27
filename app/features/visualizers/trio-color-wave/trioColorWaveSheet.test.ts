@@ -20,6 +20,56 @@ import { createSheetColors, TrioColorWaveSheet } from './trioColorWaveSheet';
 const values = defaultValues(trioColorWaveControls);
 const SHEET_COUNT = 3;
 const FRONT_ROW = FLAG_DEPTH - 1;
+const GOLDEN: number[][][] = [
+    [
+        [161.5315094, 161.5315094, 200, 183039.3627, 117.615097],
+        [160.7238519, 33.25638199, 41.38325657, 230372.5702, 109.9932861],
+        [159.9202326, 0, 0, 234129.5309, 102.2919006],
+        [159.1206314, 95.67893982, 120.2596281, 226780.6532, 94.51033783],
+        [192.3510895, 192.3510895, 200, 229516.9761, 103.7073746],
+        [191.389334, 36.2980957, 37.93115838, 230792.7052, 97.33158112],
+        [190.4323874, 0, 0, 218450.3352, 90.88909149],
+        [189.4802254, 117.2521515, 123.7618873, 210155.0485, 84.37939453],
+        [188.5328243, 155.7905731, 165.2662593, 238523.4825, 92.90988159],
+        [187.5901602, 30.63813591, 32.66497121, 234868.8574, 86.34014893],
+        [186.6522094, 0, 0, 221103.9938, 79.70204926],
+        [185.7189483, 109.9400177, 118.3939697, 209099.645, 82.22225952],
+        [189.2595215, 189.2595215, 200, 239475.0974, 73.70954132],
+        [188.3132239, 36.86289215, 39.15061448, 238031.3407, 67.07034302],
+    ],
+    [
+        [225.8991852, 225.8991852, 200, 94702.57863, 75.46031189],
+        [224.7696893, 45.46811295, 40.45751284, 146131.8914, 70.19664001],
+        [223.6458408, 0, 0, 188752.4141, 64.87815094],
+        [222.5276116, 127.258667, 114.3756193, 228765.1257, 71.85870361],
+        [221.4149735, 210.4208984, 190.0692578, 291300.1913, 114.6138077],
+        [220.3078987, 46.71165848, 42.40579549, 331035.5078, 109.4326019],
+        [219.2063592, 0, 0, 360095.4475, 104.1964188],
+        [218.1103274, 126.0547791, 115.5880884, 382441.9385, 113.6642227],
+        [217.0197758, 182.5193634, 168.2052825, 416128.817, 168.7369995],
+        [215.9346769, 49.30553436, 45.66708328, 434478.1383, 163.7111664],
+        [214.8550035, 0, 0, 444622.3033, 158.6305542],
+        [213.7807285, 125.7744751, 117.6668037, 451096.6633, 153.494751],
+        [216.3786621, 216.3786621, 200, 474338.8979, 195.6842041],
+        [215.2967688, 39.6872406, 36.86747444, 488883.2527, 190.7763977],
+    ],
+    [
+        [226.8607635, 226.8607635, 200, 35793.68918, 51.11425781],
+        [225.7264597, 48.55789185, 43.02365961, 47518.96433, 57.98200607],
+        [224.5978274, 0, 0, 58147.79714, 55.46255493],
+        [223.4748383, 109.6219864, 98.10678215, 75974.37915, 72.77040863],
+        [222.3574641, 194.8970642, 175.3006718, 106648.8272, 121.1606827],
+        [221.2456768, 47.72491074, 43.14200524, 124214.9105, 118.9161148],
+        [220.1394484, 0, 0, 140824.2165, 116.6459351],
+        [219.0387512, 140.1891937, 128.0040111, 162017.3082, 146.6491699],
+        [223.8947296, 223.8947296, 200, 187403.4447, 150.7724609],
+        [222.775256, 44.64883804, 40.08419862, 207323.6125, 148.6962891],
+        [221.6613797, 0, 0, 226200.836, 146.5954437],
+        [220.5530728, 95.56389618, 86.65841284, 244513.9089, 144.4697418],
+        [224.4570618, 224.4570618, 200, 265104.0656, 139.1443787],
+        [223.3347765, 45.08119965, 40.3709627, 283872.4854, 137.0168762],
+    ],
+];
 
 function heightOf(sheet: TrioColorWaveSheet, column: number, row: number): number {
     return sheet.flags.heightAttribute.array[column * FLAG_DEPTH + row];
@@ -253,6 +303,52 @@ describe('TrioColorWaveSheet', () => {
             expect(tap.disconnect).toHaveBeenCalled();
             expect(flags).toHaveBeenCalledTimes(1);
         });
+    });
+});
+
+// Golden record of TrioColorWaveSheet.update over a fixed, deterministic spectrum sequence, taken before the band
+// helpers moved to the shared module. Every row is [peak, frameLevel, balancedLevel, sum of all bar heights, the
+// nearest row's height at column 100]; a refactor of the maths must reproduce it exactly.
+describe('TrioColorWaveSheet golden output', () => {
+    const FRAMES = 14;
+
+    // Ten significant digits: far tighter than any change in the maths could hide in, and exactly writable as literals.
+    const roundRow = (row: number[]) => row.map((value) => Number(value.toPrecision(10)));
+
+    // A small linear congruential generator, so the spectra never change between runs.
+    function recordSheet(bandIndex: number, sheetIndex: number): number[][] {
+        let seed = 12345 + bandIndex;
+        const random = () => {
+            seed = (seed * 1664525 + 1013904223) % 4294967296;
+            return seed / 4294967296;
+        };
+        const context = new FakeAudioContext();
+        const source = context.createAnalyser();
+        const sheet = new TrioColorWaveSheet(BANDS[bandIndex], sheetIndex, SHEET_COUNT);
+        sheet.connect(asWebAudio<AnalyserNode>(source));
+        const tap = context.createdAnalysers[context.createdAnalysers.length - 1];
+        const rows: number[][] = [];
+        for (let frame = 0; frame < FRAMES; frame++) {
+            // Loud, quiet and silent frames in turn, so the peak both rises and decays.
+            const loudness = [1, 0.2, 0, 0.6][frame % 4];
+            const data = new Array<number>(tap.frequencyBinCount);
+            for (let bin = 0; bin < data.length; bin++) {
+                data[bin] = Math.floor(random() * 256 * loudness * (1 - bin / (data.length * 1.5)));
+            }
+            tap.setByteFrequencyData(data);
+            sheet.update(values);
+            const heights = sheet.flags.heightAttribute.array;
+            let total = 0;
+            for (const height of heights) {
+                total += height;
+            }
+            rows.push([sheet.peak, sheet.frameLevel, sheet.balancedLevel, total, heightOf(sheet, 100, FRONT_ROW)]);
+        }
+        return rows;
+    }
+
+    it.each([0, 1, 2])('reproduces the recorded output for band %i', (bandIndex) => {
+        expect(recordSheet(bandIndex, bandIndex).map(roundRow)).toEqual(GOLDEN[bandIndex]);
     });
 });
 
