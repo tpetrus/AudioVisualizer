@@ -56,6 +56,8 @@ export class CubesFxState {
     private shatterCooldown = 0;
     // The flash's own slow average; a drop is the flash running well ahead of it.
     private slowFlash = 0;
+    // The flash through the swell-and-fade envelope; what every light-like output follows.
+    private glow = 0;
 
     step(frame: Readonly<CubesFxFrame>, reducedMotion: boolean, out: CubesFxUniforms): void {
         const config = cubesEnhancedConfig.fx;
@@ -77,8 +79,14 @@ export class CubesFxState {
         }
         this.slowFlash += (flash - this.slowFlash) * (1 - Math.exp(-dt / config.shatterSlowTau));
 
+        // The raw pulse jumps to its peak in a frame and drops as fast, which reads as a strobe; the envelope keeps the
+        // hit's timing (short attack) but lets it fade out slowly. Shatter above still triggers on the raw pulse.
+        const glowTau = flash > this.glow ? config.flashAttack : config.flashRelease;
+        this.glow += (flash - this.glow) * (1 - Math.exp(-dt / glowTau));
+        const glow = clamp01(this.glow);
+
         // Emission rises fast and falls slowly, so a hit makes a burst that lingers.
-        const emitTarget = clamp01(flash * config.emitFlash + bands * config.emitBands);
+        const emitTarget = clamp01(glow * config.emitFlash + bands * config.emitBands);
         const emitTau = emitTarget > this.emit ? config.emitAttack : config.emitRelease;
         this.emit += (emitTarget - this.emit) * (1 - Math.exp(-dt / emitTau));
 
@@ -86,7 +94,7 @@ export class CubesFxState {
         const beatPhase = frame.beatPhase;
         if (beatPhase !== null && Number.isFinite(beatPhase)) {
             this.wavePhase = (beatPhase - Math.floor(beatPhase)) * TURN;
-            const target = clamp01(config.waveBase + flash * config.waveFlash);
+            const target = clamp01(config.waveBase + glow * config.waveFlash);
             this.waveAmplitude = Math.min(target, this.waveAmplitude + dt * config.waveRamp);
         } else {
             this.waveAmplitude = 0;
@@ -103,21 +111,21 @@ export class CubesFxState {
         }
         const drift = 0.6 * Math.sin(this.driftPhaseA) + 0.4 * Math.sin(this.driftPhaseB + 1.3);
 
-        const drive = clamp01(config.bloomBase + flash * config.bloomFlash + bands * config.bloomBands);
+        const drive = clamp01(config.bloomBase + glow * config.bloomFlash + bands * config.bloomBands);
 
         out.time = this.time;
         out.particleEmit = clamp01(this.emit);
         out.wavePhase = this.wavePhase;
         if (reducedMotion) {
             const cap = config.reduced;
-            out.bassFlash = Math.min(flash, cap.bassFlashMax);
+            out.bassFlash = Math.min(glow, cap.bassFlashMax);
             out.shatter = Math.min(clamp01(this.shatter), cap.shatterMax);
             out.bloomStrength = Math.min(drive, cap.bloomMax);
             out.waveAmplitude = Math.min(clamp01(this.waveAmplitude), cap.waveMax);
             out.motionDolly = 0;
             out.motionDrift = 0;
         } else {
-            out.bassFlash = flash;
+            out.bassFlash = glow;
             out.shatter = clamp01(this.shatter);
             out.bloomStrength = drive;
             out.waveAmplitude = clamp01(this.waveAmplitude);
@@ -137,6 +145,7 @@ export class CubesFxState {
         this.shatter = 0;
         this.shatterCooldown = 0;
         this.slowFlash = 0;
+        this.glow = 0;
     }
 }
 

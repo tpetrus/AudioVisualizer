@@ -99,6 +99,12 @@ function frame(overrides: Partial<CubesFxFrame> = {}): CubesFxFrame {
     return { bands: null, bassFlash: 0, beatPhase: null, barPhase: null, barLocked: false, dt: 1 / 60, ...overrides };
 }
 
+// The flash follows the bass through a swell-and-fade envelope, so a steady hit needs a couple of seconds of frames to
+// reach its full level.
+function settle(look: CubesEnhancedLook, input: CubesFxFrame, values: CubesEnhancedSettings, frames = 150): void {
+    for (let i = 0; i < frames; i++) look.update(input, values);
+}
+
 function settings(overrides: Partial<CubesEnhancedSettings> = {}): CubesEnhancedSettings {
     return {
         glow: 1,
@@ -273,7 +279,7 @@ describe('CubesEnhancedLook', () => {
 
         it('sets bloom strength from the drive, Glow and the configured maximum', () => {
             const { look } = setup();
-            look.update(frame({ bassFlash: 1 }), settings({ glow: 0.5 }));
+            settle(look, frame({ bassFlash: 1 }), settings({ glow: 0.5 }));
             const half = blooms()[0].strength;
             expect(half).toBeGreaterThan(0);
             expect(blooms()[0].enabled).toBe(true);
@@ -419,9 +425,9 @@ describe('CubesEnhancedLook', () => {
             const { look, scene } = setup(false, 2);
             const material = particles(scene).material as THREE.ShaderMaterial;
             expect(material.uniforms.uPointScale.value).toBe(2 * cubesEnhancedConfig.particles.size);
-            look.update(frame({ bassFlash: 1 }), settings());
+            settle(look, frame({ bassFlash: 1 }), settings());
             expect((material.uniforms.uColorB.value as THREE.Color).getHex()).toBe(new THREE.Color(0xff8844).getHex());
-            expect(material.uniforms.uBass.value).toBe(1);
+            expect(material.uniforms.uBass.value).toBeCloseTo(1, 3);
             look.dispose();
         });
     });
@@ -438,7 +444,7 @@ describe('CubesEnhancedLook', () => {
             expect((backdrop.material.uniforms.uTint.value as THREE.Color).getHex()).toBe(
                 new THREE.Color(0x224466).getHex(),
             );
-            look.update(frame({ bassFlash: 1 }), settings());
+            settle(look, frame({ bassFlash: 1 }), settings());
             expect(backdrop.material.uniforms.uFlash.value).toBeCloseTo(
                 cubesEnhancedConfig.backdrop.flashMax ** cubesEnhancedConfig.backdrop.flashGamma,
             );

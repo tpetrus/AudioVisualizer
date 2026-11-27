@@ -38,8 +38,22 @@ describe('CubesFxState', () => {
     it('writes the object it is given, in place', () => {
         const out = createCubesFxUniforms();
         new CubesFxState().step(frame({ bassFlash: 0.5 }), false, out);
-        expect(out.bassFlash).toBe(0.5);
+        expect(out.bassFlash).toBeGreaterThan(0);
         expect(out.time).toBeGreaterThan(0);
+    });
+
+    it('swells to a hit quickly and fades out slowly, so a kick glows instead of blinking', () => {
+        const state = new CubesFxState();
+        const out = createCubesFxUniforms();
+        // 0.1 s of a full hit gets most of the way up (attack 0.08 s)...
+        for (let i = 0; i < 6; i++) state.step(frame({ bassFlash: 1 }), false, out);
+        expect(out.bassFlash).toBeGreaterThan(0.6);
+        expect(out.bassFlash).toBeLessThan(1);
+        const peak = out.bassFlash;
+        // ...and 0.25 s after it stops much of it is still there (release 0.7 s), where the raw pulse would be 0.
+        for (let i = 0; i < 15; i++) state.step(frame({ bassFlash: 0 }), false, out);
+        expect(out.bassFlash).toBeGreaterThan(peak * 0.6);
+        expect(out.bassFlash).toBeLessThan(peak);
     });
 
     it('clamps dt to 0..0.1 and ignores a negative or NaN one', () => {
@@ -190,7 +204,7 @@ describe('CubesFxState', () => {
             expect(out.waveAmplitude).toBeLessThanOrEqual(config.reduced.waveMax);
 
             const full = run(new CubesFxState(), input, 120, false);
-            expect(full.bassFlash).toBe(1);
+            expect(full.bassFlash).toBeCloseTo(1, 6);
             expect(full.bloomStrength).toBeGreaterThan(config.reduced.bloomMax);
         });
 

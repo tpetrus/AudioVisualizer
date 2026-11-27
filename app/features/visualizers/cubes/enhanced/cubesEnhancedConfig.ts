@@ -26,7 +26,7 @@ export const cubesEnhancedConfig = {
         // Share of the drawing size the bloom works at (half resolution).
         bloomResolutionScale: 0.5,
         // The most strength a full drive and a full Glow control give.
-        bloomStrengthMax: 1.1,
+        bloomStrengthMax: 0.9,
         bloomRadius: 0.55,
         // Only the raised, bright cubes and particles pass this luminance.
         bloomThreshold: 0.55,
@@ -44,8 +44,9 @@ export const cubesEnhancedConfig = {
         vignette: 0.35,
         // A faint horizontal sheen that reads as a polished surface.
         sheen: 0.05,
-        // Same shape as the basic look: the flash is capped below full brightness and gamma-compensated.
-        flashMax: 0.6,
+        // Same shape as the basic look's flash (capped and gamma-compensated), but capped lower: behind bloom and the
+        // glowing cubes the basic look's 0.6 read as a full-screen flash.
+        flashMax: 0.35,
         flashGamma: 2.2,
         fogColor: 0x05060a,
         fogDensity: 0.011,
@@ -62,7 +63,7 @@ export const cubesEnhancedConfig = {
             ior: 1.3,
             opacity: 0.8,
             emissiveBase: 0.12,
-            emissiveFlash: 0.25,
+            emissiveFlash: 0.12,
         },
         opaqueEmissive: {
             color: 0xffffff,
@@ -125,8 +126,13 @@ export const cubesEnhancedConfig = {
         maxDt: 0.1,
         // Bloom drive: a floor, plus the flash and the average band level.
         bloomBase: 0.3,
-        bloomFlash: 0.6,
+        bloomFlash: 0.35,
         bloomBands: 0.3,
+        // The flash every light-like term follows (backdrop, cube glow, bloom, particles) is the bass pulse through a
+        // swell-and-fade envelope (seconds): a short attack so it still lands on the hit, and a long release so a kick
+        // glows and fades instead of blinking.
+        flashAttack: 0.08,
+        flashRelease: 0.7,
         // Particle emission follows the flash and the band energy; it rises fast and falls slowly (seconds).
         emitFlash: 0.6,
         emitBands: 0.5,
