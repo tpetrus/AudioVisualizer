@@ -28,8 +28,10 @@ import { onRecordingClock } from '~/features/audio/devRecordingClock';
 import { createBassGateState, stepBassGate } from '~/features/rhythm/bassGate';
 import type { RhythmTracker } from '~/features/rhythm/rhythmTracker';
 import { useLatestRef } from '~/hooks/useLatestRef';
-import { useThreeScene } from '~/hooks/useThreeScene';
+import { type SceneSize, useThreeScene } from '~/hooks/useThreeScene';
 import { createOrbitView } from '~/lib/three/orbitView';
+import type { EnhancedGraphicsStatus } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import type { BassInkEnhancedHandle } from './enhanced/bassInkEnhanced';
 
 // Frequency data: 2048 samples gives bins of about 23 Hz, so the bass below 120 Hz spans about five of them.
 // useThreeScene renders at most at this pixel ratio, and gl_PointSize is in drawing-buffer pixels.
@@ -50,6 +52,12 @@ interface BassInkSceneOptions {
     // Locked means the picture can't be dragged, rotated or zoomed.
     cameraLocked: boolean;
     onViewChanged: (changed: boolean) => void;
+    // The shared enhanced-graphics preference. Read through a ref: flipping it switches the look in place, with no
+    // rebuild (bass ink needs no antialias, the only constructor-time setting).
+    enhanced?: boolean;
+    // The enhanced look's progress, undefined while the standard look is wanted or on a software renderer. Called only
+    // when it changes, never per frame.
+    onEnhancedStatus?: (status: EnhancedGraphicsStatus | undefined) => void;
 }
 
 function createPalette(): PalettePair {
@@ -60,15 +68,26 @@ function createPalette(): PalettePair {
 // into a new shape on the drop.
 export function useBassInkScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, hub, rhythm, valuesRef, cameraLocked, onViewChanged }: BassInkSceneOptions,
+    {
+        analyser,
+        hub,
+        rhythm,
+        valuesRef,
+        cameraLocked,
+        onViewChanged,
+        enhanced = false,
+        onEnhancedStatus,
+    }: BassInkSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
     const cameraLockedRef = useLatestRef(cameraLocked);
     const onViewChangedRef = useLatestRef(onViewChanged);
+    const enhancedRef = useLatestRef(enhanced);
+    const onEnhancedStatusRef = useLatestRef(onEnhancedStatus);
     const resetViewRef = useRef<() => void>(() => {});
 
-    useThreeScene(containerRef, ({ scene, renderer, size }) => {
+    useThreeScene(containerRef, ({ scene, renderer, size, signal }) => {
         const { camera: cameraConfig, maxFrameDeltaSeconds } = bassInkSceneConfig;
         const camera = new THREE.PerspectiveCamera(
             cameraConfig.fov,
@@ -161,6 +180,8 @@ export function useBassInkScene(
         const sprayPerBurst = software ? sprayConfig.softwarePerBurst : sprayConfig.perBurst;
         // Kept current by resize, for objects built later.
         let viewHeight = size.height;
+        // The latest usable size, for the enhanced look when it is built after a resize.
+        let lastSize: SceneSize = { width: size.width, height: size.height };
         // The core is always the core formation: only the shell is ever prepared or transitioned (the core's update
         // reads the cue's tension only, never its formation), so it keeps this shape for its life.
         const buildCore = (total: number) => {
@@ -343,6 +364,8 @@ export function useBassInkScene(
                     'viewYaw',
                     'orbitAngle',
                     'orbitSpeed',
+                    'enhancedActive',
+                    'renderScale',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -377,9 +400,74 @@ export function useBassInkScene(
                     out[28] = viewAngles.yaw;
                     out[29] = orbitAngle;
                     out[30] = orbitSpeed;
+                    out[31] = enhancedLook?.enabled ? 1 : 0;
+                    out[32] = enhancedLook ? enhancedLook.renderScale : 1;
                 },
             );
         }
+
+        // The enhanced look (C3): loaded with a dynamic import the first time it is wanted, so standard mode never fetches
+        // it, then built once and switched with flags. A software renderer never loads it.
+        let enhancedLook: BassInkEnhancedHandle | undefined;
+        let enhancedLoading = false;
+        // Set by a failed load or build; cleared when the preference goes off, so turning it on again retries once.
+        let enhancedFailed = false;
+        let enhancedStatus: EnhancedGraphicsStatus | undefined;
+        const reportEnhanced = (next: EnhancedGraphicsStatus | undefined) => {
+            if (next === enhancedStatus) return;
+            enhancedStatus = next;
+            onEnhancedStatusRef.current?.(next);
+        };
+        const currentMaterials = () => ({
+            shell: cloud.material,
+            core: core.material,
+            dust: dust.material,
+            spray: spray.material,
+        });
+        const failEnhanced = (error: unknown) => {
+            enhancedFailed = true;
+            console.warn('Bass ink: the enhanced look could not be loaded; using the standard look.', error);
+            reportEnhanced('error');
+        };
+        const loadEnhanced = () => {
+            enhancedLoading = true;
+            reportEnhanced('loading');
+            import('./enhanced/bassInkEnhanced')
+                .then((module) => {
+                    enhancedLoading = false;
+                    // A late import after unmount is dropped; nothing was built yet, so nothing leaks.
+                    if (signal.aborted) return;
+                    try {
+                        enhancedLook = module.buildBassInkEnhanced(
+                            { renderer, post, size: lastSize },
+                            currentMaterials(),
+                        );
+                    } catch (error) {
+                        failEnhanced(error);
+                    }
+                })
+                .catch((error: unknown) => {
+                    enhancedLoading = false;
+                    if (!signal.aborted) failEnhanced(error);
+                });
+        };
+        const updateEnhanced = (frameSeconds: number) => {
+            const wanted = enhancedRef.current && !software;
+            if (!wanted) {
+                enhancedFailed = false;
+                enhancedLook?.setEnabled(false);
+                reportEnhanced(undefined);
+                return;
+            }
+            if (enhancedFailed) return;
+            if (!enhancedLook) {
+                if (!enhancedLoading) loadEnhanced();
+                return;
+            }
+            enhancedLook.setEnabled(true);
+            enhancedLook.step(frameSeconds);
+            reportEnhanced('ready');
+        };
 
         const bindAudio = (source: AnalyserNode) => {
             spectrum = new Uint8Array(source.frequencyBinCount);
@@ -476,6 +564,7 @@ export function useBassInkScene(
                     core = nextCore;
                     dust = nextDust;
                     builtTotal = wantedPoints;
+                    enhancedLook?.setMaterials(currentMaterials());
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                     cloud.setSwell(swellOut.swell);
                     core.setSwell(swellOut.swell);
@@ -577,6 +666,7 @@ export function useBassInkScene(
                 postSettings.trails = values.trails;
                 postSettings.glow = values.glow;
                 post.apply(postSettings);
+                updateEnhanced(delta / 1000);
 
                 if (import.meta.env.DEV) {
                     tickTelemetry(delta / 1000);
@@ -589,6 +679,7 @@ export function useBassInkScene(
                 // A hidden or collapsed container reports a zero side; keep the previous fit rather than fitting to 0.
                 if (!(next.width > 0 && next.height > 0)) return;
                 viewHeight = next.height;
+                lastSize = { width: next.width, height: next.height };
                 cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                 core.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                 dust.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
@@ -596,6 +687,7 @@ export function useBassInkScene(
                 computeFits(next.width, next.height);
                 applyFit(0);
                 post.setSize(next);
+                enhancedLook?.setSize(next);
             },
 
             dispose: () => {
@@ -606,6 +698,9 @@ export function useBassInkScene(
                 core.dispose();
                 dust.dispose();
                 spray.dispose();
+                // Before the post: the look takes its passes out of the composer and frees them itself.
+                enhancedLook?.dispose();
+                enhancedLook = undefined;
                 post.dispose();
                 unregisterProbe?.();
             },

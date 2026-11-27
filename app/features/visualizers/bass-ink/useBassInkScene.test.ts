@@ -186,6 +186,60 @@ vi.mock('./bassInkPost', () => ({
         }
     },
 }));
+// The enhanced look has its own spec; here it records how the scene drives it. `enhancedModule.fail` makes the next
+// build throw.
+const enhancedModule = vi.hoisted(() => ({
+    handles: [] as unknown[],
+    fail: false,
+}));
+vi.mock('./enhanced/bassInkEnhanced', () => ({
+    buildBassInkEnhanced: vi.fn((context: unknown, materials: unknown) => {
+        if (enhancedModule.fail) throw new Error('build failed');
+        const handle = {
+            context,
+            materials,
+            enabled: false,
+            renderScale: 1,
+            setEnabled: vi.fn((on: boolean) => {
+                handle.enabled = on;
+            }),
+            setMaterials: vi.fn(),
+            setSize: vi.fn(),
+            step: vi.fn(),
+            dispose: vi.fn(),
+        };
+        enhancedModule.handles.push(handle);
+        return handle;
+    }),
+}));
+interface FakeEnhanced {
+    enabled: boolean;
+    renderScale: number;
+    setEnabled: ReturnType<typeof vi.fn>;
+    setMaterials: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
+    step: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+}
+const enhancedHandles = () => enhancedModule.handles as FakeEnhanced[];
+// Forces the software-renderer answer for the specs that need it.
+const software = vi.hoisted(() => ({ value: false }));
+vi.mock('./renderBudget', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./renderBudget')>();
+    return {
+        ...actual,
+        isSoftwareRenderer: vi.fn(
+            (renderer: Parameters<typeof actual.isSoftwareRenderer>[0]) =>
+                software.value || actual.isSoftwareRenderer(renderer),
+        ),
+    };
+});
+// Lets the dynamic import and its handlers run.
+const settle = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 interface FakePost {
     active: boolean;
     apply: ReturnType<typeof vi.fn>;
@@ -213,7 +267,7 @@ const sprayOf = (scene: Scene) =>
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(31);
+    const out = new Float32Array(33);
     probeRead()(out);
     return out;
 }
@@ -230,6 +284,7 @@ function createAnalyser() {
 interface Props {
     analyser: AnalyserNode | undefined;
     cameraLocked: boolean;
+    enhanced?: boolean;
 }
 
 function createContainer(width: number, height: number): HTMLDivElement {
@@ -246,9 +301,10 @@ function mountScene(initial: Partial<Props> = {}) {
     const containerRef = { current: createContainer(800, 600) };
     const valuesRef: { current: BassInkControlValues } = { current: defaultValues(bassInkControls) };
     const onViewChanged = vi.fn();
+    const onEnhancedStatus = vi.fn();
 
     const hook = renderHook(
-        ({ analyser, cameraLocked }: Props) =>
+        ({ analyser, cameraLocked, enhanced }: Props) =>
             useBassInkScene(containerRef, {
                 analyser,
                 hub,
@@ -256,6 +312,8 @@ function mountScene(initial: Partial<Props> = {}) {
                 valuesRef,
                 cameraLocked,
                 onViewChanged,
+                enhanced,
+                onEnhancedStatus,
             }),
         { initialProps: { analyser: undefined, cameraLocked: true, ...initial } as Props },
     );
@@ -269,7 +327,20 @@ function mountScene(initial: Partial<Props> = {}) {
     };
     frame();
     const [scene, camera] = renderer.render.mock.calls[0] as unknown as [Scene, PerspectiveCamera];
-    return { ...hook, renderer, scene, camera, frame, tracker, hub, valuesRef, onViewChanged, resizes, containerRef };
+    return {
+        ...hook,
+        renderer,
+        scene,
+        camera,
+        frame,
+        tracker,
+        hub,
+        valuesRef,
+        onViewChanged,
+        onEnhancedStatus,
+        resizes,
+        containerRef,
+    };
 }
 
 // The palette and the cue time the cloud was last updated with, as copies (the scene reuses one palette object).
@@ -1417,6 +1488,8 @@ describe('useBassInkScene', () => {
                     'viewYaw',
                     'orbitAngle',
                     'orbitSpeed',
+                    'enhancedActive',
+                    'renderScale',
                 ],
                 expect.any(Function),
             );
@@ -1858,17 +1931,136 @@ describe('useBassInkScene', () => {
             const { frame } = mountScene();
             frame();
             const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
-            expect(columns.at(-1)).toBe('orbitSpeed');
-            expect(columns.at(-2)).toBe('orbitAngle');
-            expect(columns.at(-3)).toBe('viewYaw');
-            expect(columns.at(-4)).toBe('viewTilt');
-            expect(columns.at(-5)).toBe('postActive');
-            expect(columns.at(-6)).toBe('sprayLive');
+            expect(columns.at(-1)).toBe('renderScale');
+            expect(columns.at(-2)).toBe('enhancedActive');
+            expect(columns.at(-3)).toBe('orbitSpeed');
+            expect(columns.at(-4)).toBe('orbitAngle');
+            expect(columns.at(-5)).toBe('viewYaw');
+            expect(columns.at(-6)).toBe('viewTilt');
+            expect(columns.at(-7)).toBe('postActive');
+            expect(columns.at(-8)).toBe('sprayLive');
 
             currentPost().active = true;
             expect(readProbe()[26]).toBe(1);
             currentPost().active = false;
             expect(readProbe()[26]).toBe(0);
+        });
+    });
+
+    describe('enhanced graphics', () => {
+        beforeEach(() => {
+            enhancedModule.handles.length = 0;
+            enhancedModule.fail = false;
+            software.value = false;
+        });
+
+        it('never loads the enhanced look while the preference is off', async () => {
+            const { frame, onEnhancedStatus } = mountScene();
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(0);
+            expect(onEnhancedStatus).not.toHaveBeenCalled();
+            expect(readProbe()[31]).toBe(0);
+            expect(readProbe()[32]).toBe(1);
+        });
+
+        it('loads once, builds once and switches in place, keeping the camera and the renderer', async () => {
+            const { frame, onEnhancedStatus, rerender, camera, renderer } = mountScene({ enhanced: true });
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('loading');
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            const handle = enhancedHandles()[0];
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(true);
+            expect(handle.step).toHaveBeenCalled();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
+            expect(readProbe()[31]).toBe(1);
+
+            // Unlocked, so the orbit leaves the camera alone and any move would come from the toggle.
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: true });
+            frame();
+            const pose = camera.position.clone();
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: false });
+            frame();
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(false);
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith(undefined);
+            expect(readProbe()[31]).toBe(0);
+            expect(camera.position.distanceTo(pose)).toBeLessThan(1e-9);
+
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(true);
+            expect(FakeRenderer.last).toBe(renderer);
+            // The status is reported on change only, never per frame.
+            const calls = onEnhancedStatus.mock.calls.map((call) => call[0] as unknown);
+            expect(calls).toEqual(['loading', 'ready', undefined, 'ready']);
+        });
+
+        it('never loads it on a software renderer, and reports no status', async () => {
+            software.value = true;
+            const { frame, onEnhancedStatus } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(0);
+            expect(onEnhancedStatus).not.toHaveBeenCalled();
+        });
+
+        it('keeps the standard look with one warning when the build fails, and retries after off and on', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            enhancedModule.fail = true;
+            const { frame, onEnhancedStatus, rerender } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('error');
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(enhancedHandles()).toHaveLength(0);
+
+            enhancedModule.fail = false;
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: false });
+            frame();
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
+            warn.mockRestore();
+        });
+
+        it('drops an import that resolves after unmount, building nothing', async () => {
+            const { frame, unmount } = mountScene({ enhanced: true });
+            frame();
+            unmount();
+            await settle();
+            expect(enhancedHandles()).toHaveLength(0);
+        });
+
+        it('hands a rebuilt cloud to the look, resizes it and frees it before the post on unmount', async () => {
+            const { frame, valuesRef, resizes, unmount } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            const handle = enhancedHandles()[0];
+
+            valuesRef.current = { ...valuesRef.current, density: 0.3 };
+            for (let i = 0; i < 40; i++) frame();
+            expect(handle.setMaterials).toHaveBeenCalledTimes(1);
+
+            resizes.resize(640, 480);
+            expect(handle.setSize).toHaveBeenLastCalledWith({ width: 640, height: 480 });
+
+            const post = currentPost();
+            unmount();
+            expect(handle.dispose).toHaveBeenCalledTimes(1);
+            expect(handle.dispose.mock.invocationCallOrder[0]).toBeLessThan(post.dispose.mock.invocationCallOrder[0]);
         });
     });
 
