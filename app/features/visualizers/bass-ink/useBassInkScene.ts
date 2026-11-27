@@ -9,7 +9,7 @@ import { swellFromBump, type BassSwell } from './bassInkBass';
 import { BrightnessMix } from './brightnessMix';
 import { advanceHuePhase, writeCustomPalette } from './bassInkColor';
 import { bassBinCount, bassLevel, EnergyTracker, followLevel } from './energyEnvelope';
-import { fitScale, formationOuterRadius } from './framing';
+import { formationOuterRadius, grownFitScale } from './framing';
 import { DustField } from './dustField';
 import { InkCloud } from './inkCloud';
 import { KickRing } from './kickRing';
@@ -178,7 +178,8 @@ export function useBassInkScene(
 
         // Fit the cloud to the view: the camera stays put and the cloud's world radius is scaled instead. Each formation
         // has its own outermost point, so each has its own fit, solved so the cloud stays on screen at the peak of every
-        // pulse; the fits depend on the aspect, so they are redone on resize.
+        // pulse, and the flat ones grow on a wide view (grownFitScale); the fits depend on the aspect, so they are redone
+        // on resize.
         // The extents are measured once here (allocating is fine on mount) and never per frame.
         const extents = Array.from({ length: FORMATION_COUNT }, (_, index) =>
             formationOuterRadius(index, formationSeed),
@@ -187,8 +188,9 @@ export function useBassInkScene(
         const computeFits = (width: number, height: number) => {
             const aspect = height > 0 ? width / height : 1;
             for (let i = 0; i < FORMATION_COUNT; i++) {
-                fits[i] = fitScale(
+                fits[i] = grownFitScale(
                     extents[i],
+                    bassInkSceneConfig.cloud.formationGrowth[i],
                     cameraConfig.distance,
                     cameraConfig.fov,
                     aspect,
@@ -267,6 +269,8 @@ export function useBassInkScene(
         let lastGateRaw = 0;
         // Followed mid and high band levels for the swirl and the glints.
         let midLevel = 0;
+        // The galaxy disc's inward flow, in units of squared radius (InkCloud.setFlow).
+        let flowPhase = 0;
         let highLevel = 0;
 
         // DEV only: reports the set logic's latest values to the telemetry recorder.
@@ -490,6 +494,12 @@ export function useBassInkScene(
                 core.setPunch(punch);
                 cloud.setSwell(swellOut.swell);
                 core.setSwell(swellOut.swell);
+                // The galaxy disc streams inward along its arms, faster while the bass swells. Only the fractional part
+                // matters, so the phase stays in 0..1 and keeps its float precision however long the page runs.
+                const { discFlow } = bassInkSceneConfig;
+                const flowSwell = Number.isFinite(swellOut.swell) ? Math.max(0, swellOut.swell) : 0;
+                flowPhase = (flowPhase + (discFlow.speed + discFlow.swellGain * flowSwell) * dt) % 1;
+                cloud.setFlow(flowPhase);
                 cloud.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 core.update(cue, breathing, kickRing, paletteShown, lastBrightness, now);
                 applyFit(dt);

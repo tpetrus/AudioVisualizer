@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { KICK_SLOTS, type DirectorCue, type KickRingView, type PalettePair } from './bassInkTypes';
-import { hash01, writeFormation } from './formations';
-import { inkFragmentShader, inkVertexShader } from '../meshes/inkShaders';
+import { bassInkConfig } from './bassInkConfig';
+import { hash01, isGalaxyDisc, writeFormation } from './formations';
+import { flowDiscPoint, inkFragmentShader, inkVertexShader } from '../meshes/inkShaders';
 
 // Depths where the fade starts and ends, relative to the cloud center's view depth (the shader subtracts the center's),
 // and following the fitted radius. Relative, so zooming the camera in or out never changes a point's fade.
@@ -44,6 +45,11 @@ export class InkCloud {
     private readonly kickStrengths = new Float32Array(KICK_SLOTS);
     private readonly core = new Float32Array(3);
     private readonly edge = new Float32Array(3);
+    // Formation each side holds (-1 for a baked blend of two), so the shader knows which side flows like the disc.
+    private readonly sideFormations: [number, number] = [0, -1];
+    // Scratch for restPosition and bakeBlend, so neither allocates.
+    private readonly flowFrom = new Float32Array(3);
+    private readonly flowTo = new Float32Array(3);
 
     // 0 when side A is the active one, 1 when side B is.
     private active: 0 | 1 = 0;
@@ -132,6 +138,10 @@ export class InkCloud {
             uBrightness: { value: 0 },
             uAlpha: { value: config.sprite.baseAlpha * alphaScale },
             uAlphaNormalization: { value: config.sprite.tensionAlphaNormalization },
+            uFlowA: { value: 0 },
+            uFlowB: { value: 0 },
+            uFlowPhase: { value: 0 },
+            uDiscTwist: { value: bassInkConfig.formations.discTwist },
         };
         this.kickTimes.fill(-1e6);
 
@@ -184,6 +194,7 @@ export class InkCloud {
         writeFormation(index, seed, side.array as Float32Array, this.pointCount, 0, this.pointCount);
         this.markWhole(side);
         this.activeFormation = index;
+        this.setSideFormation(this.active, index);
         this.prepared = -1;
         this.fillCursor = this.pointCount;
         this.phase = 'idle';
@@ -200,6 +211,7 @@ export class InkCloud {
             this.bakeBlend();
         }
         this.prepared = index;
+        this.setSideFormation((1 - this.active) as 0 | 1, index);
         this.fillSeed = seed;
         this.fillCursor = 0;
     }
@@ -274,6 +286,12 @@ export class InkCloud {
         );
     }
 
+    // The galaxy disc's accumulated inward flow (flowDiscPoint in inkShaders.ts), in units of squared radius; the scene
+    // keeps it in 0..1. Only a side that holds the disc moves with it.
+    setFlow(phase: number): void {
+        this.uniforms.uFlowPhase.value = phase;
+    }
+
     // 0..1 beat punch for this frame (from the motion clock, already weighted by the bass presence).
     setPunch(value: number): void {
         this.uniforms.uPunch.value = value;
@@ -291,14 +309,14 @@ export class InkCloud {
         this.uniforms.uTurbulence.value = turbulence;
     }
 
-    // The current unit-radius rest position of a point as the shader computes it (same smoothing), for specs.
+    // The current unit-radius rest position of a point as the shader computes it (the disc's flow and the same
+    // smoothing), for the spray and for specs.
     restPosition(index: number, out: Float32Array | number[]): void {
         const s = this.blend * this.blend * (3 - 2 * this.blend);
-        const from = this.sides[this.active].array;
-        const to = this.sides[1 - this.active].array;
+        const from = this.flowedPoint(this.active, index, this.flowFrom);
+        const to = this.flowedPoint((1 - this.active) as 0 | 1, index, this.flowTo);
         for (let k = 0; k < 3; k++) {
-            const o = index * 3 + k;
-            out[k] = from[o] + (to[o] - from[o]) * s;
+            out[k] = from[k] + (to[k] - from[k]) * s;
         }
     }
 
@@ -358,17 +376,46 @@ export class InkCloud {
     // Writes the blended positions into the active side and resets the blend, so the picture stays the same while the
     // other side is free to take a new formation.
     private bakeBlend(): void {
+        // The disc's flow is baked in with the blend, so the frozen picture is where the points were drawn.
         const side = this.sides[this.active];
-        const from = side.array as Float32Array;
-        const to = this.sides[1 - this.active].array;
+        const out = side.array as Float32Array;
+        const other = (1 - this.active) as 0 | 1;
         const s = this.blend * this.blend * (3 - 2 * this.blend);
-        for (let i = 0; i < from.length; i++) {
-            from[i] += (to[i] - from[i]) * s;
+        for (let i = 0; i < this.pointCount; i++) {
+            const from = this.flowedPoint(this.active, i, this.flowFrom);
+            const to = this.flowedPoint(other, i, this.flowTo);
+            for (let k = 0; k < 3; k++) {
+                out[i * 3 + k] = from[k] + (to[k] - from[k]) * s;
+            }
         }
         this.markWhole(side);
         this.activeFormation = -1;
+        this.setSideFormation(this.active, -1);
         this.phase = 'idle';
         this.setBlend(0);
+    }
+
+    // A side's unit rest position for point `index`, flowed when the side holds the galaxy disc.
+    private flowedPoint(side: 0 | 1, index: number, out: Float32Array): Float32Array {
+        const array = this.sides[side].array;
+        const o = index * 3;
+        out[0] = array[o];
+        out[1] = array[o + 1];
+        out[2] = array[o + 2];
+        if (isGalaxyDisc(this.sideFormations[side])) {
+            flowDiscPoint(out, this.uniforms.uFlowPhase.value as number, bassInkConfig.formations.discTwist, out);
+        }
+        return out;
+    }
+
+    private setSideFormation(side: 0 | 1, index: number): void {
+        this.sideFormations[side] = index;
+        const flows = isGalaxyDisc(index) ? 1 : 0;
+        if (side === 0) {
+            this.uniforms.uFlowA.value = flows;
+        } else {
+            this.uniforms.uFlowB.value = flows;
+        }
     }
 
     private markWhole(side: THREE.BufferAttribute): void {

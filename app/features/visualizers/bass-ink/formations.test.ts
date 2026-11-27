@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FORMATION_COUNT } from './bassInkTypes';
-import { FORMATION_NAMES, hash01, writeFormation } from './formations';
+import { FORMATION_NAMES, GALAXY_DISC_INDEX, hash01, isGalaxyDisc, writeFormation } from './formations';
 
 const COUNT = 2000;
 
@@ -157,5 +157,19 @@ describe('writeFormation', () => {
     it('wraps out-of-range and negative indices onto a formation', () => {
         expect(Array.from(fill(4))).toEqual(Array.from(fill(0)));
         expect(Array.from(fill(-1))).toEqual(Array.from(fill(3)));
+    });
+});
+
+describe('isGalaxyDisc', () => {
+    it('picks the galaxy disc the way writeFormation wraps an index', () => {
+        expect(FORMATION_NAMES[GALAXY_DISC_INDEX]).toBe('galaxy disc');
+        expect(isGalaxyDisc(GALAXY_DISC_INDEX)).toBe(true);
+        expect(isGalaxyDisc(GALAXY_DISC_INDEX + FORMATION_COUNT)).toBe(true);
+        expect(isGalaxyDisc(GALAXY_DISC_INDEX + 0.5)).toBe(true);
+        for (const index of [0, 1, 2, 4]) expect(isGalaxyDisc(index)).toBe(false);
+    });
+
+    it('is false for -1 (a baked blend of two formations), any negative index and a non-number', () => {
+        for (const index of [-1, -5, Number.NaN, Number.POSITIVE_INFINITY]) expect(isGalaxyDisc(index)).toBe(false);
     });
 });

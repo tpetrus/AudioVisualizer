@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { KICK_SLOTS } from '~/features/visualizers/bass-ink/bassInkTypes';
 import { bassInkSceneConfig } from '~/features/visualizers/bass-ink/bassInkSceneConfig';
-import { INK_KICK_SLOTS, bandColor, depthFade, inkFragmentShader, inkVertexShader } from './inkShaders';
+import { writeFormation } from '~/features/visualizers/bass-ink/formations';
+import { INK_KICK_SLOTS, bandColor, depthFade, flowDiscPoint, inkFragmentShader, inkVertexShader } from './inkShaders';
 
 describe('ink shaders', () => {
     it('sum as many shockwaves as the kick ring holds', () => {
@@ -303,5 +304,97 @@ describe('bandColor', () => {
         expect(inkFragmentShader).toContain('vBass * kickScale');
         expect(inkFragmentShader).toContain('vec3 base = color;');
         expect(inkFragmentShader).toContain('step(vec3(1.0), color)');
+    });
+});
+
+describe('flowDiscPoint', () => {
+    const TWIST = 3;
+    const TAU = Math.PI * 2;
+    // Angle around the disc's axis, in -pi..pi.
+    const angleOf = (p: ArrayLike<number>) => Math.atan2(p[2], p[0]);
+    // An angle wrapped into -pi..pi.
+    const wrap = (a: number) => a - TAU * Math.round(a / TAU);
+
+    it('leaves the point where it is at phase 0 and at any whole phase', () => {
+        const rest = [0.3, 0.02, -0.4];
+        for (const phase of [0, 1, 7]) {
+            const out = [0, 0, 0];
+            flowDiscPoint(rest, phase, TWIST, out);
+            for (let k = 0; k < 3; k++) expect(out[k]).toBeCloseTo(rest[k], 6);
+        }
+    });
+
+    it('shifts the squared radius inward by the phase, wrapping in at the rim, and keeps the height', () => {
+        const rest = [0.6, -0.025, 0];
+        const out = [0, 0, 0];
+        flowDiscPoint(rest, 0.1, TWIST, out);
+        expect(Math.hypot(out[0], out[2]) ** 2).toBeCloseTo(0.36 - 0.1, 9);
+        expect(out[1]).toBe(-0.025);
+        // Past the center it comes back in at the rim.
+        flowDiscPoint(rest, 0.4, TWIST, out);
+        expect(Math.hypot(out[0], out[2]) ** 2).toBeCloseTo(0.96, 9);
+        expect(Math.hypot(out[0], out[2])).toBeLessThanOrEqual(1);
+    });
+
+    it('moves a point along its arm: the angle less the twist times the radius stays the same', () => {
+        const rest = [0.5 * Math.cos(1), 0, 0.5 * Math.sin(1)];
+        const out = [0, 0, 0];
+        for (const phase of [0.05, 0.2, 0.6]) {
+            flowDiscPoint(rest, phase, TWIST, out);
+            const radius = Math.hypot(out[0], out[2]);
+            expect(wrap(angleOf(out) - TWIST * radius - (1 - TWIST * 0.5))).toBeCloseTo(0, 6);
+        }
+    });
+
+    it('turns the center faster than the rim', () => {
+        const turn = (radius: number) => {
+            const out = [0, 0, 0];
+            flowDiscPoint([radius, 0, 0], 0.01, TWIST, out);
+            return Math.abs(wrap(angleOf(out)));
+        };
+        expect(turn(0.3)).toBeGreaterThan(2 * turn(0.9));
+        expect(turn(0.9)).toBeGreaterThan(0);
+    });
+
+    it('keeps the disc spread as it was, at any phase', () => {
+        const count = 20000;
+        const points = new Float32Array(count * 3);
+        writeFormation(3, 7, points, count, 0, count);
+        const bins = 10;
+        const histogram = (phase: number) => {
+            const counts = new Array<number>(bins).fill(0);
+            const out = [0, 0, 0];
+            for (let i = 0; i < count; i++) {
+                flowDiscPoint(points.subarray(i * 3, i * 3 + 3), phase, TWIST, out);
+                const u = out[0] * out[0] + out[2] * out[2];
+                counts[Math.min(bins - 1, Math.floor(u * bins))]++;
+            }
+            return counts;
+        };
+        // The points are spread evenly in squared radius, so every bin holds about a tenth of them, before and after.
+        for (const phase of [0, 0.37, 0.81]) {
+            for (const n of histogram(phase)) expect(Math.abs(n - count / bins)).toBeLessThan(0.1 * (count / bins));
+        }
+    });
+
+    it('leaves a point on the axis alone, and works with the output as the input', () => {
+        const out = [9, 9, 9];
+        flowDiscPoint([0, 0.03, 0], 0.3, TWIST, out);
+        expect(out).toEqual([0, 0.03, 0]);
+        const same = new Float32Array([0.4, 0.01, 0.2]);
+        const copy = [0, 0, 0];
+        flowDiscPoint(Array.from(same), 0.25, TWIST, copy);
+        flowDiscPoint(same, 0.25, TWIST, same);
+        for (let k = 0; k < 3; k++) expect(same[k]).toBeCloseTo(copy[k], 6);
+    });
+
+    it('is what the vertex shader does to each flowing side before the blend', () => {
+        for (const name of ['uFlowA', 'uFlowB', 'uFlowPhase', 'uDiscTwist']) {
+            expect(inkVertexShader).toContain('uniform float ' + name + ';');
+        }
+        expect(inkVertexShader).toContain('sqrt(fract(radius * radius - uFlowPhase))');
+        expect(inkVertexShader).toContain('atan(r.z, r.x) + uDiscTwist * (radius2 - radius)');
+        expect(inkVertexShader).toContain('flowDisc(position, uFlowA)');
+        expect(inkVertexShader).toContain('flowDisc(restB, uFlowB)');
     });
 });

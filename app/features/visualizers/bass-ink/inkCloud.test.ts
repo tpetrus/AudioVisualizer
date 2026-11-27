@@ -5,7 +5,8 @@ import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { KICK_SLOTS, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { writeFormation } from './formations';
 import { InkCloud } from './inkCloud';
-import { depthFade, inkVertexShader } from '../meshes/inkShaders';
+import { depthFade, flowDiscPoint, inkVertexShader } from '../meshes/inkShaders';
+import { bassInkConfig } from './bassInkConfig';
 import { KickRing } from './kickRing';
 
 const POINTS = 50000;
@@ -476,6 +477,85 @@ describe('InkCloud', () => {
             expect(attribute).toBe(before[name]);
             expect(attribute.array).toBe(arrays[name]);
         }
+    });
+
+    describe('galaxy disc flow', () => {
+        const TWIST = bassInkConfig.formations.discTwist;
+        const flowed = (point: ArrayLike<number>, phase: number) => {
+            const out = [0, 0, 0];
+            flowDiscPoint(point, phase, TWIST, out);
+            return out;
+        };
+
+        it('flows only the side that holds the disc, and keeps it with that side through a fade', () => {
+            const { cloud, frame } = setup();
+            expect(uniformOf(cloud, 'uFlowA')).toBe(0);
+            expect(uniformOf(cloud, 'uFlowB')).toBe(0);
+            expect(uniformOf(cloud, 'uDiscTwist')).toBe(TWIST);
+
+            cloud.prepareFormation(3, SEED);
+            expect(uniformOf(cloud, 'uFlowB')).toBe(1);
+            for (let i = 0; i < FILL_UPDATES; i++) frame(0);
+            cloud.beginTransition(0, 2);
+            frame(2);
+            expect(cloud.activeIndex).toBe(3);
+            expect(uniformOf(cloud, 'uFlowB')).toBe(1);
+            expect(uniformOf(cloud, 'uFlowA')).toBe(0);
+
+            // The next formation goes to side A, which flows only when it holds the disc.
+            cloud.prepareFormation(1, SEED);
+            expect(uniformOf(cloud, 'uFlowA')).toBe(0);
+            cloud.showFormation(0, SEED);
+            expect(uniformOf(cloud, 'uFlowB')).toBe(0);
+            cloud.showFormation(3, SEED);
+            expect(uniformOf(cloud, 'uFlowB')).toBe(1);
+        });
+
+        it('takes the phase through setFlow and gives the spray the flowed disc point', () => {
+            const { cloud, formation, rest } = setup();
+            cloud.showFormation(3, SEED);
+            cloud.setFlow(0.3);
+            expect(uniformOf(cloud, 'uFlowPhase')).toBe(0.3);
+            const disc = formation(3);
+            for (const point of [0, 17, POINTS - 1]) {
+                const expected = flowed(disc.subarray(point * 3, point * 3 + 3), 0.3);
+                const got = rest(point);
+                for (let k = 0; k < 3; k++) expect(got[k]).toBeCloseTo(expected[k], 6);
+            }
+        });
+
+        it('leaves every other formation where it is, whatever the phase', () => {
+            const { cloud, formation, rest } = setup();
+            cloud.setFlow(0.3);
+            const sphere = formation(0);
+            expect(rest(17)).toEqual(Array.from(sphere.subarray(51, 54)));
+        });
+
+        it('bakes the flow in with the blend when a new target arrives mid-fade from the disc', () => {
+            const { cloud, frame, positions, rest } = setup();
+            cloud.showFormation(3, SEED);
+            cloud.setFlow(0.42);
+            cloud.prepareFormation(1, SEED);
+            for (let i = 0; i < FILL_UPDATES; i++) frame(0);
+            cloud.beginTransition(0, 2);
+            frame(0.7);
+            const points = [0, 17, 999, POINTS - 1];
+            const before = points.map(rest);
+
+            cloud.prepareFormation(2, SEED);
+
+            // The baked side no longer flows, and holds exactly what was drawn.
+            expect(cloud.activeIndex).toBe(-1);
+            expect(uniformOf(cloud, 'uFlowA')).toBe(0);
+            const baked = positions('position');
+            points.forEach((point, i) => {
+                for (let k = 0; k < 3; k++) expect(baked[point * 3 + k]).toBeCloseTo(before[i][k], 6);
+            });
+            // A later phase leaves the frozen picture alone.
+            cloud.setFlow(0.9);
+            const after = rest(17);
+            for (let k = 0; k < 3; k++) expect(after[k]).toBeCloseTo(before[1][k], 6);
+        });
     });
 
     it('frees its geometry and material on dispose', () => {
