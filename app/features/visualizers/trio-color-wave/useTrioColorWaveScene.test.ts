@@ -7,7 +7,7 @@ import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
 import { BANDS, BASE_HEIGHT, FLAG_DISTANCE, FLAG_WIDTH, SHEET_SPACING } from './trioColorWaveConfig';
-import { trioColorWaveControls, type TrioColorWaveControlValues } from './trioColorWaveControls';
+import { trioAllControls, type TrioAllControlValues } from './trioLookControls';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
 
 // vi.mock is hoisted, so the fakes are loaded with a dynamic import inside the factory (see fakeThree.ts).
@@ -50,7 +50,7 @@ function mountScene(initial: Partial<Props> = {}) {
     Object.defineProperty(container, 'clientWidth', { value: 800 });
     Object.defineProperty(container, 'clientHeight', { value: 600 });
     const containerRef = { current: container };
-    const valuesRef: { current: TrioColorWaveControlValues } = { current: defaultValues(trioColorWaveControls) };
+    const valuesRef: { current: TrioAllControlValues } = { current: defaultValues(trioAllControls) };
     const onViewChanged = vi.fn();
 
     const hook = renderHook(
@@ -218,7 +218,7 @@ describe('useTrioColorWaveScene', () => {
                     { current: null },
                     {
                         analyser: undefined,
-                        valuesRef: { current: defaultValues(trioColorWaveControls) },
+                        valuesRef: { current: defaultValues(trioAllControls) },
                         cameraLocked: true,
                         onViewChanged: vi.fn(),
                     },
