@@ -1,14 +1,42 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { Color, type InstancedMesh, type PerspectiveCamera, type Scene } from 'three';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
+import type { EnhancedGraphicsStatus } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { dismissSlowNotice, resetSlowNoticeDismissed } from '~/features/settings/frameRateMonitor';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
 import { installFakeResizeObserver } from '~/test/fakeResizeObserver';
 import { FakeRenderer } from '~/test/fakeThree';
 import { asWebAudio, FakeAnalyserNode, FakeAudioContext } from '~/test/fakeWebAudio';
-import { cubesControls, type CubesControlValues } from './cubesControls';
+import { CubeGrid } from './cubeGrid';
+import { cubesEnhancedControls, type CubesEnhancedControlValues } from './cubesControls';
+import type { CubesEnhancedLookOptions } from './enhanced/cubesEnhancedTypes';
+import type { LoadCubesEnhancedResult } from './enhanced/loadCubesEnhanced';
 import { useCubesScene } from './useCubesScene';
+
+// The enhanced look has its own spec; here only how the hook drives it matters. Each test settles the load itself.
+const enhancedMock = vi.hoisted(() => ({
+    loadCubesEnhanced: vi.fn(),
+}));
+vi.mock('./enhanced/loadCubesEnhanced', () => ({ loadCubesEnhanced: enhancedMock.loadCubesEnhanced }));
+
+class FakeLook {
+    static instances: FakeLook[] = [];
+    static failAt: 'construct' | 'attach' | undefined;
+    readonly attach = vi.fn((_grid: unknown) => {
+        if (FakeLook.failAt === 'attach') throw new Error('material failed');
+    });
+    readonly update = vi.fn();
+    readonly render = vi.fn();
+    readonly resize = vi.fn();
+    readonly setReducedMotion = vi.fn();
+    readonly dispose = vi.fn();
+    constructor(readonly options: CubesEnhancedLookOptions) {
+        if (FakeLook.failAt === 'construct') throw new Error('shader failed');
+        FakeLook.instances.push(this);
+    }
+}
 
 // vi.mock is hoisted, so the fakes are loaded with a dynamic import inside the factory (see fakeThree.ts).
 vi.mock('three', async (importOriginal) => {
@@ -42,6 +70,7 @@ function createAnalyser() {
 interface Props {
     analyser: AnalyserNode | undefined;
     cameraLocked: boolean;
+    enhanced?: boolean;
 }
 
 function createContainer(width: number, height: number): HTMLDivElement {
@@ -55,17 +84,23 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
     const resizes = installFakeResizeObserver();
     const hub = new FakeAudioHub();
     const containerRef = { current: createContainer(width, height) };
-    const valuesRef: { current: CubesControlValues } = { current: defaultValues(cubesControls) };
+    const valuesRef: { current: CubesEnhancedControlValues } = { current: defaultValues(cubesEnhancedControls) };
     const onViewChanged = vi.fn();
+    const statuses: (EnhancedGraphicsStatus | undefined)[] = [];
+    const onEnhancedStatus = vi.fn((status: EnhancedGraphicsStatus | undefined) => statuses.push(status));
+    const onSlowFrames = vi.fn();
 
     const hook = renderHook(
-        ({ analyser, cameraLocked }: Props) =>
+        ({ analyser, cameraLocked, enhanced = false }: Props) =>
             useCubesScene(containerRef, {
                 analyser,
                 hub,
                 valuesRef,
                 cameraLocked,
                 onViewChanged,
+                enhanced,
+                onEnhancedStatus,
+                onSlowFrames,
             }),
         { initialProps: { analyser: undefined, cameraLocked: true, ...initial } as Props },
     );
@@ -88,6 +123,8 @@ function mountScene(initial: Partial<Props> = {}, { width = 800, height = 600 } 
         hub,
         valuesRef,
         onViewChanged,
+        statuses,
+        onSlowFrames,
         resizes,
         containerRef,
     };
@@ -296,9 +333,10 @@ describe('useCubesScene', () => {
                     {
                         analyser: undefined,
                         hub,
-                        valuesRef: { current: defaultValues(cubesControls) },
+                        valuesRef: { current: defaultValues(cubesEnhancedControls) },
                         cameraLocked: true,
                         onViewChanged: vi.fn(),
+                        enhanced: false,
                     },
                 ),
             );
@@ -327,9 +365,10 @@ describe('useCubesScene', () => {
                     {
                         analyser: undefined,
                         hub,
-                        valuesRef: { current: defaultValues(cubesControls) },
+                        valuesRef: { current: defaultValues(cubesEnhancedControls) },
                         cameraLocked: true,
                         onViewChanged: vi.fn(),
+                        enhanced: false,
                     },
                 ),
             );
@@ -452,9 +491,10 @@ describe('useCubesScene', () => {
                     {
                         analyser: undefined,
                         hub: new FakeAudioHub(),
-                        valuesRef: { current: defaultValues(cubesControls) },
+                        valuesRef: { current: defaultValues(cubesEnhancedControls) },
                         cameraLocked: true,
                         onViewChanged: vi.fn(),
+                        enhanced: false,
                     },
                 ),
             );
@@ -545,6 +585,415 @@ describe('useCubesScene', () => {
 
             expect(() => unmount()).not.toThrow();
             expect(renderer.dispose).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('enhanced graphics', () => {
+        interface PendingLoad {
+            signal: AbortSignal;
+            settle: (result: LoadCubesEnhancedResult) => void;
+        }
+        const loads: PendingLoad[] = [];
+        const ok = { ok: true, Look: FakeLook } as unknown as LoadCubesEnhancedResult;
+        const failed: LoadCubesEnhancedResult = { ok: false };
+        const basic: Props = { analyser: undefined, cameraLocked: true, enhanced: false };
+        const on: Props = { ...basic, enhanced: true };
+
+        // Settles a load the way the real loader would, and lets the hook's continuation run.
+        const settle = (result: LoadCubesEnhancedResult, index = loads.length - 1) =>
+            act(async () => loads[index].settle(result));
+
+        const look = () => FakeLook.instances.at(-1)!;
+
+        beforeEach(() => {
+            loads.length = 0;
+            FakeLook.instances = [];
+            FakeLook.failAt = undefined;
+            enhancedMock.loadCubesEnhanced.mockReset();
+            // Unlike the real loader, an abort does not settle it: that lets a test deliver a late result on purpose.
+            enhancedMock.loadCubesEnhanced.mockImplementation(
+                (signal: AbortSignal) =>
+                    new Promise<LoadCubesEnhancedResult>((resolve) => loads.push({ signal, settle: resolve })),
+            );
+            resetSlowNoticeDismissed();
+        });
+
+        afterEach(() => {
+            vi.restoreAllMocks();
+            Reflect.deleteProperty(window, 'matchMedia');
+        });
+
+        function installMatchMedia(matches: boolean) {
+            const listeners = new Set<(event: { matches: boolean }) => void>();
+            const query = {
+                matches,
+                addEventListener: vi.fn((_type: string, listener: (event: { matches: boolean }) => void) => {
+                    listeners.add(listener);
+                }),
+                removeEventListener: vi.fn((_type: string, listener: (event: { matches: boolean }) => void) => {
+                    listeners.delete(listener);
+                }),
+            };
+            window.matchMedia = vi.fn(() => query) as unknown as typeof window.matchMedia;
+            return {
+                query,
+                listeners,
+                fire: (next: boolean) => listeners.forEach((listener) => listener({ matches: next })),
+            };
+        }
+
+        it('never loads the look or touches the grid material while the flag is off', () => {
+            const override = vi.spyOn(CubeGrid.prototype, 'setMaterialOverride');
+            const { frame, renderer, statuses, onSlowFrames } = mountScene();
+
+            for (let i = 1; i <= 120; i++) frame(i * 100);
+
+            expect(enhancedMock.loadCubesEnhanced).not.toHaveBeenCalled();
+            expect(override).not.toHaveBeenCalled();
+            expect(statuses).toEqual([undefined]);
+            // Plain rendering, even when frames are slow: the monitor only watches the enhanced look.
+            expect(renderer.render).toHaveBeenCalledTimes(121);
+            expect(onSlowFrames).not.toHaveBeenCalled();
+        });
+
+        it('keeps the basic look rendering while loading, then renders through the look once it is ready', async () => {
+            const { frame, renderer, statuses, hub, valuesRef, scene, camera } = mountScene({ enhanced: true });
+            expect(statuses).toEqual([undefined, 'loading']);
+            expect(enhancedMock.loadCubesEnhanced).toHaveBeenCalledTimes(1);
+            const before = renderer.render.mock.calls.length;
+            frame(16);
+            expect(renderer.render.mock.calls.length).toBe(before + 1);
+
+            await settle(ok);
+
+            expect(statuses).toEqual([undefined, 'loading', 'ready']);
+            expect(look().options).toMatchObject({
+                renderer,
+                scene,
+                camera,
+                size: { width: 800, height: 600 },
+                reducedMotion: false,
+            });
+            expect(look().options.lights.key.isDirectionalLight).toBe(true);
+            expect(look().options.lights.fill.isDirectionalLight).toBe(true);
+            expect(look().options.lights.ambient.isAmbientLight).toBe(true);
+            expect(look().attach).toHaveBeenCalledTimes(1);
+
+            hub.snapshot.beat.locked = true;
+            hub.snapshot.beat.phase = 0.25;
+            hub.snapshot.beat.barLocked = true;
+            hub.snapshot.beat.barPhase = 0.5;
+            valuesRef.current = { ...valuesRef.current, glow: 0.2, particles: 0.3, cameraMotion: 0.4 };
+            const rendersBefore = renderer.render.mock.calls.length;
+            frame(32);
+            frame(48);
+
+            expect(renderer.render.mock.calls.length).toBe(rendersBefore);
+            expect(look().render).toHaveBeenCalledTimes(2);
+            expect(look().update).toHaveBeenCalledTimes(2);
+            const [fxFrame, settings] = look().update.mock.calls[1];
+            expect(fxFrame).toMatchObject({
+                bands: null,
+                beatPhase: 0.25,
+                barPhase: 0.5,
+                barLocked: true,
+                dt: 0.016,
+            });
+            expect(settings).toMatchObject({ glow: 0.2, particles: 0.3, cameraMotion: 0.4 });
+            expect(settings.restingColor).toBeInstanceOf(Color);
+            expect(settings.raisedColor).toBeInstanceOf(Color);
+        });
+
+        it('hands the look the same frame and settings objects every frame (no allocation)', async () => {
+            const { frame } = mountScene({ enhanced: true });
+            await settle(ok);
+
+            frame(16);
+            frame(32);
+
+            const [first, second] = look().update.mock.calls;
+            expect(second[0]).toBe(first[0]);
+            expect(second[1]).toBe(first[1]);
+        });
+
+        it('passes the hook levels as bands with an analyser, and null phases while the beat is not locked', async () => {
+            const { analyser, node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node, enhanced: true });
+            await settle(ok);
+            analyser.setByteFrequencyData(255);
+            hub.snapshot.beat.phase = 0.7;
+            hub.snapshot.beat.barPhase = 0.9;
+            hub.setGateBass(0.4);
+
+            frame(16);
+
+            const [fxFrame] = look().update.mock.calls[0];
+            expect(fxFrame.bands).toBeInstanceOf(Float32Array);
+            expect(fxFrame.beatPhase).toBeNull();
+            expect(fxFrame.barPhase).toBeNull();
+            expect(fxFrame.barLocked).toBe(false);
+            expect(fxFrame.bassFlash).toBeGreaterThanOrEqual(0);
+            expect(fxFrame.bassFlash).toBeLessThanOrEqual(1);
+        });
+
+        it('reads an undefined phase as null even while locked', async () => {
+            const { frame, hub } = mountScene({ enhanced: true });
+            await settle(ok);
+            hub.snapshot.beat.locked = true;
+            hub.snapshot.beat.barLocked = true;
+
+            frame(16);
+
+            const [fxFrame] = look().update.mock.calls[0];
+            expect(fxFrame.beatPhase).toBeNull();
+            expect(fxFrame.barPhase).toBeNull();
+        });
+
+        it('adds and removes the look on a toggle round trip without rebuilding the scene', async () => {
+            const { rerender, frame, renderer, statuses, gridMesh } = mountScene();
+            const mesh = gridMesh();
+            frame(16);
+
+            rerender(on);
+            expect(statuses).toEqual([undefined, 'loading']);
+            await settle(ok);
+            expect(statuses).toEqual([undefined, 'loading', 'ready']);
+            const first = look();
+
+            rerender(basic);
+            expect(first.dispose).toHaveBeenCalledTimes(1);
+            expect(statuses).toEqual([undefined, 'loading', 'ready', undefined]);
+            const rendersBefore = renderer.render.mock.calls.length;
+            frame(32);
+            expect(renderer.render.mock.calls.length).toBe(rendersBefore + 1);
+            expect(first.render).not.toHaveBeenCalled();
+
+            rerender(on);
+            await settle(ok);
+            expect(FakeLook.instances).toHaveLength(2);
+            expect(look()).not.toBe(first);
+            expect(statuses).toEqual([undefined, 'loading', 'ready', undefined, 'loading', 'ready']);
+
+            // One renderer and one grid throughout: nothing was rebuilt.
+            expect(FakeRenderer.instances.filter((instance) => instance === renderer)).toHaveLength(1);
+            expect(gridMesh()).toBe(mesh);
+        });
+
+        it('ignores a load that finishes after the look was turned off, and has aborted it', async () => {
+            const { rerender, statuses } = mountScene({ enhanced: true });
+            const [pending] = loads;
+
+            rerender(basic);
+            expect(pending.signal.aborted).toBe(true);
+            expect(statuses).toEqual([undefined, 'loading', undefined]);
+            await settle(ok, 0);
+
+            expect(FakeLook.instances).toHaveLength(0);
+            expect(statuses).toEqual([undefined, 'loading', undefined]);
+        });
+
+        it('uses only the newest load when the toggle flips off and on while loading', async () => {
+            const { rerender, statuses } = mountScene({ enhanced: true });
+
+            rerender(basic);
+            rerender(on);
+            expect(loads).toHaveLength(2);
+            expect(loads[0].signal.aborted).toBe(true);
+            expect(loads[1].signal.aborted).toBe(false);
+
+            await settle(ok, 0);
+            expect(FakeLook.instances).toHaveLength(0);
+            await settle(ok, 1);
+
+            expect(FakeLook.instances).toHaveLength(1);
+            expect(statuses.at(-1)).toBe('ready');
+        });
+
+        it('aborts a pending load on teardown and ignores its late result', async () => {
+            const { unmount, statuses } = mountScene({ enhanced: true });
+            const [pending] = loads;
+
+            unmount();
+            expect(pending.signal.aborted).toBe(true);
+            await settle(ok, 0);
+
+            expect(FakeLook.instances).toHaveLength(0);
+            expect(statuses).toEqual([undefined, 'loading']);
+        });
+
+        it('disposes the look on teardown, before the grid it draws', async () => {
+            const { unmount } = mountScene({ enhanced: true });
+            await settle(ok);
+            const override = vi.spyOn(CubeGrid.prototype, 'dispose');
+            look().dispose.mockImplementation(() => expect(override).not.toHaveBeenCalled());
+
+            unmount();
+
+            expect(look().dispose).toHaveBeenCalledTimes(1);
+            expect(override).toHaveBeenCalledTimes(1);
+        });
+
+        it('reports error and keeps the basic look when the load fails', async () => {
+            const { statuses, frame, renderer } = mountScene({ enhanced: true });
+
+            await settle(failed);
+
+            expect(statuses).toEqual([undefined, 'loading', 'error']);
+            const before = renderer.render.mock.calls.length;
+            frame(16);
+            expect(renderer.render.mock.calls.length).toBe(before + 1);
+        });
+
+        it('retries on the next toggle after an error', async () => {
+            const { rerender, statuses } = mountScene({ enhanced: true });
+            await settle(failed);
+
+            rerender(basic);
+            rerender(on);
+            await settle(ok);
+
+            expect(statuses).toEqual([undefined, 'loading', 'error', undefined, 'loading', 'ready']);
+        });
+
+        it.each(['construct', 'attach'] as const)('reports error when the look fails at %s', async (failAt) => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            FakeLook.failAt = failAt;
+            const { statuses, frame, renderer } = mountScene({ enhanced: true });
+
+            await settle(ok);
+
+            expect(statuses).toEqual([undefined, 'loading', 'error']);
+            expect(warn).toHaveBeenCalledTimes(1);
+            // A look that was built before it failed is freed.
+            if (failAt === 'attach') expect(look().dispose).toHaveBeenCalledTimes(1);
+            const before = renderer.render.mock.calls.length;
+            frame(16);
+            expect(renderer.render.mock.calls.length).toBe(before + 1);
+        });
+
+        it('re-attaches the look to a rebuilt grid and resizes it on every resize', async () => {
+            const { resizes, gridMesh } = mountScene({ enhanced: true });
+            await settle(ok);
+            const first = gridMesh();
+            expect(look().attach).toHaveBeenCalledTimes(1);
+
+            resizes.resize(1200, 600);
+            expect(look().attach).toHaveBeenCalledTimes(2);
+            expect((look().attach.mock.calls[1][0] as CubeGrid).mesh).toBe(gridMesh());
+            expect(gridMesh()).not.toBe(first);
+            expect(look().resize).toHaveBeenLastCalledWith(1200, 600);
+
+            // The grid keeps its size here, so it is not re-attached, but the look still follows the view.
+            resizes.resize(1201, 600);
+            expect(look().attach).toHaveBeenCalledTimes(2);
+            expect(look().resize).toHaveBeenLastCalledWith(1201, 600);
+        });
+
+        it('builds a look that arrives after a resize at the new size', async () => {
+            const { resizes } = mountScene({ enhanced: true });
+            resizes.resize(1200, 600);
+
+            await settle(ok);
+
+            expect(look().options.size).toEqual({ width: 1200, height: 600 });
+        });
+
+        it('does not touch a look in basic mode on resize', () => {
+            const { resizes } = mountScene();
+
+            expect(() => resizes.resize(1200, 600)).not.toThrow();
+        });
+
+        describe('reduced motion', () => {
+            it('starts the look with the preference and follows it live', async () => {
+                const media = installMatchMedia(true);
+                const { unmount } = mountScene({ enhanced: true });
+                await settle(ok);
+                expect(media.query.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+                expect(look().options.reducedMotion).toBe(true);
+
+                media.fire(false);
+                expect(look().setReducedMotion).toHaveBeenLastCalledWith(false);
+                media.fire(true);
+                expect(look().setReducedMotion).toHaveBeenLastCalledWith(true);
+
+                unmount();
+                expect(media.listeners.size).toBe(0);
+            });
+
+            it('uses the latest preference for a look built later', async () => {
+                const media = installMatchMedia(false);
+                mountScene({ enhanced: true });
+                media.fire(true);
+
+                await settle(ok);
+
+                expect(look().options.reducedMotion).toBe(true);
+            });
+
+            it('follows the preference in basic mode without a look', () => {
+                const media = installMatchMedia(false);
+                mountScene();
+
+                expect(() => media.fire(true)).not.toThrow();
+            });
+        });
+
+        describe('slow frames', () => {
+            // 10 fps: past the 4 s warm-up, then a full 5 s window below the 40 fps threshold.
+            const runSlow = (frame: (time: number) => void) => {
+                for (let i = 1; i <= 120; i++) frame(i * 100);
+            };
+
+            it('calls onSlowFrames once while the look runs slowly', async () => {
+                const { frame, onSlowFrames } = mountScene({ enhanced: true });
+                await settle(ok);
+
+                runSlow(frame);
+
+                expect(onSlowFrames).toHaveBeenCalledTimes(1);
+            });
+
+            it('does not sample while the look is still loading', () => {
+                const { frame, onSlowFrames } = mountScene({ enhanced: true });
+
+                runSlow(frame);
+
+                expect(onSlowFrames).not.toHaveBeenCalled();
+            });
+
+            it('stays quiet once the notice was dismissed for this visit', async () => {
+                dismissSlowNotice();
+                const { frame, onSlowFrames } = mountScene({ enhanced: true });
+                await settle(ok);
+
+                runSlow(frame);
+
+                expect(onSlowFrames).not.toHaveBeenCalled();
+            });
+
+            it('does not fire for a healthy frame rate', async () => {
+                const { frame, onSlowFrames } = mountScene({ enhanced: true });
+                await settle(ok);
+
+                for (let i = 1; i <= 1000; i++) frame(i * 16);
+
+                expect(onSlowFrames).not.toHaveBeenCalled();
+            });
+
+            it('restarts the warm-up when the status changes', async () => {
+                const { frame, onSlowFrames, rerender } = mountScene({ enhanced: true });
+                await settle(ok);
+                for (let i = 1; i <= 80; i++) frame(i * 100);
+
+                // Off and on again: the measurement starts over, so the earlier slow frames do not count.
+                rerender(basic);
+                rerender(on);
+                await settle(ok);
+                for (let i = 81; i <= 120; i++) frame(i * 100);
+
+                expect(onSlowFrames).not.toHaveBeenCalled();
+            });
         });
     });
 });
