@@ -119,6 +119,32 @@ describe('PencilFlagsMesh', () => {
         expect(create().material.uniforms.opacity.value).toBe(1);
     });
 
+    it('uses the standard shaders unless a look passes its own, adding its uniforms to the standard ones', () => {
+        const standard = create();
+        const custom = new PencilFlagsMesh(DEPTH, WIDTH, DISTANCE, createColors(), RADIUS, 0.5, {
+            vertexShader: 'void main() {}',
+            fragmentShader: 'void main() { }',
+            uniforms: { glow: { value: 2 }, opacity: { value: 0.25 } },
+        });
+        expect(custom.material.vertexShader).toBe('void main() {}');
+        expect(custom.material.fragmentShader).toBe('void main() { }');
+        expect(custom.material.uniforms.glow.value).toBe(2);
+        expect(custom.material.uniforms.opacity.value).toBe(0.25);
+        expect(custom.material.uniforms.apothem.value).toBe(standard.material.uniforms.apothem.value);
+        expect(standard.material.vertexShader).toContain('instanceHeight');
+        expect(standard.material.uniforms.glow).toBeUndefined();
+    });
+
+    it('spaces rows by the row distance when one is given, and by the column distance otherwise', () => {
+        const offsets = (flags: PencilFlagsMesh) => attribute(flags, 'instanceOffset');
+        const standard = create();
+        const deep = new PencilFlagsMesh(DEPTH, WIDTH, DISTANCE, createColors(), RADIUS, 1, { rowDistance: 25 });
+        // flag = column * DEPTH + row: flag 1 is column 0, row 1; flag DEPTH is column 1, row 0.
+        expect(offsets(standard).getZ(1)).toBe(DISTANCE);
+        expect(offsets(deep).getZ(1)).toBe(25);
+        expect(offsets(deep).getX(DEPTH)).toBe(DISTANCE);
+    });
+
     it('detaches the mesh and frees the geometry and material on dispose', () => {
         const flags = create();
         const scene = new THREE.Scene();
