@@ -75,7 +75,7 @@ export function PerformanceStats() {
 
     const { frames, audio } = stats;
     return (
-        <div className="pointer-events-none fixed bottom-3 left-3 z-10 rounded-md bg-black/75 px-2.5 py-2 font-mono text-xs text-[#9f9]">
+        <div className="pointer-events-none fixed bottom-3 left-3 z-10 rounded-ui bg-surface-0/80 px-2.5 py-2 font-mono text-xs text-success">
             <div>
                 <b>Rendering</b>
             </div>

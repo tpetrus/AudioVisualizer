@@ -1,3 +1,4 @@
+import { Button } from '~/components/ui';
 import { SLOW_FRAME_NOTICE_STRINGS } from './slowFrameNoticeStrings';
 import { setEnhancedGraphics } from './enhancedGraphicsStore';
 import { dismissSlowNotice } from './frameRateMonitor';
@@ -14,24 +15,22 @@ export function SlowFrameNotice({ onClose }: SlowFrameNoticeProps) {
         dismissSlowNotice();
         onClose();
     };
-    const buttonClass = 'rounded border border-gray-400 px-2 py-1 hover:border-white';
 
     return (
-        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded bg-black/70 px-4 py-2 text-sm text-white">
+        <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-3 rounded-ui border border-border bg-surface-1/90 px-4 py-2 text-sm text-text">
             <span>{SLOW_FRAME_NOTICE_STRINGS.message}</span>
-            <button
-                type="button"
-                className={buttonClass}
+            <Button
+                size="sm"
                 onClick={() => {
                     setEnhancedGraphics(false);
                     close();
                 }}
             >
                 {SLOW_FRAME_NOTICE_STRINGS.switchToStandard}
-            </button>
-            <button type="button" className={buttonClass} onClick={close}>
+            </Button>
+            <Button size="sm" onClick={close}>
                 {SLOW_FRAME_NOTICE_STRINGS.dismiss}
-            </button>
+            </Button>
         </div>
     );
 }

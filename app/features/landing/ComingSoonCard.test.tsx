@@ -14,6 +14,6 @@ describe('ComingSoonCard', () => {
         const { container } = render(<ComingSoonCard />);
 
         expect(container.firstElementChild).toHaveClass('w-full', 'py-6');
-        expect(screen.getByText('More coming soon')).toHaveClass('text-xl', 'text-neutral-400');
+        expect(screen.getByText('More coming soon')).toHaveClass('text-xl', 'text-text-muted');
     });
 });
