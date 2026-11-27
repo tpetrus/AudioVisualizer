@@ -1,12 +1,21 @@
-import { type RefObject, useCallback, useRef } from 'react';
+import { type RefObject, useCallback, useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { type BinRange, createBandBins, updateBandLevels } from './bands';
 import { CubeGrid, gridSizeForView } from './cubeGrid';
 import { createCubesBassEnvelope, stepCubesBass } from './cubesBass';
-import type { CubesControlValues } from './cubesControls';
+import type { CubesEnhancedControlValues } from './cubesControls';
+import type {
+    CubesEnhancedLookApi,
+    CubesEnhancedSettings,
+    CubesFxFrame,
+    CubesLights,
+} from './enhanced/cubesEnhancedTypes';
+import { loadCubesEnhanced } from './enhanced/loadCubesEnhanced';
 import { useLatestRef } from '~/hooks/useLatestRef';
 import { useThreeScene } from '~/hooks/useThreeScene';
+import type { EnhancedGraphicsStatus } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { FrameRateMonitor, isSlowNoticeDismissed, SLOW_FRAME_OPTIONS } from '~/features/settings/frameRateMonitor';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
 import { createOrbitView } from '~/lib/three/orbitView';
@@ -39,24 +48,51 @@ interface CubesSceneOptions {
     analyser: AnalyserNode | undefined;
     // The app-wide audio hub: a stable instance, so the scene reads its snapshot without a ref.
     hub: AudioHubReader;
-    valuesRef: { readonly current: CubesControlValues };
+    // The superset of the standard values: the Enhanced controls are only read while the enhanced look is active.
+    valuesRef: { readonly current: CubesEnhancedControlValues };
     // Locked means the picture can't be dragged, rotated or zoomed.
     cameraLocked: boolean;
     onViewChanged: (changed: boolean) => void;
+    // The visitor's enhanced-graphics choice. Changing it never rebuilds the scene: the look is added or removed.
+    enhanced: boolean;
+    // The enhanced look's progress, undefined in standard mode. It changes a few times per toggle, never per frame.
+    onEnhancedStatus?: (status: EnhancedGraphicsStatus | undefined) => void;
+    // Called once per warm-up cycle when the enhanced look has been running slowly; never in standard mode.
+    onSlowFrames?: () => void;
 }
 
 // Audio-reactive grid of glass cubes rendered into `containerRef`.
 export function useCubesScene(
     containerRef: RefObject<HTMLElement | null>,
-    { analyser, hub, valuesRef, cameraLocked, onViewChanged }: CubesSceneOptions,
+    {
+        analyser,
+        hub,
+        valuesRef,
+        cameraLocked,
+        onViewChanged,
+        enhanced,
+        onEnhancedStatus,
+        onSlowFrames,
+    }: CubesSceneOptions,
 ): { resetView: () => void } {
     // The scene is built once; it reads these through refs so it always sees the current values.
     const analyserRef = useLatestRef(analyser);
     const cameraLockedRef = useLatestRef(cameraLocked);
     const onViewChangedRef = useLatestRef(onViewChanged);
+    const enhancedRef = useLatestRef(enhanced);
+    const onEnhancedStatusRef = useLatestRef(onEnhancedStatus);
+    const onSlowFramesRef = useLatestRef(onSlowFrames);
     const resetViewRef = useRef<() => void>(() => {});
+    // Set by the scene: adds or removes the enhanced look without rebuilding anything.
+    const setEnhancedRef = useRef<(on: boolean) => void>(() => {});
 
-    useThreeScene(containerRef, ({ scene, renderer, size }) => {
+    // On mount this runs before the scene exists (a no-op), and the scene applies the current value itself when it is
+    // built; afterwards this follows the toggle.
+    useEffect(() => {
+        setEnhancedRef.current(enhanced);
+    }, [enhanced]);
+
+    useThreeScene(containerRef, ({ scene, renderer, size, signal }) => {
         const camera = new THREE.PerspectiveCamera(CAMERA_FOV, size.width / size.height, 1, 500);
         camera.position.set(0, 0, CAMERA_DISTANCE);
 
@@ -65,7 +101,7 @@ export function useCubesScene(
         scene.background = backgroundColor;
         scene.environment = createEnvironment(renderer);
         scene.environmentIntensity = ENVIRONMENT_INTENSITY;
-        addLights(scene);
+        const lights = addLights(scene);
 
         const orbit = createOrbitView(camera, renderer.domElement, {
             locked: cameraLockedRef.current,
@@ -114,6 +150,92 @@ export function useCubesScene(
             boundAnalyser = source;
         };
 
+        // The enhanced look. It exists only between a successful load and the next toggle-off (or teardown); until then
+        // the basic look keeps rendering. Everything below is preallocated, so the per-frame path allocates nothing.
+        let look: CubesEnhancedLookApi | undefined;
+        let wanted = false;
+        let loadController: AbortController | undefined;
+        // The latest CSS size, for a look that is built after a resize.
+        let viewSize = size;
+        const monitor = new FrameRateMonitor(SLOW_FRAME_OPTIONS);
+        const fxFrame: CubesFxFrame = {
+            bands: null,
+            bassFlash: 0,
+            beatPhase: null,
+            barPhase: null,
+            barLocked: false,
+            dt: 0,
+        };
+        const fxSettings: CubesEnhancedSettings = { glow: 0, particles: 0, cameraMotion: 0, restingColor, raisedColor };
+
+        // Reduced motion is followed live, so the look calms down or comes back without a reload.
+        const motionQuery =
+            typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : undefined;
+        let reducedMotion = motionQuery?.matches ?? false;
+        const onMotionChange = (event: MediaQueryListEvent) => {
+            reducedMotion = event.matches;
+            look?.setReducedMotion(reducedMotion);
+        };
+        motionQuery?.addEventListener('change', onMotionChange);
+
+        // A new look phase is a new thing to measure, so every status change restarts the monitor's warm-up.
+        const reportStatus = (status: EnhancedGraphicsStatus | undefined) => {
+            monitor.restartWarmup();
+            onEnhancedStatusRef.current?.(status);
+        };
+
+        const stopEnhanced = () => {
+            loadController?.abort();
+            loadController = undefined;
+            look?.dispose();
+            look = undefined;
+        };
+
+        const startEnhanced = () => {
+            const controller = new AbortController();
+            loadController = controller;
+            // The scene's teardown cancels a pending load too.
+            const abortWithScene = () => controller.abort();
+            signal.addEventListener('abort', abortWithScene, { once: true });
+            reportStatus('loading');
+            void loadCubesEnhanced(controller.signal).then((result) => {
+                signal.removeEventListener('abort', abortWithScene);
+                // Turned off (or the scene went away) while loading: the result is not wanted any more.
+                if (controller.signal.aborted) return;
+                loadController = undefined;
+                if (!result.ok) {
+                    // The basic look keeps rendering; the stored preference is the visitor's to change.
+                    reportStatus('error');
+                    return;
+                }
+                try {
+                    look = new result.Look({ renderer, scene, camera, lights, size: viewSize, reducedMotion });
+                    look.attach(grid);
+                } catch (error) {
+                    console.warn('Enhanced cubes could not be started, using the basic look.', error);
+                    look?.dispose();
+                    look = undefined;
+                    reportStatus('error');
+                    return;
+                }
+                reportStatus('ready');
+            });
+        };
+
+        setEnhancedRef.current = (on) => {
+            if (on === wanted) return;
+            wanted = on;
+            if (on) {
+                startEnhanced();
+            } else {
+                stopEnhanced();
+                reportStatus(undefined);
+            }
+        };
+        // The scene may be built with the look already wanted; basic mode reports no status.
+        onEnhancedStatusRef.current?.(undefined);
+        setEnhancedRef.current(enhancedRef.current);
+
         return {
             camera,
 
@@ -159,27 +281,59 @@ export function useCubesScene(
                     backdropLift: (pulse + downbeatAccent * DOWNBEAT_ACCENT_LIFT) * MAX_BACKDROP_LIFT,
                 });
 
+                if (look) {
+                    fxFrame.bands = source ? levels : null;
+                    fxFrame.bassFlash = pulse;
+                    fxFrame.beatPhase = beat.locked ? (beat.phase ?? null) : null;
+                    fxFrame.barPhase = beat.barLocked ? (beat.barPhase ?? null) : null;
+                    fxFrame.barLocked = beat.barLocked;
+                    fxFrame.dt = delta / 1000;
+                    fxSettings.glow = values.glow;
+                    fxSettings.particles = values.particles;
+                    fxSettings.cameraMotion = values.cameraMotion;
+                    look.update(fxFrame, fxSettings);
+
+                    if (monitor.sample(delta, document.hidden) && !isSlowNoticeDismissed()) {
+                        onSlowFramesRef.current?.();
+                    }
+                }
+
                 if (import.meta.env.DEV) {
                     tickTelemetry(delta / 1000);
                 }
             },
 
-            resize: () => {
-                const next = gridSizeForView(CAMERA_FOV, CAMERA_DISTANCE, camera.aspect);
-                if (next.columns === grid.columns && next.rows === grid.rows) {
-                    return;
-                }
-                grid.dispose();
-                grid = new CubeGrid(next);
-                scene.add(grid.mesh);
-                // The band layout depends on the column count.
-                levels = new Float32Array(grid.bandCount);
-                if (boundAnalyser) {
-                    bins = bandBinsFor(boundAnalyser);
+            // The look draws through its own composer (post-processing); without it this is the plain render.
+            render: () => {
+                if (look) {
+                    look.render();
+                } else {
+                    renderer.render(scene, camera);
                 }
             },
 
+            resize: (next) => {
+                viewSize = next;
+                const gridSize = gridSizeForView(CAMERA_FOV, CAMERA_DISTANCE, camera.aspect);
+                if (gridSize.columns !== grid.columns || gridSize.rows !== grid.rows) {
+                    grid.dispose();
+                    grid = new CubeGrid(gridSize);
+                    scene.add(grid.mesh);
+                    // The band layout depends on the column count.
+                    levels = new Float32Array(grid.bandCount);
+                    if (boundAnalyser) {
+                        bins = bandBinsFor(boundAnalyser);
+                    }
+                    // The new grid has the plain glass material until the look applies its own.
+                    look?.attach(grid);
+                }
+                look?.resize(next.width, next.height);
+            },
+
             dispose: () => {
+                setEnhancedRef.current = () => {};
+                motionQuery?.removeEventListener('change', onMotionChange);
+                stopEnhanced();
                 orbit.dispose();
                 grid.dispose();
                 unregisterProbe?.();
@@ -211,14 +365,18 @@ function createEnvironment(renderer: THREE.WebGLRenderer): THREE.Texture {
 
 // A strong key light from the upper left and a dim fill from the right, so the faces of tilted cubes
 // are shaded differently and read as solid shapes.
-function addLights(scene: THREE.Scene): void {
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.6 * LIGHT_SCALE);
-    keyLight.position.set(-6, 8, 10);
-    scene.add(keyLight);
+// The lights are returned so the enhanced look can retune them and put them back.
+function addLights(scene: THREE.Scene): CubesLights {
+    const key = new THREE.DirectionalLight(0xffffff, 1.6 * LIGHT_SCALE);
+    key.position.set(-6, 8, 10);
+    scene.add(key);
 
-    const fillLight = new THREE.DirectionalLight(0xaab4ff, 0.5 * LIGHT_SCALE);
-    fillLight.position.set(8, -3, 6);
-    scene.add(fillLight);
+    const fill = new THREE.DirectionalLight(0xaab4ff, 0.5 * LIGHT_SCALE);
+    fill.position.set(8, -3, 6);
+    scene.add(fill);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.25 * LIGHT_SCALE));
+    const ambient = new THREE.AmbientLight(0xffffff, 0.25 * LIGHT_SCALE);
+    scene.add(ambient);
+
+    return { key, fill, ambient };
 }
