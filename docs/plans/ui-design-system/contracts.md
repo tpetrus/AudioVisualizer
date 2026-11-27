@@ -29,7 +29,7 @@ they are in both PRs. Only its rendering changes, so those branches merge withou
 `--radius-ui`. Use them as utilities (`bg-surface-1`, `text-text-muted`, `border-border`, `rounded-ui`, `bg-accent`,
 `text-accent-text`, `bg-success`, ...) or as `var(--color-...)` in CSS Modules. Translucent overlays use the opacity
 modifier (`bg-surface-1/90`) or `color-mix(in srgb, var(--color-surface-1) 90%, transparent)`. No gradients, no other
-color literals in UI code (`white`/`black`/`gray-*`/`blue-*` utilities, hex, `rgb()` included).
+color literals in UI code: no hex, `rgb()`/`hsl()`, or Tailwind palette utilities (`gray-*`, `blue-*`, ...). `black` and `white` stay allowed only where a token cannot do the job: the dialog backdrop (`bg-black/75`), the title banner's black (it matches the pre-rendered image), and white text on the primary button. The lint guard in `eslint.config.js` enforces the same line.
 
 The base layer gives the pointer to button, a[href], summary, select, label[for], checkbox, radio, range, color,
 [role=switch], [role=button]; not-allowed to :disabled and [aria-disabled=true]; and one `:focus-visible` outline.
@@ -79,6 +79,11 @@ never colors.
   to the accent.
 - `Badge`: `{ children: ReactNode; tone?: 'accent' | 'neutral' | 'warning'; className?: string }`, a small inline label
   such as "Recommended" or "2 changed".
+
+Overriding a primitive's own utilities: which of two conflicting Tailwind utilities wins depends on their order in
+the stylesheet, not in the class string, so a `className` that conflicts with a primitive's own class has no reliable
+effect. `Dialog` drops its default `max-w-[780px]` when `className` has a `max-w-`. For a one-off color, such as the
+fullscreen exit control's scrim over the scene, use the important modifier (`bg-surface-0/70!`).
 
 ## C3 Prompt seen flag (storage), PR2 (S5) only
 
