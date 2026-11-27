@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
-import type { Group, PerspectiveCamera } from 'three';
+import { act, renderHook } from '@testing-library/react';
+import { Vector3, type Group, type PerspectiveCamera } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { asTracker, FakeRhythmTracker } from '~/test/fakeEngines';
@@ -16,6 +16,8 @@ import { CHARACTER_REGISTRY, DEFAULT_CHARACTER_ID, type CharacterEntry } from '.
 import { dancingCharacterControls, type DancingCharacterSettings } from './dancingCharacterControls';
 import type { DancingCharacterFrame } from './dancingCharacterScene';
 import { useDancingCharacterScene, type DancingCharacterLoadStatus } from './useDancingCharacterScene';
+import type { EnhancedGraphicsStatus } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { getEnhancedGraphics, setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
 
 // vi.mock is hoisted, so the fakes are loaded with a dynamic import inside the factory (see fakeThree.ts).
 vi.mock('three', async (importOriginal) => {
@@ -28,6 +30,32 @@ vi.mock('./dancingCharacterAssets', () => ({
     loadDancingCharacterAssets: vi.fn(),
     disposeDancingCharacterAssets: vi.fn(),
     isAbortError: (error: unknown) => (error as { name?: string }).name === 'AbortError',
+}));
+
+// The enhanced chunk has its own spec; here only how the hook drives it matters. `factoryRuns` counts how often the
+// module was evaluated (never, in standard mode) and `failImport` makes the chunk unusable (a vi.mock factory runs only
+// once per module, so the failure is a getter that throws when the hook reads the export).
+const enhancedMock = vi.hoisted(() => ({
+    factoryRuns: 0,
+    failImport: false,
+    look: { apply: vi.fn(), onModelChanged: vi.fn(), resize: vi.fn(), dispose: vi.fn() },
+    createEnhancedLook: vi.fn(),
+}));
+vi.mock('./enhanced/dancingCharacterEnhanced', () => {
+    enhancedMock.factoryRuns++;
+    return {
+        get createEnhancedLook() {
+            if (enhancedMock.failImport) throw new Error('chunk failed to load');
+            return enhancedMock.createEnhancedLook;
+        },
+    };
+});
+
+// The page-visit flag is a module value; a spec sets what it reads.
+const slowFlag = vi.hoisted(() => ({ dismissed: false }));
+vi.mock('~/features/settings/frameRateMonitor', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('~/features/settings/frameRateMonitor')>()),
+    isSlowNoticeDismissed: () => slowFlag.dismissed,
 }));
 
 const { scenes } = vi.hoisted(() => ({ scenes: [] as unknown[] }));
@@ -47,6 +75,8 @@ vi.mock('./dancingCharacterScene', () => ({
         // What the DEV probe reads from the real scene.
         readonly timing = { timeScale: 0, phaseNudge: 0 };
         readonly timingState = { meterLocked: false };
+        // What the enhanced look fits its shadow camera to.
+        readonly danceBounds = { min: {}, max: {} };
         clipPhase = 0;
         constructor(
             readonly scene: unknown,
@@ -123,6 +153,9 @@ function mountScene(initial: Partial<Props> = {}) {
     const statuses: DancingCharacterLoadStatus[] = [];
     const onCharacterProblem = vi.fn();
     const onStatus = vi.fn((status: DancingCharacterLoadStatus) => statuses.push(status));
+    const enhancedStatuses: (EnhancedGraphicsStatus | undefined)[] = [];
+    const onEnhancedStatus = vi.fn((status: EnhancedGraphicsStatus | undefined) => enhancedStatuses.push(status));
+    const onSlowFrames = vi.fn();
 
     const hook = renderHook(
         ({ analyser, cameraLocked, reducedMotion, registry }: Props) =>
@@ -137,6 +170,8 @@ function mountScene(initial: Partial<Props> = {}) {
                 onStatus,
                 onCharacterProblem,
                 registry,
+                onEnhancedStatus,
+                onSlowFrames,
             }),
         { initialProps: { analyser: undefined, cameraLocked: true, reducedMotion: false, ...initial } as Props },
     );
@@ -152,6 +187,8 @@ function mountScene(initial: Partial<Props> = {}) {
         onStatus,
         onCharacterProblem,
         statuses,
+        enhancedStatuses,
+        onSlowFrames,
         resizes,
         container,
     };
@@ -177,6 +214,14 @@ describe('useDancingCharacterScene', () => {
     beforeEach(() => {
         scenes.length = 0;
         loads.length = 0;
+        localStorage.clear();
+        setEnhancedGraphics(false);
+        slowFlag.dismissed = false;
+        enhancedMock.factoryRuns = 0;
+        enhancedMock.failImport = false;
+        enhancedMock.createEnhancedLook.mockReset();
+        enhancedMock.createEnhancedLook.mockReturnValue(enhancedMock.look);
+        for (const spy of Object.values(enhancedMock.look)) spy.mockReset();
         vi.mocked(loadDancingCharacterAssets).mockReset();
         vi.mocked(disposeDancingCharacterAssets).mockReset();
         vi.mocked(loadDancingCharacterAssets).mockImplementation(
@@ -1058,6 +1103,253 @@ describe('useDancingCharacterScene', () => {
             expect(renderer.dispose).toHaveBeenCalledTimes(1);
             expect(renderer.forceContextLoss).toHaveBeenCalledTimes(1);
             expect(container.contains(renderer.domElement)).toBe(false);
+        });
+    });
+
+    describe('enhanced graphics', () => {
+        const enableEnhanced = () => act(() => setEnhancedGraphics(true));
+        const lastContext = () => enhancedMock.createEnhancedLook.mock.calls.at(-1)![0];
+        // Drives `count` frames of `dtMs` each on the fake loop after time `from`; returns the new time.
+        const runFrames = (renderer: FakeRenderer, count: number, dtMs: number, from = 0) => {
+            for (let i = 1; i <= count; i++) renderer.renderFrame(from + i * dtMs);
+            return from + count * dtMs;
+        };
+
+        it('stays exactly standard when the preference is off: no import, no monitor, no antialiasing', () => {
+            const { renderer, enhancedStatuses, onSlowFrames } = mountScene();
+            runFrames(renderer, 200, 100);
+
+            expect(renderer.parameters).toEqual({ antialias: false });
+            expect(enhancedMock.factoryRuns).toBe(0);
+            expect(enhancedMock.createEnhancedLook).not.toHaveBeenCalled();
+            expect(enhancedStatuses).toEqual([undefined]);
+            expect(onSlowFrames).not.toHaveBeenCalled();
+        });
+
+        it('rebuilds with antialiasing when the preference turns on, and keeps the camera pose', () => {
+            mountScene();
+            const first = character(0).camera;
+            first.position.set(1, 2, 3);
+            first.quaternion.setFromAxisAngle(new Vector3(0, 1, 0), 0.5);
+            const quaternion = first.quaternion.clone();
+
+            enableEnhanced();
+
+            expect(scenes).toHaveLength(2);
+            expect(FakeRenderer.last.parameters).toEqual({ antialias: true });
+            const second = character(1).camera;
+            expect(second.position.toArray()).toEqual([1, 2, 3]);
+            expect(second.quaternion.angleTo(quaternion)).toBeLessThan(1e-6);
+        });
+
+        it('does not move the camera on a first build', () => {
+            mountScene();
+            expect(character(0).camera.position.toArray()).toEqual([0, 0, 0]);
+        });
+
+        it('builds the look with the scene context, applies it, and reports loading first', async () => {
+            setEnhancedGraphics(true);
+            const { renderer, enhancedStatuses } = mountScene();
+            expect(enhancedStatuses).toEqual(['loading']);
+            await flush();
+
+            expect(lastContext()).toMatchObject({ renderer, signal: expect.any(AbortSignal) });
+            expect(lastContext().scene).toBeDefined();
+            expect(enhancedMock.look.apply).toHaveBeenCalledTimes(1);
+            expect(enhancedMock.look.onModelChanged).not.toHaveBeenCalled();
+            lastContext().onStatus('ready');
+            expect(enhancedStatuses).toEqual(['loading', 'ready']);
+        });
+
+        it('tells the look about a model loaded before it arrived', async () => {
+            setEnhancedGraphics(true);
+            mountScene();
+            const first = makeAssets();
+            loads[0].resolve(first);
+            // The model's promise settles first; the chunk's follows.
+            await flush();
+
+            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(1);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledWith(
+                first.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
+        });
+
+        it('tells the look about a model that arrives after it, and about every later character', async () => {
+            setEnhancedGraphics(true);
+            const { valuesRef, renderer } = mountScene({ registry: FAKE_REGISTRY });
+            await flush();
+            const first = makeAssets();
+            loads[0].resolve(first);
+            await flush();
+            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(1);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(
+                first.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
+
+            valuesRef.current = { ...valuesRef.current, character: 'robot' };
+            renderer.renderFrame(0);
+            const robot = makeAssets();
+            loads[1].resolve(robot);
+            await flush();
+
+            expect(enhancedMock.look.onModelChanged).toHaveBeenCalledTimes(2);
+            expect(enhancedMock.look.onModelChanged).toHaveBeenLastCalledWith(
+                robot.model,
+                expect.objectContaining({ min: {}, max: {} }),
+            );
+        });
+
+        it('resizes the look with the scene and disposes it with the scene', async () => {
+            setEnhancedGraphics(true);
+            const { resizes, unmount } = mountScene();
+            await flush();
+
+            resizes.resize(400, 300);
+            expect(enhancedMock.look.resize).toHaveBeenCalledTimes(1);
+
+            unmount();
+            expect(enhancedMock.look.dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('resizes and renders fine before the look has arrived', () => {
+            setEnhancedGraphics(true);
+            const { resizes, renderer } = mountScene();
+
+            expect(() => {
+                resizes.resize(400, 300);
+                renderer.renderFrame(0);
+            }).not.toThrow();
+            expect(enhancedMock.look.resize).not.toHaveBeenCalled();
+        });
+
+        it('keeps the standard scene, warns once and reports error when the chunk fails to load', async () => {
+            enhancedMock.failImport = true;
+            setEnhancedGraphics(true);
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const { renderer, enhancedStatuses, unmount } = mountScene();
+            await flush();
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(enhancedStatuses).toEqual(['loading', 'error']);
+            expect(enhancedMock.createEnhancedLook).not.toHaveBeenCalled();
+            expect(getEnhancedGraphics()).toBe(true);
+            expect(localStorage.getItem('audioVisualizer.enhancedGraphics')).toBe('true');
+            // The standard scene keeps rendering.
+            expect(() => renderer.renderFrame(16)).not.toThrow();
+            expect(character().update).toHaveBeenCalled();
+            expect(() => unmount()).not.toThrow();
+            warn.mockRestore();
+        });
+
+        it('falls back the same way when applying the look throws, freeing what it built', async () => {
+            enhancedMock.look.apply.mockImplementation(() => {
+                throw new Error('shader failed');
+            });
+            setEnhancedGraphics(true);
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const { enhancedStatuses } = mountScene();
+            await flush();
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(enhancedStatuses).toEqual(['loading', 'error']);
+            expect(enhancedMock.look.dispose).toHaveBeenCalledTimes(1);
+            expect(getEnhancedGraphics()).toBe(true);
+            warn.mockRestore();
+        });
+
+        it('does not apply a look whose chunk resolves after the scene was torn down', async () => {
+            setEnhancedGraphics(true);
+            const { unmount, enhancedStatuses } = mountScene();
+
+            unmount();
+            await flush();
+
+            expect(enhancedMock.createEnhancedLook).not.toHaveBeenCalled();
+            expect(enhancedStatuses).toEqual(['loading']);
+        });
+
+        it('says nothing when the chunk fails after the scene was torn down', async () => {
+            enhancedMock.failImport = true;
+            setEnhancedGraphics(true);
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const { unmount, enhancedStatuses } = mountScene();
+
+            unmount();
+            await flush();
+
+            expect(warn).not.toHaveBeenCalled();
+            expect(enhancedStatuses).toEqual(['loading']);
+            warn.mockRestore();
+        });
+
+        it('reports slow frames once after the warm-up and a full window', () => {
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+
+            // 10 fps: 4 s of warm-up, then 5 s of window.
+            runFrames(renderer, 200, 100);
+
+            expect(onSlowFrames).toHaveBeenCalledTimes(1);
+        });
+
+        it('does not report fast frames', () => {
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+
+            runFrames(renderer, 2000, 16);
+
+            expect(onSlowFrames).not.toHaveBeenCalled();
+        });
+
+        it('does not report once the notice was dismissed', () => {
+            slowFlag.dismissed = true;
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+
+            runFrames(renderer, 200, 100);
+
+            expect(onSlowFrames).not.toHaveBeenCalled();
+        });
+
+        it('does not count hidden frames', () => {
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+            const hidden = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+            runFrames(renderer, 200, 100);
+
+            expect(onSlowFrames).not.toHaveBeenCalled();
+            hidden.mockRestore();
+        });
+
+        it('starts the measurement over on every look status change', async () => {
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+            await flush();
+
+            // 8 s in, just short of the first report; a status change then restarts the warm-up.
+            let time = runFrames(renderer, 80, 100);
+            lastContext().onStatus('ready');
+            time = runFrames(renderer, 60, 100, time);
+            expect(onSlowFrames).not.toHaveBeenCalled();
+
+            runFrames(renderer, 100, 100, time);
+            expect(onSlowFrames).toHaveBeenCalledTimes(1);
+        });
+
+        it('starts a new monitor on a rebuild', () => {
+            setEnhancedGraphics(true);
+            const { renderer, onSlowFrames } = mountScene();
+            runFrames(renderer, 80, 100);
+
+            act(() => setEnhancedGraphics(false));
+            act(() => setEnhancedGraphics(true));
+            runFrames(FakeRenderer.last, 80, 100);
+
+            expect(onSlowFrames).not.toHaveBeenCalled();
         });
     });
 });

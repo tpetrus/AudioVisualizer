@@ -301,3 +301,39 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
   posts its URL on the PR. GitHub Actions never deploys: it runs the checks in `AGENTS.md` ("CI and deploys") and, after
   each production deploy, the `@smoke` tests against the live site (`smoke.yml`, triggered by Cloudflare's
   "Workers Builds" check run on `main`).
+
+## 8. Enhanced graphics preference: `app/features/settings/`
+An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting). It is off by default
+and the dancer is the only visualizer that uses it today.
+- **Store:** `enhancedGraphicsStore.ts` keeps one boolean in `localStorage` under `audioVisualizer.enhancedGraphics`
+  (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
+  `useSyncExternalStore` (server snapshot false), so every component sees the same value. Same-tab writes notify
+  directly; other tabs are kept in sync by the `storage` event.
+- **Toggle surfaces:** one component, `components/EnhancedGraphicsToggle`, is shown in two places. The landing page renders
+  it under the connect-audio button; the dancer page passes it to `ControlPanel` through the `header` slot (shown above the
+  sections whenever the panel is open) together with a `status`. `useCapabilityHint` runs one lazy, shared capability probe
+  (it creates and releases a throwaway WebGL context after idle) and only adds a "your device can likely handle this" line;
+  it never turns the preference on.
+- **Lazy look:** `dancing-character/enhanced/dancingCharacterEnhanced.ts` (`createEnhancedLook`) is loaded with a dynamic
+  `import()` only when the preference is on, so the Reflector, `HDRLoader` and shaders stay out of the standard bundle. Its
+  assets are `?url` imports in `enhancedAssetUrls.ts` (`ferndale_studio_02_2k.hdr`, `qwantani_night_puresky_4k.jpg`, the
+  `concrete_floor_worn_001_*` maps); the build hashes them under `/assets/`, and only that chunk references them. In
+  standard mode none of them is requested (`e2e/enhanced-graphics.spec.ts` checks this).
+- **Rebuild on toggle:** antialiasing is fixed when the renderer is created, so `useDancingCharacterScene` passes
+  `{ antialias: enhanced }` to `useThreeScene`. Flipping the preference is the only thing that rebuilds the scene: the old
+  scene is torn down (aborting `signal`, which abandons an enhanced load still in flight) and a new one is built with a
+  fresh context.
+- **Status flow:** the scene calls `onEnhancedStatus(undefined | 'loading' | 'ready' | 'error')` a few times per toggle,
+  never per frame, and the page keeps it in state for the toggle's `aria-live` line ("Loading enhanced assets", "Enhanced
+  graphics on", "Could not load enhanced assets, using standard"). On `error` the standard look keeps rendering and the
+  stored preference stays as the visitor set it.
+- **Slow-frame notice:** in enhanced mode only, a `FrameRateMonitor` (`frameRateMonitor.ts`, thresholds in
+  `SLOW_FRAME_OPTIONS`) samples frame times after a warm-up that restarts on each look phase. When a window runs slow the
+  scene calls `onSlowFrames` and the page shows `SlowFrameNotice`, inside the fullscreen wrapper so it also shows in
+  fullscreen. Dismissing it is remembered for the page visit, however often the scene is rebuilt.
+- **Opting in another visualizer:** read `useEnhancedGraphics()` in its scene hook and pass `{ antialias: enhanced }`;
+  load its own look with a dynamic `import()` inside `setup` (check `signal.aborted` after every await), report progress
+  through a status callback, and render `<EnhancedGraphicsToggle status={...} />` in the `header` slot. Keep its assets as
+  `?url` imports in that chunk so standard mode never fetches them, and add its asset names to the request check in
+  `e2e/enhanced-graphics.spec.ts`. The landing toggle's description names the dancer, so reword it when a second visualizer
+  joins.

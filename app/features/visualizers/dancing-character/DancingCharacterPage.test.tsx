@@ -8,6 +8,8 @@ import { audioHub } from '~/features/audio/hub/audioHub';
 import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
 import type { FullscreenSupport } from '~/features/fullscreen/types';
 import { renderWithProviders } from '~/test/renderWithProviders';
+import { isSlowNoticeDismissed, resetSlowNoticeDismissed } from '~/features/settings/frameRateMonitor';
+import { getEnhancedGraphics, setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
 
 // The default plus a made-up second character, so the page spec does not depend on which real characters ship.
 vi.mock('./characterRegistry', async (importOriginal) => {
@@ -243,5 +245,106 @@ describe('DancingCharacterPage fullscreen', () => {
 
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(screen.getByText(/Robot by Ada Maker/)).toBeInTheDocument();
+    });
+});
+
+describe('DancingCharacterPage enhanced graphics', () => {
+    beforeEach(() => {
+        vi.mocked(useDancingCharacterScene).mockClear();
+        resetSlowNoticeDismissed();
+        localStorage.clear();
+    });
+
+    it('puts the graphics toggle in the settings panel and shows the scene status next to it', async () => {
+        const { user } = renderWithProviders(<DancingCharacterPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        expect(screen.getByRole('switch', { name: /enhanced graphics/i })).toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus?.('loading'));
+        expect(screen.getByText('Loading enhanced assets')).toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus?.('error'));
+        expect(screen.getByText('Could not load enhanced assets, using standard')).toBeInTheDocument();
+    });
+
+    it('shows no slow-frame notice until the scene reports slow frames, inside the fullscreen wrapper', () => {
+        const { container } = renderWithProviders(<DancingCharacterPage />);
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+        // The live region exists, empty, before the text appears, so screen readers announce the change.
+        const region = container.querySelector('.fixed.inset-0 > [role="status"]') as HTMLElement;
+        expect(region).toBeInTheDocument();
+        expect(region).toBeEmptyDOMElement();
+
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        const notice = screen.getByText('Enhanced graphics looks slow on this device.').closest('[role="status"]');
+        expect(notice).toBe(region);
+        expect(container.querySelector('.fixed.inset-0')).toContainElement(notice as HTMLElement);
+    });
+
+    it('takes no focus when the notice appears', () => {
+        renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        expect(document.body).toHaveFocus();
+    });
+
+    it('switches to standard from the notice and hides it', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        await user.click(screen.getByRole('button', { name: 'Switch to standard' }));
+
+        expect(getEnhancedGraphics()).toBe(false);
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('keeps the preference on Dismiss and never shows the notice again this visit', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+        expect(getEnhancedGraphics()).toBe(true);
+        expect(isSlowNoticeDismissed()).toBe(true);
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+
+        // A rebuild reports its status again and the monitor may fire again: still hidden.
+        act(() => latestOptions().onEnhancedStatus?.('loading'));
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('hides the notice when the scene goes back to the standard look', () => {
+        renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus?.(undefined));
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('does not show the notice again after standard and back until the monitor fires again', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<DancingCharacterPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        act(() => latestOptions().onEnhancedStatus?.(undefined));
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
     });
 });

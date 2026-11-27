@@ -7,6 +7,12 @@ import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
+import {
+    EnhancedGraphicsToggle,
+    type EnhancedGraphicsStatus,
+} from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { isSlowNoticeDismissed } from '~/features/settings/frameRateMonitor';
+import { SlowFrameNotice } from '~/features/settings/SlowFrameNotice';
 import { useAudioHub } from '~/features/audio/hub/useAudioHub';
 import { useAnalyser } from '~/features/audio/useAudioState';
 import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
@@ -27,6 +33,9 @@ export function DancingCharacterPage() {
     const [viewChanged, setViewChanged] = useState(false);
     const [status, setStatus] = useState<DancingCharacterLoadStatus>('loading');
     const [characterProblem, setCharacterProblem] = useState<string | null>(null);
+    // The enhanced look's progress, undefined in standard mode. It changes a few times per toggle, never per frame.
+    const [enhancedStatus, setEnhancedStatus] = useState<EnhancedGraphicsStatus | undefined>(undefined);
+    const [slowNoticeShown, setSlowNoticeShown] = useState(false);
 
     const { resetView } = useDancingCharacterScene(containerRef, {
         analyser,
@@ -38,6 +47,13 @@ export function DancingCharacterPage() {
         reducedMotion: controls !== dancingCharacterControls,
         onViewChanged: setViewChanged,
         onStatus: setStatus,
+        onEnhancedStatus: (next) => {
+            setEnhancedStatus(next);
+            // Back to the standard look: forget the notice, so turning enhanced on again waits for the monitor to fire.
+            if (next === undefined) setSlowNoticeShown(false);
+        },
+        // A dismissed notice stays dismissed for the page visit, however often the scene is rebuilt.
+        onSlowFrames: () => setSlowNoticeShown(!isSlowNoticeDismissed()),
         // A failed choice puts the default back in the select and says why; a good load clears the message.
         onCharacterProblem: (message) => {
             setCharacterProblem(message);
@@ -55,6 +71,14 @@ export function DancingCharacterPage() {
             <div ref={fullscreenRef} className="fixed inset-0 bg-black">
                 <div ref={containerRef} className="absolute inset-0" />
                 <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
+                {/* Inside the wrapper so it is also visible in fullscreen. The live region is always rendered, because
+                    screen readers announce changes to a region that already exists, not one inserted with its text.
+                    It never takes focus. */}
+                <div role="status">
+                    {slowNoticeShown && enhancedStatus !== undefined && (
+                        <SlowFrameNotice onClose={() => setSlowNoticeShown(false)} />
+                    )}
+                </div>
             </div>
             {!fullscreen.active && status === 'modelFailed' && (
                 <p
@@ -84,6 +108,7 @@ export function DancingCharacterPage() {
                 onResetView={resetView}
                 fullscreenActive={fullscreen.active}
                 onToggleFullscreen={() => fullscreen.toggle()}
+                header={<EnhancedGraphicsToggle status={enhancedStatus} />}
             />
         </>
     );

@@ -91,6 +91,7 @@ export class DancingCharacterScene {
     private readonly club: ClubSet;
     private readonly lights: THREE.Object3D[] = [];
     private readonly rimLight: THREE.PointLight;
+    private readonly keyLightObject: THREE.DirectionalLight;
 
     // Camera state.
     private readonly framingBox = new THREE.Box3();
@@ -178,6 +179,7 @@ export class DancingCharacterScene {
         // Behind and to the side of the default view, so the accent color outlines the dancer.
         this.rimLight = new THREE.PointLight(0xffffff, RIM_BASE_INTENSITY, 0, 2);
         this.rimLight.position.set(-2.5, 1.5, -2.5);
+        this.keyLightObject = key;
         this.lights.push(hemisphere, key, this.rimLight);
         scene.add(hemisphere, key, this.rimLight);
 
@@ -190,6 +192,23 @@ export class DancingCharacterScene {
         this.applyColors(settings, 0);
         this.refreshDistance();
         this.writeCameraPose(0);
+    }
+
+    // The key light, read-only for the enhanced look, which turns its shadows on and fits its shadow camera.
+    get keyLight(): THREE.DirectionalLight {
+        return this.keyLightObject;
+    }
+
+    // The club, read-only for the enhanced look.
+    get clubSet(): ClubSet {
+        return this.club;
+    }
+
+    // The widest the current dance ever gets, in world space at full size (a nominal dancer until a model loads).
+    // The enhanced look fits its shadow camera to this, not to the model: a new model starts scaled almost to nothing
+    // for its fade-in, so its own box would be a point at the feet. Read-only.
+    get danceBounds(): THREE.Box3 {
+        return this.framingBox;
     }
 
     // `dances` are the loader's clips, which stay owned by the loader result: they hold no GPU resources, and the mixer

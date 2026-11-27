@@ -1317,3 +1317,33 @@ describe('real MakeHumanDancer.glb', () => {
         dancing.dispose();
     });
 });
+
+describe('read-only accessors for the enhanced look', () => {
+    it('exposes the key light and the club the scene itself uses', () => {
+        const { scene, dancing } = setup();
+        const lights = scene.children.filter((child) => (child as THREE.DirectionalLight).isDirectionalLight);
+        expect(lights).toEqual([dancing.keyLight]);
+        // Shadows stay off until something asks for them: standard mode is unchanged.
+        expect(dancing.keyLight.castShadow).toBe(false);
+        expect(dancing.clubSet.tileCount).toBeGreaterThan(0);
+        dancing.dispose();
+    });
+    it('gives the full-size dance bounds while a new model is still scaled down for its fade-in', () => {
+        const { dancing } = setup({ autoOrbit: false });
+        // A nominal dancer before any model, so a shadow fit then is still sensible.
+        expect(dancing.danceBounds.isEmpty()).toBe(false);
+        const { model } = makeModel();
+        dancing.setCharacter(model, makeDances());
+        model.updateWorldMatrix(true, true);
+        const faded = new THREE.Box3().setFromObject(model, true);
+        const bounds = dancing.danceBounds;
+        expect(bounds.max.y - bounds.min.y).toBeGreaterThan(100 * (faded.max.y - faded.min.y));
+        // Full size after the fade-in, the model is about as tall as the bounds (the bounds hold its widest pose).
+        run(dancing, 12, () => makeFrame({ dt: 0.1, settings: settings({ autoOrbit: false }) }));
+        model.updateWorldMatrix(true, true);
+        const full = new THREE.Box3().setFromObject(model, true);
+        expect(full.max.y - full.min.y).toBeGreaterThan(0.5 * (bounds.max.y - bounds.min.y));
+        expect(full.max.y - full.min.y).toBeLessThanOrEqual(1.01 * (bounds.max.y - bounds.min.y));
+        dancing.dispose();
+    });
+});
