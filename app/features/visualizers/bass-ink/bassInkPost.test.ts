@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { Pass } from 'three/addons/postprocessing/Pass.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BassInkPost } from './bassInkPost';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
@@ -461,5 +462,77 @@ describe('BassInkPost tiny view', () => {
         post.setSize({ width: 10, height: 10 });
         post.setSize({ width: 800, height: 600 });
         expect(blooms()[0].enabled).toBe(false);
+    });
+});
+
+describe('BassInkPost extra passes', () => {
+    beforeEach(() => {
+        rec.composers.length = 0;
+        rec.afterimages.length = 0;
+        rec.blooms.length = 0;
+    });
+
+    const extra = () => new rec.Pass() as unknown as Pass;
+
+    it('puts passes given before the build between the bloom and the output pass', () => {
+        const { post } = setup();
+        const a = extra();
+        const b = extra();
+        post.setExtraPasses([a, b]);
+        post.apply({ trails: 0.5, glow: 0.5 });
+
+        const passes = composers()[0].passes as unknown[];
+        expect(passes).toHaveLength(6);
+        expect(passes[2]).toBe(blooms()[0]);
+        expect(passes[3]).toBe(a);
+        expect(passes[4]).toBe(b);
+    });
+
+    it('inserts passes into a built composer and replaces them without freeing the old ones', () => {
+        const { post } = setup();
+        post.apply({ trails: 0.5, glow: 0.5 });
+        const a = extra();
+        post.setExtraPasses([a]);
+        expect(composers()[0].passes[3]).toBe(a);
+
+        const b = extra();
+        post.setExtraPasses([b]);
+        const passes = composers()[0].passes as unknown[];
+        expect(passes).toHaveLength(5);
+        expect(passes).not.toContain(a);
+        expect(passes[3]).toBe(b);
+        expect((a as unknown as { dispose: ReturnType<typeof vi.fn> }).dispose).not.toHaveBeenCalled();
+
+        post.setExtraPasses([]);
+        expect(composers()[0].passes).toHaveLength(4);
+    });
+
+    it('keeps the extra passes before the output when a returning trail replaces the afterimage', () => {
+        const { post } = setup();
+        const a = extra();
+        post.setExtraPasses([a]);
+        post.apply({ trails: 0.5, glow: 0.5 });
+        post.apply({ trails: 0, glow: 0.5 });
+        post.apply({ trails: 0.5, glow: 0.5 });
+
+        const passes = composers()[0].passes as unknown[];
+        expect(passes[1]).toBe(afterimages()[1]);
+        expect(passes[3]).toBe(a);
+        expect(passes).toHaveLength(5);
+    });
+
+    it('never draws them on a software renderer, never frees them, and ignores them after disposal', () => {
+        const soft = setup(true);
+        const a = extra();
+        soft.post.setExtraPasses([a]);
+        soft.post.apply({ trails: 1, glow: 1 });
+        expect(composers()).toHaveLength(0);
+
+        const { post } = setup();
+        post.setExtraPasses([a]);
+        post.apply({ trails: 0.5, glow: 0.5 });
+        post.dispose();
+        post.setExtraPasses([extra()]);
+        expect((a as unknown as { dispose: ReturnType<typeof vi.fn> }).dispose).not.toHaveBeenCalled();
     });
 });

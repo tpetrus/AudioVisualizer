@@ -52,7 +52,7 @@ const YAWS = Array.from({ length: 8 }, (_, k) => (k / 8) * 2 * Math.PI);
 // the view plane (as the shader does after the camera transform). A spray point leaves the unscaled rest position and
 // travels speed * dragSeconds outward; its direction can stray from straight outward by the jitter's worst (2 * the
 // jitter vector's length over the distance, at most 2), counted here both sideways and toward the camera.
-function measure(index: number, aspect: number): Measure {
+function measure(index: number, aspect: number, tilts: readonly number[] = TILTS): Measure {
     const camera = new THREE.PerspectiveCamera(fov, aspect, cameraConfig.near, cameraConfig.far);
     camera.position.set(0, 0, distance);
     camera.updateMatrixWorld();
@@ -94,7 +94,7 @@ function measure(index: number, aspect: number): Measure {
     }
 
     let worst = 0;
-    for (const tilt of TILTS) {
+    for (const tilt of tilts) {
         for (const yaw of YAWS) {
             object.rotation.set(tilt, yaw, 0);
             object.updateMatrixWorld();
@@ -173,6 +173,27 @@ describe('framing', () => {
                     const { worst, restP95 } = measure(index, aspect);
                     expect(worst).toBeLessThanOrEqual(0.95);
                     expect(restP95).toBeGreaterThanOrEqual(0.4);
+                });
+            }
+        }
+    });
+
+    describe('the camera orbit keeps the cloud on screen at its furthest elevation', () => {
+        // At azimuth π the orbiting camera is moved by asin(sin(2 * tilt)) = 2 * tilt in elevation (up for a positive
+        // lean, down for a negative one), which shows the cloud as if it were tipped that much further toward (or away
+        // from) the camera, on top of the section swing's tilt range. The yaws already cover the cloud being seen from
+        // any side.
+        const extra = 2 * bassInkSceneConfig.orbit.tilt;
+        const tilted = TILTS.flatMap((tilt) => [tilt, tilt + extra]);
+
+        it('never looks at the flat formations closer to edge-on than 0.1 rad', () => {
+            expect(Math.min(...tilted)).toBeGreaterThanOrEqual(0.1);
+        });
+
+        for (const aspect of ASPECTS) {
+            for (let index = 0; index < FORMATION_COUNT; index++) {
+                it(`formation ${index} stays within 95% at the extra elevation at aspect ${aspect.toFixed(2)}`, () => {
+                    expect(measure(index, aspect, tilted).worst).toBeLessThanOrEqual(0.95);
                 });
             }
         }
