@@ -2,6 +2,18 @@ import * as THREE from 'three';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
 
+// Options for a look that needs more than the standard grid (the trio's enhanced HDR bars).
+//   - Shaders that replace the standard pair. They must keep the standard attributes and uniforms; `uniforms` are added
+//     to the standard ones and win on a name clash.
+//   - `rowDistance`: the spacing between rows, when it differs from the spacing between columns (`distance`). A denser
+//     copy of a sheet packs its columns closer but must keep the original's depth.
+export interface PencilMeshOptions {
+    vertexShader?: string;
+    fragmentShader?: string;
+    uniforms?: Record<string, THREE.IUniform>;
+    rowDistance?: number;
+}
+
 // A grid of pencil-shaped bars: a six-sided prism of constant width that rises straight up and ends in a pointed tip.
 //
 // Every bar is one instance of the same small pencil geometry. The only thing the CPU changes per frame is each
@@ -30,9 +42,11 @@ export class PencilFlagsMesh {
         flagColors: THREE.Color[],
         radius: number,
         opacity: number = 1,
+        shaders: PencilMeshOptions = {},
     ) {
         this.numDepth = numDepth;
         const flagCount = numDepth * numWidth;
+        const rowDistance = shaders.rowDistance ?? distance;
         this.buildPencil(radius);
 
         const offsets = new Float32Array(flagCount * 3);
@@ -40,7 +54,7 @@ export class PencilFlagsMesh {
         for (let column = 0; column < numWidth; column++) {
             for (let row = 0; row < numDepth; row++) {
                 const flag = column * numDepth + row;
-                offsets.set([distance * column, 1, distance * row], flag * 3);
+                offsets.set([distance * column, 1, rowDistance * row], flag * 3);
                 colors.set([flagColors[flag].r, flagColors[flag].g, flagColors[flag].b], flag * 3);
             }
         }
@@ -57,8 +71,8 @@ export class PencilFlagsMesh {
         this.geometry.instanceCount = flagCount;
 
         this.material = new THREE.RawShaderMaterial({
-            vertexShader,
-            fragmentShader,
+            vertexShader: shaders.vertexShader ?? vertexShader,
+            fragmentShader: shaders.fragmentShader ?? fragmentShader,
             uniforms: {
                 lightDirection: { value: new THREE.Vector3(0.35, 0.8, 0.5) },
                 apothem: { value: radius * Math.cos(Math.PI / this.sides) },
@@ -66,6 +80,7 @@ export class PencilFlagsMesh {
                 baseShade: { value: 0.5 },
                 tipTint: { value: 0.5 },
                 opacity: { value: opacity },
+                ...shaders.uniforms,
             },
             side: THREE.DoubleSide,
             // See-through bars. They aren't written to the depth buffer, so a bar never hides the ones behind it; rows

@@ -124,6 +124,12 @@ export class CubeGrid {
         this.colors.needsUpdate = true;
     }
 
+    // Draws the grid with another material (the enhanced look's), or with its own glass again for null. The grid never
+    // disposes an override: whoever created it does.
+    public setMaterialOverride(material: THREE.Material | null): void {
+        this.mesh.material = material ?? this.material;
+    }
+
     public dispose(): void {
         this.mesh.removeFromParent();
         this.mesh.dispose();
