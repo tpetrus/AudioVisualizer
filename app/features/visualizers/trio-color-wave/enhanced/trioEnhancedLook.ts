@@ -18,7 +18,12 @@ import {
     EMISSIVE_GAIN_PER_GLOW,
     HAZE_MAX,
 } from './trioEnhancedConfig';
-import type { CreateTrioEnhancedLook, TrioEnhancedLook, TrioEnhancedLookOptions } from './trioEnhancedTypes';
+import type {
+    CreateTrioEnhancedLook,
+    TrioAccentInput,
+    TrioEnhancedLook,
+    TrioEnhancedLookOptions,
+} from './trioEnhancedTypes';
 import { TrioDust } from './trioDust';
 import { TrioShockwave } from './trioShockwave';
 
@@ -36,7 +41,8 @@ function clamp01(value: number): number {
 }
 
 // The enhanced look of the trio scene: a denser, glowing copy of each sheet, a backdrop with depth haze, dust, a ring
-// on every accented beat, and a bloom composer. Everything is allocated here, once; `render` only writes numbers.
+// on every accented beat, and a bloom composer. Everything the look owns is allocated here, once; `render` reuses it and
+// only writes numbers.
 export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnhancedLookOptions): TrioEnhancedLook => {
     const { renderer, scene, camera, sheets, valuesRef, rhythm, reducedMotion } = options;
 
@@ -52,6 +58,14 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
     const dust = new TrioDust(renderer.getPixelRatio());
     const shockwave = new TrioShockwave();
     const accent = createTrioAccent();
+    // One input object, rewritten every frame, so stepping the accent allocates nothing.
+    const accentInput: TrioAccentInput = {
+        dtSeconds: 0,
+        beatCount: 0,
+        bassOnset: 0,
+        intensity: 0,
+        reducedMotion: false,
+    };
 
     scene.add(backdrop.mesh);
     for (const bars of dense) {
@@ -97,11 +111,12 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
 
     // Standard meshes are shown at (1 - mix) of their opacity while the look comes in, and hidden once it has.
     const applyMix = (): void => {
-        sheets.forEach((sheet, index) => {
+        for (let index = 0; index < sheets.length; index++) {
+            const sheet = sheets[index];
             const saved = standard[index];
             sheet.mesh.visible = mix < 1 ? saved.visible : false;
             sheet.material.uniforms.opacity.value = mix < 1 ? saved.opacity * (1 - mix) : saved.opacity;
-        });
+        }
         for (const bars of dense) bars.flags.mesh.visible = mix > 0;
         for (const bars of dense) bars.uniforms.mixOpacity.value = mix;
     };
@@ -122,24 +137,24 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
                 beatCount = rhythm.state.beatCount;
                 bassOnset = rhythm.state.bandOnsets[0] ?? 0;
             }
-            stepTrioAccent(accent, {
-                dtSeconds: dt,
-                beatCount,
-                bassOnset,
-                intensity: values.accentIntensity,
-                reducedMotion: reduced,
-            });
+            accentInput.dtSeconds = dt;
+            accentInput.beatCount = beatCount;
+            accentInput.bassOnset = bassOnset;
+            accentInput.intensity = values.accentIntensity;
+            accentInput.reducedMotion = reduced;
+            stepTrioAccent(accent, accentInput);
 
             const gain = EMISSIVE_GAIN_BASE + glow * EMISSIVE_GAIN_PER_GLOW;
             const lastSheet = dense.length - 1;
-            dense.forEach((bars, index) => {
+            for (let index = 0; index < dense.length; index++) {
+                const bars = dense[index];
                 bars.update();
                 const { uniforms } = bars;
                 uniforms.emissiveGain.value = gain;
                 uniforms.pulse.value = accent.pulse;
                 // The front sheet is clear; each sheet behind it is hazier, up to HAZE_MAX at the back.
                 uniforms.haze.value = lastSheet > 0 ? values.depth * HAZE_MAX * (index / lastSheet) : 0;
-            });
+            }
 
             backdrop.update(values.depth, mix);
             dust.update(dt, values.dust, mix, reduced);
@@ -170,10 +185,10 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             if (disposed) return;
             disposed = true;
             // Put the standard meshes back first, so a failure below cannot leave them hidden.
-            sheets.forEach((sheet, index) => {
-                sheet.mesh.visible = standard[index].visible;
-                sheet.material.uniforms.opacity.value = standard[index].opacity;
-            });
+            for (let index = 0; index < sheets.length; index++) {
+                sheets[index].mesh.visible = standard[index].visible;
+                sheets[index].material.uniforms.opacity.value = standard[index].opacity;
+            }
             for (const bars of dense) bars.dispose();
             backdrop.dispose();
             dust.dispose();
