@@ -156,7 +156,7 @@ export function useBassInkScene(
         let cloud = new InkCloud(shellPointsFor(builtTotal), formationSeed, pointSizeLimit);
         let core = buildCore(builtTotal);
         let dust = buildDust(builtTotal);
-        let spray = buildSpray();
+        const spray = buildSpray();
         const sprayTrigger = new SprayTrigger();
         // The point count the slider asks for and how long it has held, for the rebuild's wait.
         let pendingPoints = builtTotal;
@@ -416,16 +416,16 @@ export function useBassInkScene(
                     const next = new InkCloud(shellPointsFor(wantedPoints), formationSeed, pointSizeLimit);
                     const nextCore = buildCore(wantedPoints);
                     const nextDust = buildDust(wantedPoints);
-                    const nextSpray = buildSpray();
-                    scene.remove(cloud.object, core.object, dust.object, spray.object);
+                    // The spray pool's size does not depend on density, so it is kept and live bursts finish. The dust
+                    // carries its twinkle phase over so the rebuild shows no jump.
+                    nextDust.carryFrom(dust);
+                    scene.remove(cloud.object, core.object, dust.object);
                     cloud.dispose();
                     core.dispose();
                     dust.dispose();
-                    spray.dispose();
                     cloud = next;
                     core = nextCore;
                     dust = nextDust;
-                    spray = nextSpray;
                     builtTotal = wantedPoints;
                     cloud.setViewport(pixelHeight(viewHeight), cameraConfig.fov);
                     cloud.setSwell(swellOut.swell);
@@ -438,7 +438,7 @@ export function useBassInkScene(
                     syncRotation();
                     // A rebuilt cloud shows the formation the director is on, so nothing seems to change.
                     cloud.showFormation(cue.formationIndex, formationSeed);
-                    scene.add(cloud.object, core.object, dust.object, spray.object);
+                    scene.add(cloud.object, core.object, dust.object);
                     applyFit(0);
                 }
 
@@ -503,7 +503,9 @@ export function useBassInkScene(
 
                 // A bass hit throws points off the shell, from where its points are now (its local, unrotated space).
                 if (sprayTrigger.step(swellOut.swell, now)) {
-                    spray.emit(cloud, shellRadius, sprayPerBurst, now, swellOut.swell);
+                    // Bursts leave from the drawn (squeezed) surface; the cap at 1 keeps them inside the rest radius.
+                    const surface = Number.isFinite(cloud.surfaceScale) ? Math.min(1, cloud.surfaceScale) : 1;
+                    spray.emit(cloud, shellRadius * surface, sprayPerBurst, now, swellOut.swell);
                 }
                 spray.update(now, paletteShown, values.intensity);
                 dust.update(now, highLevel, paletteShown);

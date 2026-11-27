@@ -23,6 +23,13 @@ export function depthFade(depth: number, near: number, far: number, fade: number
 
 // The fragment tint, the same maths as FRAGMENT_TINT below, over arrays of 3 (linear RGB). Writes into `out` and
 // allocates nothing, so a spec can check that the luminance is kept and the tints move the right way; the GLSL must match.
+//
+// Two guards sit around the luminance rescale. The red guard fades the kick tint out as the palette core turns
+// mostly red (smoothstep over a red share of 0.7 to 0.8), because a saturated red ring flashing on every kick would be a
+// red flash (WCAG 2.3.1); the glint tint is not affected. The channel cap then handles a rescale that pushes a channel
+// above 1: hardware clips it, and the clipped color has less luminance than the gradient color. Luminance is linear, so
+// mixing the gradient color with the rescaled one keeps the gradient color's luminance at every mix; the cap takes the
+// largest mix amount that keeps every channel at or below 1.
 export function bandColor(
     base: ArrayLike<number>,
     core: ArrayLike<number>,
@@ -33,9 +40,12 @@ export function bandColor(
     out: number[] | Float32Array,
 ): void {
     const lumaBase = 0.2126 * base[0] + 0.7152 * base[1] + 0.0722 * base[2];
+    const redShare = core[0] / Math.max(core[0] + core[1] + core[2], 1e-4);
+    const kickT = Math.min(1, Math.max(0, (redShare - 0.7) / (0.8 - 0.7)));
+    const kickBass = bass * (1 - kickT * kickT * (3 - 2 * kickT));
     for (let k = 0; k < 3; k++) {
         const toward = edge[k] + (1 - edge[k]) * highWhite;
-        const withBass = base[k] + (core[k] - base[k]) * bass;
+        const withBass = base[k] + (core[k] - base[k]) * kickBass;
         out[k] = withBass + (toward - withBass) * high;
     }
     const lumaTinted = 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2];
@@ -44,6 +54,18 @@ export function bandColor(
         out[0] *= ratio;
         out[1] *= ratio;
         out[2] *= ratio;
+    }
+    let s = 1;
+    for (let k = 0; k < 3; k++) {
+        if (out[k] > 1) {
+            s = Math.min(s, (1 - base[k]) / (out[k] - base[k]));
+        }
+    }
+    if (s < 1) {
+        s = Math.max(0, s);
+        for (let k = 0; k < 3; k++) {
+            out[k] = base[k] + (out[k] - base[k]) * s;
+        }
     }
 }
 
@@ -228,15 +250,23 @@ void main() {
 // Band colors: the kick-wave push and the bass swell pull a point's color toward the palette core, and the glint pulls
 // it toward the palette edge mixed with white. The rescale then restores the gradient color's own luminance (linear
 // Rec. 709 weights), so a tint moves the hue only and never adds light. A near-black color is left alone, since its
-// luminance ratio would be noise. bandColor above does the same maths for specs.
+// luminance ratio would be noise. Before the bass mix, kickScale fades the kick tint out for a mostly red core (red
+// share 0.7 to 0.8) so the ring cannot become a red flash (WCAG 2.3.1). After the rescale, a channel above 1 would be
+// clipped by the hardware and lose luminance, so the color is mixed back toward the gradient color (luminance is
+// linear, so every such mix keeps it) by the largest amount that keeps all channels at or below 1: per channel, room is
+// (1 - base) / (tinted - base), and channels at or below 1 count as 1. bandColor above does the same maths for specs.
 const FRAGMENT_TINT = /*glsl*/ `
+    vec3 base = color;
     float lumaBase = dot(color, vec3(0.2126, 0.7152, 0.0722));
-    color = mix(color, uCore, vBass);
+    float kickScale = 1.0 - smoothstep(0.7, 0.8, uCore.r / max(uCore.r + uCore.g + uCore.b, 0.0001));
+    color = mix(color, uCore, vBass * kickScale);
     color = mix(color, mix(uEdge, vec3(1.0), uHighWhite), vHigh);
     float lumaTinted = dot(color, vec3(0.2126, 0.7152, 0.0722));
     if (lumaBase > 0.0001 && lumaTinted > 0.0001) {
         color *= lumaBase / lumaTinted;
     }
+    vec3 room = mix(vec3(1.0), (1.0 - base) / max(color - base, vec3(0.000001)), step(vec3(1.0), color));
+    color = mix(base, color, clamp(min(room.x, min(room.y, room.z)), 0.0, 1.0));
 `;
 
 // The squeezed cloud overlaps itself more, so its alpha is normalized down. uBrightness (from BrightnessMix) is the only

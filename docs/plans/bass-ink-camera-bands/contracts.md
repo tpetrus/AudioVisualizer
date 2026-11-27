@@ -50,3 +50,18 @@ export class ViewSwing {
 - Amended at integration: `view.yawSwing` is 0.45 (was 0.7), so a full swing turns at most about 0.68 rad a
   second at the smoothstep peak, which reads as a reframe rather than a spin. A config test bounds it, and another pins
   `bands.swellTint` at 0.
+
+## C2a channel cap and red guard (follow-up BCB-F1, `../meshes/inkShaders.ts` only)
+
+- Red guard: before the bass mix, the kick tint is scaled by `kickScale = 1 - smoothstep(0.7, 0.8, redShare)`, where
+  `redShare = uCore.r / max(uCore.r + uCore.g + uCore.b, 1e-4)`. With a core whose red share is at least 0.8 (the
+  WCAG 2.3.1 saturated-red definition) the kick ring adds no tint at all, so it cannot become a red flash; the ramp
+  from 0.7 keeps a blend between palettes from popping. The glint tint is unchanged.
+- Channel cap: after the luminance rescale, let `b` be the gradient color and `r` the rescaled tinted color. If any
+  channel of `r` is above 1, the result is `mix(b, r, s)` with `s = min over channels with r_k > 1 of
+  (1 - b_k) / (r_k - b_k)` (clamped to 0..1). Both endpoints have the same luminance and luminance is linear, so the mix
+  keeps it exactly, and every channel ends at most 1 (gradient channels are already at most 1). Where no channel
+  exceeds 1 nothing changes.
+- `bandColor` keeps its signature and does the same maths, so the specs check: max channel at most 1 (within 1e-6) for
+  extreme palettes, luminance preserved within 1e-6 including capped cases, unchanged output where no cap applies, and
+  no kick tint for a core with red share at least 0.8.
