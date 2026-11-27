@@ -76,10 +76,11 @@ describe('ActiveSourcePanel', () => {
         renderPanel();
         const bar = screen.getByRole('meter').firstElementChild as HTMLElement;
 
-        expect(bar.style.transitionProperty).toBe('transform');
-        expect(bar.style.transitionTimingFunction).toBe('linear');
         expect(bar.style.transitionDuration).toBe(`${METER_INTERVAL_MS}ms`);
-        expect(bar).toHaveClass('origin-left', 'motion-reduce:transition-none');
+        expect(bar).toHaveClass('origin-left', 'transition-transform', 'ease-linear', 'motion-reduce:transition-none');
+        // An inline transition-property or easing would override the reduced-motion class, so neither may be set.
+        expect(bar.style.transitionProperty).toBe('');
+        expect(bar.style.transitionTimingFunction).toBe('');
     });
 
     it('warns when the input stays silent and takes the warning away when sound returns', () => {

@@ -163,4 +163,36 @@ describe('Dialog', () => {
         );
         expect(screen.getByRole('dialog').className.endsWith('max-w-sm')).toBe(true);
     });
+
+    it('lets a caller width replace the default width instead of competing with it', () => {
+        render(
+            <Dialog title="T" onClose={() => {}} className="max-w-sm">
+                x
+            </Dialog>,
+        );
+        expect(screen.getByRole('dialog')).not.toHaveClass('max-w-[780px]');
+    });
+
+    it('wraps Tab to a trailing summary and skips controls inside a closed details or a hidden subtree', async () => {
+        render(
+            <Dialog title="T" onClose={() => {}}>
+                <button type="button">First</button>
+                <div hidden>
+                    <button type="button">Hidden</button>
+                </div>
+                <details>
+                    <summary>Help</summary>
+                    <button type="button">Inside closed details</button>
+                </details>
+            </Dialog>,
+        );
+        const close = screen.getByRole('button', { name: 'Close' });
+        const summary = screen.getByText('Help');
+        summary.focus();
+        await userEvent.tab();
+        expect(close).toHaveFocus();
+        close.focus();
+        await userEvent.tab({ shift: true });
+        expect(summary).toHaveFocus();
+    });
 });

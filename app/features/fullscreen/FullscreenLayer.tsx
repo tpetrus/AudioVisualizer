@@ -77,12 +77,14 @@ export function FullscreenLayer(props: FullscreenLayerProps) {
             >
                 {toastVisible ? FULLSCREEN_STRINGS[hint === 'touch' ? 'touchHint' : 'keyboardHint'] : ''}
             </p>
+            {/* The ghost variant is transparent, and a utility's place in the stylesheet, not in the class string,
+                decides which one wins, so the scrim is marked important to sit over a bright scene. */}
             {touch && buttonVisible && (
                 <IconButton
                     aria-label={FULLSCREEN_STRINGS.exitButton}
                     title={FULLSCREEN_STRINGS.exitButton}
                     onClick={() => props.onExit()}
-                    className="pointer-events-auto absolute top-4 right-4 h-11 w-11 bg-surface-0/70"
+                    className="pointer-events-auto absolute top-4 right-4 h-11 w-11 bg-surface-0/70! text-text!"
                 >
                     <svg
                         aria-hidden="true"

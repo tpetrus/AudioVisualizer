@@ -11,7 +11,17 @@ export interface DialogProps {
 }
 
 const FOCUSABLE =
-    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    'summary, a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+// A control inside a closed <details> or a hidden subtree cannot take focus, so wrapping to it would strand focus.
+// The summary of a closed <details> is still reachable.
+function reachable(element: HTMLElement): boolean {
+    if (element.closest('[hidden]')) {
+        return false;
+    }
+    const closedDetails = element.closest('details:not([open])');
+    return closedDetails === null || (element.tagName === 'SUMMARY' && element.parentElement === closedDetails);
+}
 
 // Mounted means open, so callers render it conditionally and there is no open prop.
 export function Dialog({ title, onClose, closable = true, children, className }: DialogProps) {
@@ -52,7 +62,7 @@ export function Dialog({ title, onClose, closable = true, children, className }:
             return;
         }
         const dialog = event.currentTarget;
-        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE));
+        const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(reachable);
         if (focusable.length === 0) {
             event.preventDefault();
             return;
@@ -90,7 +100,10 @@ export function Dialog({ title, onClose, closable = true, children, className }:
                 tabIndex={-1}
                 onKeyDown={trapTab}
                 className={[
-                    'max-h-[90vh] w-full max-w-[780px] overflow-y-auto rounded-ui border border-border bg-surface-1 p-5 text-text outline-none',
+                    'max-h-[90vh] w-full overflow-y-auto rounded-ui border border-border bg-surface-1 p-5 text-text outline-none',
+                    // Which of two max-w utilities wins depends on the stylesheet, not the class order, so a caller's
+                    // width replaces the default instead of competing with it.
+                    className?.includes('max-w-') ? undefined : 'max-w-[780px]',
                     className,
                 ]
                     .filter(Boolean)

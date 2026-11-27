@@ -36,15 +36,14 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
                 className="mb-2 h-2 overflow-hidden rounded-ui bg-surface-2"
             >
                 {/* A linear transition as long as the poll interval turns the 10 Hz steps into continuous motion
-                    without a render per frame. */}
+                    without a render per frame. The property and easing stay in classes so motion-reduce can switch
+                    the transition off; an inline transition-property would beat it. */}
                 <div
-                    className={`h-full w-full origin-left motion-reduce:transition-none ${
+                    className={`h-full w-full origin-left transition-transform ease-linear motion-reduce:transition-none ${
                         silent ? 'bg-warning' : 'bg-success'
                     }`}
                     style={{
                         transform: `scaleX(${clampedLevel})`,
-                        transitionProperty: 'transform',
-                        transitionTimingFunction: 'linear',
                         transitionDuration: `${METER_INTERVAL_MS}ms`,
                     }}
                 />
