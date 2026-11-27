@@ -17,6 +17,57 @@ const DEFAULT_EXPORT_ALLOWED = [
     'eslint.config.js',
 ];
 
+// The default-export ban, shared by the base block and the UI block below (a later `no-restricted-syntax` replaces an
+// earlier one, so a block that needs both lists spreads both).
+const NO_DEFAULT_EXPORT = [
+    {
+        selector: 'ExportDefaultDeclaration',
+        message: 'Use a named export. Default exports are only allowed where a tool requires them.',
+    },
+    {
+        selector: "ExportNamedDeclaration > ExportSpecifier[exported.name='default']",
+        message: 'Use a named export. Default exports are only allowed where a tool requires them.',
+    },
+];
+
+// Design-system guards for UI code (see docs/plans/ui-design-system/contracts.md). Controls come from
+// `~/components/ui` so they share one look, cursor and focus ring, and colors come from the C1 tokens in `app/app.css`.
+// `black` and `white` stay allowed (dialog backdrop, title banner, primary button text).
+const PALETTE_UTILITY =
+    '(bg|text|border|ring|outline|from|via|to|fill|stroke|accent|divide|shadow|decoration|placeholder|caret)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]';
+const COLOR_LITERAL = `/#[0-9a-fA-F]{3,8}\\b|\\b(rgb|rgba|hsl)\\(|gradient|\\b${PALETTE_UTILITY}/`;
+const COLOR_MESSAGE =
+    'No color literals in className. Use the design tokens from app/app.css (bg-surface-1, text-text-muted, border-border, bg-accent, text-accent-text, ...).';
+const UI_RESTRICTED = [
+    {
+        selector: "JSXOpeningElement[name.name='button']",
+        message: 'Use Button, IconButton or Switch from ~/components/ui instead of a raw <button>.',
+    },
+    {
+        selector: "JSXOpeningElement[name.name='select']",
+        message: 'Use Select from ~/components/ui instead of a raw <select>.',
+    },
+    {
+        selector: "JSXOpeningElement[name.name='input']:has(JSXAttribute[name.name='type'][value.value='range'])",
+        message: 'Use Range from ~/components/ui instead of a raw <input type="range">.',
+    },
+    {
+        selector: `JSXAttribute[name.name='className'] Literal[value=${COLOR_LITERAL}]`,
+        message: COLOR_MESSAGE,
+    },
+    {
+        selector: `JSXAttribute[name.name='className'] TemplateElement[value.raw=${COLOR_LITERAL}]`,
+        message: COLOR_MESSAGE,
+    },
+];
+// The primitives are where raw controls and colors live; specs, fakes and the dev overlay are not product UI.
+const UI_GUARD_EXEMPT = [
+    'app/components/ui/**',
+    '**/*.test.{ts,tsx}',
+    'app/test/**',
+    'app/components/DevTelemetryOverlay.tsx',
+];
+
 export default tseslint.config(
     {
         ignores: [
@@ -53,17 +104,7 @@ export default tseslint.config(
                 'error',
                 { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
             ],
-            'no-restricted-syntax': [
-                'error',
-                {
-                    selector: 'ExportDefaultDeclaration',
-                    message: 'Use a named export. Default exports are only allowed where a tool requires them.',
-                },
-                {
-                    selector: "ExportNamedDeclaration > ExportSpecifier[exported.name='default']",
-                    message: 'Use a named export. Default exports are only allowed where a tool requires them.',
-                },
-            ],
+            'no-restricted-syntax': ['error', ...NO_DEFAULT_EXPORT],
         },
     },
     {
@@ -103,6 +144,17 @@ export default tseslint.config(
     {
         files: DEFAULT_EXPORT_ALLOWED,
         rules: { 'no-restricted-syntax': 'off' },
+    },
+    {
+        files: ['app/**/*.tsx'],
+        ignores: [...UI_GUARD_EXEMPT, ...DEFAULT_EXPORT_ALLOWED],
+        rules: { 'no-restricted-syntax': ['error', ...NO_DEFAULT_EXPORT, ...UI_RESTRICTED] },
+    },
+    {
+        // Route modules may default-export, but their markup follows the same UI rules.
+        files: ['app/root.tsx', 'app/routes/**/*.tsx'],
+        ignores: UI_GUARD_EXEMPT,
+        rules: { 'no-restricted-syntax': ['error', ...UI_RESTRICTED] },
     },
     {
         // Specs and fakes stand in for browser APIs, so they cast, mock and use loosely typed spies on purpose.
