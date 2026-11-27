@@ -400,6 +400,45 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.statuses()).toEqual(['loading', 'error', undefined, 'loading', 'ready']);
         });
 
+        it('does not treat a status callback that throws as a failed load', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const scene = mountEnhanced();
+            scene.onEnhancedStatus.mockImplementation((status) => {
+                if (status === 'ready') throw new Error('callback broke');
+            });
+            setEnhancedGraphics(true);
+
+            await scene.settle(() => scene.pending[0].resolve());
+            scene.renderer.render.mockClear();
+            scene.frame();
+            scene.frame();
+
+            expect(warn).not.toHaveBeenCalled();
+            expect(error).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'ready']);
+            // The look is live and drawing, and a retry is not blocked by a failure flag.
+            expect(scene.looks[0].render).toHaveBeenCalled();
+            expect(scene.renderer.render).not.toHaveBeenCalled();
+            expect(scene.looks[0].dispose).not.toHaveBeenCalled();
+        });
+
+        it('keeps a throwing status callback out of the failure path when reporting the error too', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const scene = mountEnhanced();
+            scene.onEnhancedStatus.mockImplementation((status) => {
+                if (status === 'error') throw new Error('callback broke');
+            });
+            setEnhancedGraphics(true);
+
+            await scene.settle(() => scene.pending[0].reject(new Error('offline')));
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(error).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'error']);
+        });
+
         it('ignores a failure of a load that was already abandoned', async () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const scene = mountEnhanced();

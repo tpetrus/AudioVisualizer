@@ -127,6 +127,15 @@ export function useTrioColorWaveScene(
             onEnhancedStatusRef.current?.(status);
         };
 
+        // For reports made from a promise callback, where nobody could catch a throw: it is logged instead.
+        const reportSafely = (status: EnhancedGraphicsStatus | undefined) => {
+            try {
+                report(status);
+            } catch (error) {
+                console.error('The enhanced graphics status callback threw.', error);
+            }
+        };
+
         const cancelLoad = () => {
             if (load) load.cancelled = true;
             load = undefined;
@@ -144,12 +153,31 @@ export function useTrioColorWaveScene(
             load = token;
             state = 'loading';
             report('loading');
-            loadEnhancedLookRef
-                .current()
-                .then((module) => {
-                    // Switched off (or torn down) while the chunk was loading: it is never used.
-                    if (token.cancelled) return;
-                    load = undefined;
+            const fail = (error: unknown) => {
+                if (token.cancelled) return;
+                console.warn('Trio enhanced look failed to load; using the standard look.', error);
+                load = undefined;
+                releaseLook();
+                state = 'standard';
+                failed = true;
+                reportSafely('error');
+            };
+            // A loader that throws before returning a promise is a failed load like any other.
+            let loading: Promise<EnhancedLookModule>;
+            try {
+                loading = loadEnhancedLookRef.current();
+            } catch (error) {
+                fail(error);
+                return;
+            }
+            // Only loading the chunk and building the look can fail the load. Both the success and the failure are
+            // handled in the same step as the one that observed them, and the status callback is called outside of
+            // any failure path, so a callback that throws is never mistaken for a failed load.
+            loading.then((module) => {
+                // Switched off (or torn down) while the chunk was loading: it is never used.
+                if (token.cancelled) return;
+                load = undefined;
+                try {
                     look = module.createTrioEnhancedLook({
                         renderer,
                         scene,
@@ -161,20 +189,15 @@ export function useTrioColorWaveScene(
                         reducedMotion,
                     });
                     look.setMix(0);
-                    mix = 0;
-                    mixTarget = 1;
-                    state = 'enhanced';
-                    report('ready');
-                })
-                .catch((error: unknown) => {
-                    if (token.cancelled) return;
-                    console.warn('Trio enhanced look failed to load; using the standard look.', error);
-                    load = undefined;
-                    releaseLook();
-                    state = 'standard';
-                    failed = true;
-                    report('error');
-                });
+                } catch (error) {
+                    fail(error);
+                    return;
+                }
+                mix = 0;
+                mixTarget = 1;
+                state = 'enhanced';
+                reportSafely('ready');
+            }, fail);
         };
 
         const reconcile = () => {
