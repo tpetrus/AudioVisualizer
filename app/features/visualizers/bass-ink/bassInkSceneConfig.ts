@@ -275,6 +275,40 @@ export const bassInkSceneConfig = {
         near: 0.5,
         far: 100,
     },
+    // The camera's own slow circle around the cloud while the view is locked. It speeds up as the music fills out, read
+    // from the same analyser spectrum as everything else, and is scaled by the camera-drift control (0 = no orbit).
+    orbit: {
+        // The three bands the level is read from, in Hz. They equal the defaults of the trio visualizer's band controls
+        // (a spec checks it), so "bass, mids and highs" mean the same thing in both.
+        bandEdges: { bassLow: 25, bassHigh: 140, midsHigh: 4000, highsHigh: 16000 },
+        // Log-spaced samples per band. Few are enough: the level is a mean, not a picture, and it is read every frame.
+        columns: 32,
+        // The combined level follows the music quickly upward and lets go slowly, so a hit nudges the speed and a quiet
+        // bar does not make the camera stall.
+        attackSeconds: 0.4,
+        releaseSeconds: 1.5,
+        // The combined level (mean of three band means, so rarely near 1) that maps to the floor speed and to the cap.
+        levelLow: 0.15,
+        levelHigh: 0.6,
+        // Radians per second at the camera-drift control's full value: a slow floor so silence still drifts, and a cap
+        // that is still calm. The cloud's own drift turns about as fast (camera.driftSpeed), and the post's trails smear
+        // whatever moves, so a faster orbit would blur the picture.
+        floorSpeed: 0.03,
+        capSpeed: 0.25,
+        // The speed eases toward its target at this rate (1/s) and is also limited to this change per second (rad/s^2),
+        // so a sudden loud section never makes the camera lurch.
+        slewRate: 1.5,
+        maxChangePerSecond: 0.1,
+        // A stalled frame can advance the angle by at most this much, so a long delta never jumps the view.
+        maxStepPerFrame: 0.01,
+        // Lean of the orbit's axis from vertical (radians). The camera therefore moves up or down by up to twice this as
+        // it goes around, which keeps the view alive. The sign is negative on purpose: the section swing's most face-on
+        // tilt already leaves the torus and the disc at the fill, so any view from higher up (even 0.015 rad of lean)
+        // pushes them off the screen at the peak of every pulse. A negative lean dips the camera below its starting
+        // height at the far side of the circle instead, which tips the cloud toward edge-on and only makes it smaller on
+        // screen; -0.06 keeps the swing's flattest view at about 0.18 rad, clear of a line. framing.test.ts checks it.
+        tilt: -0.06,
+    },
     // A long stall (tab switch, debugger) must not make the clock, the envelopes or the fades jump.
     maxFrameDeltaSeconds: 0.1,
 };

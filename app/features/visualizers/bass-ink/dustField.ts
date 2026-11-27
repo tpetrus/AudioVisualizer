@@ -14,7 +14,8 @@ export class DustField {
     readonly pointCount: number;
 
     private readonly geometry = new THREE.BufferGeometry();
-    private readonly material: THREE.ShaderMaterial;
+    // Public for the enhanced look, which swaps this material's shaders in place (see enhanced/bassInkEnhanced.ts).
+    readonly material: THREE.ShaderMaterial;
     private readonly uniforms: Record<string, THREE.IUniform>;
     private readonly color = new Float32Array(3);
 
