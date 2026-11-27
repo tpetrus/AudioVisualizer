@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import type { PerspectiveCamera, Points, Scene, ShaderMaterial } from 'three';
+import { Vector3 } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
@@ -14,6 +15,7 @@ import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
+import { writeOrbitPose } from './bassInkOrbit';
 import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { formationOuterRadius, grownFitScale } from './framing';
 import { SprayPool } from './sprayPool';
@@ -211,7 +213,7 @@ const sprayOf = (scene: Scene) =>
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(29);
+    const out = new Float32Array(31);
     probeRead()(out);
     return out;
 }
@@ -386,7 +388,8 @@ describe('useBassInkScene', () => {
 
             expect(after).toBeLessThan(before);
             expect(camera.position.equals(position)).toBe(true);
-            expect(camera.position.z).toBe(bassInkSceneConfig.camera.distance);
+            // The orbit has moved it a hair along its circle by now, which keeps it at the same distance.
+            expect(camera.position.length()).toBeCloseTo(bassInkSceneConfig.camera.distance, 9);
         });
 
         it('keeps the previous fit when a resize gives no width or no height', () => {
@@ -1202,6 +1205,179 @@ describe('useBassInkScene', () => {
         });
     });
 
+    describe('the camera orbit', () => {
+        const { camera: cameraConfig, orbit: orbitConfig } = bassInkSceneConfig;
+        const defaultDrift = defaultValues(bassInkControls).cameraDrift;
+
+        // Runs `frames` frames of 16 ms.
+        function run(frame: () => void, frames: number): void {
+            for (let i = 0; i < frames; i++) frame();
+        }
+        const angleOf = () => readProbe()[29];
+        const speedOf = () => readProbe()[30];
+
+        it('starts at the default pose', () => {
+            const { camera } = mountScene();
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.y).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        it('orbits at the floor speed in silence, on the circle writeOrbitPose draws', () => {
+            const { camera, frame } = mountScene();
+            run(frame, 600);
+
+            expect(speedOf()).toBeCloseTo(defaultDrift * orbitConfig.floorSpeed, 6);
+            expect(angleOf()).toBeGreaterThan(0);
+            expect(camera.position.x).not.toBe(0);
+            expect(camera.position.length()).toBeCloseTo(cameraConfig.distance, 6);
+            const expected = new Vector3();
+            writeOrbitPose(expected, angleOf(), orbitConfig.tilt, cameraConfig.distance);
+            expect(camera.position.distanceTo(expected)).toBeLessThan(1e-5);
+        });
+
+        it('orbits faster with a louder spectrum', () => {
+            const quiet = createAnalyser();
+            const first = mountScene({ analyser: quiet.node });
+            quiet.analyser.setByteFrequencyData(0);
+            run(first.frame, 600);
+            const quietSpeed = speedOf();
+            first.unmount();
+
+            const full = createAnalyser();
+            const second = mountScene({ analyser: full.node });
+            full.analyser.setByteFrequencyData(200);
+            run(second.frame, 600);
+
+            expect(speedOf()).toBeGreaterThan(quietSpeed);
+            expect(speedOf()).toBeCloseTo(defaultDrift * orbitConfig.capSpeed, 6);
+        });
+
+        it('does not move the camera at camera drift 0', () => {
+            const { camera, frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 0 };
+            run(frame, 120);
+
+            expect(speedOf()).toBe(0);
+            expect(angleOf()).toBe(0);
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        describe('reduced motion', () => {
+            type Listener = (event: { matches: boolean }) => void;
+            let listeners: Listener[];
+            let matches: boolean;
+            let removed: number;
+
+            beforeEach(() => {
+                listeners = [];
+                removed = 0;
+                matches = true;
+                vi.stubGlobal(
+                    'matchMedia',
+                    vi.fn(() => ({
+                        get matches() {
+                            return matches;
+                        },
+                        addEventListener: (_type: string, listener: Listener) => listeners.push(listener),
+                        removeEventListener: (_type: string, listener: Listener) => {
+                            removed++;
+                            listeners = listeners.filter((l) => l !== listener);
+                        },
+                    })),
+                );
+            });
+            afterEach(() => {
+                vi.unstubAllGlobals();
+            });
+
+            it('keeps the camera still and reacts to a live change', () => {
+                const { camera, frame } = mountScene();
+                run(frame, 120);
+                expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
+                expect(angleOf()).toBe(0);
+                expect(camera.position.x).toBe(0);
+
+                listeners.forEach((listener) => listener({ matches: false }));
+                run(frame, 120);
+                expect(angleOf()).toBeGreaterThan(0);
+                const stopped = angleOf();
+
+                listeners.forEach((listener) => listener({ matches: true }));
+                run(frame, 30);
+                expect(speedOf()).toBe(0);
+                expect(angleOf()).toBe(stopped);
+            });
+
+            it('removes its listener on unmount', () => {
+                const { unmount } = mountScene();
+                expect(listeners).toHaveLength(1);
+
+                unmount();
+
+                expect(removed).toBe(1);
+                expect(listeners).toHaveLength(0);
+            });
+        });
+
+        it('treats a missing matchMedia as no preference', () => {
+            vi.stubGlobal('matchMedia', undefined);
+            try {
+                const { frame } = mountScene();
+                run(frame, 60);
+                expect(angleOf()).toBeGreaterThan(0);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+
+        it('leaves the camera to the controls while unlocked and starts over when locked again', () => {
+            const { camera, frame, rerender, renderer } = mountScene();
+            run(frame, 200);
+            expect(angleOf()).toBeGreaterThan(0);
+
+            rerender({ analyser: undefined, cameraLocked: false });
+            frame();
+            const angle = angleOf();
+            const held = camera.position.clone();
+            run(frame, 60);
+            expect(angleOf()).toBe(angle);
+            expect(camera.position.equals(held)).toBe(true);
+            scroll(renderer.domElement, 1000);
+            expect(camera.position.length()).toBeGreaterThan(cameraConfig.distance);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            frame();
+            // The relock frame resets, then advances once from the starting pose.
+            expect(angleOf()).toBeLessThan(angle);
+            expect(angleOf()).toBeLessThanOrEqual(orbitConfig.maxStepPerFrame);
+            expect(camera.position.length()).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        it('Reset view puts the camera back at the default pose with the orbit started over', () => {
+            const { camera, frame, result, onViewChanged } = mountScene();
+            run(frame, 200);
+            expect(camera.position.x).not.toBe(0);
+
+            result.current.resetView();
+
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.y).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 9);
+            expect(angleOf()).toBe(0);
+            expect(speedOf()).toBe(0);
+            expect(onViewChanged).not.toHaveBeenCalled();
+        });
+
+        it('never reports a changed view by itself', () => {
+            const { frame, onViewChanged } = mountScene();
+            run(frame, 600);
+
+            expect(onViewChanged).not.toHaveBeenCalled();
+        });
+    });
+
     describe('telemetry probe', () => {
         it('registers the columns and ticks every frame with the delta in seconds', () => {
             const { frame } = mountScene();
@@ -1239,6 +1415,8 @@ describe('useBassInkScene', () => {
                     'postActive',
                     'viewTilt',
                     'viewYaw',
+                    'orbitAngle',
+                    'orbitSpeed',
                 ],
                 expect.any(Function),
             );
@@ -1676,14 +1854,16 @@ describe('useBassInkScene', () => {
             expect(post.dispose).toHaveBeenCalledTimes(1);
         });
 
-        it('appends postActive, viewTilt and viewYaw as the last telemetry columns', () => {
+        it('appends postActive, viewTilt and viewYaw before the orbit columns', () => {
             const { frame } = mountScene();
             frame();
             const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
-            expect(columns.at(-1)).toBe('viewYaw');
-            expect(columns.at(-2)).toBe('viewTilt');
-            expect(columns.at(-3)).toBe('postActive');
-            expect(columns.at(-4)).toBe('sprayLive');
+            expect(columns.at(-1)).toBe('orbitSpeed');
+            expect(columns.at(-2)).toBe('orbitAngle');
+            expect(columns.at(-3)).toBe('viewYaw');
+            expect(columns.at(-4)).toBe('viewTilt');
+            expect(columns.at(-5)).toBe('postActive');
+            expect(columns.at(-6)).toBe('sprayLive');
 
             currentPost().active = true;
             expect(readProbe()[26]).toBe(1);

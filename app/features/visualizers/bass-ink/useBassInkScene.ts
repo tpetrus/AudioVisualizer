@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useRef } from 'react';
 import * as THREE from 'three';
 import { bassInkConfig } from './bassInkConfig';
+import { orbitAngularSpeed, smoothCombined, stepOrbitAngle, writeOrbitPose } from './bassInkOrbit';
 import type { BassInkControlValues } from './bassInkControls';
 import { BassInkPost, type PostSettings } from './bassInkPost';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
@@ -19,6 +20,7 @@ import { SetDirector } from './setDirector';
 import { SpectrumField } from './spectrumField';
 import { SprayPool, SprayTrigger } from './sprayPool';
 import { ViewSwing, type ViewAngles } from './viewSwing';
+import { createBandLevelState, readBandLevels, type BandLevels } from '~/features/visualizers/shared/bandLevels';
 import { BassBump, GATE_BASS_BUMP } from '~/features/audio/hub/bassBump';
 import type { AudioHubReader } from '~/features/audio/hub/types';
 import { registerTelemetryProbe, tickTelemetry } from '~/features/audio/devTelemetry';
@@ -81,7 +83,38 @@ export function useBassInkScene(
             locked: cameraLockedRef.current,
             onViewChanged: (changed) => onViewChangedRef.current(changed),
         });
-        resetViewRef.current = orbit.reset;
+
+        // The camera's own slow circle around the cloud (bassInkOrbit). Its angle and speed live here; both are 0 at the
+        // default pose, which is also where Reset view and locking again put the camera.
+        const { orbit: orbitConfig } = bassInkSceneConfig;
+        const orbitTarget = new THREE.Vector3();
+        let orbitAngle = 0;
+        let orbitSpeed = 0;
+        const bandState = createBandLevelState(orbitConfig.columns);
+        const bandLevels: BandLevels = { bass: 0, mids: 0, highs: 0, combined: 0 };
+        let combinedLevel = 0;
+        const placeCamera = () => {
+            writeOrbitPose(camera.position, orbitAngle, orbitConfig.tilt, cameraConfig.distance);
+            camera.lookAt(orbitTarget);
+        };
+        // Reset view and locking again share this: the orbit view goes back to its starting pose and the auto-orbit
+        // starts over from there. The auto-orbit never calls into the orbit view, so it never marks the view as changed.
+        const resetCamera = () => {
+            orbit.reset();
+            orbitAngle = 0;
+            orbitSpeed = 0;
+            placeCamera();
+        };
+        resetViewRef.current = resetCamera;
+        let wasLocked = cameraLockedRef.current;
+
+        // Reduced motion stops the orbit, live: the preference is read now and again whenever it changes.
+        const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+        let reducedMotion = motionQuery?.matches ?? false;
+        const onMotionChange = (event: MediaQueryListEvent) => {
+            reducedMotion = event.matches;
+        };
+        motionQuery?.addEventListener('change', onMotionChange);
 
         const software = isSoftwareRenderer(renderer);
         // Trails and a glow over the picture. One settings object is reused so applying them allocates nothing.
@@ -308,6 +341,8 @@ export function useBassInkScene(
                     'postActive',
                     'viewTilt',
                     'viewYaw',
+                    'orbitAngle',
+                    'orbitSpeed',
                 ],
                 (out) => {
                     out[0] = lastLevel;
@@ -340,6 +375,8 @@ export function useBassInkScene(
                     out[26] = post.active ? 1 : 0;
                     out[27] = viewAngles.tilt;
                     out[28] = viewAngles.yaw;
+                    out[29] = orbitAngle;
+                    out[30] = orbitSpeed;
                 },
             );
         }
@@ -359,7 +396,12 @@ export function useBassInkScene(
 
             update: (_time, delta) => {
                 const values = valuesRef.current;
-                orbit.setLocked(cameraLockedRef.current);
+                const locked = cameraLockedRef.current;
+                orbit.setLocked(locked);
+                // Locking again puts the camera back at its starting spot, exactly as Reset view does; otherwise the
+                // dragged pose would stay and Reset view would still show.
+                if (locked && !wasLocked) resetCamera();
+                wasLocked = locked;
 
                 // The scene clock sums clamped deltas, so a stall cannot make the envelopes or the fades jump.
                 const dt = Math.min(delta / 1000, maxFrameDeltaSeconds);
@@ -378,9 +420,12 @@ export function useBassInkScene(
                     bumpHasSource = true;
                     source.getByteFrequencyData(spectrum);
                     lastLevel = bassLevel(spectrum, bassBins);
-                    field.update(spectrum, source.context.sampleRate / source.fftSize, dt);
+                    const binHz = source.context.sampleRate / source.fftSize;
+                    field.update(spectrum, binHz, dt);
+                    readBandLevels(spectrum, binHz, orbitConfig.bandEdges, bandState, bandLevels);
                 } else {
                     lastLevel = 0;
+                    bandLevels.combined = 0;
                     field.fade(dt);
                     if (bumpHasSource) {
                         // The old source's levels must not seed the envelope of whatever comes next.
@@ -511,6 +556,15 @@ export function useBassInkScene(
                 cloud.object.rotation.set(bassInkSceneConfig.cloud.tilt + viewAngles.tilt, drift + viewAngles.yaw, 0);
                 syncRotation();
 
+                // The camera's orbit: unlocked means the orbit controls own the camera, so nothing is written and
+                // nothing advances.
+                combinedLevel = smoothCombined(combinedLevel, bandLevels.combined, dt);
+                if (locked) {
+                    orbitSpeed = orbitAngularSpeed(combinedLevel, values.cameraDrift, orbitSpeed, dt, reducedMotion);
+                    orbitAngle = stepOrbitAngle(orbitAngle, orbitSpeed, dt);
+                    placeCamera();
+                }
+
                 // A bass hit throws points off the shell, from where its points are now (its local, unrotated space).
                 if (sprayTrigger.step(swellOut.swell, now)) {
                     // Bursts leave from the drawn (squeezed) surface; the cap at 1 keeps them inside the rest radius.
@@ -545,6 +599,7 @@ export function useBassInkScene(
             },
 
             dispose: () => {
+                motionQuery?.removeEventListener('change', onMotionChange);
                 orbit.dispose();
                 field.dispose();
                 cloud.dispose();
