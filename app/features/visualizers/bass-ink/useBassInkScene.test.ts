@@ -15,7 +15,7 @@ import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
-import { fitScale, formationOuterRadius } from './framing';
+import { formationOuterRadius, grownFitScale } from './framing';
 import { SprayPool } from './sprayPool';
 import { pointCountFor } from './renderBudget';
 import { useBassInkScene } from './useBassInkScene';
@@ -105,6 +105,7 @@ interface FakeCloud {
     setTexture: ReturnType<typeof vi.fn>;
     setPunch: ReturnType<typeof vi.fn>;
     setSwell: ReturnType<typeof vi.fn>;
+    setFlow: ReturnType<typeof vi.fn>;
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
     setRadius: ReturnType<typeof vi.fn>;
@@ -135,6 +136,7 @@ vi.mock('./inkCloud', async () => {
             setTexture = vi.fn();
             setPunch = vi.fn();
             setSwell = vi.fn();
+            setFlow = vi.fn();
             setSpectrum = vi.fn();
             setViewport = vi.fn();
             setRadius = vi.fn();
@@ -359,7 +361,14 @@ describe('useBassInkScene', () => {
                 const outer = formationOuterRadius(index, bassInkConfig.director.formationSeed);
                 return (
                     bassInkSceneConfig.cloud.radius *
-                    fitScale(outer, distance, fov, 800 / 600, bassInkSceneConfig.cloud.fill)
+                    grownFitScale(
+                        outer,
+                        bassInkSceneConfig.cloud.formationGrowth[index],
+                        distance,
+                        fov,
+                        800 / 600,
+                        bassInkSceneConfig.cloud.fill,
+                    )
                 );
             });
             expect(fits.some((fit) => Math.abs(fit - first) < 1e-9)).toBe(true);
@@ -671,6 +680,36 @@ describe('useBassInkScene', () => {
             expect(held).toBeLessThan(peak);
             expect(readProbe()[20]).toBeCloseTo(held, 6);
             expect(readProbe()[21]).toBeCloseTo(held, 6);
+        });
+
+        it('advances the disc flow each frame in 0..1, faster while the bass swells', () => {
+            const { node } = createAnalyser();
+            const { frame, hub } = mountScene({ analyser: node });
+            const flow = () => currentCloud().setFlow.mock.calls.at(-1)![0] as number;
+            hub.setGateBass(0.1);
+            for (let i = 0; i < 600; i++) frame(16);
+            expect(currentCloud().setSwell.mock.calls.at(-1)![0]).toBeLessThan(1e-6);
+            // At rest it moves at the configured speed (wrapped, so compare the step modulo 1).
+            const step = () => {
+                const before = flow();
+                frame(16);
+                return (((flow() - before) % 1) + 1) % 1;
+            };
+            const { speed, swellGain } = bassInkSceneConfig.discFlow;
+            expect(step()).toBeCloseTo(speed * 0.016, 6);
+
+            hub.setGateBass(0.3);
+            let fastest = 0;
+            for (let i = 0; i < 20; i++) {
+                const swell = currentCloud().setSwell.mock.calls.at(-1)![0] as number;
+                fastest = Math.max(fastest, step());
+                expect(flow()).toBeGreaterThanOrEqual(0);
+                expect(flow()).toBeLessThan(1);
+                expect(Number.isFinite(swell)).toBe(true);
+            }
+            expect(fastest).toBeGreaterThan(speed * 0.016 + swellGain * 0.3 * 0.016);
+            // The core is a sphere and never flows, so it is never given the phase.
+            expect(currentCore().setFlow).not.toHaveBeenCalled();
         });
 
         it('lights the cloud on a bass pulse through the brightness mix, and not at intensity 0', () => {

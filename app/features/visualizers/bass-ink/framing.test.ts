@@ -4,10 +4,12 @@ import { FORMATION_COUNT } from './bassInkTypes';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 import { writeFormation } from './formations';
 import { bassInkConfig } from './bassInkConfig';
+import { SPRAY_JITTER } from './sprayPool';
 import {
     coreWorstCaseExtent,
     fitScale,
     formationOuterRadius,
+    grownFitScale,
     shellWorstCaseReach,
     sprayMaxReach,
     worstCaseExtent,
@@ -20,16 +22,36 @@ const { camera: cameraConfig, cloud } = bassInkSceneConfig;
 const { fov, distance } = cameraConfig;
 
 interface Measure {
-    // Largest projected radius of any point after every pulse peaks (share of the smaller half-dimension).
+    // Largest projected distance of any shell or spray point from the view's center after every pulse peaks, along
+    // the width or the height, each as a share of that half of the view (NDC), over every view angle checked.
     worst: number;
-    // 95th percentile of the resting projected radii (the same share).
+    // 95th percentile of the resting projected radii at the reset tilt (share of the smaller half-dimension).
     restP95: number;
 }
 
-// Projects the real formation points (tilted and scaled as the scene does) through a real perspective camera, at rest
-// and again pushed out by the worst case at the default controls: the scale terms at their peak, then the kick-wave cap
-// and the turbulence bound outward along the point's direction, then the spectrum amplitude outward in the view plane
-// (as the shader does after the camera transform).
+// The fit the scene gives a formation (useBassInkScene: grownFitScale with the formation's growth).
+function fittedScale(index: number, aspect: number): number {
+    return grownFitScale(
+        formationOuterRadius(index, SEED),
+        cloud.formationGrowth[index],
+        distance,
+        fov,
+        aspect,
+        cloud.fill,
+    );
+}
+
+// View angles the worst case is checked at: the section swing's whole tilt range (ends and middle) and turns around
+// the whole circle, since the drift turns the cloud through every angle.
+const TILTS = [-1, 0, 1].map((k) => cloud.tilt + k * bassInkSceneConfig.view.tiltSwing);
+const YAWS = Array.from({ length: 8 }, (_, k) => (k / 8) * 2 * Math.PI);
+
+// Projects the real formation points (tilted, turned and scaled as the scene does) through a real perspective camera,
+// at rest and again pushed out by the worst case at the default controls: the scale terms at their peak, then the
+// kick-wave cap and the turbulence bound outward along the point's direction, then the spectrum amplitude outward in
+// the view plane (as the shader does after the camera transform). A spray point leaves the unscaled rest position and
+// travels speed * dragSeconds outward; its direction can stray from straight outward by the jitter's worst (2 * the
+// jitter vector's length over the distance, at most 2), counted here both sideways and toward the camera.
 function measure(index: number, aspect: number): Measure {
     const camera = new THREE.PerspectiveCamera(fov, aspect, cameraConfig.near, cameraConfig.far);
     camera.position.set(0, 0, distance);
@@ -37,41 +59,73 @@ function measure(index: number, aspect: number): Measure {
 
     const points = new Float32Array(POINTS * 3);
     writeFormation(index, SEED, points, POINTS, 0, POINTS);
-    const radius = cloud.radius * fitScale(formationOuterRadius(index, SEED), distance, fov, aspect, cloud.fill);
+    const radius = cloud.radius * fittedScale(index, aspect);
     const object = new THREE.Object3D();
-    object.rotation.x = cloud.tilt;
-    object.updateMatrixWorld();
     const factor = (1 + cloud.breathingAmplitude) * (1 + cloud.beatPunch) * (1 + cloud.swellAmplitude);
     // Turbulence control 1 and mid level 1; the swirl vector is at most sqrt(3) * 2 long and is scaled by amount * 0.5.
     const turbulence = Math.sqrt(3) * (bassInkSceneConfig.turbulence.base + bassInkSceneConfig.turbulence.midGain);
     const absolute = bassInkSceneConfig.wave.maxDisplacement + turbulence;
+    const travel = bassInkSceneConfig.spray.speed * bassInkSceneConfig.spray.dragSeconds;
+    const jitter = (SPRAY_JITTER / 2) * Math.sqrt(3);
 
     // NDC spans -1..1 on both axes and the width is `aspect` times the height, so scale x to height units first.
     const smaller = Math.min(1, aspect);
     const share = (v: THREE.Vector3) => Math.hypot(v.x * aspect, v.y) / smaller;
+    const axisShare = (v: THREE.Vector3) => Math.max(Math.abs(v.x), Math.abs(v.y));
     const point = new THREE.Vector3();
     const view = new THREE.Vector3();
+    // Moves a view-space point outward from the view axis by `amount` (the spectrum, a stray spray direction).
+    const pushSideways = (v: THREE.Vector3, amount: number) => {
+        const sideways = Math.hypot(v.x, v.y);
+        if (sideways > 0) {
+            v.x += (v.x / sideways) * amount;
+            v.y += (v.y / sideways) * amount;
+        }
+    };
     const rest: number[] = [];
-    let worst = 0;
+    object.rotation.set(cloud.tilt, 0, 0);
+    object.updateMatrixWorld();
     for (let i = 0; i < POINTS; i++) {
         point
             .fromArray(points, i * 3)
             .multiplyScalar(radius)
             .applyMatrix4(object.matrixWorld);
         rest.push(share(view.copy(point).project(camera)));
+    }
 
-        // Scale peak, then the absolute pushes outward along the point's own direction from the center.
-        const length = point.length() * factor;
-        point.multiplyScalar(factor);
-        if (length > 0) point.multiplyScalar(1 + absolute / length);
-        view.copy(point).applyMatrix4(camera.matrixWorldInverse);
-        const sideways = Math.hypot(view.x, view.y);
-        if (sideways > 0) {
-            view.x += (view.x / sideways) * bassInkSceneConfig.spectrum.amplitude;
-            view.y += (view.y / sideways) * bassInkSceneConfig.spectrum.amplitude;
+    let worst = 0;
+    for (const tilt of TILTS) {
+        for (const yaw of YAWS) {
+            object.rotation.set(tilt, yaw, 0);
+            object.updateMatrixWorld();
+            for (let i = 0; i < POINTS; i++) {
+                point
+                    .fromArray(points, i * 3)
+                    .multiplyScalar(radius)
+                    .applyMatrix4(object.matrixWorld);
+                const restLength = point.length();
+
+                // Shell: scale peak, then the absolute pushes outward along the point's own direction from the center.
+                const length = restLength * factor;
+                view.copy(point).multiplyScalar(factor);
+                if (length > 0) view.multiplyScalar(1 + absolute / length);
+                view.applyMatrix4(camera.matrixWorldInverse);
+                pushSideways(view, bassInkSceneConfig.spectrum.amplitude);
+                view.applyMatrix4(camera.projectionMatrix);
+                worst = Math.max(worst, axisShare(view));
+
+                // Spray: from the rest position, outward by the travel, plus the worst stray.
+                if (restLength > 0) {
+                    const stray = travel * Math.min(2, (2 * jitter * radius) / restLength);
+                    view.copy(point).multiplyScalar(1 + travel / restLength);
+                    view.applyMatrix4(camera.matrixWorldInverse);
+                    pushSideways(view, stray);
+                    view.z += stray;
+                    view.applyMatrix4(camera.projectionMatrix);
+                    worst = Math.max(worst, axisShare(view));
+                }
+            }
         }
-        view.applyMatrix4(camera.projectionMatrix);
-        worst = Math.max(worst, share(view));
     }
     rest.sort((a, b) => a - b);
     return { worst, restP95: rest[Math.floor(0.95 * POINTS)] };
@@ -82,12 +136,16 @@ describe('core and spray fit inside the shell', () => {
         for (let index = 0; index < FORMATION_COUNT; index++) {
             it(`formation ${index} at aspect ${aspect.toFixed(2)}: the core's envelope and the spray's reach stay within the shell's worst-case extent`, () => {
                 const outer = formationOuterRadius(index, bassInkConfig.director.formationSeed);
-                const radius = cloud.radius * fitScale(outer, distance, fov, aspect, cloud.fill);
+                const radius = cloud.radius * fittedScale(index, aspect);
                 const shell = shellWorstCaseReach(radius, outer);
                 const core = coreWorstCaseExtent(radius);
                 const spray = sprayMaxReach(radius, index);
                 expect(core).toBeLessThanOrEqual(shell);
                 expect(spray).toBeLessThanOrEqual(shell);
+                // The core is a sphere, so it is held to the fill by its own sphere bound: the sphere of its world
+                // reach, seen from the camera, stays within the fill of the smaller half of the view.
+                const halfView = Math.tan((fov * Math.PI) / 360) * Math.min(1, aspect);
+                expect(Math.tan(Math.asin(core / distance)) / halfView).toBeLessThanOrEqual(cloud.fill);
             });
         }
     }
@@ -154,6 +212,47 @@ describe('framing', () => {
             const expected = distance * Math.sin(Math.atan(0.8 * Math.tan((fov * Math.PI) / 360)));
             // The worst direction is sampled every degree, so the answer is within a thousandth of a world unit.
             expect(radius).toBeCloseTo(expected, 2);
+        });
+    });
+
+    describe('grownFitScale', () => {
+        const outer = 0.9;
+
+        it('is fitScale times the growth on a wide view', () => {
+            for (const aspect of [16 / 9, 4 / 3]) {
+                const fit = fitScale(outer, distance, fov, aspect, 0.95);
+                expect(grownFitScale(outer, 1.1, distance, fov, aspect, 0.95)).toBeCloseTo(fit * 1.1, 12);
+            }
+        });
+
+        it('is fitScale on a square or portrait view, where the width is as tight as the height', () => {
+            for (const aspect of [1, 0.5]) {
+                const fit = fitScale(outer, distance, fov, aspect, 0.95);
+                expect(grownFitScale(outer, 1.1, distance, fov, aspect, 0.95)).toBe(fit);
+            }
+        });
+
+        it('caps the growth where the sphere bound would reach the fill of the half-width', () => {
+            const aspect = 1.05;
+            const capped = fitScale(outer, distance, fov, aspect, 0.95 * aspect);
+            expect(grownFitScale(outer, 3, distance, fov, aspect, 0.95)).toBeCloseTo(capped, 12);
+            expect(capped).toBeLessThan(3 * fitScale(outer, distance, fov, aspect, 0.95));
+        });
+
+        it('is fitScale for a growth of 1 or less or not a number, and 0 when nothing fits', () => {
+            const fit = fitScale(outer, distance, fov, 16 / 9, 0.95);
+            expect(grownFitScale(outer, 1, distance, fov, 16 / 9, 0.95)).toBe(fit);
+            expect(grownFitScale(outer, 0.5, distance, fov, 16 / 9, 0.95)).toBe(fit);
+            expect(grownFitScale(outer, Number.NaN, distance, fov, 16 / 9, 0.95)).toBe(fit);
+            expect(grownFitScale(outer, 1.1, distance, fov, 16 / 9, 0.01)).toBe(0);
+        });
+
+        it('grows only the torus and the disc', () => {
+            expect(cloud.formationGrowth).toHaveLength(FORMATION_COUNT);
+            expect(cloud.formationGrowth[0]).toBe(1);
+            expect(cloud.formationGrowth[2]).toBe(1);
+            expect(cloud.formationGrowth[1]).toBeGreaterThan(1);
+            expect(cloud.formationGrowth[3]).toBeGreaterThan(1);
         });
     });
 

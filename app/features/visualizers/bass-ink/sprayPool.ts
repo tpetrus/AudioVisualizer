@@ -8,8 +8,8 @@ import { sprayFragmentShader, sprayVertexShader } from '../meshes/sprayShaders';
 const NEVER = -1e6;
 
 // How far a point's direction may stray from straight outward, as a share of a unit: enough that a burst fans out
-// instead of leaving as rays.
-const JITTER = 0.25;
+// instead of leaving as rays. Exported for the fit (framing.ts), which bounds how far a direction can stray.
+export const SPRAY_JITTER = 0.25;
 
 // Where bursts come from; InkCloud already satisfies it (restPosition gives the unit rest position, before radius).
 export interface RestSource {
@@ -143,9 +143,9 @@ export class SprayPool {
             const slot = (this.head + k) % this.capacity;
             const index = Math.min(source.pointCount - 1, Math.floor(hash01(slot, salt, 1) * source.pointCount));
             source.restPosition(index, rest);
-            const x = rest[0] + (hash01(slot, salt, 2) - 0.5) * JITTER;
-            const y = rest[1] + (hash01(slot, salt, 3) - 0.5) * JITTER;
-            const z = rest[2] + (hash01(slot, salt, 4) - 0.5) * JITTER;
+            const x = rest[0] + (hash01(slot, salt, 2) - 0.5) * SPRAY_JITTER;
+            const y = rest[1] + (hash01(slot, salt, 3) - 0.5) * SPRAY_JITTER;
+            const z = rest[2] + (hash01(slot, salt, 4) - 0.5) * SPRAY_JITTER;
             const length = Math.hypot(x, y, z);
             const o = slot * 3;
             origins[o] = rest[0] * radius;
