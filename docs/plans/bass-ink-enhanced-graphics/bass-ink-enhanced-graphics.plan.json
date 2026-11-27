@@ -1,0 +1,1136 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "bass-ink-enhanced-graphics-20261127t183225z-9c6e0f9c",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R2",
+  "created": "2026-11-27T18:32:25.753Z",
+  "updated": "2026-11-27T18:45:38.623Z",
+  "feature": {
+    "slug": "bass-ink-enhanced-graphics",
+    "title": "Bass ink enhanced graphics",
+    "request": "we want to enhance the bass-ink visualization with support for the enhanced graphics. This can include any sort of additions that will make it visualy more stunning.  Branch from origin/main so you can see the shared toggle for enhanced graphics.  The goal here is to make bass-ink as visually stunning as possible, without losing the core of what the visualization does"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f"
+  },
+  "problem": {
+    "statement": "bass-ink is a tempo-breathing point cloud that reforms on drops, flashes on kicks and sprays on bass hits, drawn through a fixed trails and bloom composer. The shared enhanced-graphics toggle (on origin/main, not yet in the local checkout) lets visualizers offer a richer look, but bass-ink does not opt in, so users who turn it on see nothing new here.",
+    "users": [
+      "Viewers who turn on enhanced graphics on a capable machine and want bass-ink to look as stunning as possible",
+      "Viewers on standard mode or software renderers, who must see bass-ink exactly as today"
+    ],
+    "evidence": [
+      "context-brief.md: no enhanced or quality reference under app/ in this checkout; local main c03849a behind origin/main bd71db4",
+      "docs/plans/cubes-, trio-, dancer-enhanced-graphics: the agreed pattern (lazy chunk, toggle off unchanged, in-place swap, software fallback, reduced-motion damping)",
+      "bassInkPost.ts and docs/plans/bass-ink-post/contracts.md: existing composer and flash-safety rule"
+    ]
+  },
+  "goals": [
+    "With enhanced graphics on, bass-ink looks markedly richer (depth, glow, colour and texture) while staying recognisably the same piece: same formations, palette family and bass, kick and drop reactions",
+    "In both modes, the camera rotates gradually on a tilted orbit whose speed rises smoothly with the combined level of the three trio-color-wave bands (bass, mids, highs)",
+    "Enhanced mode holds about 60 fps at 1080p on a mid-range or integrated laptop GPU",
+    "Toggle off, and any software renderer, keep today's render path and passes; the only standard-mode change is the camera rotation"
+  ],
+  "non_goals": [
+    "Changing bass-ink's standard look beyond the camera rotation: controls defaults, formations, director and reaction timing stay",
+    "Changing the shared enhanced-graphics toggle, its storage or other visualizers' behaviour (trio-color-wave output must not change if band code is shared)",
+    "New audio analysis or rhythm-tracker changes; the rotation reuses trio-color-wave's band split and everything else reuses existing bass, kick and drop signals",
+    "Upgrading three.js or adding non-three dependencies",
+    "Making post effects follow the music in ways that add flashes (flash-safety rule stays)"
+  ],
+  "success_metrics": [
+    "Side-by-side review in npm run dev: enhanced is judged clearly more stunning and still recognisably bass-ink",
+    "Enhanced median frame time at or under about 16.7 ms at 1080p on the reference laptop GPU",
+    "scorecard:check passes and bass-ink reaction cells from debug:viz are unchanged within noise with enhanced off",
+    "Total JS gzip growth small and justified; entry chunk and Lighthouse on / unchanged"
+  ],
+  "constraints": [
+    "Follow the toggle contract as it exists on origin/main; implementation branches from origin/main",
+    "Enhanced code lives in a lazily loaded chunk; toggling swaps in place through the render hook, keeping the camera",
+    "No per-frame allocation; every GPU resource disposed; StrictMode double-mount safe",
+    "Flash safety (contracts.md:39): post strengths do not follow the music; at most 3 flashes per second as granted by BrightnessMix",
+    "Software renderers keep the plain path (bassInkPost.ts:78) even with enhanced on",
+    "Telemetry probe columns are append-only (devTelemetry.ts:51)",
+    "three.js r186 pinned; addons from three/addons; bundle budget raise in the same PR with a reason",
+    "prefers-reduced-motion damps the rotation and any added motion"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "enhanced graphics is off (or never set)",
+      "when": "the user opens /bass-ink",
+      "then": "the scene renders through today's path with today's passes; apart from the camera rotation the look is unchanged, and the bass-ink standard visual baseline is regenerated only for the rotation"
+    },
+    {
+      "id": "AC2",
+      "given": "enhanced graphics is on and a real GPU",
+      "when": "the user opens /bass-ink",
+      "then": "telemetry enhancedActive is 1, the enhanced passes are enabled and the enhanced shader define is set; before and after screenshots on a real GPU show the richer look, and formations, kick flashes, bass sprays and drop reforms still occur at the same moments as in standard mode"
+    },
+    {
+      "id": "AC3",
+      "given": "bass-ink is open in either mode with the camera locked (the default) and music playing",
+      "when": "the combined level of the three bands (bass, mids, highs, from a trio-like split with trio's default edges) rises",
+      "then": "the camera orbits the formation on a tilted path with angular speed scaled by the Camera drift control, increasing monotonically with the smoothed combined level, never reversing or jumping, and at a slow floor speed in silence; at Camera drift 0 it does not orbit"
+    },
+    {
+      "id": "AC4",
+      "given": "bass-ink is open",
+      "when": "the user flips the enhanced toggle either way",
+      "then": "the look switches in place without a reload, the camera pose is kept, no WebGL context is lost or leaked and no console error is logged"
+    },
+    {
+      "id": "AC5",
+      "given": "a software renderer (SwiftShader) with enhanced on",
+      "when": "bass-ink renders",
+      "then": "it uses the standard plain path, with no enhanced passes built, and logs no error"
+    },
+    {
+      "id": "AC6",
+      "given": "prefers-reduced-motion is set (read with matchMedia, live), in either mode",
+      "when": "music plays",
+      "then": "the camera auto-orbit is stopped and enhanced mode adds no extra motion"
+    },
+    {
+      "id": "AC7",
+      "given": "enhanced is on",
+      "when": "a loud passage with dense kicks plays",
+      "then": "no post-processing strength, radius or threshold follows the music, and flash count stays within the BrightnessMix limit of 3 per second"
+    },
+    {
+      "id": "AC8",
+      "given": "enhanced is on at 1080p on the user's reference laptop GPU",
+      "when": "a dense passage plays for 60 s",
+      "then": "the dev telemetry median frame time is at or under about 16.7 ms (an automatic render-scale step-down may engage, never a pass swap), and leaving the visualizer frees every GPU resource it built"
+    },
+    {
+      "id": "AC9",
+      "given": "the enhanced work is merged",
+      "when": "CI runs",
+      "then": "format, lint, typecheck, test:coverage at 95%, build, size (any raise justified), e2e and scorecard:check pass"
+    },
+    {
+      "id": "AC10",
+      "given": "the auto-orbit is running",
+      "when": "the user unlocks the camera, drags, relocks or presses reset view",
+      "then": "as in the dancer: while unlocked the orbit controls own the camera and the auto-orbit does not advance; relocking or reset view returns to the default pose with the orbit angle zeroed; the view-changed flag is not tripped by the auto-orbit"
+    },
+    {
+      "id": "AC11",
+      "given": "trio's stateless band helpers are moved to a shared module",
+      "when": "trio-color-wave runs",
+      "then": "its output under a golden test and its existing unit tests are unchanged"
+    },
+    {
+      "id": "AC12",
+      "given": "enhanced is off",
+      "when": "bass-ink builds its point materials and composer",
+      "then": "the standard shader program and default uniforms are identical to today's (unit-tested), so the enhanced code never reaches the standard path"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "How far may enhanced change the look?",
+      "answer": "Same piece, richer, plus a gradual tilted rotation that speeds up with loudness",
+      "decided_by": "user",
+      "rationale": "Keep the core; add one signature motion"
+    },
+    {
+      "id": "D2",
+      "question": "Performance target",
+      "answer": "About 60 fps at 1080p on a mid-range laptop GPU",
+      "decided_by": "user",
+      "rationale": "Usable for most users"
+    },
+    {
+      "id": "D3",
+      "question": "May the JS budget rise?",
+      "answer": "Yes, small and justified, with enhanced code lazy-loaded",
+      "decided_by": "user",
+      "rationale": "Landing cost stays flat"
+    },
+    {
+      "id": "D4",
+      "question": "Where does bass-ink post live today?",
+      "answer": "bassInkPost.ts: RenderPass, AfterimagePass, UnrealBloomPass, OutputPass, software bypass",
+      "decided_by": "repo-fact",
+      "rationale": "context-brief.md"
+    },
+    {
+      "id": "D5",
+      "question": "Is the rotation enhanced-only?",
+      "answer": "No: both modes",
+      "decided_by": "user",
+      "rationale": "User chose both modes; standard baseline changes for the rotation only"
+    },
+    {
+      "id": "D6",
+      "question": "What rotates and how does it coexist with orbit controls?",
+      "answer": "The camera, as in the dancer (dancingCharacterScene.ts:428-434, 481): the scene writes a tilted orbit pose only while the camera is locked (the default); unlocked hands the camera to the orbit controls and pauses the orbit; reset and relock zero the angle",
+      "decided_by": "user",
+      "rationale": "User chose the camera and pointed to the dancer; the pattern leaves the shared orbitView untouched"
+    },
+    {
+      "id": "D7",
+      "question": "What drives rotation speed?",
+      "answer": "A trio-like split of bass-ink's own spectrum into bass, mids and highs with trio's default edges, its stateless helpers broken out into reusable shared code; the combined value, smoothed and rate-limited, maps to speed between a floor and a cap",
+      "decided_by": "user",
+      "rationale": "User: trio-like, and break it out into reusable code if possible"
+    },
+    {
+      "id": "D8",
+      "question": "Branching",
+      "answer": "The implementation session branches from origin/main to get the toggle; this planning session only read the local checkout",
+      "decided_by": "user",
+      "rationale": "Request says branch from origin/main; toggle API to be confirmed there"
+    },
+    {
+      "id": "D9",
+      "question": "Risk class",
+      "answer": "R2",
+      "decided_by": "planner-assumption",
+      "rationale": "Standard-mode motion changes and trio band code may be shared across visualizers"
+    },
+    {
+      "id": "D10",
+      "question": "How does the rotation relate to Camera drift?",
+      "answer": "Camera drift scales the orbit speed; drift 0 means no orbit",
+      "decided_by": "user",
+      "rationale": "Keeps the still-view promise without a new control"
+    },
+    {
+      "id": "D11",
+      "question": "Reduced motion",
+      "answer": "Auto-orbit stopped, read live with matchMedia, passed into the orbit step",
+      "decided_by": "planner-assumption",
+      "rationale": "Matches the dancer, which does not rotate under reduced motion; one testable outcome"
+    },
+    {
+      "id": "D12",
+      "question": "How does the toggle swap?",
+      "answer": "Enhanced passes and shader variants are built once after the lazy load and toggled with enabled flags and a define; freed only on scene dispose",
+      "decided_by": "planner-assumption",
+      "rationale": "bassInkPost.ts:74-77 forbids switching render paths; avoids hitches and double frees"
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "Add a small pure camera-orbit module fed by a shared trio band-level helper, plus one lazy enhanced chunk that only swaps bloom/afterimage config and adds a static depth/colour-grade pass inside the existing composer.",
+      "approach": [
+        "Extract trio-color-wave's band split into a pure function (bandLevels) imported by trio unchanged; add a snapshot test proving trio output identical (AC11).",
+        "Add cameraOrbit.ts: smooths combined level (asymmetric EMA), maps to angular speed floor..cap, integrates a yaw angle (monotonic, never reverses), fixed tilt; reduced-motion returns constant floor drift.",
+        "In useBassInkScene update: add orbit yaw as an offset composed with the existing user orbit/drift; skip when camera lock is on; reset view zeroes the offset. Same code in both modes (AC3, AC10).",
+        "Read the enhanced toggle from origin/main's useEnhancedGraphics; when on and not isSoftwareRenderer, dynamic-import bassInkEnhanced.ts.",
+        "bassInkEnhanced.ts adds to the existing composer in place: a fixed-strength extra bloom mip tint, a static vignette/chromatic grade pass, and a depth-fog uniform plus size/colour attenuation on existing point materials. No music-driven post values (AC7).",
+        "Toggle swaps passes through the render hook, keeps camera, disposes the added passes idempotently (AC4, AC8); load failure keeps standard with one warning.",
+        "Regenerate the standard baseline for rotation only, raise the size budget with a reason, append no probe columns except at the end."
+      ],
+      "components": [
+        {
+          "name": "bandLevels",
+          "responsibility": "Shared pure trio band split and combined level",
+          "location": "app/features/visualizers/trio-color-wave/ (exported, reused by bass-ink)"
+        },
+        {
+          "name": "cameraOrbit",
+          "responsibility": "Smoothed level to monotonic yaw, tilt, reduced-motion floor",
+          "location": "app/features/visualizers/bass-ink/cameraOrbit.ts"
+        },
+        {
+          "name": "bassInkEnhanced",
+          "responsibility": "Lazy extra passes and point-shader depth cues, dispose",
+          "location": "app/features/visualizers/bass-ink/bassInkEnhanced.ts"
+        },
+        {
+          "name": "scene wiring",
+          "responsibility": "Compose orbit with controls, lock, reset; toggle swap",
+          "location": "app/features/visualizers/bass-ink/useBassInkScene.ts, bassInkPost.ts"
+        }
+      ],
+      "contracts": [
+        "bandLevels(spectrum): { bass, mids, highs, combined } with no allocation (writes into a passed object)",
+        "createCameraOrbit({ floor, cap, tilt, reducedMotion }).step(combined, dt, locked): yawOffset",
+        "createBassInkEnhanced(renderer, composer, size): { apply(dt), setSize, dispose }"
+      ],
+      "pros": [
+        "Smallest diff: reuses composer, controls and trio split",
+        "Orbit logic is pure and unit-testable to 95%",
+        "Standard path changes only by the orbit"
+      ],
+      "cons": [
+        "Enhanced look is modest: static grading and depth cues, no new geometry or particle layers",
+        "Extracting trio band code touches another visualizer's file"
+      ],
+      "risks": [
+        "Toggle API on origin/main may differ from the plan docs",
+        "Fog and attenuation in existing point shaders may alter formation readability",
+        "Extra pass may miss the 60 fps target on integrated GPUs"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 4.25
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "Extract a pure shared band-level function and a pure, unit-tested orbit controller (angle integration, never reverses), wire it into the camera in both modes, and add a lazily loaded enhanced post/shading chunk behind a strict fail-safe boundary with static, music-independent post strengths.",
+      "approach": [
+        "Extract trio-color-wave's band split into a pure shared module (bandLevels) that trio imports unchanged; add a golden-output test proving trio output is identical (AC11).",
+        "Add orbitRotation.ts: pure state machine (smoothed combined level, speed = floor + (cap-floor)*smoothstep(level), angle += speed*dt, dt clamped, reduced-motion -> constant slow drift). Angle only integrates, so no reversal or jump.",
+        "In useBassInkScene, compose the orbit as an azimuth offset applied to the camera pose after OrbitControls/drift, using preallocated vectors; skip while camera lock is on; reset view zeroes the offset; the tilt is a fixed polar bias.",
+        "Add bassInkEnhanced.ts (dynamic import chunk): richer point shading (depth fade, soft sprite glow), extra static post (e.g. chromatic or vignette plus second bloom mip) with constant strengths, never audio-driven.",
+        "Render hook swaps standard and enhanced composers in place on toggle, keeping the camera; the enhanced build is gated by isSoftwareRenderer, and any load or build error falls back to standard with one warning.",
+        "Idempotent dispose of every target, pass, material and texture; StrictMode and cancelled-load guards (a late-resolving import is discarded if unmounted or toggled off).",
+        "Append telemetry columns only; raise the size budget with a reason; regenerate the standard baseline via the CI snapshot workflow for the rotation only."
+      ],
+      "components": [
+        {
+          "name": "bandLevels",
+          "responsibility": "Pure trio band split, shared by trio-color-wave and bass-ink",
+          "location": "app/features/visualizers/shared/bandLevels.ts"
+        },
+        {
+          "name": "orbitRotation",
+          "responsibility": "Smoothed level to angular speed, integrated azimuth, reduced-motion",
+          "location": "app/features/visualizers/bass-ink/orbitRotation.ts"
+        },
+        {
+          "name": "bassInkEnhanced",
+          "responsibility": "Lazy enhanced composer and shading, static strengths, dispose",
+          "location": "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts"
+        },
+        {
+          "name": "scene wiring",
+          "responsibility": "Apply the orbit to the camera, lock and reset handling, render-hook swap",
+          "location": "app/features/visualizers/bass-ink/useBassInkScene.ts"
+        }
+      ],
+      "contracts": [
+        "bandLevels(spectrum, out): fills preallocated out {bass, mids, highs}; trio behaviour unchanged",
+        "createOrbit(opts) -> { step(level, dt, reduced): number; reset(): void }",
+        "loadEnhanced(renderer, scene, camera) -> Promise<{ render, setSize, dispose }>, rejects safely",
+        "Telemetry: append-only orbit angle and speed columns"
+      ],
+      "pros": [
+        "Monotonic, jump-free rotation is provable in unit tests",
+        "Trio unchanged by a golden test",
+        "Failure, race and leak paths covered; standard path untouched",
+        "Static post strengths satisfy the flash rule by construction"
+      ],
+      "cons": [
+        "Touches trio-color-wave imports (R2 risk)",
+        "More files and tests than a minimal change",
+        "Toggle API is unverified from this checkout"
+      ],
+      "risks": [
+        "Orbit composing with OrbitControls damping and drift may fight; needs a manual check",
+        "Extra post may miss 60 fps on integrated GPUs; use half-res targets and a measured fallback",
+        "Rotation changes the visual baseline and the debug:viz reaction cells",
+        "Size budget raise needs justification"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 3,
+        "ux": 4,
+        "reversibility": 5
+      },
+      "total": 4.2
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "experience",
+      "summary": "A viewer-first enhanced look (depth haze, soft-sprite glow, colour grading, light streak on kicks) that never strobes, plus a camera orbit that eases in and out so loudness feels like momentum, not a jolt, and every control still behaves as expected.",
+      "approach": [
+        "Extract trio-color-wave's band split into a shared pure function (bandLevels.ts) re-imported by trio unchanged; its tests stay as-is. bass-ink calls it on the existing spectrum, with no new analysis.",
+        "orbitRotation.ts (pure, standard chunk): combined = bass+mids+highs, smoothed with a slow attack and slower release; speed = floor + (cap-floor)*smoothstep(combined). Integrate angle += speed*dt so it never reverses or jumps. Reduced motion pins speed to the floor, level-independent.",
+        "Apply as a yaw about the formation on a fixed tilt, composed over user orbit offset. Dragging pauses auto-yaw for about 1.5 s then resumes from the current angle with no snap. Lock stops it, reset view zeroes angle and the tilt pose, and camera drift stays additive.",
+        "enhanced/ lazy chunk (bassInkEnhanced.ts) built by the same render hook as bassInkPost. Adds depth-of-field style distance fade and size attenuation on points, a soft round-sprite glow, a static colour-grade and vignette pass, and a faint radial streak on kick whose brightness is capped by BrightnessMix. All post constants are fixed.",
+        "Swap in place on toggle: build the new path first, then switch and dispose the old one, keeping the camera. Chunk loading or failure keeps the standard look with one console.warn and no flicker. Software renderers skip the chunk.",
+        "Dev-only label shows the enhanced state in the existing telemetry; append-only probe columns carry angle and speed.",
+        "Raise the size budget with a stated reason; run debug:viz and scorecard:check."
+      ],
+      "components": [
+        {
+          "name": "bandLevels",
+          "responsibility": "Shared trio band split; trio output unchanged",
+          "location": "app/features/visualizers/shared/bandLevels.ts (or in place in trio-color-wave)"
+        },
+        {
+          "name": "orbitRotation",
+          "responsibility": "Smoothed level to speed to angle; reduced-motion floor; pause and resume",
+          "location": "app/features/visualizers/bass-ink/orbitRotation.ts"
+        },
+        {
+          "name": "bassInkEnhanced",
+          "responsibility": "Lazy enhanced shading and post, with disposal",
+          "location": "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts"
+        },
+        {
+          "name": "scene wiring",
+          "responsibility": "Camera composition, toggle swap, software gate",
+          "location": "bass-ink/useBassInkScene.ts, bassInkPost.ts"
+        }
+      ],
+      "contracts": [
+        "bandLevels(spectrum) returns {bass, mids, highs}; trio imports it, unchanged output",
+        "orbitRotation.step(dt, combined, {reducedMotion, userDragging, locked}) returns the yaw angle",
+        "enhanced chunk exposes create(renderer, scene, camera), render(), setSize() and idempotent dispose()",
+        "Telemetry probe columns appended only: orbitAngle, orbitSpeed"
+      ],
+      "pros": [
+        "Smooth eased rotation reads as intentional and avoids motion discomfort",
+        "Toggle swap has no flicker or camera jump",
+        "Standard viewers see only a gentle orbit, and failure paths are silent",
+        "Fixed post constants keep flash safety"
+      ],
+      "cons": [
+        "Pause and resume on drag adds state and tests",
+        "Eased smoothing makes the response to loudness slightly laggy",
+        "Several enhanced layers risk the 16.7 ms target on integrated GPUs"
+      ],
+      "risks": [
+        "origin/main toggle API may differ from the plan docs",
+        "Extracting band code could touch trio tests",
+        "Streak plus glow could read as flashing without a cap",
+        "Baseline regeneration needs the CI snapshot workflow"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 3.6
+    },
+    {
+      "id": "O4",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "O2's structure (shared pure bandLevels with a golden trio test, pure integrated orbit, lazy enhanced chunk with cancel-safe swap and fail-safe fallback) carrying O3's enhanced look (depth fade and size attenuation, soft round-sprite glow, static colour grade and vignette, fixed second bloom) and O3's drag pause and resume, without O3's kick streak.",
+      "approach": [
+        "Sources: O2 for module boundaries, race, dispose and golden-test discipline; O3 for the visual layers and orbit feel; O1 for reusing the existing composer instead of a second one.",
+        "Extract trio's band split into app/features/visualizers/shared/bandLevels.ts, writing into a preallocated out object; trio imports it and a golden-output test proves trio unchanged.",
+        "orbitRotation.ts (pure, standard chunk): combined = bass + mids + highs, smoothed (slow attack, slower release), speed = floor + (cap - floor) * smoothstep(combined), angle += speed * clamped dt; reduced motion pins speed to the floor; drag pauses about 1.5 s then resumes from the current angle; lock stops; reset zeroes.",
+        "useBassInkScene applies the angle as an azimuth offset on a fixed tilt over the OrbitControls pose and camera drift, with preallocated vectors, in both modes.",
+        "Enhanced on and not software: dynamic import of enhanced/bassInkEnhanced.ts, which adds point-shader uniforms (depth fade, size attenuation, soft sprite) and fixed-strength grade, vignette and second bloom passes into the existing BassInkPost composer; strengths are constants, never audio-driven.",
+        "Toggle swap through the render hook keeps the camera; build first, then switch, then dispose; a late import after unmount or toggle-off is discarded; failure keeps standard with one console.warn.",
+        "Telemetry appends orbitAngle, orbitSpeed and enhancedActive at the end; size budget raised with a reason; standard baseline regenerated for rotation; enhanced gets its own baseline only if CI renders it (software renderers do not)."
+      ],
+      "components": [
+        {
+          "name": "bandLevels",
+          "responsibility": "Pure trio band split shared by trio-color-wave and bass-ink",
+          "location": "app/features/visualizers/shared/bandLevels.ts"
+        },
+        {
+          "name": "orbitRotation",
+          "responsibility": "Smoothed combined level to speed to integrated angle; reduced motion, drag pause, lock, reset",
+          "location": "app/features/visualizers/bass-ink/orbitRotation.ts"
+        },
+        {
+          "name": "bassInkEnhanced",
+          "responsibility": "Lazy enhanced shading uniforms and extra static passes inside BassInkPost, idempotent dispose",
+          "location": "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts"
+        },
+        {
+          "name": "scene wiring",
+          "responsibility": "Camera composition, toggle read, swap, software gate, telemetry",
+          "location": "app/features/visualizers/bass-ink/useBassInkScene.ts, bassInkPost.ts"
+        }
+      ],
+      "contracts": [
+        "C1 bandLevels",
+        "C2 orbitRotation",
+        "C3 bassInkEnhanced",
+        "C4 telemetry columns"
+      ],
+      "pros": [
+        "Best look of the three without the one flash-risky element",
+        "Monotonic, jump-free rotation provable in unit tests",
+        "Trio protected by a golden test",
+        "One composer, so no linear versus sRGB path switch"
+      ],
+      "cons": [
+        "Effort L: several modules and tests",
+        "Drag pause and resume adds state"
+      ],
+      "risks": [
+        "origin/main toggle API may differ from the plan docs",
+        "Enhanced layers may miss 16.7 ms on integrated GPUs",
+        "Rotation shifts debug:viz reaction cells and the standard baseline"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 4.15
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O4",
+  "decision_rationale": "O4 takes O2's fail-safe structure and O3's richer look, and drops O3's kick streak, which would put music-driven light against the flash-safety rule. It scores below O1 and O2 on effort, but the request asks for bass-ink to be as visually stunning as possible, and O1's static grading alone does not deliver that (ux 3).",
+  "design": {
+    "overview": "Two independent additions. (1) A camera auto-orbit in both modes, following the dancer: while the camera is locked, the scene writes a tilted orbit pose whose angular speed comes from a trio-like three-band split of bass-ink's own spectrum (combined level, smoothed and rate-limited), scaled by Camera drift; unlocked hands the camera to the orbit controls. (2) An enhanced look, lazily loaded when the shared toggle is on and the renderer is a real GPU: shader variants for depth fade, size attenuation and soft sprites, plus fixed-strength grade, vignette and second-bloom passes, all built once inside the existing BassInkPost composer and switched with flags.",
+    "components": [
+      {
+        "name": "bandLevels",
+        "responsibility": "Trio's stateless helpers (log spectrum sampling, blur, peak-normalised level) shared with trio, plus a bass-ink three-band reader on one analyser",
+        "location": "app/features/visualizers/shared/bandLevels.ts"
+      },
+      {
+        "name": "bassInkOrbit",
+        "responsibility": "Combined level to slewed speed to integrated angle, dancer-style",
+        "location": "app/features/visualizers/bass-ink/bassInkOrbit.ts"
+      },
+      {
+        "name": "bassInkEnhanced",
+        "responsibility": "Enhanced shader defines, uniforms and static passes, built once, enabled by flag",
+        "location": "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts"
+      },
+      {
+        "name": "useBassInkScene / bassInkPost",
+        "responsibility": "Wiring, lock gating, reduced motion, render-scale step-down, software gate, telemetry",
+        "location": "app/features/visualizers/bass-ink/"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "bandLevels",
+        "kind": "pure functions",
+        "definition": "Trio's stateless helpers (sampleLogSpectrum, blur kernel, peak-normalised level step) move to shared/bandLevels.ts and trio imports them with identical output (golden test). A bass-ink reader readBandLevels(spectrum, binHz, edges, state, out) fills a preallocated {bass, mids, highs, combined} from one analyser with trio's default edges, no allocation."
+      },
+      {
+        "id": "C2",
+        "name": "bassInkOrbit",
+        "kind": "pure module",
+        "definition": "orbitAngularSpeed(combined, driftSetting, prev, dt, reducedMotion): number in [0, cap], eased toward floor + (cap - floor) * smoothstep(combined) times driftSetting, with a max change per second as in dancingCharacterOrbit.ts; 0 when drift is 0 or reduced motion. The scene integrates azimuth only while locked, writes the camera on a fixed tilt, and resetOrbit() zeroes azimuth and speed. Constants in bassInkSceneConfig.orbit, including a max per-frame angular step to bound trail smear."
+      },
+      {
+        "id": "C3",
+        "name": "bassInkEnhanced",
+        "kind": "lazy module",
+        "definition": "Frozen in S0 against the real origin/main toggle. Planned: loadBassInkEnhanced(): Promise<{ build(post, materials): EnhancedHandle }>; EnhancedHandle { setEnabled(on): void; setRenderScale(s): void; setSize(size): void; dispose(): void }. Built once; setEnabled flips pass enabled flags and the shader define; no value follows the music; dispose idempotent and only on scene dispose."
+      },
+      {
+        "id": "C4",
+        "name": "telemetry columns",
+        "kind": "dev telemetry",
+        "definition": "Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+      }
+    ],
+    "data": "Reads the shared enhanced-graphics setting from origin/main's store (path and hook recorded in S0); no new storage.",
+    "ux": "Standard: same look; with the camera locked (default) a slow tilted orbit that quickens as the music fills, scaled by Camera drift. Enhanced: deeper, softer, graded ink with glow and haze. Toggle switches instantly in place. Unlocking hands the camera to the user, as in the dancer.",
+    "accessibility": "prefers-reduced-motion (live matchMedia) stops the auto-orbit and enhanced adds no motion; flash safety kept (static post strengths, BrightnessMix cap of 3 per second).",
+    "security_privacy": "No new data, network or storage.",
+    "observability": "Append-only telemetry columns (C4); one console.warn on enhanced load or build failure; debug:viz baseline for bass-ink recorded in S0 and compared in S5.",
+    "rollout": "One PR off origin/main, titled feat(bass-ink). Enhanced is opt-in by the existing toggle and off by default; the auto-orbit ships to everyone but Camera drift 0 or unlocking stops it. Rollback by Cloudflare rollback or revert."
+  },
+  "test_strategy": {
+    "unit": "bandLevels golden test against trio's current output, and readBandLevels on synthetic spectra; orbitAngularSpeed: monotonic in combined, slew and rate limit, 0 at drift 0 and under reduced motion, mid-play reduced-motion change; azimuth advances only while locked, reset zeroes it, view-changed flag untouched; bassInkEnhanced build once, setEnabled on, off, on with trails off and on in between without double free; standard shader program and uniforms identical with enhanced off (AC12); late import after unmount discarded.",
+    "integration": "useBassInkScene with injected engine and tracker: toggle flips keep the camera pose and allocate nothing per frame; software flag skips the chunk; lock and unlock hand-over.",
+    "e2e": "Existing specs pass; a spec flips the enhanced toggle on /bass-ink and checks no errors and context release; the visual spec freezes the orbit (reduced-motion emulation, which stops it) so the bass-ink baseline stays deterministic; regenerate it only if the frozen standard frame changed.",
+    "manual": "npm run dev on a real GPU: before and after screenshots standard versus enhanced; formations, kick flashes, sprays and drops still read; orbit at cap speed with default trails for smear; quiet and loud tracks; unlock, drag, relock, reset, drift 0; reduced motion.",
+    "non_functional": "Dev telemetry median frame time at 1080p on the user's reference laptop GPU, at or under 16.7 ms, with the render-scale step-down; npm run size with a justified raise; Lighthouse on / unchanged; debug:viz and scorecard:check against the S0 baseline."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "The toggle API on origin/main differs from the plans read here",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "S0 reads the real store and hook on origin/main and freezes C3 and C4 before any wiring"
+    },
+    {
+      "id": "K2",
+      "description": "Enhanced layers exceed 16.7 ms on integrated GPUs",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Half-resolution extra passes, measure in S4, drop the second bloom first if over budget"
+    },
+    {
+      "id": "K3",
+      "description": "Auto-orbit conflicts with orbit controls",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Dancer pattern: write the camera only while locked; unit-test hand-over and reset"
+    },
+    {
+      "id": "K4",
+      "description": "Extracting the band split changes trio output",
+      "likelihood": "low",
+      "impact": "high",
+      "mitigation": "Golden test written before the extraction (S1)"
+    },
+    {
+      "id": "K5",
+      "description": "Camera motion changes pointCount, fit or swing paths and thus debug:viz cells",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Record a debug:viz baseline in S0; compare in S5 and explain any moved cell"
+    },
+    {
+      "id": "K6",
+      "description": "Depth fade or soft sprites blur formations so the core reads less clearly",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Fixed, conservative constants; side-by-side manual review in S4"
+    },
+    {
+      "id": "K7",
+      "description": "Screen-space trails smear the whole cloud at cap orbit speed",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Cap the per-frame angular step; manual check at cap speed with default trails in S2; tune in Q1"
+    },
+    {
+      "id": "K8",
+      "description": "The enhanced look is not stunning enough for the request",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "S4 requires before and after real-GPU screenshots reviewed by the user before S5; extra layers can be added within the frame budget"
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Shared band helpers",
+      "objective": "Move trio's stateless band helpers to a shared module with a golden test, and add bass-ink's three-band reader",
+      "depends_on": [
+        "S0"
+      ],
+      "acceptance_refs": [
+        "AC11"
+      ],
+      "contracts": [
+        "C1"
+      ],
+      "risk": "R2",
+      "size": "S",
+      "draft_paths": [
+        "app/features/visualizers/shared/bandLevels.ts",
+        "app/features/visualizers/shared/bandLevels.test.ts",
+        "app/features/visualizers/trio-color-wave/"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Loudness-driven camera orbit",
+      "objective": "Dancer-style orbit while locked, scaled by Camera drift, reduced motion live, reset and relock, smear cap",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC3",
+        "AC6",
+        "AC10"
+      ],
+      "contracts": [
+        "C2",
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/bassInkOrbit.ts",
+        "app/features/visualizers/bass-ink/bassInkOrbit.test.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts",
+        "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Enhanced toggle wiring and lazy build",
+      "objective": "Read the shared toggle, lazy-load the chunk on real GPUs, build once and flip flags, cancel-safe load, failure fallback, standard program unchanged",
+      "depends_on": [
+        "S0",
+        "S2"
+      ],
+      "acceptance_refs": [
+        "AC4",
+        "AC5",
+        "AC12"
+      ],
+      "contracts": [
+        "C3",
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts",
+        "app/features/visualizers/bass-ink/bassInkPost.ts",
+        "app/features/visualizers/bass-ink/useBassInkScene.ts"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Enhanced look",
+      "objective": "Depth fade, size attenuation, soft sprites as shader variants; static grade, vignette and second bloom; render-scale step-down; real-GPU screenshots and frame time",
+      "depends_on": [
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC7",
+        "AC8"
+      ],
+      "contracts": [
+        "C3"
+      ],
+      "risk": "R2",
+      "size": "L",
+      "draft_paths": [
+        "app/features/visualizers/bass-ink/enhanced/",
+        "app/features/visualizers/bass-ink/inkCloud.ts",
+        "app/features/visualizers/bass-ink/dustField.ts"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Budgets, baselines and checks",
+      "objective": "Size budget raise with reason, e2e toggle spec, deterministic visual baseline, scorecard and debug:viz against S0, full CI pass",
+      "depends_on": [
+        "S2",
+        "S4"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC9"
+      ],
+      "contracts": [
+        "C4"
+      ],
+      "risk": "R2",
+      "size": "S",
+      "draft_paths": [
+        ".size-limit.json",
+        "e2e/"
+      ]
+    },
+    {
+      "id": "S0",
+      "title": "Verify toggle and baselines",
+      "objective": "On a branch from origin/main, record the real enhanced toggle store path and hook signature, freeze C3 and C4, and record a bass-ink debug:viz baseline and frame time",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC9"
+      ],
+      "contracts": [
+        "C3",
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "docs/plans/bass-ink-enhanced-graphics/contracts.md"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Orbit floor, cap, tilt and max per-frame step values, checked for trail smear at cap speed",
+      "owner": "implementer, tuned with the user in npm run dev",
+      "blocking": false
+    },
+    {
+      "id": "Q2",
+      "question": "Does CI render the enhanced look at all (software WebGL), or only the standard baseline?",
+      "owner": "implementer in S5",
+      "blocking": false
+    },
+    {
+      "id": "Q3",
+      "question": "Which laptop GPU is the AC8 reference device?",
+      "owner": "user, before S4",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "high",
+        "area": "design",
+        "finding": "C1 describes trio's band split as a pure function over one spectrum (bandLevels(spectrum, binHz, edges, out)). In the repo it is not. Each TrioColorWaveSheet creates its own AnalyserNode (trioColorWaveSheet.ts:63-69) with a per-band fftSize (1024, 2048 and 4096 in trioColorWaveConfig.ts), minDecibels and smoothing. Band edges come from user sliders (values[lowKey], values[highKey], line 110). The level is a stateful peak-normalised value (PEAK_DECAY, gain at lines 117-120). bass-ink has one analyser and none of those sliders. So S1 either needs three extra analysers in bass-ink (this contradicts the non-goal 'no new audio analysis' and adds per-frame cost) or the 'trio split' is silently approximated. The AC11 golden test would then prove nothing about what bass-ink computes, and AC3 ('split as trio-color-wave splits them') cannot be verified.",
+        "suggestion": "Decide before S1. Preferred: bass-ink computes its own bass, mids and highs from its existing spectrum or rhythm.state.bandOnsets, using fixed edges copied from trio's default band settings. Leave trio untouched, so AC11 is trivially true and S1 drops out of the critical path. Reword D7 and AC3 to 'trio-like band split'. If real sharing is wanted, extract only the stateless sampleLogSpectrum/blur kernel and say so in C1.",
+        "resolution": "User chose trio-like: stateless trio helpers move to a shared module (C1, AC11 golden test); bass-ink reads three bands from its one analyser with trio's default edges. No new analysers. D7, AC3 reworded."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "design",
+        "finding": "D6, C2 and AC10 assume a camera orbit that composes with OrbitControls, drag, lock and reset. The shared createOrbitView (app/lib/three/orbitView.ts) exposes only setLocked, reset and dispose. It has no dragging state and no per-frame update hook. OrbitControls re-derives its spherical state from camera.position on every update, so an external yaw offset gets absorbed into the controls. onViewChanged compares camera.position to the default, so an auto-moving camera would make the 'view changed' flag and the reset button misreport. reset() only restores default position and target, not the plan's yaw offset. The existing code deliberately rotates the cloud object, not the camera, 'to keep the orbit's reset position' (useBassInkScene.ts:496). C2's `dragging` flag and 'after controls update' (K3) have no source. Fixing this in orbitView would touch three other visualizers.",
+        "suggestion": "Rotate the cloud, core, dust and spray group, as the drift already does, and keep the camera under OrbitControls. 'Camera orbit' then means the picture turns. Derive dragging from pointerdown and pointerup on renderer.domElement inside bass-ink, not from a shared change. Rewrite D6 and AC10 to say so, and add a unit test that reset zeroes the offset and that the 'view changed' flag is not tripped by the auto-rotation.",
+        "resolution": "User pointed to the dancer: camera written only while locked, unlocked hands it to orbit controls, reset and relock zero the angle; shared orbitView untouched. D6, AC10, C2 rewritten."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "problem",
+        "finding": "The new rotation is forced on every standard-mode user and overlaps the existing motion: drift += cameraDrift*driftSpeed (line 497), viewSwing, and cloud.object.rotation (line 501). The code states that 'a still view stays still' at cameraDrift 0 (line 499). AC3 requires a floor drift in silence. AC10 only says 'the existing camera drift control still works'. Unresolved: does drift 0 disable the auto-orbit, do the two add, and does a user who set drift to 0 now see motion with no control to stop it? Camera lock is the only off switch, and it also blocks dragging. This is the one change that reaches the whole standard audience, and it is called 'the only standard-mode change'.",
+        "suggestion": "Make the auto-orbit scale with, or be gated by, the existing cameraDrift control: drift 0 means no auto-yaw, the default means the floor..cap range. State this in AC3 and AC10, and add a unit test. Otherwise add an explicit control and say that the default is a visible change for all users.",
+        "resolution": "User chose: Camera drift scales the orbit, drift 0 means no orbit (D10, AC3)."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "delivery",
+        "finding": "Slice order and contract freezing are weak. C3 (attach(post, materials)) depends on the unverified origin/main toggle (K1) and on BassInkPost internals. Yet S3 'starts by reading the real store' and C3 is already marked frozen. S2 and S3 both edit useBassInkScene.ts, and C4 is split across S2, S3 and S5, with `enhancedActive` appended after the orbit columns. S4 edits the shared shaders in inkCloud.ts and dustField.ts. Uniform or shader changes there reach the standard path and software renderers, and nothing tests that toggle-off output is unchanged (AC1 only covers the rotation).",
+        "suggestion": "Add an S0 that checks out origin/main, records the real toggle API and freezes C3 and C4 (including column order). Merge S2 and S3 serially. In S4, make the enhanced shader paths separate variants or defines. Add a test that the default uniforms and the compiled standard program are identical with enhanced off.",
+        "resolution": "Added S0 to verify the toggle and freeze C3 and C4 with column order; S3 depends on S2 so edits are serial; shader variants via a define; AC12 tests the standard program is unchanged."
+      },
+      {
+        "id": "F5",
+        "severity": "medium",
+        "area": "design",
+        "finding": "The afterimage trails are screen-space and default to 0.4 (bassInkControls). A continuously rotating view, fastest in loud music, smears the whole cloud into arcs, and enhanced mode adds a second bloom on top. The plan evaluates neither the smear nor the legibility of formations and sprays under rotation. K6 only covers the depth fade. Spray is emitted in the cloud's local space (useBassInkScene.ts:505-508), so a rotating group changes where bursts appear on screen.",
+        "suggestion": "Add a manual and screenshot check at cap speed with default trails to S2. Define the cap by the maximum per-frame angular step, or reduce the afterimage damp in proportion to the rotation speed (a constant, not a music-driven value). Record the outcome in Q1.",
+        "resolution": "Max per-frame angular step in C2, manual cap-speed smear check in S2, K7 and Q1."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC2 ('shows the enhanced layers (richer shading, depth and extra post)') and the success metric 'judged clearly more stunning' have no observable check. AC8's 'mid-range laptop GPU' is undefined and cannot run in CI, since CI uses SwiftShader (Q2 admits enhanced may not render there at all). K2's fallback ('drop the second bloom first') is a manual decision, not a runtime guard. The request is 'as visually stunning as possible', yet O4 is a static fog, grade, vignette and second bloom plus soft sprites. It reads closer to O1 than to a stunning result, and the plan cannot show it clears the bar.",
+        "suggestion": "Name the reference device and tool for AC8 (e.g. the GPU frame time query or the dev telemetry frame time). Make AC2 observable: enhancedActive telemetry equals 1, the pass count is N, and named uniforms are set. Require before and after screenshots on a real GPU as S4 evidence. Add an automatic quality step-down if the rolling frame time is over budget (resolution scale, not a pass swap, per bassInkPost.ts:74-77).",
+        "resolution": "AC2 made observable (telemetry, pass flags, define, screenshots); AC8 uses dev telemetry on the user's reference GPU (Q3) with an automatic render-scale step-down; K8 for the stunning bar."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "design",
+        "finding": "AC4 and C3 say toggling swaps passes in place with no context loss. bassInkPost.ts:74-77 states 'never switch the render path on a slider change', and the afterimage is reallocated when trails return (lines 86-94). Adding or removing composer passes and half-res targets at runtime means new shader compiles and render-target allocation on the toggle frame (a hitch). Late-resolving imports and the existing trails re-creation add race paths. 'Dispose restores the standard uniforms' is hard to verify with the fake renderer used in the unit tests.",
+        "suggestion": "Build the enhanced passes once on load, kept disabled, and toggle .enabled so the swap is a flag flip. Free them only on scene dispose. Add a test that toggle, trails-off and trails-on, then toggle again does not double-free or leak the afterimage.",
+        "resolution": "Build once and flip enabled flags (D12, C3); test toggle with trails off and on in between."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "AC1 plans to regenerate the bass-ink standard baseline 'only for the rotation'. A yaw integrated over elapsed time makes any screenshot time-dependent. In CI (silent, SwiftShader) the angle at capture would be the floor speed times load time, which makes the snapshot flaky. The plan does not say how the angle is frozen for the visual spec. e2e/visual.spec.ts iterates VISUALIZERS_UNDER_TEST, so bass-ink is likely covered.",
+        "suggestion": "Add to S2/S5: the visual spec runs with a deterministic rotation (angle 0 / reduced-motion emulation or a test hook), and the baseline diff is reviewed as rotation-only.",
+        "resolution": "Visual spec freezes the orbit through reduced-motion emulation, which stops it (AC6), so the baseline is deterministic."
+      },
+      {
+        "id": "F9",
+        "severity": "low",
+        "area": "acceptance",
+        "finding": "AC6 ends with 'damped to a slow, level-independent drift or stopped', which is two outcomes, so it is not testable. The plan does not say how prefers-reduced-motion is read, whether it is live (matchMedia change) or fixed at mount, or whether it reaches the pure orbit module.",
+        "suggestion": "Pick one outcome. Read it with matchMedia and a change listener, and pass it in through the C2 flags. Add a unit test for a mid-play change.",
+        "resolution": "AC6 now one outcome: stopped; read live with matchMedia and passed to C2 (D11)."
+      },
+      {
+        "id": "F10",
+        "severity": "medium",
+        "area": "assumption",
+        "finding": "The riskiest assumptions are D8/K1 (the toggle API is as planned, rated medium likelihood but never checked even though origin/main is one fetch away) and 'the orbit's reaction cells are unchanged' (K5, rated low). K5 is plausible for audio-side signals, but the pointCount, fit and swing code read the camera. D9's R2 is honest, but the dependence on F1's wrong premise makes S1 and AC11 the weakest-grounded parts of the plan.",
+        "suggestion": "Verify the toggle on origin/main now, before approval, and put the actual store path and hook signature in the plan. Run debug:viz on bass-ink before S2 to get a baseline that K5 can be compared against.",
+        "resolution": "Cannot run git in planning; S0 verifies the toggle on origin/main first and records a debug:viz baseline; K5 raised to medium."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "de6b2f353159cd743f282879a66bc87df39c076fd722f87d27925aa29a0f773d",
+    "cards": {
+      "O1": "f0eee2ca04ffee9825d874f070a67691034b0efc7edbab69716dbf90b1dfb757",
+      "O2": "5709cdb4669bf2e5160843834af40f1b14f8005826bfe451fabc1febf32c26dc",
+      "O3": "9bc40cf1c9537ef4b3918b3f700a21fa009052580032c9ade377bf0f136f101c"
+    },
+    "critic_sha256": "7f0b9ac9d04ddab6eba74ce9dc8b183f5508532dd6f04691d9d981a7aef7e4c7",
+    "critic_basis": {
+      "chosen_option": "O4",
+      "risk": "R2",
+      "contracts_sha256": "fdf762b1e8a86998",
+      "acs_sha256": "3a34879cd1f78b15"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "a98c8ec26e31f70a",
+      "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+      "risk": "R2",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "bandLevels",
+          "kind": "pure functions",
+          "definition": "Trio's stateless helpers (sampleLogSpectrum, blur kernel, peak-normalised level step) move to shared/bandLevels.ts and trio imports them with identical output (golden test). A bass-ink reader readBandLevels(spectrum, binHz, edges, state, out) fills a preallocated {bass, mids, highs, combined} from one analyser with trio's default edges, no allocation."
+        },
+        {
+          "id": "C2",
+          "name": "bassInkOrbit",
+          "kind": "pure module",
+          "definition": "orbitAngularSpeed(combined, driftSetting, prev, dt, reducedMotion): number in [0, cap], eased toward floor + (cap - floor) * smoothstep(combined) times driftSetting, with a max change per second as in dancingCharacterOrbit.ts; 0 when drift is 0 or reduced motion. The scene integrates azimuth only while locked, writes the camera on a fixed tilt, and resetOrbit() zeroes azimuth and speed. Constants in bassInkSceneConfig.orbit, including a max per-frame angular step to bound trail smear."
+        },
+        {
+          "id": "C4",
+          "name": "telemetry columns",
+          "kind": "dev telemetry",
+          "definition": "Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+        },
+        {
+          "id": "C3",
+          "name": "bassInkEnhanced",
+          "kind": "lazy module",
+          "definition": "Frozen in S0 against the real origin/main toggle. Planned: loadBassInkEnhanced(): Promise<{ build(post, materials): EnhancedHandle }>; EnhancedHandle { setEnabled(on): void; setRenderScale(s): void; setSize(size): void; dispose(): void }. Built once; setEnabled flips pass enabled flags and the shader define; no value follows the music; dispose idempotent and only on scene dispose."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Shared band helpers: Move trio's stateless band helpers to a shared module with a golden test, and add bass-ink's three-band reader",
+          "dependencies": [
+            "S0"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/shared/bandLevels.ts",
+            "app/features/visualizers/shared/bandLevels.test.ts",
+            "app/features/visualizers/trio-color-wave/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 bandLevels (pure functions): Trio's stateless helpers (sampleLogSpectrum, blur kernel, peak-normalised level step) move to shared/bandLevels.ts and trio imports them with identical output (golden test). A bass-ink reader readBandLevels(spectrum, binHz, edges, state, out) fills a preallocated {bass, mids, highs, combined} from one analyser with trio's default edges, no allocation."
+          ],
+          "acceptance": [
+            "AC11: Given trio's stateless band helpers are moved to a shared module, when trio-color-wave runs, then its output under a golden test and its existing unit tests are unchanged"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Loudness-driven camera orbit: Dancer-style orbit while locked, scaled by Camera drift, reduced motion live, reset and relock, smear cap",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/bassInkOrbit.ts",
+            "app/features/visualizers/bass-ink/bassInkOrbit.test.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts",
+            "app/features/visualizers/bass-ink/bassInkSceneConfig.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 bassInkOrbit (pure module): orbitAngularSpeed(combined, driftSetting, prev, dt, reducedMotion): number in [0, cap], eased toward floor + (cap - floor) * smoothstep(combined) times driftSetting, with a max change per second as in dancingCharacterOrbit.ts; 0 when drift is 0 or reduced motion. The scene integrates azimuth only while locked, writes the camera on a fixed tilt, and resetOrbit() zeroes azimuth and speed. Constants in bassInkSceneConfig.orbit, including a max per-frame angular step to bound trail smear.",
+            "C4 telemetry columns (dev telemetry): Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+          ],
+          "acceptance": [
+            "AC1: Given enhanced graphics is off (or never set), when the user opens /bass-ink, then the scene renders through today's path with today's passes; apart from the camera rotation the look is unchanged, and the bass-ink standard visual baseline is regenerated only for the rotation",
+            "AC3: Given bass-ink is open in either mode with the camera locked (the default) and music playing, when the combined level of the three bands (bass, mids, highs, from a trio-like split with trio's default edges) rises, then the camera orbits the formation on a tilted path with angular speed scaled by the Camera drift control, increasing monotonically with the smoothed combined level, never reversing or jumping, and at a slow floor speed in silence; at Camera drift 0 it does not orbit",
+            "AC6: Given prefers-reduced-motion is set (read with matchMedia, live), in either mode, when music plays, then the camera auto-orbit is stopped and enhanced mode adds no extra motion",
+            "AC10: Given the auto-orbit is running, when the user unlocks the camera, drags, relocks or presses reset view, then as in the dancer: while unlocked the orbit controls own the camera and the auto-orbit does not advance; relocking or reset view returns to the default pose with the orbit angle zeroed; the view-changed flag is not tripped by the auto-orbit"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Enhanced toggle wiring and lazy build: Read the shared toggle, lazy-load the chunk on real GPUs, build once and flip flags, cancel-safe load, failure fallback, standard program unchanged",
+          "dependencies": [
+            "S0",
+            "S2"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/enhanced/bassInkEnhanced.ts",
+            "app/features/visualizers/bass-ink/bassInkPost.ts",
+            "app/features/visualizers/bass-ink/useBassInkScene.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 bassInkEnhanced (lazy module): Frozen in S0 against the real origin/main toggle. Planned: loadBassInkEnhanced(): Promise<{ build(post, materials): EnhancedHandle }>; EnhancedHandle { setEnabled(on): void; setRenderScale(s): void; setSize(size): void; dispose(): void }. Built once; setEnabled flips pass enabled flags and the shader define; no value follows the music; dispose idempotent and only on scene dispose.",
+            "C4 telemetry columns (dev telemetry): Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+          ],
+          "acceptance": [
+            "AC4: Given bass-ink is open, when the user flips the enhanced toggle either way, then the look switches in place without a reload, the camera pose is kept, no WebGL context is lost or leaked and no console error is logged",
+            "AC5: Given a software renderer (SwiftShader) with enhanced on, when bass-ink renders, then it uses the standard plain path, with no enhanced passes built, and logs no error",
+            "AC12: Given enhanced is off, when bass-ink builds its point materials and composer, then the standard shader program and default uniforms are identical to today's (unit-tested), so the enhanced code never reaches the standard path"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Enhanced look: Depth fade, size attenuation, soft sprites as shader variants; static grade, vignette and second bloom; render-scale step-down; real-GPU screenshots and frame time",
+          "dependencies": [
+            "S3"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/bass-ink/enhanced/",
+            "app/features/visualizers/bass-ink/inkCloud.ts",
+            "app/features/visualizers/bass-ink/dustField.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 bassInkEnhanced (lazy module): Frozen in S0 against the real origin/main toggle. Planned: loadBassInkEnhanced(): Promise<{ build(post, materials): EnhancedHandle }>; EnhancedHandle { setEnabled(on): void; setRenderScale(s): void; setSize(size): void; dispose(): void }. Built once; setEnabled flips pass enabled flags and the shader define; no value follows the music; dispose idempotent and only on scene dispose."
+          ],
+          "acceptance": [
+            "AC2: Given enhanced graphics is on and a real GPU, when the user opens /bass-ink, then telemetry enhancedActive is 1, the enhanced passes are enabled and the enhanced shader define is set; before and after screenshots on a real GPU show the richer look, and formations, kick flashes, bass sprays and drop reforms still occur at the same moments as in standard mode",
+            "AC7: Given enhanced is on, when a loud passage with dense kicks plays, then no post-processing strength, radius or threshold follows the music, and flash count stays within the BrightnessMix limit of 3 per second",
+            "AC8: Given enhanced is on at 1080p on the user's reference laptop GPU, when a dense passage plays for 60 s, then the dev telemetry median frame time is at or under about 16.7 ms (an automatic render-scale step-down may engage, never a pass swap), and leaving the visualizer frees every GPU resource it built"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S5",
+          "objective": "Budgets, baselines and checks: Size budget raise with reason, e2e toggle spec, deterministic visual baseline, scorecard and debug:viz against S0, full CI pass",
+          "dependencies": [
+            "S2",
+            "S4"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            ".size-limit.json",
+            "e2e/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C4 telemetry columns (dev telemetry): Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+          ],
+          "acceptance": [
+            "AC1: Given enhanced graphics is off (or never set), when the user opens /bass-ink, then the scene renders through today's path with today's passes; apart from the camera rotation the look is unchanged, and the bass-ink standard visual baseline is regenerated only for the rotation",
+            "AC9: Given the enhanced work is merged, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size (any raise justified), e2e and scorecard:check pass"
+          ],
+          "verify": [],
+          "risk": "R2",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S0",
+          "objective": "Verify toggle and baselines: On a branch from origin/main, record the real enhanced toggle store path and hook signature, freeze C3 and C4, and record a bass-ink debug:viz baseline and frame time",
+          "dependencies": [],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "docs/plans/bass-ink-enhanced-graphics/contracts.md"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 bassInkEnhanced (lazy module): Frozen in S0 against the real origin/main toggle. Planned: loadBassInkEnhanced(): Promise<{ build(post, materials): EnhancedHandle }>; EnhancedHandle { setEnabled(on): void; setRenderScale(s): void; setSize(size): void; dispose(): void }. Built once; setEnabled flips pass enabled flags and the shader define; no value follows the music; dispose idempotent and only on scene dispose.",
+            "C4 telemetry columns (dev telemetry): Frozen in S0: the bass-ink probe appends, in this order, orbitAngle, orbitSpeed, enhancedActive, renderScale at the end; existing columns unchanged."
+          ],
+          "acceptance": [
+            "AC9: Given the enhanced work is merged, when CI runs, then format, lint, typecheck, test:coverage at 95%, build, size (any raise justified), e2e and scorecard:check pass"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 3,
+    "lane_changes": []
+  }
+}

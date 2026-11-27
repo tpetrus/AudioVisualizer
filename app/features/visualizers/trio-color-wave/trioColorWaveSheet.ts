@@ -20,7 +20,7 @@ import {
     TIP_LENGTH,
 } from './trioColorWaveConfig';
 import type { TrioColorWaveControlValues } from './trioColorWaveControls';
-import { blur, createKernel, sampleLogSpectrum } from './spectrum';
+import { balanceGain, blur, createKernel, sampleLogSpectrum, stepPeak } from '~/features/visualizers/shared/bandLevels';
 
 // One band's sheet of pencil bars, along with the analyser it reads from.
 export class TrioColorWaveSheet {
@@ -114,8 +114,8 @@ export class TrioColorWaveSheet {
             frameMax = Math.max(frameMax, value);
         }
 
-        this.peak = Math.max(frameMax, this.peak * PEAK_DECAY);
-        const gain = TARGET_LEVEL / Math.max(this.peak, PEAK_FLOOR);
+        this.peak = stepPeak(frameMax, this.peak, PEAK_DECAY);
+        const gain = balanceGain(this.peak, TARGET_LEVEL, PEAK_FLOOR);
         this.frameLevel = frameMax;
         this.balancedLevel = frameMax * gain;
         const growth = Math.pow(values.heightGrowth, this.index);

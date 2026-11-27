@@ -10,6 +10,7 @@ import { asWebAudio } from '~/test/fakeWebAudio';
 import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
 import type { FullscreenSupport } from '~/features/fullscreen/types';
 import { renderWithProviders } from '~/test/renderWithProviders';
+import { getEnhancedGraphics, setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
 
 // The scene is covered by the hook's own spec; here the page's wiring is what matters.
 const { resetView } = vi.hoisted(() => ({ resetView: vi.fn() }));
@@ -152,5 +153,42 @@ describe('BassInkPage fullscreen', () => {
 
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(screen.getByRole('button', { name: /settings/i })).toBeInTheDocument();
+    });
+});
+
+describe('BassInkPage enhanced graphics', () => {
+    beforeEach(() => {
+        vi.mocked(useBassInkScene).mockClear();
+        localStorage.clear();
+    });
+    afterEach(() => localStorage.clear());
+
+    it('passes the stored preference to the scene and follows the panel switch', async () => {
+        const { user } = renderWithProviders(<BassInkPage />);
+        expect(latestOptions().enhanced).toBe(false);
+
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+
+        expect(latestOptions().enhanced).toBe(true);
+        expect(getEnhancedGraphics()).toBe(true);
+    });
+
+    it('starts on when the preference is already on', () => {
+        setEnhancedGraphics(true);
+        renderWithProviders(<BassInkPage />);
+        expect(latestOptions().enhanced).toBe(true);
+    });
+
+    it('shows the scene status on the panel switch', async () => {
+        const { user } = renderWithProviders(<BassInkPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        act(() => latestOptions().onEnhancedStatus?.('loading'));
+        expect(screen.getByText('Loading enhanced assets')).toBeInTheDocument();
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        expect(screen.getByText('Enhanced graphics on')).toBeInTheDocument();
+        act(() => latestOptions().onEnhancedStatus?.(undefined));
+        expect(screen.queryByText('Enhanced graphics on')).not.toBeInTheDocument();
     });
 });
