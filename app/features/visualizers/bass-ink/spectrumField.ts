@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { bassInkSceneConfig, type SpectrumConfig } from './bassInkSceneConfig';
-import { blur, createKernel, sampleLogSpectrum } from '../trio-color-wave/spectrum';
+import { blur, createKernel, sampleLogSpectrum } from '~/features/visualizers/shared/bandLevels';
 
 // The recent spectrum as a small texture the cloud's vertex shader reads per point: one column per log-spaced
 // frequency, one row per frame, a ring of the latest rows. Each point reads the frequency its angle on screen stands

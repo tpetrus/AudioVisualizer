@@ -52,7 +52,8 @@ export class SprayPool {
     readonly capacity: number;
 
     private readonly geometry = new THREE.BufferGeometry();
-    private readonly material: THREE.ShaderMaterial;
+    // Public for the enhanced look, which swaps this material's shaders in place (see enhanced/bassInkEnhanced.ts).
+    readonly material: THREE.ShaderMaterial;
     private readonly uniforms: Record<string, THREE.IUniform>;
     private readonly origins: THREE.BufferAttribute;
     private readonly directions: THREE.BufferAttribute;

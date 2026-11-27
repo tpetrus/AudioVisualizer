@@ -38,7 +38,8 @@ export class InkCloud {
     readonly pointCount: number;
 
     private readonly geometry = new THREE.BufferGeometry();
-    private readonly material: THREE.ShaderMaterial;
+    // Public for the enhanced look, which swaps this material's shaders in place (see enhanced/bassInkEnhanced.ts).
+    readonly material: THREE.ShaderMaterial;
     private readonly sides: readonly [THREE.BufferAttribute, THREE.BufferAttribute];
     private readonly uniforms: Record<string, THREE.IUniform>;
     private readonly kickTimes = new Float32Array(KICK_SLOTS);
