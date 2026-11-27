@@ -15,7 +15,13 @@ const rec = vi.hoisted(() => {
             this.sizes.push([width, height]);
         }
     }
-    return { Pass, composers: [] as unknown[], blooms: [] as unknown[], outputs: [] as unknown[] };
+    return {
+        Pass,
+        failOnAddPass: false,
+        composers: [] as unknown[],
+        blooms: [] as unknown[],
+        outputs: [] as unknown[],
+    };
 });
 
 vi.mock('three/addons/postprocessing/EffectComposer.js', () => ({
@@ -28,6 +34,7 @@ vi.mock('three/addons/postprocessing/EffectComposer.js', () => ({
             this.size = [width, height];
         });
         addPass = vi.fn((pass: InstanceType<typeof rec.Pass>) => {
+            if (rec.failOnAddPass) throw new Error('addPass failed');
             this.passes.push(pass);
         });
         constructor(public renderer: unknown) {
@@ -195,6 +202,56 @@ describe('CubesEnhancedLook', () => {
             expect(group.children).toHaveLength(2);
             look.dispose();
             expect(scene.children.includes(group)).toBe(false);
+        });
+    });
+
+    describe('a failing constructor', () => {
+        afterEach(() => {
+            rec.failOnAddPass = false;
+        });
+
+        it('restores all saved state, leaves no group in the scene and rethrows', () => {
+            rec.failOnAddPass = true;
+            const renderer = { getPixelRatio: () => 1, toneMapping: THREE.LinearToneMapping, toneMappingExposure: 0.7 };
+            const background = new THREE.Color(0x101010);
+            const fog = new THREE.Fog(0x123456, 5, 50);
+            const scene = new THREE.Scene();
+            scene.background = background;
+            scene.fog = fog;
+            scene.environmentIntensity = 0.3;
+            const lights = {
+                key: new THREE.DirectionalLight(0xffffff, 25),
+                fill: new THREE.DirectionalLight(0xaab4ff, 8),
+                ambient: new THREE.AmbientLight(0xffffff, 4),
+            };
+            scene.add(lights.key, lights.fill, lights.ambient);
+            const camera = new THREE.PerspectiveCamera();
+            const composersBefore = composers().length;
+
+            expect(
+                () =>
+                    new CubesEnhancedLook({
+                        renderer: renderer as unknown as THREE.WebGLRenderer,
+                        scene,
+                        camera,
+                        lights,
+                        size: { width: 800, height: 600 },
+                        reducedMotion: false,
+                    }),
+            ).toThrow('addPass failed');
+
+            expect(scene.background).toBe(background);
+            expect(scene.fog).toBe(fog);
+            expect(scene.environmentIntensity).toBe(0.3);
+            expect(renderer.toneMapping).toBe(THREE.LinearToneMapping);
+            expect(renderer.toneMappingExposure).toBe(0.7);
+            expect([lights.key.intensity, lights.fill.intensity, lights.ambient.intensity]).toEqual([25, 8, 4]);
+            expect(lights.key.color.getHex()).toBe(0xffffff);
+            expect(lights.fill.color.getHex()).toBe(0xaab4ff);
+            expect(scene.children.some((child) => child instanceof THREE.Group)).toBe(false);
+            // The half-built composer was freed too.
+            expect(composers().length).toBe(composersBefore + 1);
+            expect(composers()[composersBefore].dispose).toHaveBeenCalled();
         });
     });
 
