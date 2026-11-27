@@ -193,6 +193,13 @@ const allClouds = () => everyCloud().filter((cloud) => cloud.options === undefin
 const allCores = () => everyCloud().filter((cloud) => cloud.options !== undefined);
 const currentCloud = () => allClouds().at(-1)!;
 const currentCore = () => allCores().at(-1)!;
+// The core's object is the fake core's own; the spray is the one child whose material has the spray's alpha uniform
+// (the dust has none), so neither is found by its place in the scene's child list.
+const sprayOf = (scene: Scene) =>
+    scene.children.find((child) => {
+        const material = (child as unknown as { material?: { uniforms?: Record<string, unknown> } }).material;
+        return material?.uniforms !== undefined && 'uAlphaScale' in material.uniforms;
+    })!;
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
@@ -500,30 +507,37 @@ describe('useBassInkScene', () => {
         });
 
         it('swings the view to new offsets over a director transition and the core and spray follow', () => {
-            const { frame, scene } = mountScene();
+            const { frame, scene, valuesRef } = mountScene();
+            // Drift 0 would hold the view, so use a full-swing control value.
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 1 };
             frame();
             const shell = currentCloud().object.rotation;
             const tilt = bassInkSceneConfig.cloud.tilt;
             expect(shell.x).toBe(tilt);
+            // No section change yet, so the whole turn is drift. Frames after this one add a known step each.
+            let drift = shell.y;
+            const step = bassInkSceneConfig.camera.driftSpeed * 1 * 0.016;
 
             script.cue.transitionCount = 1;
             script.cue.transitionStart = 0.02;
             script.cue.transitionSeconds = 2;
-            // Drift 0 would hold the view, so use the default control, which is full swing.
             const seen: number[] = [];
-            for (let i = 0; i < 20; i++) {
+            for (let i = 0; i < 220; i++) {
                 frame(16);
-                seen.push(shell.y);
+                drift += step;
+                if (i < 20) seen.push(shell.y);
             }
-            for (let i = 0; i < 200; i++) frame(16);
-            const yawAfter = shell.y - bassInkSceneConfig.camera.driftSpeed * 0;
             expect(Math.abs(shell.x - tilt)).toBeLessThanOrEqual(bassInkSceneConfig.view.tiltSwing + 1e-9);
             expect(shell.x).not.toBe(tilt);
-            expect(Number.isFinite(yawAfter)).toBe(true);
-            // Both follow the shell exactly.
-            for (const index of [1, 3]) {
-                expect(scene.children[index].rotation.x).toBe(shell.x);
-                expect(scene.children[index].rotation.y).toBe(shell.y);
+            // The turn is the accumulated drift plus the current view offset, so an offset that leaked into the drift
+            // would show as a difference here.
+            const yawOffset = readProbe()[28];
+            expect(yawOffset).not.toBe(0);
+            expect(shell.y).toBeCloseTo(drift + yawOffset, 6);
+            // The core and the spray follow the shell exactly.
+            for (const follower of [currentCore().object, sprayOf(scene)]) {
+                expect(follower.rotation.x).toBe(shell.x);
+                expect(follower.rotation.y).toBe(shell.y);
             }
             // The turn changed gradually, not in one step.
             expect(seen[0]).not.toBe(seen.at(-1));
@@ -1273,7 +1287,7 @@ describe('useBassInkScene', () => {
     describe('the core, the dust and the spray', () => {
         // The scene adds the shell, the core, the dust and the spray in this order.
         const sprayAlphaScale = (scene: Scene) =>
-            (scene.children[3] as unknown as { material: { uniforms: { uAlphaScale: { value: number } } } }).material
+            (sprayOf(scene) as unknown as { material: { uniforms: { uAlphaScale: { value: number } } } }).material
                 .uniforms.uAlphaScale.value;
         const geometryOf = (object: unknown) => (object as { geometry: { dispose: () => void } }).geometry;
 
@@ -1416,14 +1430,18 @@ describe('useBassInkScene', () => {
 
             const shell = currentCloud().object.rotation;
             expect(shell.y).toBeGreaterThan(0);
-            for (const index of [1, 3]) {
-                const turned = scene.children[index].rotation;
+            for (const follower of [currentCore().object, sprayOf(scene)]) {
+                const turned = follower.rotation;
                 expect(turned.x).toBe(shell.x);
                 expect(turned.y).toBe(shell.y);
                 expect(turned.z).toBe(shell.z);
             }
             // The dust drifts on its own slow clock and never copies the shell.
-            expect(scene.children[2].rotation.y).not.toBe(shell.y);
+            const dust = scene.children.find(
+                (child) =>
+                    child !== currentCloud().object && child !== currentCore().object && child !== sprayOf(scene),
+            )!;
+            expect(dust.rotation.y).not.toBe(shell.y);
         });
 
         it('rebuilds and frees all four on a density change, keeping the rotation shared', () => {
@@ -1452,8 +1470,42 @@ describe('useBassInkScene', () => {
                 bassInkConfig.director.formationSeed,
             );
             expect(currentCore().setRadius).toHaveBeenCalled();
-            expect(scene.children[1].rotation.y).toBe(currentCloud().object.rotation.y);
-            expect(scene.children[3].rotation.y).toBe(currentCloud().object.rotation.y);
+            expect(currentCore().object.rotation.y).toBe(currentCloud().object.rotation.y);
+            expect(sprayOf(scene).rotation.y).toBe(currentCloud().object.rotation.y);
+        });
+
+        // A rebuild must not move the view: the drift is carried across it and the offset keeps easing on its own.
+        it('keeps the rotation continuous across a density rebuild while a section swing is held', () => {
+            const { frame, scene, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 1 };
+            frame();
+            script.cue.transitionCount = 1;
+            script.cue.transitionStart = 0.02;
+            script.cue.transitionSeconds = 2;
+            // Let the swing ease in until it is clearly nonzero and has nearly settled.
+            for (let i = 0; i < 400; i++) frame(16);
+            expect(Math.abs(readProbe()[28])).toBeGreaterThan(0.01);
+            const before = currentCloud();
+            const turnBefore = before.object.rotation.y;
+            const oldCore = currentCore();
+
+            valuesRef.current = { ...valuesRef.current, density: 0.5 };
+            // The rebuild waits for the density to settle, and the view keeps turning while it does.
+            const ys: number[] = [];
+            for (let i = 0; i < 40; i++) {
+                frame(16);
+                ys.push(currentCloud().object.rotation.y);
+            }
+
+            expect(allClouds()).toHaveLength(2);
+            expect(currentCloud()).not.toBe(before);
+            expect(currentCore()).not.toBe(oldCore);
+            // Each frame moves the turn by a small step and none by a jump, across the rebuild too.
+            const biggestStep = Math.max(...ys.map((y, i) => Math.abs(y - (i === 0 ? turnBefore : ys[i - 1]))));
+            expect(biggestStep).toBeLessThan(0.01);
+            // The new objects carry the same rotation as the shell.
+            expect(currentCore().object.rotation.y).toBe(currentCloud().object.rotation.y);
+            expect(sprayOf(scene).rotation.y).toBe(currentCloud().object.rotation.y);
         });
 
         it('frees the core, the dust and the spray on unmount', () => {

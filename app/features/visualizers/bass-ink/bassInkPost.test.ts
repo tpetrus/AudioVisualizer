@@ -96,13 +96,27 @@ const afterimages = () => rec.afterimages as Afterimage[];
 const blooms = () => rec.blooms as Bloom[];
 const { post: config } = bassInkSceneConfig;
 
-function setup(software = false, pixelRatio = 2) {
+// By default each reading is one 60 fps frame after the last, so a spec that does not care about timing sees the
+// configured damp as it is.
+function sixtyFpsClock() {
+    let t = 0;
+    return () => (t += 1000 / 60);
+}
+
+function setup(software = false, pixelRatio = 2, now?: () => number) {
     const renderer = { render: vi.fn(), getPixelRatio: () => pixelRatio } as unknown as THREE.WebGLRenderer & {
         render: ReturnType<typeof vi.fn>;
     };
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera();
-    const post = new BassInkPost(renderer, scene, camera, { width: 800, height: 600 }, software);
+    const post = new BassInkPost(
+        renderer,
+        scene,
+        camera,
+        { width: 800, height: 600 },
+        software,
+        now ?? sixtyFpsClock(),
+    );
     return { renderer, scene, camera, post };
 }
 
@@ -331,5 +345,121 @@ describe('BassInkPost', () => {
         expect(blooms()).toHaveLength(1);
         expect(composers()[0].passes).toHaveLength(4);
         expect(composers()[0].render).toHaveBeenCalledTimes(21);
+    });
+});
+
+// A clock the tests step by hand, in milliseconds.
+function makeClock() {
+    let t = 1000;
+    return {
+        clock: () => t,
+        advance(ms: number) {
+            t += ms;
+        },
+    };
+}
+
+// The damp applied on the second frame, `ms` after the first.
+function dampAfter(ms: number, trails = 0.5): number {
+    const t = makeClock();
+    const { post } = setup(false, 2, t.clock);
+    post.apply({ trails, glow: 0 });
+    t.advance(ms);
+    post.apply({ trails, glow: 0 });
+    return afterimages().at(-1)!.uniforms.damp.value;
+}
+
+describe('BassInkPost frame-rate independence', () => {
+    beforeEach(() => {
+        rec.composers.length = 0;
+        rec.afterimages.length = 0;
+        rec.blooms.length = 0;
+    });
+
+    it('keeps the same retention per second at 30, 60 and 144 fps', () => {
+        const perSecond = (fps: number) => dampAfter(1000 / fps) ** fps;
+        expect(perSecond(30)).toBeCloseTo(perSecond(60), 9);
+        expect(perSecond(144)).toBeCloseTo(perSecond(60), 9);
+    });
+
+    it('equals trails times the configured maximum at 60 fps', () => {
+        expect(dampAfter(1000 / 60)).toBeCloseTo(0.5 * config.trailsDampMax, 9);
+    });
+
+    it('treats the first frame as a 60 fps frame', () => {
+        const { post } = setup(false, 2, makeClock().clock);
+        post.apply({ trails: 0.5, glow: 0 });
+        expect(afterimages()[0].uniforms.damp.value).toBeCloseTo(0.5 * config.trailsDampMax, 9);
+    });
+
+    it('clamps a huge frame time to 0.1 s', () => {
+        expect(dampAfter(60000)).toBeCloseTo(dampAfter(100), 12);
+    });
+
+    it('treats a clock that goes backwards as no time passing', () => {
+        expect(dampAfter(-500)).toBeCloseTo(1, 12);
+    });
+
+    it('uses a 60 fps frame when the time is not finite', () => {
+        expect(dampAfter(NaN)).toBeCloseTo(0.5 * config.trailsDampMax, 9);
+    });
+
+    it('keeps a damp of 0 at 0', () => {
+        expect(dampAfter(1000 / 144, 0)).toBe(0);
+        expect(dampAfter(0, 0)).toBe(0);
+    });
+});
+
+describe('BassInkPost tiny view', () => {
+    beforeEach(() => {
+        rec.composers.length = 0;
+        rec.afterimages.length = 0;
+        rec.blooms.length = 0;
+    });
+
+    it('turns the bloom off under 32 device pixels on either side, and back on when it grows', () => {
+        const { post } = setup(false, 2);
+        post.apply({ trails: 0, glow: 0.5 });
+        const bloom = blooms()[0];
+        expect(bloom.enabled).toBe(true);
+
+        // Width-limited: 15 * 2 = 30 px.
+        post.setSize({ width: 15, height: 600 });
+        expect(bloom.enabled).toBe(false);
+        post.apply({ trails: 0, glow: 0.5 });
+        expect(bloom.enabled).toBe(false);
+
+        // Height-limited.
+        post.setSize({ width: 800, height: 15 });
+        post.apply({ trails: 0, glow: 0.5 });
+        expect(bloom.enabled).toBe(false);
+
+        // 16 * 2 = 32 is big enough.
+        post.setSize({ width: 16, height: 16 });
+        expect(bloom.enabled).toBe(true);
+
+        post.setSize({ width: 800, height: 600 });
+        post.apply({ trails: 0, glow: 0.5 });
+        expect(bloom.enabled).toBe(true);
+    });
+
+    it('counts the pixel ratio: 20 css pixels is too small at ratio 1 and enough at ratio 2', () => {
+        const small = setup(false, 1);
+        small.post.apply({ trails: 0, glow: 0.5 });
+        small.post.setSize({ width: 20, height: 20 });
+        expect(blooms().at(-1)!.enabled).toBe(false);
+
+        const big = setup(false, 2);
+        big.post.apply({ trails: 0, glow: 0.5 });
+        big.post.setSize({ width: 20, height: 20 });
+        expect(blooms().at(-1)!.enabled).toBe(true);
+    });
+
+    it('keeps the bloom off when glow is 0, through shrinking and growing', () => {
+        const { post } = setup(false, 2);
+        post.apply({ trails: 0, glow: 0 });
+        post.setSize({ width: 10, height: 10 });
+        post.setSize({ width: 800, height: 600 });
+        expect(blooms()[0].enabled).toBe(false);
     });
 });
