@@ -170,4 +170,39 @@ describe('CubeGrid', () => {
         expect(material).toHaveBeenCalledTimes(1);
         expect(instances).toHaveBeenCalledTimes(1);
     });
+
+    describe('setMaterialOverride', () => {
+        it('draws with the override and restores the grid glass material on null', () => {
+            const grid = new CubeGrid({ columns: 3, rows: 3 });
+            const glass = grid.mesh.material;
+            const override = new THREE.MeshBasicMaterial();
+
+            grid.setMaterialOverride(override);
+            expect(grid.mesh.material).toBe(override);
+
+            grid.setMaterialOverride(null);
+            expect(grid.mesh.material).toBe(glass);
+        });
+
+        it('never disposes the override, and dispose still frees only the grid own material', () => {
+            const grid = new CubeGrid({ columns: 3, rows: 3 });
+            const glass = grid.mesh.material as THREE.Material;
+            const glassDispose = vi.spyOn(glass, 'dispose');
+            const override = new THREE.MeshBasicMaterial();
+            const overrideDispose = vi.spyOn(override, 'dispose');
+
+            grid.setMaterialOverride(override);
+            grid.dispose();
+
+            expect(overrideDispose).not.toHaveBeenCalled();
+            expect(glassDispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('is harmless after dispose', () => {
+            const grid = new CubeGrid({ columns: 3, rows: 3 });
+            grid.dispose();
+
+            expect(() => grid.setMaterialOverride(null)).not.toThrow();
+        });
+    });
 });
