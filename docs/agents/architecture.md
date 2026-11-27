@@ -303,8 +303,9 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
   "Workers Builds" check run on `main`).
 
 ## 8. Enhanced graphics preference: `app/features/settings/`
-An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting). It is off by default
-and the dancer is the only visualizer that uses it today.
+An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting) and, as the second
+visualizer, for the trio color wave (bloom, denser bars, backdrop, dust, beat accent). It is off by default. The two
+follow different patterns: the dancer rebuilds its scene on a toggle, the trio does not (see "Trio: no rebuild" below).
 - **Store:** `enhancedGraphicsStore.ts` keeps one boolean in `localStorage` under `audioVisualizer.enhancedGraphics`
   (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
   `useSyncExternalStore` (server snapshot false), so every component sees the same value. Same-tab writes notify
@@ -335,5 +336,22 @@ and the dancer is the only visualizer that uses it today.
   load its own look with a dynamic `import()` inside `setup` (check `signal.aborted` after every await), report progress
   through a status callback, and render `<EnhancedGraphicsToggle status={...} />` in the `header` slot. Keep its assets as
   `?url` imports in that chunk so standard mode never fetches them, and add its asset names to the request check in
-  `e2e/enhanced-graphics.spec.ts`. The landing toggle's description names the dancer, so reword it when a second visualizer
-  joins.
+  `e2e/enhanced-graphics.spec.ts`. The landing toggle's description (`EnhancedGraphicsToggle/strings.ts`) names every
+  visualizer that uses the preference, so reword it when another one joins.
+- **Trio: no rebuild.** `useTrioColorWaveScene` never passes the preference to `useThreeScene`, so its effect runs once
+  however often the switch is flipped and the camera pose, sheets and analyser taps stay. Instead:
+  - The subscription (`subscribeEnhancedGraphics`) lives inside `setup` and drives a small state machine
+    (`standard`, `loading`, `enhanced`, `fading-out`). The handle's `render` is always set and branches: a live look draws
+    through `look.render(dt)`, otherwise `renderer.render(scene, camera)`.
+  - The look (`trio-color-wave/enhanced/trioEnhancedLook.ts`, `createTrioEnhancedLook`) is a lazy `import()`. Turning the
+    switch off while it loads sets a cancel flag, so the resolved module is never used. Turning it on mixes the look in
+    over 0.25 s by frame delta; turning it off mixes it out, then disposes it, and turning it back on mid-fade reuses
+    the same look. An import or create failure warns once and reports `'error'`; the next off-to-on toggle retries. A
+    `webglcontextlost` on the canvas disposes the look and stays standard. Teardown unsubscribes, cancels, disposes and
+    removes the listener.
+  - Software gate: the look is used only when `resolveTrioLookMode(preference, software)` says so, with
+    `software = isSoftwareRenderer(renderer) && !isHardwareForced()` (`trioLookMode.ts`). Only e2e sets
+    `window.__audioVisualizerE2EForceHardware = true` (CI draws with SwiftShader, which would otherwise always be standard).
+  - The page passes `trioAllControls` to `ControlPanel` (so the Look section with Glow, Beat accent, Depth haze and Dust
+    appears) only while the status is `'ready'`, and keeps the values of both tables meanwhile.
+    `e2e/trio-enhanced-graphics.spec.ts` covers the trio.
