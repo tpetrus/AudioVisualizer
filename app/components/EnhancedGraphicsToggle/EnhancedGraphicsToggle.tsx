@@ -1,4 +1,5 @@
 import { useId } from 'react';
+import { Switch } from '~/components/ui';
 import { setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
 import { useCapabilityHint } from '~/features/settings/useCapabilityHint';
 import { useEnhancedGraphics } from '~/features/settings/useEnhancedGraphics';
@@ -21,28 +22,20 @@ export function EnhancedGraphicsToggle({ status, className, description }: Enhan
     const descriptionId = useId();
 
     return (
-        <div className={`text-sm text-white ${className ?? ''}`.trim()}>
-            <button
-                type="button"
-                role="switch"
-                aria-checked={enhanced}
+        <div className={`text-sm text-text ${className ?? ''}`.trim()}>
+            <Switch
+                label={ENHANCED_GRAPHICS_STRINGS.label}
+                checked={enhanced}
+                onCheckedChange={setEnhancedGraphics}
                 aria-describedby={descriptionId}
-                onClick={() => setEnhancedGraphics(!enhanced)}
-                className="inline-flex items-center gap-2 rounded border border-gray-500 px-2 py-1 hover:border-white"
-            >
-                <span>{ENHANCED_GRAPHICS_STRINGS.label}</span>
-                {/* Hidden from the accessible name; aria-checked already says the state. */}
-                <span aria-hidden="true" className="text-gray-300">
-                    {enhanced ? ENHANCED_GRAPHICS_STRINGS.on : ENHANCED_GRAPHICS_STRINGS.off}
-                </span>
-            </button>
-            <p id={descriptionId} className="mt-1 text-xs text-gray-400">
+            />
+            <p id={descriptionId} className="mt-1 text-xs text-text-muted">
                 {description ?? ENHANCED_GRAPHICS_STRINGS.description}
             </p>
             {!enhanced && capable && (
-                <p className="text-xs text-gray-400">{ENHANCED_GRAPHICS_STRINGS.capabilityHint}</p>
+                <p className="text-xs text-text-muted">{ENHANCED_GRAPHICS_STRINGS.capabilityHint}</p>
             )}
-            <p aria-live="polite" className="text-xs text-gray-300">
+            <p aria-live="polite" className="text-xs text-text">
                 {status ? ENHANCED_GRAPHICS_STRINGS.status[status] : ''}
             </p>
         </div>

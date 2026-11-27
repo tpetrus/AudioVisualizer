@@ -1,4 +1,5 @@
 import { type ReactNode, type SyntheticEvent, useMemo, useState } from 'react';
+import { Badge, Button, Checkbox, IconButton } from '~/components/ui';
 import { ControlInput } from './ControlInput';
 import { type ControlDefinition, type ControlValue, groupBySection, isModified, isShown } from './controls';
 import styles from './ControlPanel.module.css';
@@ -72,9 +73,8 @@ export function ControlPanel({
                 survive and come back as they were. */}
             <div className={collapsed ? styles.panel : `${styles.panel} ${styles.open}`} hidden={fullscreenActive}>
                 <div className={styles.bar}>
-                    <button
-                        type="button"
-                        className={styles.lock}
+                    <IconButton
+                        className={styles.iconButton}
                         onClick={() => onCameraLockedChange(!cameraLocked)}
                         aria-pressed={cameraLocked}
                         aria-label={cameraLocked ? 'Camera locked. Click to unlock' : 'Camera unlocked. Click to lock'}
@@ -85,11 +85,10 @@ export function ControlPanel({
                         }
                     >
                         {cameraLocked ? '🔒' : '🔓'}
-                    </button>
+                    </IconButton>
                     {viewChanged && (
-                        <button
-                            type="button"
-                            className={styles.resetView}
+                        <IconButton
+                            className={styles.iconButton}
                             onClick={onResetView}
                             title="Reset view: put the picture back where it started"
                             aria-label="Reset view"
@@ -98,15 +97,14 @@ export function ControlPanel({
                                 <circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.5" />
                                 <path d="M8 0v3M8 13v3M0 8h3M13 8h3" stroke="currentColor" strokeWidth="1.5" />
                             </svg>
-                        </button>
+                        </IconButton>
                     )}
-                    <button type="button" className={styles.toggle} onClick={() => setCollapsed((current) => !current)}>
+                    <Button size="sm" className={styles.toggle} onClick={() => setCollapsed((current) => !current)}>
                         {collapsed ? '☰ Settings' : '✕ Close'}
-                    </button>
+                    </Button>
                     {onToggleFullscreen && (
-                        <button
-                            type="button"
-                            className={styles.fullscreen}
+                        <IconButton
+                            className={styles.iconButton}
                             onClick={onToggleFullscreen}
                             aria-label={fullscreenLabel}
                             title={fullscreenLabel}
@@ -127,7 +125,7 @@ export function ControlPanel({
                                     <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
                                 )}
                             </svg>
-                        </button>
+                        </IconButton>
                     )}
                 </div>
 
@@ -152,7 +150,7 @@ export function ControlPanel({
                                                 className={styles.modified}
                                                 title="Settings changed from their defaults"
                                             >
-                                                {modifiedCount} changed
+                                                <Badge tone="warning">{modifiedCount} changed</Badge>
                                             </span>
                                         )}
                                     </summary>
@@ -171,8 +169,8 @@ export function ControlPanel({
                                                     {definition.type === 'range' && (
                                                         <span className={styles.value}>{value}</span>
                                                     )}
-                                                    <button
-                                                        type="button"
+                                                    <IconButton
+                                                        size="sm"
                                                         className={styles.fieldReset}
                                                         title="Reset to default"
                                                         aria-label={`Reset ${definition.label} to default`}
@@ -184,7 +182,7 @@ export function ControlPanel({
                                                         onClick={() => onChange(definition.key, definition.default)}
                                                     >
                                                         ↺
-                                                    </button>
+                                                    </IconButton>
                                                 </div>
                                             );
                                         })}
@@ -193,28 +191,24 @@ export function ControlPanel({
                         })}
 
                         <div className={styles.footer}>
-                            <button type="button" className={styles.reset} onClick={onResetAll}>
+                            <Button size="sm" className={styles.reset} onClick={onResetAll}>
                                 Reset all
-                            </button>
-                            <button type="button" className={styles.reset} onClick={() => setAudioDialogOpen(true)}>
+                            </Button>
+                            <Button size="sm" className={styles.reset} onClick={() => setAudioDialogOpen(true)}>
                                 Audio settings
-                            </button>
-                            <label className={styles.statsToggle}>
-                                <input
-                                    type="checkbox"
-                                    checked={showStats}
-                                    onChange={(event) => setShowStats(event.currentTarget.checked)}
-                                />{' '}
-                                Show performance stats
-                            </label>
-                            <label className={styles.statsToggle}>
-                                <input
-                                    type="checkbox"
-                                    checked={showRhythm}
-                                    onChange={(event) => setShowRhythm(event.currentTarget.checked)}
-                                />{' '}
-                                Show rhythm stats
-                            </label>
+                            </Button>
+                            <Checkbox
+                                className={styles.statsToggle}
+                                checked={showStats}
+                                onCheckedChange={setShowStats}
+                                label="Show performance stats"
+                            />
+                            <Checkbox
+                                className={styles.statsToggle}
+                                checked={showRhythm}
+                                onCheckedChange={setShowRhythm}
+                                label="Show rhythm stats"
+                            />
                         </div>
                     </div>
                 )}
