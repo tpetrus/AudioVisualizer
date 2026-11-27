@@ -173,3 +173,15 @@ unchanged.
 | T3 orbit | `bass-ink/bassInkOrbit.ts` and spec, `bass-ink/bassInkSceneConfig.ts` and spec, `bass-ink/useBassInkScene.ts` and spec, `bass-ink/framing.test.ts` |
 | T4 enhanced wiring | `bass-ink/useBassInkScene.ts` and spec (after T3), `bass-ink/BassInkPage.tsx` and spec |
 | T5 checks | `e2e/**`, `.size-limit.json`, `docs/agents/architecture.md` |
+
+## S0 debug:viz baseline (pre-change, branch base 4fcd7bb, this machine, headed, 2026-11-27)
+
+`npm run debug:viz -- --dir <main checkout>/.debug-in --track <t> --viz bass-ink` (whole track):
+
+| Track | Rows | Median frame | p95 frame | kicks | sprayBursts | grants | transitions | Verdict |
+|---|---|---|---|---|---|---|---|---|
+| drums-128.wav (30 s) | 1774 | 16.7 ms | 16.8 ms | 51 | 31 | 44 | 0 | no FALLOFF in 6 windows |
+| imyourgirl.wav (34.9 s) | 2069 | 16.7 ms | 16.8 ms | 69 | 67 | 51 | 0 | no FALLOFF in 7 windows |
+
+S5 repeats these with enhanced off (cells within noise) and with enhanced on (same reaction counts within noise,
+frame time for AC8 on the user's reference GPU).
