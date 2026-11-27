@@ -39,6 +39,13 @@ export const bassInkSceneConfig = {
         // turbulence at full mid level). The scene solves the cloud's world radius for it (framing.ts), so the whole
         // object stays on screen while it pulses, at any window shape. The rest shape therefore fills about half.
         fill: 0.95,
+        // Growth of each formation (in FORMATION_NAMES order) on top of its fit, for the flat ones: tipped toward the
+        // camera, the torus and the disc are as wide as the sphere but much less tall, so on a wide view they would fill
+        // far less of the height. framing.ts caps the growth by the view's width (none on a portrait view), and
+        // framing.test.ts checks their real points, with the core and the spray, against the fill across the section
+        // swing's tilt range. The most face-on tilt of the swing is what limits it: there, at the peak of every pulse,
+        // these leave the torus and the disc at about 94 percent against the 95 percent fill.
+        formationGrowth: [1, 1.1, 1, 1.12] as readonly number[],
     },
     bass: {
         // The swell and the glow are the bump itself (see swellFromBump), so there is nothing to tune for the swell.
@@ -233,6 +240,16 @@ export const bassInkSceneConfig = {
         // The swing is full at the camera-drift control's default (0.3) and above, scales down below it, and is off at
         // 0, so a user who wants a still view gets one.
         fullAtDrift: 0.3,
+    },
+    discFlow: {
+        // The galaxy disc's points stream inward along its arms (flowDiscPoint in inkShaders.ts), so the center turns
+        // faster than the rim. The speed is the share of the disc's area (squared radius) that flows past per second: at
+        // 0.04 a point takes 25 s from the rim to the center, and the rim turns at twist * speed / 2, 0.06 rad/s, on
+        // top of the drift, while a point halfway out turns twice as fast.
+        speed: 0.04,
+        // Each bass swell adds this much speed while it lasts, so a bass hit briefly spins the disc up: a full swell
+        // over a third of a second turns a point halfway out by about 13 degrees.
+        swellGain: 0.25,
     },
     post: {
         // Trails: each frame keeps the brighter of itself and the previous frame dimmed by `damp` (three's afterimage,

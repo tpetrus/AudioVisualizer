@@ -69,6 +69,38 @@ export function bandColor(
     }
 }
 
+// The galaxy disc's inward flow, the same maths as flowDisc in VERTEX_REST below. Every disc point slides inward along
+// its own spiral arm and comes back in at the rim. The flow runs in squared radius (u = r * r), the space where the
+// disc's points are spread evenly (formations.ts draws r as the square root of a uniform number), so shifting every u by
+// the same phase and wrapping it keeps the disc's density as it was. The angle follows the arm (`twist` radians of
+// winding per unit of radius), so the arms keep their shape while their points stream through them. A steady flow in u
+// is dr/dt = -v / (2r), so a point turns at twist * v / (2r) radians a second: the center turns faster than the rim, as
+// a real galaxy's does, yet the arms never wind tighter however long it runs. `phase` is the accumulated flow in units
+// of u; only its fractional part matters, so the scene keeps it in 0..1. A point on the axis (no angle) is left alone.
+// Writes into `out` and allocates nothing; the GLSL must match.
+export function flowDiscPoint(
+    rest: ArrayLike<number>,
+    phase: number,
+    twist: number,
+    out: Float32Array | number[],
+): void {
+    const x = rest[0];
+    const z = rest[2];
+    const radius = Math.hypot(x, z);
+    if (radius < 1e-6) {
+        out[0] = x;
+        out[1] = rest[1];
+        out[2] = z;
+        return;
+    }
+    const shifted = radius * radius - phase;
+    const radius2 = Math.sqrt(shifted - Math.floor(shifted));
+    const angle = Math.atan2(z, x) + twist * (radius2 - radius);
+    out[0] = radius2 * Math.cos(angle);
+    out[1] = rest[1];
+    out[2] = radius2 * Math.sin(angle);
+}
+
 // Declarations. The spectrum is the recent frequency history: x is frequency (log-spaced), y is time as a ring whose
 // newest row is at uSpectrumHead. The uniforms after it are constants from bassInkSceneConfig, set once.
 const VERTEX_HEADER = /*glsl*/ `
@@ -119,6 +151,10 @@ uniform float uDepthFade;
 uniform float uBassTint;
 uniform float uSwellTint;
 uniform float uHighTint;
+uniform float uFlowA;
+uniform float uFlowB;
+uniform float uFlowPhase;
+uniform float uDiscTwist;
 
 varying float vRadial;
 varying float vDepth;
@@ -126,14 +162,27 @@ varying float vBass;
 varying float vHigh;
 `;
 
-// Rest position: a smooth fade between the two formation sides. The build then squeezes the cloud, the breathing phase
+// Rest position: a smooth fade between the two formation sides. A side that holds the galaxy disc (uFlowA, uFlowB set
+// to 1) first flows inward along its arms (flowDiscPoint above). The build then squeezes the cloud, the breathing phase
 // swells it, every beat punches it outward, and every bass pulse swells it (displacement only: the swell never touches
 // size, alpha or color).
 const VERTEX_REST = /*glsl*/ `
+vec3 flowDisc(vec3 r, float on) {
+    float radius = length(r.xz);
+    if (on < 0.5 || radius < 0.000001) {
+        return r;
+    }
+    float radius2 = sqrt(fract(radius * radius - uFlowPhase));
+    float angle = atan(r.z, r.x) + uDiscTwist * (radius2 - radius);
+    return vec3(radius2 * cos(angle), r.y, radius2 * sin(angle));
+}
+
 void main() {
     float s = uBlend * uBlend * (3.0 - 2.0 * uBlend);
-    vec3 from = uActive < 0.5 ? position : restB;
-    vec3 to = uActive < 0.5 ? restB : position;
+    vec3 sideA = flowDisc(position, uFlowA);
+    vec3 sideB = flowDisc(restB, uFlowB);
+    vec3 from = uActive < 0.5 ? sideA : sideB;
+    vec3 to = uActive < 0.5 ? sideB : sideA;
     vec3 rest = mix(from, to, s);
     vRadial = clamp(length(rest), 0.0, 1.0);
 
