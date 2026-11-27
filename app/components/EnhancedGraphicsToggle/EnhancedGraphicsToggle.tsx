@@ -10,9 +10,12 @@ export interface EnhancedGraphicsToggleProps {
     // Only the dancer panel passes it; the landing page has no scene to report on.
     status?: EnhancedGraphicsStatus;
     className?: string;
+    // Replaces the visible description (the aria-describedby text). Absent: ENHANCED_GRAPHICS_STRINGS.description, so the
+    // landing page and the dancer render exactly as before.
+    description?: string;
 }
 
-export function EnhancedGraphicsToggle({ status, className }: EnhancedGraphicsToggleProps) {
+export function EnhancedGraphicsToggle({ status, className, description }: EnhancedGraphicsToggleProps) {
     const enhanced = useEnhancedGraphics();
     const capable = useCapabilityHint(!enhanced);
     const descriptionId = useId();
@@ -34,7 +37,7 @@ export function EnhancedGraphicsToggle({ status, className }: EnhancedGraphicsTo
                 </span>
             </button>
             <p id={descriptionId} className="mt-1 text-xs text-gray-400">
-                {ENHANCED_GRAPHICS_STRINGS.description}
+                {description ?? ENHANCED_GRAPHICS_STRINGS.description}
             </p>
             {!enhanced && capable && (
                 <p className="text-xs text-gray-400">{ENHANCED_GRAPHICS_STRINGS.capabilityHint}</p>

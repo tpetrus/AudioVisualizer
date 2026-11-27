@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { trioColorWaveControls } from './trioColorWaveControls';
+import { trioAllControls } from './trioLookControls';
 import { TrioColorWavePage } from './TrioColorWavePage';
+import { TRIO_ENHANCED_STRINGS } from './trioEnhancedStrings';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
 import { asWebAudio } from '~/test/fakeWebAudio';
 import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
@@ -42,7 +43,7 @@ describe('TrioColorWavePage', () => {
         act(() => engine.setAnalyser(analyser));
 
         expect(latestOptions().analyser).toBe(analyser);
-        const defaults = Object.fromEntries(trioColorWaveControls.map((control) => [control.key, control.default]));
+        const defaults = Object.fromEntries(trioAllControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
     });
 
@@ -75,6 +76,49 @@ describe('TrioColorWavePage', () => {
 
         await user.click(screen.getByRole('button', { name: 'Reset all' }));
         expect(latestOptions().valuesRef.current.masterHeight).toBe(1);
+    });
+});
+
+describe('TrioColorWavePage enhanced graphics', () => {
+    beforeEach(() => vi.mocked(useTrioColorWaveScene).mockClear());
+
+    it('hands the scene the tracker and a status callback, and shows the switch in the panel header', async () => {
+        const { user, tracker } = renderWithProviders(<TrioColorWavePage />);
+
+        expect(latestOptions().rhythm).toBe(tracker);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        expect(screen.getByRole('switch', { name: /Enhanced graphics/ })).toHaveAccessibleDescription(
+            TRIO_ENHANCED_STRINGS.description,
+        );
+    });
+
+    it('shows the Look section only while the enhanced look is ready', async () => {
+        const { user } = renderWithProviders(<TrioColorWavePage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        expect(screen.queryByText('Look')).not.toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus!('loading'));
+        expect(screen.getByText('Loading enhanced assets')).toBeInTheDocument();
+        expect(screen.queryByText('Look')).not.toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus!('ready'));
+        expect(screen.getByText('Enhanced graphics on')).toBeInTheDocument();
+        expect(screen.getByText('Look')).toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus!(undefined));
+        expect(screen.queryByText('Look')).not.toBeInTheDocument();
+    });
+
+    it('keeps a Look value across the section being hidden and shown again', async () => {
+        const { user } = renderWithProviders(<TrioColorWavePage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        act(() => latestOptions().onEnhancedStatus!('ready'));
+        await user.click(screen.getByText('Look'));
+        fireEvent.change(screen.getByLabelText('Glow'), { target: { value: '2' } });
+
+        act(() => latestOptions().onEnhancedStatus!(undefined));
+
+        expect(latestOptions().valuesRef.current.glowStrength).toBe(2);
     });
 });
 

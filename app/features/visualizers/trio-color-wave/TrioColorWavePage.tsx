@@ -1,26 +1,40 @@
 import { useRef, useState } from 'react';
 import { trioColorWaveControls } from './trioColorWaveControls';
+import { TRIO_ENHANCED_STRINGS } from './trioEnhancedStrings';
+import { trioAllControls } from './trioLookControls';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
 import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
+import {
+    EnhancedGraphicsToggle,
+    type EnhancedGraphicsStatus,
+} from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
 import { useAnalyser } from '~/features/audio/useAudioState';
+import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
 
 export function TrioColorWavePage() {
     const containerRef = useRef<HTMLDivElement>(null);
     const fullscreenRef = useRef<HTMLDivElement>(null);
     const fullscreen = useFullscreen(fullscreenRef);
     const analyser = useAnalyser();
-    const { values, valuesRef, setValue, resetAll } = useControlValues(trioColorWaveControls);
+    const rhythm = useRhythm();
+    // The page holds the values of every trio control, so Look values survive the look being switched off and on.
+    const { values, valuesRef, setValue, resetAll } = useControlValues(trioAllControls);
     // Locked by default: the picture can't be dragged, rotated or zoomed until the lock button is clicked.
     const [cameraLocked, setCameraLocked] = useState(true);
     // True once the view has been moved away from its starting position (shows the reset-view button).
     const [viewChanged, setViewChanged] = useState(false);
 
+    // The enhanced look's progress, undefined in standard mode. It changes a few times per toggle, never per frame.
+    const [enhancedStatus, setEnhancedStatus] = useState<EnhancedGraphicsStatus | undefined>(undefined);
+
     const { resetView } = useTrioColorWaveScene(containerRef, {
         analyser,
         valuesRef,
+        rhythm,
+        onEnhancedStatus: setEnhancedStatus,
         cameraLocked,
         onViewChanged: setViewChanged,
     });
@@ -36,7 +50,8 @@ export function TrioColorWavePage() {
                 <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
             </div>
             <ControlPanel
-                definitions={trioColorWaveControls}
+                // The Look section only exists while the enhanced look is running.
+                definitions={enhancedStatus === 'ready' ? trioAllControls : trioColorWaveControls}
                 values={values}
                 onChange={setValue}
                 onResetAll={resetAll}
@@ -46,6 +61,9 @@ export function TrioColorWavePage() {
                 onResetView={resetView}
                 fullscreenActive={fullscreen.active}
                 onToggleFullscreen={() => fullscreen.toggle()}
+                header={
+                    <EnhancedGraphicsToggle status={enhancedStatus} description={TRIO_ENHANCED_STRINGS.description} />
+                }
             />
         </>
     );
