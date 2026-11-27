@@ -1,0 +1,1116 @@
+{
+  "schema_version": 2,
+  "kind": "double-diamond-plan",
+  "run_id": "trio-enhanced-graphics-20261127t140109z-1aab418e",
+  "revision": 1,
+  "status": "final",
+  "lane": "full",
+  "risk": "R1",
+  "created": "2026-11-27T14:01:09.368Z",
+  "updated": "2026-11-27T14:09:26.949Z",
+  "feature": {
+    "slug": "trio-enhanced-graphics",
+    "title": "Trio color wave enhanced graphics",
+    "request": "Similar to how we added enhanced graphics to the dancing-character, I also want to add enhanced graphics to the trio color wave visualization. Ideate ways to enhance this visualization"
+  },
+  "project": {
+    "name": "AudioVisualizer",
+    "is_git": true,
+    "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f"
+  },
+  "problem": {
+    "statement": "The trio color wave draws three sheets of flat, unlit instanced pencil bars (RawShaderMaterial, opacity 0.8) on a plain background. Its ACES tone mapping likely has no effect, since RawShaderMaterial skips three's tone-mapping chunks. It has no glow, depth, atmosphere or rhythm-driven accents. The app-wide Enhanced graphics toggle (on origin/main, from the dancer work) gives users a richer look on capable machines, but the trio ignores it.",
+    "users": [
+      "Viewers watching the trio color wave on a desktop GPU who turned Enhanced graphics on",
+      "Viewers on weak or software-rendered GPUs who need the current look to stay fast"
+    ],
+    "evidence": [
+      "context-brief.md: trioColorWaveSheet.ts, pencilFlagsMesh.ts and fragment.ts:9 show unlit vColor output",
+      "context-brief.md: bass-ink/bassInkPost.ts is the repo's working bloom and afterimage pipeline, with a software bypass",
+      "User: origin/main already has the enhanced graphics toggle"
+    ]
+  },
+  "goals": [
+    "When Enhanced graphics is on, the trio renders a clearly richer look: HDR glow, depth or atmosphere, finer geometry and rhythm-driven accents",
+    "With the toggle off, or on a software renderer, the trio looks and performs exactly as today",
+    "Switching the toggle on the trio page takes effect without a reload and leaks nothing",
+    "Reuse the existing toggle, the bass-ink post-processing pattern, useThreeScene and useRhythm instead of new infrastructure"
+  ],
+  "non_goals": [
+    "Changing the existing enhanced graphics toggle's contract, storage key or landing-page UI",
+    "Changing the standard (toggle off) trio look, its controls' meaning or its audio analysis path",
+    "Enhancing any other visualizer",
+    "Upgrading three.js or adding non-three runtime dependencies",
+    "Heavy downloaded assets (HDRs, textures over a few hundred kB)"
+  ],
+  "success_metrics": [
+    "On the user's desktop GPU in npm run dev at 1080p and DPR 2, enhanced mode keeps p5 frame time under 17 ms in PerformanceStats over a 60 s track",
+    "Total JS growth at or under 6 kB gzip, enhanced code in a lazy chunk",
+    "Lighthouse on / and the existing e2e suite stay green with no new console errors or WebGL-context warnings",
+    "The user judges the enhanced look a clear upgrade from the PR's side-by-side screenshots"
+  ],
+  "constraints": [
+    "Plan against origin/main (68fcb93 or later), which holds the enhanced graphics toggle; implementation starts by pulling main",
+    "three.js r186 pinned; addons from three/addons",
+    "Named exports, logic outside React, no React state in the render loop, no per-frame allocation, every GPU resource disposed (AGENTS.md rules 1-5)",
+    "95% coverage over app/**; specs beside files",
+    "Software-WebGL e2e and Lighthouse (SwiftShader) must keep passing; enhanced mode falls back on software renderers",
+    "A deliberate UI change needs regenerated visual baselines through the Update visual snapshots workflow",
+    "Budget raises go in the same PR with the reason"
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC1",
+      "given": "Enhanced graphics is off",
+      "when": "the user opens /trio-color-wave",
+      "then": "the scene renders the current look and no enhanced chunk is requested. The trio settings-panel visual baseline matches origin/main's baseline as read in S0."
+    },
+    {
+      "id": "AC2",
+      "given": "Enhanced graphics is on and the renderer is hardware",
+      "when": "the trio plays audio",
+      "then": "the bars glow (bloom on HDR linear colours, with ACES and sRGB applied once by OutputPass) and show the depth backdrop and the denser bars. The PR attaches standard and enhanced screenshots of the same moment, with renderer.info render calls and programs recorded for both."
+    },
+    {
+      "id": "AC3",
+      "given": "Enhanced graphics is on",
+      "when": "a beat or bass onset that passes the accent's re-trigger gate (at most 3 per second) arrives from the rhythm tracker or bass level",
+      "then": "the pulse rises in that same frame's update, with peak amplitude capped and scaled by the accent intensity control. Under prefers-reduced-motion the pulse is damped and the shockwave and dust drift are off."
+    },
+    {
+      "id": "AC4",
+      "given": "Enhanced graphics is on and isSoftwareRenderer is true (CI, Lighthouse)",
+      "when": "the trio renders",
+      "then": "it uses the standard render path with no composer, and the e2e and Lighthouse checks pass unchanged"
+    },
+    {
+      "id": "AC5",
+      "given": "the trio page is open",
+      "when": "the user toggles Enhanced graphics on and off five times",
+      "then": "the look switches without a reload, and the useThreeScene effect runs once across all toggles, so the camera pose is kept. Toggling during a crossfade or while the chunk loads leaves one look at most. On a hardware run, renderer.info.memory and programs return to their pre-toggle values. The forced-enhanced e2e spec sees one canvas, the context count within the fixture limit and no console errors."
+    },
+    {
+      "id": "AC6",
+      "given": "Enhanced graphics is on",
+      "when": "the user opens the trio control panel",
+      "then": "a Look section offers glowStrength, accentIntensity, depth and dust sliders, merged in by the page only in enhanced hardware mode and read through valuesRef. ControlPanel is unchanged, and the values persist with the other trio control values."
+    },
+    {
+      "id": "AC7",
+      "given": "a production build",
+      "when": "npm run size runs",
+      "then": "the enhanced trio code sits in a lazily loaded chunk. Total JS growth stays at or under 6 kB gzip, measured after S1 and again after S4. The budget in .size-limit.json is raised in the same PR by exactly the measured amount, with the reason stated."
+    }
+  ],
+  "decisions": [
+    {
+      "id": "D1",
+      "question": "Opt-in toggle or replace the current look?",
+      "answer": "Use the enhanced graphics toggle already on origin/main.",
+      "decided_by": "user",
+      "rationale": "The user confirmed origin/main holds it; local main (c03849a) is one fetch behind."
+    },
+    {
+      "id": "D2",
+      "question": "Which enhancement directions matter?",
+      "answer": "All four: lighting and glow, more audio reactivity, atmosphere and depth, geometry detail.",
+      "decided_by": "user",
+      "rationale": "User selected every direction."
+    },
+    {
+      "id": "D3",
+      "question": "Must the current trio color wave identity stay recognisable?",
+      "answer": "Free to reinvent.",
+      "decided_by": "user",
+      "rationale": "User allows a bigger visual change in enhanced mode."
+    },
+    {
+      "id": "D4",
+      "question": "Acceptable bundle and performance cost?",
+      "answer": "Modest; raise the size budget if justified in the PR.",
+      "decided_by": "user",
+      "rationale": "Matches how recent PRs raised the JS budget with a stated reason."
+    },
+    {
+      "id": "D5",
+      "question": "What happens with enhanced on but a software renderer?",
+      "answer": "Fall back to the current look, as bass-ink bypasses its glow.",
+      "decided_by": "user",
+      "rationale": "Keeps CI, Lighthouse and weak machines fast."
+    },
+    {
+      "id": "D6",
+      "question": "Which API does the toggle expose?",
+      "answer": "Assume the dancer plan's contract: getEnhancedGraphics, subscribeEnhancedGraphics and useEnhancedGraphics in app/features/settings, and the ControlPanel header prop. Slice S1 verifies it against origin/main and adapts.",
+      "decided_by": "planner-assumption",
+      "rationale": "The local checkout cannot read origin/main; the untracked dancer plan defines these names."
+    },
+    {
+      "id": "D7",
+      "question": "Where does post-processing come from?",
+      "answer": "Follow bass-ink: EffectComposer, UnrealBloomPass and OutputPass from three/addons through the useThreeScene render hook, with isSoftwareRenderer from bass-ink/renderBudget.ts (moved to a shared place if it is imported from two features).",
+      "decided_by": "repo-fact",
+      "rationale": "bassInkPost.ts is the only working composer and already passes the budgets."
+    },
+    {
+      "id": "D8",
+      "question": "How is the enhanced path tested in CI, where WebGL is software?",
+      "answer": "C1 takes an override that only e2e sets: an init script sets a window flag that makes the software check report hardware. One e2e spec forces enhanced mode at a small canvas under SwiftShader. A recorded hardware run of renderer.info before and after five toggles backs AC5.",
+      "decided_by": "planner-assumption",
+      "rationale": "Critic F1: otherwise the toggle e2e passes vacuously. App code never imports e2e; it only reads a flag."
+    },
+    {
+      "id": "D9",
+      "question": "How are denser bars achieved without touching the audio path?",
+      "answer": "The lazy look builds its own denser PencilFlagsMesh per sheet, fed by interpolating the existing sheet's height and colour arrays, and hides the standard sheet mesh while enhanced. Each sheet's AnalyserNode and its FFT mapping are unchanged.",
+      "decided_by": "planner-assumption",
+      "rationale": "Critic F2: keeps the non-goal that the audio analysis path is unchanged, and needs no rebuild on toggle."
+    },
+    {
+      "id": "D10",
+      "question": "How does the Look section appear only in enhanced mode?",
+      "answer": "A second definitions array (trioLookControls) that the page appends when the mode is enhanced. ControlPanel and isShown are untouched.",
+      "decided_by": "planner-assumption",
+      "rationale": "Critic F6: avoids changing the shared ControlPanel contract."
+    }
+  ],
+  "scoring": {
+    "weights": {}
+  },
+  "options": [
+    {
+      "id": "O1",
+      "source": "ideator",
+      "lens": "minimal",
+      "summary": "When Enhanced graphics is on (hardware only), lazily load one module that adds a bass-ink-style bloom composer, an HDR gain on bar colors via a uniform, and a beat-driven glow pulse, with Look sliders; everything else stays unchanged.",
+      "approach": [
+        "S1: pull origin/main, verify getEnhancedGraphics/subscribeEnhancedGraphics/useEnhancedGraphics and the ControlPanel header prop; adapt names.",
+        "Move isSoftwareRenderer to a shared lib path (or import it from bass-ink) so trio can gate on it.",
+        "Add trioEnhancedPost.ts (lazy import): EffectComposer + RenderPass + UnrealBloomPass + OutputPass, ACES tone mapping in OutputPass, copied from bassInkPost.ts; returns {render, setSize, dispose}.",
+        "Add an optional uHdr gain uniform to the pencil bar material (default 1.0, so the off look is byte-identical); the sheets multiply color by it only in enhanced mode.",
+        "Accent: a per-frame pulse scalar from useRhythm beat state (instant attack, exponential decay) drives bloom strength and uHdr, scaled by the accentIntensity control; no allocation.",
+        "Depth/atmosphere: add scene.fog (cheap) and a dark gradient background color in enhanced mode only; skip geometry changes.",
+        "Look section in trioColorWaveControls (glowStrength, accentIntensity), shown only when enhanced; useTrioColorWaveScene toggles the render hook and disposes the composer on toggle without rebuilding the renderer."
+      ],
+      "components": [
+        {
+          "name": "trioEnhancedPost",
+          "responsibility": "Lazy composer, bloom, output pass, pulse, dispose",
+          "location": "app/features/visualizers/trio-color-wave/trioEnhancedPost.ts"
+        },
+        {
+          "name": "pencil material uHdr uniform",
+          "responsibility": "HDR gain on bar color",
+          "location": "app/features/visualizers/meshes/pencilFlagsMesh.ts, shaders/fragment.ts"
+        },
+        {
+          "name": "scene hook wiring",
+          "responsibility": "Subscribe to the toggle, attach or detach the render hook, fog",
+          "location": "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+        },
+        {
+          "name": "Look controls",
+          "responsibility": "Glow and accent sliders, enhanced-only",
+          "location": "app/features/visualizers/trio-color-wave/trioColorWaveControls.ts"
+        }
+      ],
+      "contracts": [
+        "createTrioEnhancedPost(renderer, scene, camera, valuesRef): { render(dt, beat), setSize(w,h), dispose() }",
+        "PencilFlagsMesh gains setHdr(gain:number); the default uniform of 1 keeps standard output unchanged",
+        "Control values: glowStrength, accentIntensity (bounded ranges)"
+      ],
+      "pros": [
+        "Smallest diff; reuses the bass-ink pattern and the shared toggle",
+        "The off and software paths are untouched, so AC1 and AC4 are cheap",
+        "The lazy chunk reuses already-bundled three addons, so the size growth is small"
+      ],
+      "cons": [
+        "Geometry detail (a direction in D2) is not addressed",
+        "Fog and a flat gradient give modest depth only",
+        "A uniform added to the shared pencil material touches shared code"
+      ],
+      "risks": [
+        "The toggle API may differ from D6; S1 adapts",
+        "Bar alpha 0.8 with transparent blending may bloom unevenly; may need an opaque pass",
+        "Attaching or detaching the composer live must keep the camera pose and leak nothing (AC5)"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 5,
+        "risk": 4,
+        "effort": 4,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 4.25
+    },
+    {
+      "id": "O2",
+      "source": "ideator",
+      "lens": "robust",
+      "summary": "A lazily loaded TrioEnhancedLook module owns an HDR shader variant, bloom composer, depth fog backdrop and a beat shockwave, wired through one lifecycle handle that is built and fully disposed on every toggle change, with a shared software-renderer gate.",
+      "approach": [
+        "S1: pull origin/main, verify the toggle API (D6), move isSoftwareRenderer to app/lib/three/renderBudget.ts and re-export from bass-ink so both features import one gate.",
+        "Add a pure resolveTrioLookMode(enhanced, software) returning 'standard' or 'enhanced'; the scene hook uses it so software always gets the standard path with no dynamic import (AC1, AC4).",
+        "Scene hook dynamic-imports createTrioEnhancedLook(scene, renderer, camera) only in enhanced mode; it returns {render, setPulse, dispose}. Hook effect cleanup awaits a cancelled flag so a late import never attaches after toggle-off (AC5 race).",
+        "Enhanced look: HDR variant of the pencil fragment (a uniform emissive gain over 1.0, tone mapping applied manually in-shader because RawShaderMaterial skips chunks), EffectComposer, UnrealBloomPass, OutputPass, an exponential fog plane or starfield Points backdrop, and a ring shockwave mesh pooled once.",
+        "Rhythm accent: read useRhythm tracker state and bass level from refs each frame; a rising edge writes uShock and a decaying glow gain uniform, scaled by the accent slider and clamped to a max (AC3).",
+        "Add a Look section to trioColorWaveControls (glow strength, accent intensity, fog density), shown only when enhanced; values read via valuesRef.",
+        "Tests: unit for mode resolution, dispose of every composer, target, geometry and material across five toggles, late-import cancel; e2e toggle cycle with context count; size raise in the same PR."
+      ],
+      "components": [
+        {
+          "name": "renderBudget (shared)",
+          "responsibility": "isSoftwareRenderer gate used by bass-ink and trio",
+          "location": "app/lib/three/renderBudget.ts"
+        },
+        {
+          "name": "resolveTrioLookMode",
+          "responsibility": "Pure mode decision from toggle and renderer",
+          "location": "app/features/visualizers/trio-color-wave/trioLookMode.ts"
+        },
+        {
+          "name": "createTrioEnhancedLook",
+          "responsibility": "Lazy composer, bloom, backdrop, shockwave, single dispose",
+          "location": "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts"
+        },
+        {
+          "name": "HDR pencil variant",
+          "responsibility": "Emissive-gain fragment shader and uniforms, standard shader untouched",
+          "location": "app/features/visualizers/meshes/shaders/ (new file) and pencilFlagsMesh.ts option"
+        },
+        {
+          "name": "Look controls",
+          "responsibility": "Enhanced-only sliders",
+          "location": "trioColorWaveControls.ts"
+        }
+      ],
+      "contracts": [
+        "createTrioEnhancedLook(deps): { render(): void; setAccent(level: number): void; dispose(): void }",
+        "resolveTrioLookMode(enhanced: boolean, software: boolean): 'standard' | 'enhanced'",
+        "PencilFlagsMesh options gain optional hdrGain uniform; default path byte-identical",
+        "isSoftwareRenderer moves to app/lib/three/renderBudget.ts with a re-export"
+      ],
+      "pros": [
+        "Standard and software paths are structurally untouched, which makes AC1 and AC4 provable",
+        "Single dispose handle and cancel flag make the five-toggle leak and race test deterministic",
+        "Shared gate avoids two divergent software checks"
+      ],
+      "cons": [
+        "Moving renderBudget touches bass-ink imports",
+        "Manual in-shader tone mapping duplicates a little three logic",
+        "More tests and code than a glow-only change"
+      ],
+      "risks": [
+        "Bundle growth near 6 kB gzip; composer addons are shared with bass-ink so they may dedupe",
+        "Preserving camera pose when useThreeScene rebuilds on antialias change",
+        "Bloom plus 0.8 opacity transparent bars may wash out; may need premultiplied output",
+        "Toggle API may differ from D6 assumptions"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 3,
+        "reversibility": 5
+      },
+      "total": 3.55
+    },
+    {
+      "id": "O3",
+      "source": "ideator",
+      "lens": "experience",
+      "summary": "A lazy enhanced trio look (bloom, HDR emissive bars, fog-like depth backdrop, beat shockwave) that crossfades in and out on toggle, keeps camera pose, and shows a clear Look section whose sliders always have visible effect.",
+      "approach": [
+        "S1: pull main, verify the toggle API (useEnhancedGraphics, ControlPanel header) and adapt; move isSoftwareRenderer to a shared lib.",
+        "Trio scene hook subscribes to the toggle; when on and hardware, dynamic-imports trioEnhancedLook (lazy chunk) and attaches it via the useThreeScene render hook; standard path is untouched until loaded, so there is no blank frame while loading.",
+        "Enhanced look: bar fragment shader variant emits HDR colour (gain from Glow), bloom plus OutputPass tone mapping, a depth backdrop (gradient fog plane and drifting dust points, one draw call each), and per-band height-based emissive rim for finer bar detail.",
+        "Rhythm accent: useRhythm beat or bass onset sets a pulse uniform in the same frame; decays smoothly; a shockwave ring ripples across the sheets; Accent slider caps intensity, and the accent is a brightness and ripple only, with no flashing above 3 per second (cap via a minimum re-trigger interval).",
+        "Toggle switch: 250 ms crossfade of bloom strength and backdrop opacity (no hard pop), camera pose kept because the renderer is not rebuilt; antialias only if useThreeScene deps allow without rebuild, otherwise skip it.",
+        "Look section (Glow, Accent, Depth, Dust) is added only when enhanced and hardware; on software fallback the section is hidden and the header shows a short note that the standard look is in use.",
+        "Respect prefers-reduced-motion: disable shockwave and dust drift, keep static glow; tests, size budget raise and baselines regenerated."
+      ],
+      "components": [
+        {
+          "name": "trioEnhancedLook",
+          "responsibility": "Composer, bloom, backdrop, shockwave, crossfade, dispose",
+          "location": "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts"
+        },
+        {
+          "name": "trioEnhancedControls",
+          "responsibility": "Look section definitions merged only when enhanced",
+          "location": "app/features/visualizers/trio-color-wave/trioColorWaveControls.ts"
+        },
+        {
+          "name": "Scene hook wiring",
+          "responsibility": "Toggle subscription, lazy load, render hook, fallback",
+          "location": "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+        },
+        {
+          "name": "emissive bar shader",
+          "responsibility": "HDR output variant of fragment",
+          "location": "app/features/visualizers/meshes/shaders/"
+        }
+      ],
+      "contracts": [
+        "createTrioEnhancedLook(renderer, scene, camera, getValues, rhythmRef) returns { render(dt), setMix(0..1), dispose() }",
+        "Trio controls gain Look keys glow, accent, depth, dust read via valuesRef",
+        "isSoftwareRenderer moved to a shared module"
+      ],
+      "pros": [
+        "No blank or jarring transitions; camera and audio uninterrupted",
+        "Sliders only appear when they work, so no dead controls",
+        "Motion safety and reduced-motion handled",
+        "Covers all four directions chosen"
+      ],
+      "cons": [
+        "Crossfade and reduced-motion add code and tests, pushing toward the 6 kB gzip ceiling",
+        "Hiding the Look section changes panel layout per mode"
+      ],
+      "risks": [
+        "Dynamic panel contents could shift visual baselines",
+        "Lazy chunk failure must silently keep the standard look and not leave the toggle appearing on with no effect",
+        "Bloom cost at DPR 2 may miss 60 fps; lower bloom resolution"
+      ],
+      "effort": "M",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 3,
+        "effort": 3,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 3.8
+    },
+    {
+      "id": "O4",
+      "source": "ideator",
+      "lens": "contrarian",
+      "summary": "Skip the EffectComposer: make the trio's enhanced look a shader-only variant (additive halo quads, inline ACES, depth fog, beat-pulse uniform), breaking the assumption that glow requires a post-processing pass.",
+      "approach": [
+        "S1: pull main; verify the toggle API (D6) and read useEnhancedGraphics in the trio scene hook.",
+        "Lazy-load a trioEnhancedMaterial chunk only when enhanced is on and !isSoftwareRenderer; otherwise keep the current PencilFlagsMesh material untouched.",
+        "Enhanced fragment shader: HDR-ish color boost, inline ACES tonemap (since RawShaderMaterial skips three's chunks), radial soft-edge falloff, distance fog toward background for depth.",
+        "Glow: second instanced pass over the same instance buffers with enlarged quads, gaussian alpha falloff, AdditiveBlending, depthWrite false. No render targets, no composer.",
+        "Rhythm accent: uPulse uniform set from useRhythm/analyser bass state in the existing per-frame update (same frame), scaled by an accent-intensity control; decays exponentially.",
+        "Finer geometry: raise segment or instance density in enhanced mode via the same sheet code.",
+        "Add a Look section (Glow strength, Accent intensity) shown only when enhanced; swap materials on toggle without rebuilding the renderer, so camera pose persists."
+      ],
+      "components": [
+        {
+          "name": "trioEnhancedMaterial",
+          "responsibility": "Lazy shader variant: halo pass, ACES, fog, pulse uniform; dispose method",
+          "location": "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedMaterial.ts"
+        },
+        {
+          "name": "Scene hook swap",
+          "responsibility": "Choose material by toggle plus software gate; dispose old one on switch",
+          "location": "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+        },
+        {
+          "name": "Look controls",
+          "responsibility": "Enhanced-only glow and accent sliders via valuesRef",
+          "location": "app/features/visualizers/trio-color-wave/trioColorWaveControls.ts"
+        }
+      ],
+      "contracts": [
+        "createTrioEnhancedMaterial(): { halo: RawShaderMaterial, core: RawShaderMaterial, setPulse(v:number), dispose() }",
+        "Controls gain glowStrength and accentIntensity, read through valuesRef"
+      ],
+      "pros": [
+        "No composer, render targets or extra WebGL contexts, so AC5 disposal and context-count risk nearly vanish",
+        "Smallest bundle growth; far cheaper on fill rate than full-screen bloom at DPR 2",
+        "Software fallback is trivially the existing material",
+        "Does not touch useThreeScene or antialias deps"
+      ],
+      "cons": [
+        "Not true bloom: glow is per-bar halo, so no light bleed across overlapping sheets or HDR threshold",
+        "Contradicts D7's chosen composer pattern and AC2's literal 'bloom on HDR' wording",
+        "Additive overdraw on three overlapping sheets can wash out"
+      ],
+      "risks": [
+        "Halo quads may look cheap versus real bloom; user may judge it not a clear upgrade",
+        "Overdraw cost at 1080p DPR 2 unmeasured"
+      ],
+      "effort": "M",
+      "covers_all_acs": false,
+      "uncovered_acs": [
+        "AC2 (literal bloom pass on HDR colors; satisfied only as shader-approximated glow)"
+      ],
+      "confidence": "medium",
+      "scores": {
+        "fit": 3,
+        "risk": 4,
+        "effort": 4,
+        "ux": 2,
+        "reversibility": 5
+      },
+      "total": 3.5
+    },
+    {
+      "id": "O5",
+      "source": "lead",
+      "lens": "hybrid",
+      "summary": "Hybrid of O2, O3 and O4. O2 supplies the structure: a pure mode decision, a shared software gate, one lazy look handle with a cancel flag and a single dispose, and an untouched standard shader. O3 supplies the experience: HDR bars with bloom, a depth backdrop with dust, a beat shockwave capped for flashing, a short crossfade, reduced motion and silent failure fallback. O4 adds finer geometry: higher bar density in enhanced mode.",
+      "approach": [
+        "S1: pull origin/main and verify the toggle API (D6); move isSoftwareRenderer to app/lib/three/renderBudget.ts with a bass-ink re-export; add the pure resolveTrioLookMode(enhanced, software).",
+        "The scene hook subscribes to the toggle and, in enhanced mode only, dynamic-imports createTrioEnhancedLook. A cancel flag disposes a look that resolves after toggle-off. It attaches through the useThreeScene render hook without rebuilding the renderer, so the camera pose is kept.",
+        "Enhanced look: a new HDR fragment variant of the pencil bars (emissive gain over 1, standard fragment untouched), EffectComposer with RenderPass, UnrealBloomPass at half resolution and OutputPass (ACES), as in bassInkPost.ts.",
+        "Depth: a gradient backdrop plane with fog falloff and one Points draw of drifting dust, both preallocated.",
+        "Rhythm accent: the beat or bass onset from useRhythm and analyser refs, read in the frame loop, sets a pulse and a pooled shockwave-ring uniform the same frame. Accent slider scales it, with a minimum re-trigger interval (no more than 3 flashes per second). Under prefers-reduced-motion the shockwave and dust drift are off.",
+        "Geometry detail: enhanced mode raises the bar instance density and adds a height-based emissive rim in the HDR shader; buffers are sized once at build time.",
+        "Look section (Glow, Accent, Depth, Dust) appears in trioColorWaveControls only in enhanced hardware mode, read through valuesRef. A 250 ms crossfade of bloom and backdrop on toggle. If the lazy chunk fails, one console warning and the standard look stays."
+      ],
+      "components": [
+        {
+          "name": "renderBudget (shared)",
+          "responsibility": "isSoftwareRenderer gate for bass-ink and trio",
+          "location": "app/lib/three/renderBudget.ts"
+        },
+        {
+          "name": "resolveTrioLookMode",
+          "responsibility": "Pure mode decision",
+          "location": "app/features/visualizers/trio-color-wave/trioLookMode.ts"
+        },
+        {
+          "name": "createTrioEnhancedLook",
+          "responsibility": "Lazy composer, bloom, HDR bars, backdrop, dust, shockwave, crossfade, single dispose",
+          "location": "app/features/visualizers/trio-color-wave/enhanced/"
+        },
+        {
+          "name": "HDR pencil fragment",
+          "responsibility": "Emissive gain and rim, separate from the standard fragment",
+          "location": "app/features/visualizers/meshes/shaders/"
+        },
+        {
+          "name": "Scene hook wiring",
+          "responsibility": "Toggle subscription, lazy load, cancel, render hook",
+          "location": "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+        },
+        {
+          "name": "Look controls",
+          "responsibility": "Enhanced-only sliders",
+          "location": "app/features/visualizers/trio-color-wave/trioColorWaveControls.ts"
+        }
+      ],
+      "contracts": [
+        "C1 resolveTrioLookMode",
+        "C2 createTrioEnhancedLook handle",
+        "C3 shared isSoftwareRenderer",
+        "C4 Look control keys"
+      ],
+      "pros": [
+        "Covers all four directions the user chose (D2) with a structure that makes AC1, AC4 and AC5 provable",
+        "Standard and software paths stay structurally untouched",
+        "Motion safety, failure fallback and smooth switching are defined, not left to implementation"
+      ],
+      "cons": [
+        "Effort about L, the largest option",
+        "The most code under the about 6 kB gzip target; the lazy chunk must carry it",
+        "Moving renderBudget touches bass-ink imports"
+      ],
+      "risks": [
+        "Bloom at DPR 2 may miss 60 fps; mitigated by half-resolution bloom",
+        "Toggle API may differ from D6",
+        "Panel contents change per mode, so baselines move"
+      ],
+      "effort": "L",
+      "covers_all_acs": true,
+      "uncovered_acs": [],
+      "confidence": "medium",
+      "scores": {
+        "fit": 4,
+        "risk": 4,
+        "effort": 2,
+        "ux": 5,
+        "reversibility": 5
+      },
+      "total": 3.85
+    }
+  ],
+  "dropped_options": [],
+  "chosen_option": "O5",
+  "decision_rationale": "O1 scores highest because it is cheapest, but it drops geometry detail and gives only fog for depth. The user chose all four enhancement directions (D2) and allowed a reinvented look (D3), and the success metric is a clear upgrade. O5 keeps O1's bass-ink reuse and adds O2's provable lifecycle (cancel flag, single dispose, pure mode gate) for AC5. It also adds O3's accent, motion and failure states, and O4's denser geometry. O4 alone was rejected: halo quads only approximate bloom (AC2). O3 alone leaves the lifecycle race unspecified.",
+  "design": {
+    "overview": "The trio keeps its current render path as the standard look. setup returns one stable render() that branches on a mode held in a ref. The toggle subscription lives in that ref, never in the useThreeScene deps or the antialias option, so the renderer is never rebuilt. In enhanced mode, resolved inside setup from the toggle and isSoftwareRenderer (or the e2e override), the hook lazy-loads createTrioEnhancedLook. That look builds denser HDR bar meshes fed by the sheets' height arrays (standard sheets hidden), a backdrop, dust, a shockwave ring and a bass-ink-style bloom composer. A small state machine (standard, loading, enhanced, fading-out) governs transitions.",
+    "components": [
+      {
+        "name": "renderBudget",
+        "responsibility": "Shared isSoftwareRenderer",
+        "location": "app/lib/three/renderBudget.ts"
+      },
+      {
+        "name": "trioLookMode",
+        "responsibility": "Pure mode resolution",
+        "location": "app/features/visualizers/trio-color-wave/trioLookMode.ts"
+      },
+      {
+        "name": "trioEnhancedLook",
+        "responsibility": "Enhanced resources and per-frame update, single dispose",
+        "location": "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts"
+      },
+      {
+        "name": "trioAccent",
+        "responsibility": "Pure pulse envelope: attack, decay, minimum re-trigger interval",
+        "location": "app/features/visualizers/trio-color-wave/enhanced/trioAccent.ts"
+      },
+      {
+        "name": "HDR pencil fragment",
+        "responsibility": "Emissive gain, rim, pulse uniforms",
+        "location": "app/features/visualizers/meshes/shaders/hdrFragment.ts"
+      }
+    ],
+    "contracts": [
+      {
+        "id": "C1",
+        "name": "resolveTrioLookMode",
+        "kind": "pure function",
+        "definition": "resolveTrioLookMode(enhanced: boolean, software: boolean): 'standard' | 'enhanced', which is enhanced only when enhanced is true and software is false. software comes from isSoftwareRenderer(renderer) unless the e2e-only window flag forces hardware (D8). It is evaluated inside setup, after the renderer exists and before any import."
+      },
+      {
+        "id": "C2",
+        "name": "createTrioEnhancedLook",
+        "kind": "module API (lazy chunk)",
+        "definition": "createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard."
+      },
+      {
+        "id": "C3",
+        "name": "isSoftwareRenderer (shared)",
+        "kind": "module API",
+        "definition": "isSoftwareRenderer(renderer): boolean moves unchanged to app/lib/three/renderBudget.ts; bass-ink/renderBudget.ts re-exports it"
+      },
+      {
+        "id": "C4",
+        "name": "Look control keys",
+        "kind": "control config",
+        "definition": "trioLookControls (a separate definitions array, appended by the page only in enhanced mode) adds glowStrength (0 to 3), accentIntensity (0 to 1), depth (0 to 1) and dust (0 to 1). Values persist with the other trio control values. Standard-mode keys, defaults and ControlPanel are unchanged."
+      },
+      {
+        "id": "C5",
+        "name": "Trio scene rhythm input",
+        "kind": "hook option",
+        "definition": "useTrioColorWaveScene gains an optional rhythmRef (the useRhythm tracker state ref), passed by the trio page the way BassInkPage and DancingCharacterPage do. The standard path ignores it."
+      }
+    ],
+    "data": "No new persisted data. The toggle's existing localStorage key is reused unchanged. Look slider values follow useControlValues like the other trio controls.",
+    "ux": "The toggle comes from origin/main's shared control (no new UI for it). Switching crossfades over 250 ms, and the camera is kept. The Look section appears only when enhanced is active. On a software renderer the trio shows the standard look and no Look section. A chunk-load failure keeps the standard look and logs one warning.",
+    "accessibility": "trioAccent caps the pulse rate (3 per second) and the peak amplitude. Under prefers-reduced-motion, read through a subscribed matchMedia query so a mid-session change applies, the glow pulse is damped to a gentle level and the shockwave and dust drift are off. Sliders reuse ControlPanel's labelled inputs.",
+    "security_privacy": "None: client-side rendering only, no new network or storage.",
+    "observability": "One console.warn on chunk-load failure. The dev PerformanceStats overlay shows frame rate for the 60 fps check.",
+    "rollout": "Behind the existing Enhanced graphics toggle, default per origin/main. Rollback is toggling off or reverting the PR; the standard path is unchanged."
+  },
+  "test_strategy": {
+    "unit": "trioLookMode truth table including the e2e override. trioAccent: gate, same-frame rise, amplitude cap and reduced-motion damping, each tested separately. trioEnhancedLook with the app/test three fakes: build, five toggle cycles dispose every created resource, double dispose is safe, standard meshes are unhidden. The hook's state machine: toggle-off during loading disposes the late look; toggle-on during fading-out reuses the handle; import failure goes to standard, warns once and retries on the next toggle; context loss disposes. trioLookControls is appended only in enhanced mode.",
+    "integration": "useTrioColorWaveScene with injected tracker and the fake renderer: render hook attached only in enhanced hardware mode, camera pose unchanged across toggles.",
+    "e2e": "The existing suite passes on the standard path. A new trio spec uses the e2e-only flag to force enhanced mode at a small canvas, toggles five times and asserts one canvas, the context count within the fixture limit and no console errors. Visual baselines are regenerated through the Update visual snapshots workflow when the panel changes.",
+    "manual": "On the user's hardware GPU in npm run dev, compare standard and enhanced with a real track and attach the screenshots to the PR. Record renderer.info memory and programs before and after five toggles. Check p5 frame time under 17 ms at 1080p, DPR 2; beats visibly accent; reduced motion damps the pulse; no WebGL warnings.",
+    "non_functional": "npm run size: enhanced code in a lazy chunk, total JS raised only by the measured amount with the reason in the PR. npm run lighthouse stays within budget."
+  },
+  "risks": [
+    {
+      "id": "K1",
+      "description": "The toggle API on origin/main differs from the dancer plan's names (D6)",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "S0 reads origin/main and adapts names before any code that depends on the toggle"
+    },
+    {
+      "id": "K2",
+      "description": "Bloom plus denser bars miss 60 fps at DPR 2",
+      "likelihood": "medium",
+      "impact": "medium",
+      "mitigation": "Half-resolution bloom, density set once from config, and the Glow slider set to 0 skips the bloom pass"
+    },
+    {
+      "id": "K3",
+      "description": "A late lazy import or a toggle during the crossfade leaks GPU resources",
+      "likelihood": "medium",
+      "impact": "high",
+      "mitigation": "Cancel flag plus idempotent dispose (C2), unit test resolving the import after toggle-off, and an e2e five-toggle spec"
+    },
+    {
+      "id": "K4",
+      "description": "Passing bars through the linear composer changes hue, brightness and 0.8-alpha blending even at glow 0",
+      "likelihood": "high",
+      "impact": "medium",
+      "mitigation": "The HDR fragment writes linear colour, and OutputPass owns ACES and sRGB. An S1 exit check reviews the enhanced palette at glow 0 and accent 0 as a deliberate look."
+    },
+    {
+      "id": "K5",
+      "description": "Bundle growth exceeds the about 6 kB target",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "Composer addons are already bundled for bass-ink and should dedupe; keep enhanced code in the lazy chunk and measure each slice"
+    },
+    {
+      "id": "K6",
+      "description": "The e2e-only override flag could be set in production by anyone",
+      "likelihood": "low",
+      "impact": "low",
+      "mitigation": "It only enables a rendering path any user can already enable with the toggle. Name it clearly and document it in the e2e fixtures."
+    }
+  ],
+  "slices": [
+    {
+      "id": "S1",
+      "title": "Mode gate, lazy look lifecycle and bloom",
+      "objective": "Add resolveTrioLookMode with the e2e override, the stable branching render, the lazy look state machine with cancel, retry and dispose, the linear HDR bar fragment and the bloom composer. Measure the chunk size. Exit check: the enhanced palette at glow 0 is reviewed.",
+      "depends_on": [
+        "S0"
+      ],
+      "acceptance_refs": [
+        "AC1",
+        "AC4",
+        "AC5",
+        "AC7"
+      ],
+      "contracts": [
+        "C1",
+        "C2",
+        "C3"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/trio-color-wave/trioLookMode.ts",
+        "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts",
+        "app/features/visualizers/meshes/shaders/hdrFragment.ts",
+        "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts",
+        "e2e/fixtures.ts",
+        "e2e/"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Depth backdrop, dust and Look controls",
+      "objective": "Add the gradient fog backdrop, the dust points and trioLookControls (glowStrength, depth, dust), appended by the page in enhanced mode.",
+      "depends_on": [
+        "S1"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC6"
+      ],
+      "contracts": [
+        "C2",
+        "C4"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/trio-color-wave/enhanced/",
+        "app/features/visualizers/trio-color-wave/trioLookControls.ts",
+        "app/features/visualizers/trio-color-wave/TrioColorWavePage.tsx"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Rhythm accent and shockwave",
+      "objective": "Wire rhythmRef from the trio page into the hook (C5). Add the pure accent envelope with gate, amplitude cap and subscribed reduced motion, driving the pulse and a pooled shockwave ring, plus the accentIntensity slider.",
+      "depends_on": [
+        "S2"
+      ],
+      "acceptance_refs": [
+        "AC3",
+        "AC6"
+      ],
+      "contracts": [
+        "C2",
+        "C4",
+        "C5"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/trio-color-wave/enhanced/trioAccent.ts",
+        "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts",
+        "app/features/visualizers/trio-color-wave/TrioColorWavePage.tsx",
+        "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Geometry detail, crossfade, fallback and budget",
+      "objective": "Add the denser enhanced bar meshes fed by the sheets' arrays (D9), the emissive rim and the 250 ms crossfade with interruption rules. Rerun the five-toggle checks after the crossfade, measure and raise the size budget, and regenerate the baselines.",
+      "depends_on": [
+        "S3"
+      ],
+      "acceptance_refs": [
+        "AC2",
+        "AC5",
+        "AC7"
+      ],
+      "contracts": [
+        "C2"
+      ],
+      "risk": "R1",
+      "size": "M",
+      "draft_paths": [
+        "app/features/visualizers/trio-color-wave/enhanced/",
+        ".size-limit.json",
+        "e2e/visual.spec.ts-snapshots/"
+      ]
+    },
+    {
+      "id": "S0",
+      "title": "Verify origin/main toggle and share the software gate",
+      "objective": "Pull origin/main and read the toggle's real API, default and panel integration, then adapt names in this plan's wiring (D6, Q1). Note the trio panel baseline state for AC1. Move isSoftwareRenderer to app/lib/three/renderBudget.ts with a bass-ink re-export and no behaviour change.",
+      "depends_on": [],
+      "acceptance_refs": [
+        "AC4"
+      ],
+      "contracts": [
+        "C3"
+      ],
+      "risk": "R1",
+      "size": "S",
+      "draft_paths": [
+        "app/lib/three/renderBudget.ts",
+        "app/features/visualizers/bass-ink/renderBudget.ts"
+      ]
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q1",
+      "question": "Is the toggle's default on origin/main off, and does the trio panel get the shared header row automatically?",
+      "owner": "implementer in S1 (read origin/main)",
+      "blocking": false
+    }
+  ],
+  "critic": {
+    "passes": 1,
+    "verdict": "sound with fixes",
+    "findings": [
+      {
+        "id": "F1",
+        "severity": "blocker",
+        "area": "acceptance",
+        "finding": "AC5, AC2, AC3 and the K3 mitigation cannot be exercised by any CI check. The e2e suite runs on software WebGL, so AC4/C1 forces the standard path there. The 'five-toggle e2e spec' in test_strategy.e2e therefore never builds a composer, render target or shader, and passes vacuously. Leak, late-import race and crossfade behaviour are covered only by unit tests against app/test three fakes, which do not execute GL, shader compilation or real dispose semantics. K3 is rated high impact, yet its real-GPU evidence is a manual dev check.",
+        "suggestion": "State that AC2, AC3 and AC5 are verified by fake-based unit tests plus a recorded manual hardware run (renderer.info.memory/programs before and after 5 toggles). Alternatively, add a test-only override of isSoftwareRenderer, passed through C1, that lets one e2e spec force the enhanced path under SwiftShader at a small canvas. Do not present the software e2e as AC5 evidence.",
+        "resolution": "Changed: D8 adds an e2e-only hardware override in C1. A forced-enhanced e2e spec backs AC5, plus a recorded hardware renderer.info run; AC5 is reworded."
+      },
+      {
+        "id": "F2",
+        "severity": "high",
+        "area": "design",
+        "finding": "The design contradicts itself on geometry density and the 'no rebuild' toggle. Overview and S4 say enhanced mode raises bar instance density with 'buffers sized once at build time', but PencilFlagsMesh sizes its offsets, colors, heights and tips in the constructor from numDepth/numWidth. TrioColorWaveSheet also maps those columns to FFT bins and owns its own AnalyserNode. A live toggle without rebuilding the renderer therefore needs either a second, denser mesh and sheet set or rebuilding the sheets. 'Restores the sheets' standard material' (C2) does not cover this. The non-goal 'audio analysis path unchanged' and the 'exactly as today' goal are at risk, and the brief flags that analyser changes need the audio-presentation audit recheck. Standard-mode instance buffers, or a doubled instance count, are also unaccounted for in the GPU and per-frame CPU cost (K2).",
+        "suggestion": "Decide in S1 how density is achieved. Either build a parallel dense PencilFlagsMesh inside the lazy look that is fed by the existing sheet height arrays, or drop density to a shader-only emissive rim. Add this to C2 and name the files touched (trioColorWaveSheet.ts, trioColorWaveConfig.ts), or cut geometry detail from this PR.",
+        "resolution": "Changed: D9 adds a denser PencilFlagsMesh inside the lazy look, fed by the sheets' arrays, with the standard meshes hidden. Analysers are untouched. In C2 and S4."
+      },
+      {
+        "id": "F3",
+        "severity": "high",
+        "area": "design",
+        "finding": "The hook-level lifecycle is unspecified where it matters. useThreeScene reads handle.render once per frame from the handle object returned by setup, and tears down the renderer if antialias changes. The plan says the composer attaches 'through the render hook without rebuilding the renderer' on a live toggle, but the existing hook has no way to swap handle.render after setup other than mutating the returned object or a stable render function that branches. S1 touches useTrioColorWaveScene.ts only. The enhanced toggle is subscribed outside the hook. 'Camera pose kept' (AC5) holds only if the toggle never reaches the antialias dep. The dancer plan (D6) switches antialias via these deps, and the plan does not say the trio must not.",
+        "suggestion": "Add to C2/S1: setup returns a stable render() that branches on a local mode variable, and the toggle subscription lives inside the setup closure or in a ref, never in the useThreeScene deps or antialias option. Add an AC5 clause that the useThreeScene effect runs once across toggles.",
+        "resolution": "Changed: a stable render() branching on a mode ref, with the toggle never in the useThreeScene deps or antialias. AC5 now requires the effect to run once."
+      },
+      {
+        "id": "F4",
+        "severity": "high",
+        "area": "design",
+        "finding": "Colour and blending will change when bars pass through the composer, and the plan treats HDR as a gain multiplier only. The pencil shader is a RawShaderMaterial writing raw vColor with no colour-space or tone-mapping chunks (fragment.ts:9). RenderPass writes it to a linear half-float target and OutputPass then applies ACES and the sRGB conversion. The result is a different hue and brightness even at gain 1, and the 0.8 alpha blending order changes. bassInkPost.ts:74-77 documents this exact 'blends in linear light vs after sRGB' jump. O2 mentioned manual in-shader tone mapping, but O5 and C2 drop it. K4 rates the blend problem low impact with 'tuned in dev' as the only mitigation. Since D3 allows a reinvented look this is not a blocker, but the tone-mapping assumption in the problem statement is unverified.",
+        "suggestion": "Add an S1 exit check that the enhanced look at glow 0 and accent 0 is a deliberate, reviewed palette. Specify in the HDR fragment that it outputs linear colour, and state who owns the sRGB conversion (OutputPass only). Raise K4 to medium.",
+        "resolution": "Changed: the HDR fragment writes linear colour and OutputPass alone owns ACES and sRGB. S1 has a palette exit check; K4 is raised to high/medium."
+      },
+      {
+        "id": "F5",
+        "severity": "high",
+        "area": "design",
+        "finding": "The rhythm source is not wired on the trio. useRhythm/rhythmRef is used only by BassInkPage and DancingCharacterPage; the trio hook's options are analyser, valuesRef, cameraLocked and onViewChanged. AC3 needs a tracker (or bass level) into the scene. The plan lists no change to the trio page component or the hook options, and S3's draft_paths include only enhanced/*. 'Within one frame of the tracker state changing' also conflicts with the minimum re-trigger interval that caps flashes at 3 per second. The plan does not say which wins, and the audit's reaction-delay figures apply to any analyser tap.",
+        "suggestion": "Add the trio page/route file and the hook options to S3 draft_paths and C2 deps. Reword AC3 as: an onset that passes the re-trigger gate raises the pulse in the same frame's update. Test the gate and the same-frame response separately in trioAccent.",
+        "resolution": "Changed: new C5 rhythmRef hook option, and the page file is in S3. AC3 is reworded so a gated onset rises in the same frame."
+      },
+      {
+        "id": "F6",
+        "severity": "medium",
+        "area": "design",
+        "finding": "C4 'Look section shown only when enhanced' has no mechanism. trioColorWaveControls is a static const array and ControlPanel filters definitions by isShown(definition, values), which depends on control values and not on the global toggle or the software gate. Options are: a hidden mode value, a different definitions array per mode, or an isShown extension. Each changes the TrioColorWaveControlValues type and defaults, and so the shared ControlPanel contract. Hidden values still persist, so a user's Look values reappear later. The key list in C4 (glow, accent, depth, dust) also differs from AC6 (glow strength, accent intensity).",
+        "suggestion": "Pick the mechanism in S2 and name the files. Prefer a second definitions array merged by the page when mode is enhanced, which keeps ControlPanel untouched. Align AC6 and C4 key names, and say whether Look values persist across toggles.",
+        "resolution": "Changed: D10 makes trioLookControls a second array appended by the page. Keys are aligned in AC6 and C4, and values persist."
+      },
+      {
+        "id": "F7",
+        "severity": "medium",
+        "area": "delivery",
+        "finding": "Slice order and sizing do not match the dependency risk. S1 carries toggle verification (an unreadable origin/main, D6), a cross-feature move of renderBudget with a bass-ink re-export, the mode gate, the lazy lifecycle with cancel and dispose, the HDR shader and the composer, and is sized M. It produces no visible enhanced look to review until bloom works. D6 and K1 ('impact low') are planner-assumption and the whole wiring depends on the toggle API, and the plan targets a base (68fcb93) that nobody has read. If the API differs, C1, C2 wiring and all of S1 change. AC5 is attached to S1 but crossfade, the thing that makes toggling racy, lands in S4.",
+        "suggestion": "Make verifying and adapting to origin/main a separate S0 with no code beyond adapting names, and re-baseline the plan from it. Move the renderBudget move into its own tiny slice. Raise K1 impact to medium. Assign AC5 to S4 as well as S1, with a final five-toggle check after crossfade lands.",
+        "resolution": "Changed: new S0 verifies origin/main and moves renderBudget. K1 impact is medium, and AC5 is now on S1 and S4 with a final recheck."
+      },
+      {
+        "id": "F8",
+        "severity": "medium",
+        "area": "acceptance",
+        "finding": "Several acceptance criteria are not testable as written. AC1 hedges with 'apart from any toggle row the shared toggle adds' and AC7 with 'raised by the measured amount'. AC2 ('visibly different in a dev screenshot') and the 60 fps metric have no pass/fail threshold or tool. The size metric of about 6 kB gzip, the stated budget for bloom wiring, backdrop, dust, shockwave, crossfade, reduced motion, dense geometry and two shaders, is unmeasured because headroom is unknown (brief). Visual baselines will also move for every visualizer if the shared toggle row is on origin/main. The plan does not say whether that is already merged in baselines.",
+        "suggestion": "Pin AC1 to the baseline state of origin/main as read in S0. Give AC2 a concrete check (a screenshot with enhanced vs standard attached to the PR, and renderer.info.render.calls and programs recorded). Give fps a threshold from PerformanceStats (for example p5 frame time under 17 ms on a named GPU). Replace '6 kB' with a measured number after S1.",
+        "resolution": "Changed: AC1 is pinned to origin/main's baseline. AC2 requires screenshots plus renderer.info, fps uses a p5 frame-time threshold, and size is measured after S1 and S4."
+      },
+      {
+        "id": "F9",
+        "severity": "medium",
+        "area": "design",
+        "finding": "Failure and race handling has gaps. (1) Chunk-load failure 'keeps the standard look and logs one warning', but the toggle UI is shared and stays on, which is the 'toggle appears on with no effect' risk that O3 named and O5 dropped. There is no retry and no state. (2) A toggle during the 250 ms crossfade is in K3, but C2 has setMix with no defined behaviour for interruption: a dispose mid-fade, or a re-enable mid-fade creating a second composer. (3) WebGL context loss, which the lazy composer's render targets are vulnerable to, is not considered. (4) The software gate reads isSoftwareRenderer(renderer) only after the renderer exists, so resolveTrioLookMode runs inside setup, not before any import, and the dancer toggle's subscription timing is unknown.",
+        "suggestion": "Add a transition rule to C2: a single mode state machine (standard, loading, enhanced, fading-out) where toggling during a fade reuses the handle or finishes the fade-out before disposing. Specify the chunk-failure state (retry on next toggle) and test it. Add context-lost handling to the dispose test or declare it out of scope.",
+        "resolution": "Changed: C2 defines the state machine, the fade interruption, the failure retry on the next toggle and disposal on context loss."
+      },
+      {
+        "id": "F10",
+        "severity": "low",
+        "area": "security",
+        "finding": "The accessibility claim is thinner than stated. 'No more than 3 flashes per second (WCAG 2.3.1)' is a frequency cap only. 2.3.1 also concerns the flash area and luminance change, and a full-bar bloom pulse plus a shockwave across three large sheets can cover a large share of the screen. Only prefers-reduced-motion switches off shockwave and dust, while the glow pulse, the main flash source, stays. The reduced-motion flag is read once at creation (C2 takes reducedMotion as a plain value), so a mid-session OS change is ignored.",
+        "suggestion": "Under reduced motion also disable or heavily damp the glow pulse, and cap pulse amplitude (not just rate). Subscribe to the media query change or document that it is read at load.",
+        "resolution": "Changed: reduced motion also damps the glow pulse, the amplitude is capped, and the media query is subscribed."
+      }
+    ]
+  },
+  "evidence": {
+    "brief_sha256": "056461802f468a1988ec43627578f0be0f7c2da62e3946b89117f98afbf4df7f",
+    "cards": {
+      "O1": "a4a698fbe202d4a0a21e86e0c9fd12aa46deb814ca48c4c8e7bd820982e1e0e4",
+      "O2": "93deb737f34587b06ba18b9dd2737b525a66f3028b65e4f08a3f3616f48d092f",
+      "O3": "789bc158d5e4558d3171614b9052ec702e9327e59be298a53891f9935245a623",
+      "O4": "d88639ebef3c3af26c18dd8bbfc3e49946fd68435984d7ff555153325cf401da"
+    },
+    "critic_sha256": "822ea86c5fc39336ab8658299953d9d66e930bb837ad3bc61260cde7f818568d",
+    "critic_basis": {
+      "chosen_option": "O5",
+      "risk": "R1",
+      "contracts_sha256": "064020109e7b5557",
+      "acs_sha256": "add295a2bf17ec30"
+    }
+  },
+  "handoff": {
+    "verified_diamond": {
+      "generated_by": "double-diamond dd_plan.py finalize",
+      "plan_revision": 1,
+      "plan_hash": "9c4ea884145c23db",
+      "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+      "risk": "R1",
+      "freeze_first": [
+        {
+          "id": "C1",
+          "name": "resolveTrioLookMode",
+          "kind": "pure function",
+          "definition": "resolveTrioLookMode(enhanced: boolean, software: boolean): 'standard' | 'enhanced', which is enhanced only when enhanced is true and software is false. software comes from isSoftwareRenderer(renderer) unless the e2e-only window flag forces hardware (D8). It is evaluated inside setup, after the renderer exists and before any import."
+        },
+        {
+          "id": "C2",
+          "name": "createTrioEnhancedLook",
+          "kind": "module API (lazy chunk)",
+          "definition": "createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard."
+        },
+        {
+          "id": "C3",
+          "name": "isSoftwareRenderer (shared)",
+          "kind": "module API",
+          "definition": "isSoftwareRenderer(renderer): boolean moves unchanged to app/lib/three/renderBudget.ts; bass-ink/renderBudget.ts re-exports it"
+        },
+        {
+          "id": "C4",
+          "name": "Look control keys",
+          "kind": "control config",
+          "definition": "trioLookControls (a separate definitions array, appended by the page only in enhanced mode) adds glowStrength (0 to 3), accentIntensity (0 to 1), depth (0 to 1) and dust (0 to 1). Values persist with the other trio control values. Standard-mode keys, defaults and ControlPanel are unchanged."
+        },
+        {
+          "id": "C5",
+          "name": "Trio scene rhythm input",
+          "kind": "hook option",
+          "definition": "useTrioColorWaveScene gains an optional rhythmRef (the useRhythm tracker state ref), passed by the trio page the way BassInkPage and DancingCharacterPage do. The standard path ignores it."
+        }
+      ],
+      "draft_dag": [
+        {
+          "id": "S1",
+          "objective": "Mode gate, lazy look lifecycle and bloom: Add resolveTrioLookMode with the e2e override, the stable branching render, the lazy look state machine with cancel, retry and dispose, the linear HDR bar fragment and the bloom composer. Measure the chunk size. Exit check: the enhanced palette at glow 0 is reviewed.",
+          "dependencies": [
+            "S0"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/trio-color-wave/trioLookMode.ts",
+            "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts",
+            "app/features/visualizers/meshes/shaders/hdrFragment.ts",
+            "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts",
+            "e2e/fixtures.ts",
+            "e2e/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C1 resolveTrioLookMode (pure function): resolveTrioLookMode(enhanced: boolean, software: boolean): 'standard' | 'enhanced', which is enhanced only when enhanced is true and software is false. software comes from isSoftwareRenderer(renderer) unless the e2e-only window flag forces hardware (D8). It is evaluated inside setup, after the renderer exists and before any import.",
+            "C2 createTrioEnhancedLook (module API (lazy chunk)): createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard.",
+            "C3 isSoftwareRenderer (shared) (module API): isSoftwareRenderer(renderer): boolean moves unchanged to app/lib/three/renderBudget.ts; bass-ink/renderBudget.ts re-exports it"
+          ],
+          "acceptance": [
+            "AC1: Given Enhanced graphics is off, when the user opens /trio-color-wave, then the scene renders the current look and no enhanced chunk is requested. The trio settings-panel visual baseline matches origin/main's baseline as read in S0.",
+            "AC4: Given Enhanced graphics is on and isSoftwareRenderer is true (CI, Lighthouse), when the trio renders, then it uses the standard render path with no composer, and the e2e and Lighthouse checks pass unchanged",
+            "AC5: Given the trio page is open, when the user toggles Enhanced graphics on and off five times, then the look switches without a reload, and the useThreeScene effect runs once across all toggles, so the camera pose is kept. Toggling during a crossfade or while the chunk loads leaves one look at most. On a hardware run, renderer.info.memory and programs return to their pre-toggle values. The forced-enhanced e2e spec sees one canvas, the context count within the fixture limit and no console errors.",
+            "AC7: Given a production build, when npm run size runs, then the enhanced trio code sits in a lazily loaded chunk. Total JS growth stays at or under 6 kB gzip, measured after S1 and again after S4. The budget in .size-limit.json is raised in the same PR by exactly the measured amount, with the reason stated."
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S2",
+          "objective": "Depth backdrop, dust and Look controls: Add the gradient fog backdrop, the dust points and trioLookControls (glowStrength, depth, dust), appended by the page in enhanced mode.",
+          "dependencies": [
+            "S1"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/trio-color-wave/enhanced/",
+            "app/features/visualizers/trio-color-wave/trioLookControls.ts",
+            "app/features/visualizers/trio-color-wave/TrioColorWavePage.tsx"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 createTrioEnhancedLook (module API (lazy chunk)): createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard.",
+            "C4 Look control keys (control config): trioLookControls (a separate definitions array, appended by the page only in enhanced mode) adds glowStrength (0 to 3), accentIntensity (0 to 1), depth (0 to 1) and dust (0 to 1). Values persist with the other trio control values. Standard-mode keys, defaults and ControlPanel are unchanged."
+          ],
+          "acceptance": [
+            "AC2: Given Enhanced graphics is on and the renderer is hardware, when the trio plays audio, then the bars glow (bloom on HDR linear colours, with ACES and sRGB applied once by OutputPass) and show the depth backdrop and the denser bars. The PR attaches standard and enhanced screenshots of the same moment, with renderer.info render calls and programs recorded for both.",
+            "AC6: Given Enhanced graphics is on, when the user opens the trio control panel, then a Look section offers glowStrength, accentIntensity, depth and dust sliders, merged in by the page only in enhanced hardware mode and read through valuesRef. ControlPanel is unchanged, and the values persist with the other trio control values."
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S3",
+          "objective": "Rhythm accent and shockwave: Wire rhythmRef from the trio page into the hook (C5). Add the pure accent envelope with gate, amplitude cap and subscribed reduced motion, driving the pulse and a pooled shockwave ring, plus the accentIntensity slider.",
+          "dependencies": [
+            "S2"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/trio-color-wave/enhanced/trioAccent.ts",
+            "app/features/visualizers/trio-color-wave/enhanced/trioEnhancedLook.ts",
+            "app/features/visualizers/trio-color-wave/TrioColorWavePage.tsx",
+            "app/features/visualizers/trio-color-wave/useTrioColorWaveScene.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 createTrioEnhancedLook (module API (lazy chunk)): createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard.",
+            "C4 Look control keys (control config): trioLookControls (a separate definitions array, appended by the page only in enhanced mode) adds glowStrength (0 to 3), accentIntensity (0 to 1), depth (0 to 1) and dust (0 to 1). Values persist with the other trio control values. Standard-mode keys, defaults and ControlPanel are unchanged.",
+            "C5 Trio scene rhythm input (hook option): useTrioColorWaveScene gains an optional rhythmRef (the useRhythm tracker state ref), passed by the trio page the way BassInkPage and DancingCharacterPage do. The standard path ignores it."
+          ],
+          "acceptance": [
+            "AC3: Given Enhanced graphics is on, when a beat or bass onset that passes the accent's re-trigger gate (at most 3 per second) arrives from the rhythm tracker or bass level, then the pulse rises in that same frame's update, with peak amplitude capped and scaled by the accent intensity control. Under prefers-reduced-motion the pulse is damped and the shockwave and dust drift are off.",
+            "AC6: Given Enhanced graphics is on, when the user opens the trio control panel, then a Look section offers glowStrength, accentIntensity, depth and dust sliders, merged in by the page only in enhanced hardware mode and read through valuesRef. ControlPanel is unchanged, and the values persist with the other trio control values."
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S4",
+          "objective": "Geometry detail, crossfade, fallback and budget: Add the denser enhanced bar meshes fed by the sheets' arrays (D9), the emissive rim and the 250 ms crossfade with interruption rules. Rerun the five-toggle checks after the crossfade, measure and raise the size budget, and regenerate the baselines.",
+          "dependencies": [
+            "S3"
+          ],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/features/visualizers/trio-color-wave/enhanced/",
+            ".size-limit.json",
+            "e2e/visual.spec.ts-snapshots/"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C2 createTrioEnhancedLook (module API (lazy chunk)): createTrioEnhancedLook({ renderer, scene, camera, sheets, valuesRef, rhythmRef, reducedMotionQuery }) returns { render(dtSeconds): void; setSize(w, h): void; setMix(0..1): void; dispose(): void }. It builds a denser PencilFlagsMesh per sheet fed by the sheet's height and colour arrays, and hides the standard meshes while active. The HDR fragment writes linear colour; OutputPass alone applies ACES and sRGB. dispose frees everything it created, unhides the standard meshes and is idempotent. The hook's transitions: standard to loading (import), then enhanced; enhanced to fading-out (250 ms) and then dispose. Toggling on during fading-out reverses the fade on the same handle. Toggling off during loading sets a cancel flag, and the resolved look is disposed and never attached. A failed import returns to standard, warns once, and retries on the next off-to-on toggle. On webglcontextlost the look is disposed and the mode goes to standard."
+          ],
+          "acceptance": [
+            "AC2: Given Enhanced graphics is on and the renderer is hardware, when the trio plays audio, then the bars glow (bloom on HDR linear colours, with ACES and sRGB applied once by OutputPass) and show the depth backdrop and the denser bars. The PR attaches standard and enhanced screenshots of the same moment, with renderer.info render calls and programs recorded for both.",
+            "AC5: Given the trio page is open, when the user toggles Enhanced graphics on and off five times, then the look switches without a reload, and the useThreeScene effect runs once across all toggles, so the camera pose is kept. Toggling during a crossfade or while the chunk loads leaves one look at most. On a hardware run, renderer.info.memory and programs return to their pre-toggle values. The forced-enhanced e2e spec sees one canvas, the context count within the fixture limit and no console errors.",
+            "AC7: Given a production build, when npm run size runs, then the enhanced trio code sits in a lazily loaded chunk. Total JS growth stays at or under 6 kB gzip, measured after S1 and again after S4. The budget in .size-limit.json is raised in the same PR by exactly the measured amount, with the reason stated."
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        },
+        {
+          "id": "S0",
+          "objective": "Verify origin/main toggle and share the software gate: Pull origin/main and read the toggle's real API, default and panel integration, then adapt names in this plan's wiring (D6, Q1). Note the trio panel baseline state for AC1. Move isSoftwareRenderer to app/lib/three/renderBudget.ts with a bass-ink re-export and no behaviour change.",
+          "dependencies": [],
+          "base_revision": "c03849a0890ffde4354498f9b6dc551502a4c56f",
+          "worker_class": "builder",
+          "owned_paths": [
+            "app/lib/three/renderBudget.ts",
+            "app/features/visualizers/bass-ink/renderBudget.ts"
+          ],
+          "forbidden_paths": [],
+          "contracts": [
+            "C3 isSoftwareRenderer (shared) (module API): isSoftwareRenderer(renderer): boolean moves unchanged to app/lib/three/renderBudget.ts; bass-ink/renderBudget.ts re-exports it"
+          ],
+          "acceptance": [
+            "AC4: Given Enhanced graphics is on and isSoftwareRenderer is true (CI, Lighthouse), when the trio renders, then it uses the standard render path with no composer, and the e2e and Lighthouse checks pass unchanged"
+          ],
+          "verify": [],
+          "risk": "R1",
+          "retry_limit": 1,
+          "escalation": [
+            "contract ambiguity",
+            "needs unowned path",
+            "verification fails twice",
+            "shared interface change",
+            "high-risk issue discovered"
+          ]
+        }
+      ],
+      "notes": [
+        "Run `python3 dd_plan.py verify <plan.json>` first: it proves the plan is final and unchanged since finalize.",
+        "verify[] is intentionally empty: fill it from the repository verified_diamond command contract, never from this plan.",
+        "owned_paths are planning drafts: re-verify against the current tree before delegating.",
+        "verified-diamond risk classification is authoritative; this plan's risk is an input."
+      ]
+    }
+  },
+  "run": {
+    "harness": "claude-code",
+    "session_key": "",
+    "question_rounds": 2,
+    "lane_changes": []
+  }
+}
