@@ -19,12 +19,12 @@
     "name": "Total JS: every chunk in assets, including lazy routes and three.js (gzip)",
     "path": "build/client/assets/*.js",
     "gzip": true,
-    "limit": "358.75 kB"
+    "limit": "359.5 kB"
   },
   {
     "name": "Total CSS: every stylesheet in assets (gzip)",
     "path": "build/client/assets/*.css",
     "gzip": true,
-    "limit": "6.2 kB"
+    "limit": "6.25 kB"
   }
 ]

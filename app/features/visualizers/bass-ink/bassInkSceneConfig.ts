@@ -206,6 +206,34 @@ export const bassInkSceneConfig = {
         alpha: 0.4,
         size: 0.05,
     },
+    bands: {
+        // Points take a color from what moves them, so the reactions read apart by color as well as by motion. A point
+        // pushed by a kick wave shifts toward the palette core by up to this share at the wave's cap ...
+        bassTint: 0.6,
+        // ... and every point would shift by this share of the bass swell. It is 0: the swell follows every bass bump with
+        // no rate limit and tints the whole cloud at once, and the picked core can be a saturated red, so a whole-frame
+        // hue pulse could become a red flash (WCAG 2.3.1). The kick-wave tint above is a thin moving ring instead.
+        swellTint: 0,
+        // The glinting points shift toward the palette edge, mixed toward white by highWhite, by this share of the
+        // followed high band.
+        highTint: 0.7,
+        highWhite: 0.5,
+        // Every tint keeps the point's own luminance, so it changes the hue only and never adds light or a flash.
+    },
+    view: {
+        // On each section change (each formation transition) the view swings to a new tilt and turn, eased over the
+        // transition, like a camera operator reframing. It turns the cloud, not the camera, so the fit (which uses the
+        // cloud's largest 3D radius, the same at any angle) still keeps everything on screen.
+        // The tilt moves within cloud.tilt +/- tiltSwing (radians), staying clear of edge-on views of the flat disc ...
+        tiltSwing: 0.2,
+        // ... and the turn by up to +/- yawSwing on top of the drift. The smoothstep over the 2 s transition peaks at 1.5
+        // times the average rate, so a full swing turns at most about 0.68 rad (39 degrees) a second, slow enough to
+        // read as a reframe rather than a spin.
+        yawSwing: 0.45,
+        // The swing is full at the camera-drift control's default (0.3) and above, scales down below it, and is off at
+        // 0, so a user who wants a still view gets one.
+        fullAtDrift: 0.3,
+    },
     post: {
         // Trails: each frame keeps the brighter of itself and the previous frame dimmed by `damp` (three's afterimage,
         // a max and not a sum, so trails never add light). The trails control maps 0..1 onto damp 0..dampMax; 0 turns
