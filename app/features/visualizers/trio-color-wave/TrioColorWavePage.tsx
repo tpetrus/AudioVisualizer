@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { trioColorWaveControls } from './trioColorWaveControls';
+import { TRIO_ENHANCED_STRINGS } from './trioEnhancedStrings';
 import { trioAllControls } from './trioLookControls';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
 import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
@@ -60,7 +61,9 @@ export function TrioColorWavePage() {
                 onResetView={resetView}
                 fullscreenActive={fullscreen.active}
                 onToggleFullscreen={() => fullscreen.toggle()}
-                header={<EnhancedGraphicsToggle status={enhancedStatus} />}
+                header={
+                    <EnhancedGraphicsToggle status={enhancedStatus} description={TRIO_ENHANCED_STRINGS.description} />
+                }
             />
         </>
     );

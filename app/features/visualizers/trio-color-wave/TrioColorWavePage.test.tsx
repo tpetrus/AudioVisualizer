@@ -3,6 +3,7 @@ import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { trioAllControls } from './trioLookControls';
 import { TrioColorWavePage } from './TrioColorWavePage';
+import { TRIO_ENHANCED_STRINGS } from './trioEnhancedStrings';
 import { useTrioColorWaveScene } from './useTrioColorWaveScene';
 import { asWebAudio } from '~/test/fakeWebAudio';
 import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
@@ -86,7 +87,9 @@ describe('TrioColorWavePage enhanced graphics', () => {
 
         expect(latestOptions().rhythm).toBe(tracker);
         await user.click(screen.getByRole('button', { name: /settings/i }));
-        expect(screen.getByRole('switch', { name: /Enhanced graphics/ })).toBeInTheDocument();
+        expect(screen.getByRole('switch', { name: /Enhanced graphics/ })).toHaveAccessibleDescription(
+            TRIO_ENHANCED_STRINGS.description,
+        );
     });
 
     it('shows the Look section only while the enhanced look is ready', async () => {

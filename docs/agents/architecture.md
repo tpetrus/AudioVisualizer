@@ -303,9 +303,10 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
   "Workers Builds" check run on `main`).
 
 ## 8. Enhanced graphics preference: `app/features/settings/`
-An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting) and, as the second
-visualizer, for the trio color wave (bloom, denser bars, backdrop, dust, beat accent). It is off by default. The two
-follow different patterns: the dancer rebuilds its scene on a toggle, the trio does not (see "Trio: no rebuild" below).
+An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting), the cubes (bloom,
+backdrop and fog, GPU grid waves and shatter, particles, beat motion) and the trio color wave (bloom, denser bars,
+backdrop, dust, beat bursts). It is off by default. The dancer rebuilds its scene on a toggle; the cubes and the trio
+swap their look in place (see "Swap in place (cubes)" and "Trio: no rebuild" below).
 - **Store:** `enhancedGraphicsStore.ts` keeps one boolean in `localStorage` under `audioVisualizer.enhancedGraphics`
   (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
   `useSyncExternalStore` (server snapshot false), so every component sees the same value. Same-tab writes notify
@@ -337,7 +338,18 @@ follow different patterns: the dancer rebuilds its scene on a toggle, the trio d
   through a status callback, and render `<EnhancedGraphicsToggle status={...} />` in the `header` slot. Keep its assets as
   `?url` imports in that chunk so standard mode never fetches them, and add its asset names to the request check in
   `e2e/enhanced-graphics.spec.ts`. The landing toggle's description (`EnhancedGraphicsToggle/strings.ts`) names every
-  visualizer that uses the preference, so reword it when another one joins.
+  visualizer that uses the preference, so reword it when another one joins; a panel can pass its own `description`.
+- **Swap in place (cubes):** the cubes need no constructor-only renderer setting, so `useCubesScene` does not rebuild on a
+  toggle. It keeps the current `CubesEnhancedLook` (`cubes/enhanced/`) in a ref and its `SceneHandle.render` delegates to
+  it, so the same canvas, context and camera pose carry over. `loadCubesEnhanced(signal)` is the only importer of the lazy
+  chunk and resolves `{ ok: false }` instead of rejecting. The look saves every scene, renderer and light property it
+  changes and puts them back on `dispose()`, holds its objects (and the grid's mesh) in one scene-root group that its beat
+  motion moves instead of the camera, and gives the grid its own material through `CubeGrid.setMaterialOverride`; the
+  hook re-calls `attach(grid)` whenever a resize rebuilds the grid. The per-frame inputs are a preallocated `CubesFxFrame`
+  turned into uniforms by the pure `CubesFxState`, which zeroes beat and bar terms while the tracker is unlocked and
+  damps motion and flashes under `prefers-reduced-motion`. The cubes panel passes its own `description` to the toggle and
+  shows its Enhanced controls (`cubesEnhancedControls`) only while the preference is on. Contracts:
+  `docs/plans/cubes-enhanced-graphics/contracts.md`; e2e: `e2e/cubes-enhanced.spec.ts`.
 - **Trio: no rebuild.** `useTrioColorWaveScene` never passes the preference to `useThreeScene`, so its effect runs once
   however often the switch is flipped and the camera pose, sheets and analyser taps stay. Instead:
   - The subscription (`subscribeEnhancedGraphics`) lives inside `setup` and drives a small state machine
@@ -354,4 +366,5 @@ follow different patterns: the dancer rebuilds its scene on a toggle, the trio d
     `window.__audioVisualizerE2EForceHardware = true` (CI draws with SwiftShader, which would otherwise always be standard).
   - The page passes `trioAllControls` to `ControlPanel` (so the Look section with Glow, Beat accent, Depth haze and Dust
     appears) only while the status is `'ready'`, and keeps the values of both tables meanwhile.
-    `e2e/trio-enhanced-graphics.spec.ts` covers the trio.
+    The trio panel passes its own description (`trioEnhancedStrings.ts`). `e2e/trio-enhanced-graphics.spec.ts` covers the
+    trio.
