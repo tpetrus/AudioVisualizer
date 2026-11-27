@@ -6,6 +6,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import type { SceneSize } from '~/hooks/useThreeScene';
 import { createTrioAccent, stepTrioAccent } from './trioAccent';
 import { TrioBackdrop, backdropHazeColor } from './trioBackdrop';
+import { StandardPassthrough } from './trioPassthrough';
 import { TrioDenseBars } from './trioDenseBars';
 import {
     BLOOM_MIN_SIDE_PX,
@@ -135,6 +136,10 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         throw error;
     }
 
+    // From here on every frame goes through the composer, so the standard bars switch to a material that comes out of
+    // OutputPass looking as it did on the plain render (see trioPassthrough.ts). Without it they turn pastel during
+    // the crossfade.
+    const passthroughs = sheets.map((sheet) => new StandardPassthrough(sheet.mesh, sheet.material));
     scene.add(backdrop.mesh);
     for (const bars of dense) {
         bars.flags.mesh.visible = false;
@@ -194,6 +199,9 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
                 uniforms.haze.value = lastSheet > 0 ? values.depth * HAZE_MAX * (index / lastSheet) : 0;
             }
 
+            for (let index = 0; index < passthroughs.length; index++) {
+                passthroughs[index].update(renderer.toneMapping, renderer.toneMappingExposure);
+            }
             backdrop.update(values.depth, mix);
             dust.update(dt, values.dust, mix, reduced);
             if (accent.triggered && !reduced) shockwave.fire(values.accentIntensity, downbeat);
@@ -223,6 +231,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             if (disposed) return;
             disposed = true;
             // Put the standard meshes back first, so a failure below cannot leave them hidden.
+            for (let index = 0; index < passthroughs.length; index++) passthroughs[index].dispose();
             for (let index = 0; index < sheets.length; index++) {
                 sheets[index].mesh.visible = standard[index].visible;
                 sheets[index].material.uniforms.opacity.value = standard[index].opacity;

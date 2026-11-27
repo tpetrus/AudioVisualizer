@@ -709,10 +709,14 @@ describe('dispose', () => {
                 });
                 look.setMix(1);
                 look.render(0.016);
+                // While the look is live the standard bars draw with its pass-through material.
+                for (const sheet of sheets) expect(sheet.flags.mesh.material).not.toBe(sheet.flags.material);
                 look.dispose();
-                // 3 dense + backdrop + dust + ring geometry; 3 dense + backdrop + dust + the ring materials.
+                for (const sheet of sheets) expect(sheet.flags.mesh.material).toBe(sheet.flags.material);
+                // 3 dense + backdrop + dust + ring geometry; 3 dense + backdrop + dust + the ring materials + the 3
+                // standard pass-through materials.
                 expect(geometryDispose).toHaveBeenCalledTimes(6);
-                expect(materialDispose).toHaveBeenCalledTimes(5 + SHOCKWAVE_POOL_SIZE);
+                expect(materialDispose).toHaveBeenCalledTimes(5 + SHOCKWAVE_POOL_SIZE + 3);
                 expect(scene.children).toHaveLength(3);
             }
         } finally {
