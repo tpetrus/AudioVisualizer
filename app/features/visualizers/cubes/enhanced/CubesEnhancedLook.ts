@@ -105,23 +105,7 @@ export class CubesEnhancedLook implements CubesEnhancedLookApi {
             ambientColor: lights.ambient.color.clone(),
         };
 
-        // The color pipeline: the composer renders in linear light and the output pass applies the renderer's tone
-        // mapping and sRGB encoding, which is what the canvas would have done. The lights are the basic look's times
-        // the configured scales (1 by default).
-        renderer.toneMapping = config.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
-        renderer.toneMappingExposure = config.exposure;
-        scene.environmentIntensity = this.saved.environmentIntensity * config.lights.environmentScale;
-        lights.key.intensity = this.saved.keyIntensity * config.lights.keyScale;
-        lights.fill.intensity = this.saved.fillIntensity * config.lights.fillScale;
-        lights.ambient.intensity = this.saved.ambientIntensity * config.lights.ambientScale;
-        lights.key.color.set(config.lights.keyColor);
-        lights.fill.color.set(config.lights.fillColor);
-        lights.ambient.color.set(config.lights.ambientColor);
-
-        // The backdrop replaces the basic background flash, so the background itself is the fog's dark color.
         this.background = new THREE.Color(config.backdrop.fogColor);
-        scene.background = this.background;
-        scene.fog = new THREE.FogExp2(config.backdrop.fogColor, config.backdrop.fogDensity);
 
         const variant = config.material[config.cubeMaterial];
         this.emissive = { base: variant.emissiveBase, flash: variant.emissiveFlash };
@@ -178,9 +162,34 @@ export class CubesEnhancedLook implements CubesEnhancedLookApi {
         this.particles.visible = false;
         this.group.add(this.particles);
 
-        scene.add(this.group);
-        this.updatePointScale();
-        this.build(options.camera);
+        // Everything above only allocates. The shared renderer, scene and lights are touched from here on, so a failure
+        // (the composer needs a WebGL feature, say) hands them back before it propagates: the caller never gets an
+        // instance to dispose.
+        try {
+            // The color pipeline: the composer renders in linear light and the output pass applies the renderer's tone
+            // mapping and sRGB encoding, which is what the canvas would have done. The lights are the basic look's times
+            // the configured scales (1 by default).
+            renderer.toneMapping = config.toneMapping === 'aces' ? THREE.ACESFilmicToneMapping : THREE.NoToneMapping;
+            renderer.toneMappingExposure = config.exposure;
+            scene.environmentIntensity = this.saved.environmentIntensity * config.lights.environmentScale;
+            lights.key.intensity = this.saved.keyIntensity * config.lights.keyScale;
+            lights.fill.intensity = this.saved.fillIntensity * config.lights.fillScale;
+            lights.ambient.intensity = this.saved.ambientIntensity * config.lights.ambientScale;
+            lights.key.color.set(config.lights.keyColor);
+            lights.fill.color.set(config.lights.fillColor);
+            lights.ambient.color.set(config.lights.ambientColor);
+
+            // The backdrop replaces the basic background flash, so the background itself is the fog's dark color.
+            scene.background = this.background;
+            scene.fog = new THREE.FogExp2(config.backdrop.fogColor, config.backdrop.fogDensity);
+
+            scene.add(this.group);
+            this.updatePointScale();
+            this.build(options.camera);
+        } catch (error) {
+            this.dispose();
+            throw error;
+        }
     }
 
     attach(grid: CubeGridLike): void {
@@ -341,10 +350,10 @@ export class CubesEnhancedLook implements CubesEnhancedLookApi {
         this.bloom = new UnrealBloomPass(this.bloomResolution, 0, post.bloomRadius, post.bloomThreshold);
         this.bloom.enabled = false;
         this.output = new OutputPass();
+        this.composer = composer;
         composer.addPass(this.renderPass);
         composer.addPass(this.bloom);
         composer.addPass(this.output);
-        this.composer = composer;
         this.sizeComposer();
     }
 

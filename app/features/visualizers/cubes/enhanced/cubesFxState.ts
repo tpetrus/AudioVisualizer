@@ -5,6 +5,11 @@ export type { CubesFxFrame, CubesFxUniforms } from './cubesEnhancedTypes';
 
 const TURN = Math.PI * 2;
 
+// `time` wraps at this period so the particle shader's float32 uniform keeps its precision over a long session. The
+// particle positions and the cube shimmer jump once per wrap (an hour); the drift keeps its own wrapped phases, so it
+// stays continuous.
+const TIME_PERIOD = 3600;
+
 // 0..1, and 0 for NaN (every comparison with NaN is false, so it falls through to 0).
 function clamp01(value: number): number {
     return value > 0 ? (value < 1 ? value : 1) : 0;
@@ -40,6 +45,9 @@ export function createCubesFxUniforms(): CubesFxUniforms {
 // range whatever the input, including NaN, so a bad frame can never reach a shader.
 export class CubesFxState {
     private time = 0;
+    // The drift's two sine phases, kept in 0..TURN so they do not jump when `time` wraps.
+    private driftPhaseA = 0;
+    private driftPhaseB = 0;
     private wavePhase = 0;
     private waveAmplitude = 0;
     private dollyGain = 0;
@@ -52,7 +60,9 @@ export class CubesFxState {
     step(frame: Readonly<CubesFxFrame>, reducedMotion: boolean, out: CubesFxUniforms): void {
         const config = cubesEnhancedConfig.fx;
         const dt = Math.min(config.maxDt, Math.max(0, finiteOrZero(frame.dt)));
-        this.time += dt;
+        this.time = (this.time + dt) % TIME_PERIOD;
+        this.driftPhaseA = (this.driftPhaseA + dt * config.driftRateA) % TURN;
+        this.driftPhaseB = (this.driftPhaseB + dt * config.driftRateB) % TURN;
 
         const flash = clamp01(frame.bassFlash);
         const bands = averageBands(frame.bands);
@@ -91,8 +101,7 @@ export class CubesFxState {
         } else {
             this.dollyGain = 0;
         }
-        const drift =
-            0.6 * Math.sin(this.time * config.driftRateA) + 0.4 * Math.sin(this.time * config.driftRateB + 1.3);
+        const drift = 0.6 * Math.sin(this.driftPhaseA) + 0.4 * Math.sin(this.driftPhaseB + 1.3);
 
         const drive = clamp01(config.bloomBase + flash * config.bloomFlash + bands * config.bloomBands);
 
@@ -119,6 +128,8 @@ export class CubesFxState {
 
     reset(): void {
         this.time = 0;
+        this.driftPhaseA = 0;
+        this.driftPhaseB = 0;
         this.wavePhase = 0;
         this.waveAmplitude = 0;
         this.dollyGain = 0;
