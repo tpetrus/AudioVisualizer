@@ -16,6 +16,18 @@ export function hash01(i: number, seed: number, salt: number): number {
 
 const TAU = Math.PI * 2;
 
+// Index of the galaxy disc in FORMATION_NAMES, the one formation whose points flow (flowDiscPoint in inkShaders.ts).
+export const GALAXY_DISC_INDEX = 3;
+
+// True when `index` picks the galaxy disc in writeFormation (the index wraps the same way there); false for -1, a baked
+// blend of two formations.
+export function isGalaxyDisc(index: number): boolean {
+    if (index < 0 || !Number.isFinite(index)) {
+        return false;
+    }
+    return Math.trunc(index) % FORMATION_COUNT === GALAXY_DISC_INDEX;
+}
+
 // Writes xyz for points [start, end) of a cloud of `pointCount` into `out` (length pointCount * 3). Every formation is
 // roughly unit radius so the scene can scale them alike.
 export function writeFormation(

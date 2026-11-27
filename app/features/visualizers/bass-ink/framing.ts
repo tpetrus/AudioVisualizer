@@ -91,6 +91,33 @@ export function fitScale(
     return low / config.cloud.radius;
 }
 
+// fitScale times a formation's growth (bassInkSceneConfig.cloud.formationGrowth), for the flat formations. fitScale
+// bounds every formation by the sphere through its outermost point and holds that sphere to the smaller half of the
+// view in every direction. A flat formation tipped toward the camera is as wide as that sphere but much less tall, so
+// on a wide view, where the height is the limit, it fills far less of the screen than the sphere does. Growing it is
+// safe in its height, where it is flat (framing.test.ts checks the real points, the core and the spray across the
+// section swing's tilt range), but not in its width, where it is as wide as the sphere. So the growth is capped where
+// the same sphere bound would reach `fill` of the view's half-width: on a wide view the cap is far away, and on a
+// portrait view, where the width is the limit, it is 1 and nothing grows. Never below fitScale.
+export function grownFitScale(
+    outerRadius: number,
+    growth: number,
+    cameraDistance: number,
+    fovDeg: number,
+    aspect: number,
+    fill: number,
+    config: typeof bassInkSceneConfig = bassInkSceneConfig,
+): number {
+    const fit = fitScale(outerRadius, cameraDistance, fovDeg, aspect, fill, config);
+    if (!(growth > 1) || fit <= 0) {
+        return fit;
+    }
+    // worstCaseExtent is a share of the smaller half-dimension; the half-width is aspect / min(1, aspect) times it.
+    const widthFill = (fill * aspect) / Math.min(1, aspect);
+    const widthFit = fitScale(outerRadius, cameraDistance, fovDeg, aspect, widthFill, config);
+    return fit * Math.max(1, Math.min(growth, widthFit / fit));
+}
+
 // Outermost rest point of a unit formation: the largest distance from its center over the sampled points. The maximum,
 // not a percentile: every formation is bounded (shell, tube or disc rim), so there are no stray outliers, and the
 // fit must hold for the very outermost point. Allocation is fine, it runs on mount only.
