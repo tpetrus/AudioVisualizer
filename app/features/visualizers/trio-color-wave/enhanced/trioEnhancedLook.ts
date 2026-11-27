@@ -46,17 +46,34 @@ function clamp01(value: number): number {
 export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnhancedLookOptions): TrioEnhancedLook => {
     const { renderer, scene, camera, sheets, valuesRef, rhythm, reducedMotion } = options;
 
+    // Everything is built, and sized, before the first object is added to the scene. A constructor that throws partway
+    // (a pass failing to compile, say) then has only GPU objects to free, never a scene to undo, and the standard
+    // meshes were never touched. `built` lists what to free in that case.
+    const built: { dispose(): void }[] = [];
+    const track = <T extends { dispose(): void }>(item: T): T => {
+        built.push(item);
+        return item;
+    };
+
+    let dense: TrioDenseBars[];
+    let backdrop: TrioBackdrop;
+    let dust: TrioDust;
+    let shockwave: TrioShockwave;
+    let composer: EffectComposer;
+    let renderPass: RenderPass;
+    let bloom: UnrealBloomPass;
+    let outputPass: OutputPass;
+    const bloomResolution = new THREE.Vector2(1, 1);
+    let width = options.size.width;
+    let height = options.size.height;
+    let mix = 0;
+    let disposed = false;
+
     const hazeColor = backdropHazeColor(new THREE.Vector3());
-    const dense = sheets.map((sheet) => new TrioDenseBars(sheet, hazeColor));
     const standard: StandardState[] = sheets.map((sheet) => ({
         visible: sheet.mesh.visible,
         opacity: sheet.material.uniforms.opacity.value as number,
     }));
-    // The backdrop sits behind the farthest sheet, which is the last one.
-    const farthestZ = sheets.length > 0 ? sheets[sheets.length - 1].mesh.position.z : 0;
-    const backdrop = new TrioBackdrop(farthestZ);
-    const dust = new TrioDust(renderer.getPixelRatio());
-    const shockwave = new TrioShockwave();
     const accent = createTrioAccent();
     // One input object, rewritten every frame, so stepping the accent allocates nothing.
     const accentInput: TrioAccentInput = {
@@ -66,29 +83,6 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         intensity: 0,
         reducedMotion: false,
     };
-
-    scene.add(backdrop.mesh);
-    for (const bars of dense) {
-        bars.flags.mesh.visible = false;
-        scene.add(bars.flags.mesh);
-    }
-    scene.add(dust.points);
-    for (const ring of shockwave.rings) scene.add(ring);
-
-    // The composer: the scene in linear HDR, a bloom, then one conversion to the screen (ACES and sRGB) in OutputPass.
-    const composer = new EffectComposer(renderer);
-    const renderPass = new RenderPass(scene, camera);
-    const bloomResolution = new THREE.Vector2(1, 1);
-    const bloom = new UnrealBloomPass(bloomResolution, 0, BLOOM_RADIUS, BLOOM_THRESHOLD);
-    const outputPass = new OutputPass();
-    composer.addPass(renderPass);
-    composer.addPass(bloom);
-    composer.addPass(outputPass);
-
-    let width = options.size.width;
-    let height = options.size.height;
-    let mix = 0;
-    let disposed = false;
 
     const tooSmallForBloom = (): boolean => {
         const ratio = renderer.getPixelRatio();
@@ -107,7 +101,44 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         bloom.setSize(bloomResolution.x * 2, bloomResolution.y * 2);
         dust.setPixelRatio(ratio);
     };
-    applySize();
+
+    try {
+        dense = sheets.map((sheet) => track(new TrioDenseBars(sheet, hazeColor)));
+        // The backdrop sits behind the farthest sheet, which is the last one.
+        const farthestZ = sheets.length > 0 ? sheets[sheets.length - 1].mesh.position.z : 0;
+        backdrop = track(new TrioBackdrop(farthestZ));
+        dust = track(new TrioDust(renderer.getPixelRatio()));
+        shockwave = track(new TrioShockwave());
+
+        // The composer: the scene in linear HDR, a bloom, then one conversion to the screen (ACES and sRGB) in
+        // OutputPass.
+        composer = track(new EffectComposer(renderer));
+        renderPass = track(new RenderPass(scene, camera));
+        bloom = track(new UnrealBloomPass(bloomResolution, 0, BLOOM_RADIUS, BLOOM_THRESHOLD));
+        outputPass = track(new OutputPass());
+        composer.addPass(renderPass);
+        composer.addPass(bloom);
+        composer.addPass(outputPass);
+        applySize();
+    } catch (error) {
+        // Best effort: a dispose that throws must not hide the failure that got us here.
+        for (const item of built) {
+            try {
+                item.dispose();
+            } catch {
+                // Ignored on purpose.
+            }
+        }
+        throw error;
+    }
+
+    scene.add(backdrop.mesh);
+    for (const bars of dense) {
+        bars.flags.mesh.visible = false;
+        scene.add(bars.flags.mesh);
+    }
+    scene.add(dust.points);
+    for (const ring of shockwave.rings) scene.add(ring);
 
     // Standard meshes are shown at (1 - mix) of their opacity while the look comes in, and hidden once it has.
     const applyMix = (): void => {

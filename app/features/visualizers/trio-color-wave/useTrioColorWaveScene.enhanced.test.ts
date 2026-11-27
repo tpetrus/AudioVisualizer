@@ -430,6 +430,29 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(1);
         });
 
+        it('loads a look again when the context is restored and the preference is still on', async () => {
+            const scene = mountEnhanced();
+            await reachEnhanced(scene);
+
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(1);
+            await scene.settle(() => scene.renderer.domElement.dispatchEvent(new Event('webglcontextrestored')));
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(2);
+            await scene.settle(() => scene.pending[1].resolve());
+
+            expect(scene.looks).toHaveLength(2);
+            expect(scene.statuses()).toEqual(['loading', 'ready', undefined, 'loading', 'ready']);
+        });
+
+        it('stays standard after a restore when the preference is off', () => {
+            const scene = mountEnhanced();
+
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextrestored'));
+
+            expect(scene.loadEnhancedLook).not.toHaveBeenCalled();
+        });
+
         it('abandons a load that is still running', async () => {
             const scene = mountEnhanced();
             setEnhancedGraphics(true);
@@ -473,6 +496,7 @@ describe('useTrioColorWaveScene enhanced look', () => {
 
             expect(look.dispose).toHaveBeenCalledTimes(1);
             expect(removeListener).toHaveBeenCalledWith('webglcontextlost', expect.any(Function));
+            expect(removeListener).toHaveBeenCalledWith('webglcontextrestored', expect.any(Function));
             expect(scene.statuses().at(-1)).toBeUndefined();
             setEnhancedGraphics(false);
             setEnhancedGraphics(true);

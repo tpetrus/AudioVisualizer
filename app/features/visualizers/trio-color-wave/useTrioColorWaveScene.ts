@@ -209,7 +209,14 @@ export function useTrioColorWaveScene(
             state = 'standard';
             report(undefined);
         };
+        // The context coming back clears the flag and reconciles, so a preference that is still on loads a look again
+        // instead of staying standard until the page is reloaded.
+        const onContextRestored = () => {
+            contextLost = false;
+            reconcile();
+        };
         renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+        renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
         const unsubscribe = subscribeEnhancedGraphics(reconcile);
         reconcile();
 
@@ -268,6 +275,7 @@ export function useTrioColorWaveScene(
                 unsubscribe();
                 cancelLoad();
                 renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+                renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
                 // The look puts the standard meshes back, so it goes before the sheets are disposed.
                 releaseLook();
                 report(undefined);
