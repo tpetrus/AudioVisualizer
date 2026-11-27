@@ -6,6 +6,11 @@ import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
 import { useFullscreen } from '~/hooks/useFullscreen';
 import { ControlPanel } from '~/components/ControlPanel/ControlPanel';
 import { useControlValues } from '~/components/ControlPanel/useControlValues';
+import {
+    EnhancedGraphicsToggle,
+    type EnhancedGraphicsStatus,
+} from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { useEnhancedGraphics } from '~/features/settings/useEnhancedGraphics';
 import { useAudioHub } from '~/features/audio/hub/useAudioHub';
 import { useAnalyser } from '~/features/audio/useAudioState';
 import { useRhythm } from '~/features/rhythm/rhythmTrackerContext';
@@ -22,6 +27,9 @@ export function BassInkPage() {
     const [cameraLocked, setCameraLocked] = useState(true);
     // True once the view has been moved away from its starting position (shows the reset-view button).
     const [viewChanged, setViewChanged] = useState(false);
+    const enhanced = useEnhancedGraphics();
+    // The enhanced look's progress, undefined in standard mode. It changes a few times per toggle, never per frame.
+    const [enhancedStatus, setEnhancedStatus] = useState<EnhancedGraphicsStatus | undefined>(undefined);
 
     const { resetView } = useBassInkScene(containerRef, {
         analyser,
@@ -30,6 +38,8 @@ export function BassInkPage() {
         valuesRef,
         cameraLocked,
         onViewChanged: setViewChanged,
+        enhanced,
+        onEnhancedStatus: setEnhancedStatus,
     });
 
     return (
@@ -42,6 +52,7 @@ export function BassInkPage() {
                 <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
             </div>
             <ControlPanel
+                header={<EnhancedGraphicsToggle status={enhancedStatus} />}
                 definitions={bassInkControls}
                 values={values}
                 onChange={setValue}

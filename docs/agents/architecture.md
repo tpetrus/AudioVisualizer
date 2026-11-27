@@ -333,6 +333,15 @@ swap their look in place (see "Swap in place (cubes)" and "Trio: no rebuild" bel
   `SLOW_FRAME_OPTIONS`) samples frame times after a warm-up that restarts on each look phase. When a window runs slow the
   scene calls `onSlowFrames` and the page shows `SlowFrameNotice`, inside the fullscreen wrapper so it also shows in
   fullscreen. Dismissing it is remembered for the page visit, however often the scene is rebuilt.
+- **Bass ink switches in place instead:** it needs no antialias (points and post-processing only), so
+  `useBassInkScene` does not pass `{ antialias }` and the toggle never rebuilds the renderer. `BassInkPage` passes
+  `useEnhancedGraphics()` to the hook, which reads it through a ref. The first frame that wants it imports
+  `bass-ink/enhanced/bassInkEnhanced.ts` (checking `signal.aborted` when it resolves) and builds it once: shader variants
+  swapped into the existing point materials with a `BASS_INK_ENHANCED` define, and fixed-strength grade, vignette and
+  second-bloom passes handed to `BassInkPost.setExtraPasses`. Later flips only call `setEnabled`, and three.js keeps
+  both shader programs cached. A software renderer never loads it. Every enhanced value is a constant
+  (`enhanced/bassInkEnhancedConfig.ts`), so it adds no flash; a frame-time step-down only lowers the second bloom's
+  resolution. Contracts: `docs/plans/bass-ink-enhanced-graphics/contracts.md`.
 - **Opting in another visualizer:** read `useEnhancedGraphics()` in its scene hook and pass `{ antialias: enhanced }`;
   load its own look with a dynamic `import()` inside `setup` (check `signal.aborted` after every await), report progress
   through a status callback, and render `<EnhancedGraphicsToggle status={...} />` in the `header` slot. Keep its assets as
