@@ -5,7 +5,7 @@ import type { CharacterEntry } from './characterRegistry';
 export function CharacterAttribution({ character }: { character: CharacterEntry }) {
     const credit = character.author ? `${character.title} by ${character.author}` : character.title;
     return (
-        <p className="fixed bottom-2 left-2 max-w-md rounded bg-black/60 px-3 py-2 text-xs text-white/80">
+        <p className="fixed bottom-2 left-2 max-w-md rounded-ui bg-surface-0/60 px-3 py-2 text-xs text-text-muted">
             {credit}, license {character.license} {character.licenseVersion}. {character.modifiedNote}
             {character.trademarkNote ? ` ${character.trademarkNote}` : ''}{' '}
             <a href={character.sourceUrl} className="underline" target="_blank" rel="noreferrer">

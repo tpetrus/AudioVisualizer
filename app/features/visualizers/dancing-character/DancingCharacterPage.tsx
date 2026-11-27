@@ -83,7 +83,7 @@ export function DancingCharacterPage() {
             {!fullscreen.active && status === 'modelFailed' && (
                 <p
                     role="status"
-                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded bg-black/70 px-4 py-2 text-center text-white"
+                    className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-ui bg-surface-0/70 px-4 py-2 text-center text-text"
                 >
                     The dancer couldn&apos;t be loaded. Try reloading the page.
                 </p>
@@ -91,7 +91,7 @@ export function DancingCharacterPage() {
             {!fullscreen.active && characterProblem !== null && (
                 <p
                     role="status"
-                    className="fixed top-4 left-1/2 -translate-x-1/2 rounded bg-black/70 px-4 py-2 text-center text-white"
+                    className="fixed top-4 left-1/2 -translate-x-1/2 rounded-ui bg-surface-0/70 px-4 py-2 text-center text-text"
                 >
                     {characterProblem}
                 </p>
