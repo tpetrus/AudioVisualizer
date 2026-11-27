@@ -202,12 +202,18 @@ fullscreen wrapper).
   `.size-limit.json` in this PR with the reason in the PR description. The post addons must come from the same chunk as
   bass-ink's (check `build/client/assets`).
 
-## Ownership (one owner per file, tasks run in order)
+## Type file (`app/features/visualizers/cubes/enhanced/cubesEnhancedTypes.ts`, orchestrator-owned)
+
+The interfaces of C3 and C4 (`CubesLights`, `CubesEnhancedLookOptions`, `CubesEnhancedSettings`, `CubesFxFrame`,
+`CubesFxUniforms`, `CubesEnhancedLookApi`, `CubeGridLike`, `CubesEnhancedLookConstructor`) live here, type-only, so the
+eager hook imports them without pulling in the lazy chunk. `CubesEnhancedLook` implements `CubesEnhancedLookApi`;
+`cubesFxState.ts` re-exports the two C4 types. The orchestrator committed stubs of `CubesEnhancedLook.ts` and
+`cubesFxState.ts` with these shapes so tasks A and B can run in parallel.
+
+## Ownership (one owner per file)
 
 | Task | Owns |
 |---|---|
-| A (S1) | `EnhancedGraphicsToggle.tsx` and spec (C1b only), `cubes/cubeGrid.ts` and spec (C6 only), `cubes/cubesEnhancedStrings.ts`, `cubes/cubesControls.ts` and spec, `cubes/enhanced/loadCubesEnhanced.ts`, `cubes/enhanced/CubesEnhancedLook.ts`, `cubes/enhanced/cubesEnhancedConfig.ts`, `cubes/enhanced/cubesFxState.ts` (types and a zeroing stub only), their specs, `cubes/useCubesScene.ts`, `cubes/CubesPage.tsx` and specs, `e2e/cubes-enhanced.spec.ts`, `.size-limit.json` |
-| B (S2) | `cubesFxState.ts` and spec, `CubesEnhancedLook.ts`, `cubesEnhancedConfig.ts` and specs |
-| C (S3+S4) | `cubes/enhanced/cubesEnhancedShaders.ts` and spec, `CubesEnhancedLook.ts`, `cubesEnhancedConfig.ts` and specs |
-| D (S5) | `CubesEnhancedLook.ts`, `cubesFxState.ts`, `cubesEnhancedConfig.ts` and specs, `e2e/cubes-enhanced.spec.ts` |
-| Orchestrator | this file, `docs/agents/architecture.md`, integration and the PR |
+| A (S1 hook side) | `EnhancedGraphicsToggle.tsx` and spec (C1b only), `cubes/cubeGrid.ts` and spec (C6 only), `cubes/cubesEnhancedStrings.ts`, `cubes/cubesControls.ts` and spec, `cubes/enhanced/loadCubesEnhanced.ts` and spec, `cubes/useCubesScene.ts`, `cubes/CubesPage.tsx` and their specs, `e2e/cubes-enhanced.spec.ts` |
+| B (S1 look side to S5) | `cubes/enhanced/CubesEnhancedLook.ts`, `cubesFxState.ts`, `cubesEnhancedConfig.ts`, `cubesEnhancedShaders.ts` and their specs |
+| Orchestrator | this file, `cubesEnhancedTypes.ts`, `.size-limit.json`, `docs/agents/architecture.md`, integration, the PR |
