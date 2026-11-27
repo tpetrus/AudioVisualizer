@@ -50,3 +50,32 @@ export const cubesControls = [
 ] as const satisfies readonly ControlDefinition[];
 
 export type CubesControlValues = ControlValues<typeof cubesControls>;
+
+// The panel with the Enhanced section, shown only while enhanced graphics is on. The standard table above is left as it
+// was, so the panel and its value type are unchanged with the flag off.
+export const cubesEnhancedControls = [
+    ...cubesControls,
+    { section: 'Enhanced', key: 'glow', label: 'Glow', type: 'range', min: 0, max: 1, step: 0.05, default: 0.6 },
+    {
+        section: 'Enhanced',
+        key: 'particles',
+        label: 'Particles',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.6,
+    },
+    {
+        section: 'Enhanced',
+        key: 'cameraMotion',
+        label: 'Camera motion',
+        type: 'range',
+        min: 0,
+        max: 1,
+        step: 0.05,
+        default: 0.5,
+    },
+] as const satisfies readonly ControlDefinition[];
+
+export type CubesEnhancedControlValues = ControlValues<typeof cubesEnhancedControls>;

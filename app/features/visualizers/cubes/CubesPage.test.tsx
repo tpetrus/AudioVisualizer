@@ -3,7 +3,10 @@ import { audioHub } from '~/features/audio/hub/audioHub';
 import { CUBES_ANALYSER } from './cubesAnalyser';
 import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cubesControls } from './cubesControls';
+import { cubesControls, cubesEnhancedControls } from './cubesControls';
+import { CUBES_ENHANCED_STRINGS } from './cubesEnhancedStrings';
+import { getEnhancedGraphics, setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
+import { isSlowNoticeDismissed, resetSlowNoticeDismissed } from '~/features/settings/frameRateMonitor';
 import { CubesPage } from './CubesPage';
 import { useCubesScene } from './useCubesScene';
 import { asWebAudio } from '~/test/fakeWebAudio';
@@ -27,6 +30,8 @@ describe('CubesPage', () => {
     beforeEach(() => {
         vi.mocked(useCubesScene).mockClear();
         resetView.mockClear();
+        resetSlowNoticeDismissed();
+        localStorage.clear();
     });
 
     it('gives the scene a full-window container', () => {
@@ -47,7 +52,7 @@ describe('CubesPage', () => {
         // The page's node is its own, carrying the declared settings; the engine's tap is not handed out.
         expect(latestOptions().analyser).toMatchObject(CUBES_ANALYSER);
         expect(latestOptions().analyser).not.toBe(analyser);
-        const defaults = Object.fromEntries(cubesControls.map((control) => [control.key, control.default]));
+        const defaults = Object.fromEntries(cubesEnhancedControls.map((control) => [control.key, control.default]));
         expect(latestOptions().valuesRef.current).toEqual(defaults);
     });
 
@@ -92,6 +97,116 @@ describe('CubesPage', () => {
         expect(screen.getByText('Look')).toBeInTheDocument();
         expect(screen.getByLabelText('Noise gate')).toBeInTheDocument();
         expect(screen.getByLabelText('Smoothing')).toBeInTheDocument();
+    });
+});
+
+describe('CubesPage enhanced graphics', () => {
+    beforeEach(() => {
+        vi.mocked(useCubesScene).mockClear();
+        resetSlowNoticeDismissed();
+        localStorage.clear();
+    });
+
+    it('shows today panel and no Enhanced section while the flag is off', async () => {
+        const { user } = renderWithProviders(<CubesPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        expect(latestOptions().enhanced).toBe(false);
+        expect(screen.getByLabelText('Sensitivity')).toBeInTheDocument();
+        expect(screen.queryByText('Enhanced')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Glow')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Particles')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('Camera motion')).not.toBeInTheDocument();
+        expect(cubesControls.length).toBeLessThan(cubesEnhancedControls.length);
+    });
+
+    it('shows the Enhanced section while the flag is on, and the scene reads those values', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<CubesPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        expect(latestOptions().enhanced).toBe(true);
+        expect(screen.getByText('Enhanced')).toBeInTheDocument();
+        fireEvent.change(screen.getByLabelText('Glow'), { target: { value: '0.2' } });
+        expect(latestOptions().valuesRef.current.glow).toBe(0.2);
+        expect(screen.getByLabelText('Particles')).toBeInTheDocument();
+        expect(screen.getByLabelText('Camera motion')).toBeInTheDocument();
+    });
+
+    it('follows the toggle in the panel header and keeps the Enhanced values across it', async () => {
+        const { user } = renderWithProviders(<CubesPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        expect(getEnhancedGraphics()).toBe(true);
+        expect(latestOptions().enhanced).toBe(true);
+        fireEvent.change(screen.getByLabelText('Glow'), { target: { value: '0.2' } });
+
+        await user.click(screen.getByRole('switch', { name: /enhanced graphics/i }));
+        expect(latestOptions().enhanced).toBe(false);
+        expect(screen.queryByLabelText('Glow')).not.toBeInTheDocument();
+        expect(latestOptions().valuesRef.current.glow).toBe(0.2);
+    });
+
+    it('describes the toggle with the cubes text and shows the scene status next to it', async () => {
+        const { user } = renderWithProviders(<CubesPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+
+        expect(screen.getByRole('switch', { name: /enhanced graphics/i })).toHaveAccessibleDescription(
+            CUBES_ENHANCED_STRINGS.description,
+        );
+        act(() => latestOptions().onEnhancedStatus?.('loading'));
+        expect(screen.getByText('Loading enhanced assets')).toBeInTheDocument();
+        act(() => latestOptions().onEnhancedStatus?.('error'));
+        expect(screen.getByText('Could not load enhanced assets, using standard')).toBeInTheDocument();
+    });
+
+    it('shows no slow-frame notice until the scene reports slow frames, in an always-mounted status region', () => {
+        const { container } = renderWithProviders(<CubesPage />);
+        const region = container.querySelector('.fixed.inset-0 > [role="status"]') as HTMLElement;
+        expect(region).toBeEmptyDOMElement();
+
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        const notice = screen.getByText('Enhanced graphics looks slow on this device.').closest('[role="status"]');
+        expect(notice).toBe(region);
+    });
+
+    it('switches to standard from the notice and hides it', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<CubesPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        await user.click(screen.getByRole('button', { name: 'Switch to standard' }));
+
+        expect(getEnhancedGraphics()).toBe(false);
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('keeps the preference on Dismiss and never shows the notice again this visit', async () => {
+        setEnhancedGraphics(true);
+        const { user } = renderWithProviders(<CubesPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+
+        await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+        expect(getEnhancedGraphics()).toBe(true);
+        expect(isSlowNoticeDismissed()).toBe(true);
+
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
+    });
+
+    it('hides the notice when the scene goes back to the standard look', () => {
+        renderWithProviders(<CubesPage />);
+        act(() => latestOptions().onEnhancedStatus?.('ready'));
+        act(() => latestOptions().onSlowFrames?.());
+        expect(screen.getByText(/looks slow/)).toBeInTheDocument();
+
+        act(() => latestOptions().onEnhancedStatus?.(undefined));
+        expect(screen.queryByText(/looks slow/)).not.toBeInTheDocument();
     });
 });
 
