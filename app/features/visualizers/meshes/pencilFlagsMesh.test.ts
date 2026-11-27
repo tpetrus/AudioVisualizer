@@ -135,6 +135,16 @@ describe('PencilFlagsMesh', () => {
         expect(standard.material.uniforms.glow).toBeUndefined();
     });
 
+    it('spaces rows by the row distance when one is given, and by the column distance otherwise', () => {
+        const offsets = (flags: PencilFlagsMesh) => attribute(flags, 'instanceOffset');
+        const standard = create();
+        const deep = new PencilFlagsMesh(DEPTH, WIDTH, DISTANCE, createColors(), RADIUS, 1, { rowDistance: 25 });
+        // flag = column * DEPTH + row: flag 1 is column 0, row 1; flag DEPTH is column 1, row 0.
+        expect(offsets(standard).getZ(1)).toBe(DISTANCE);
+        expect(offsets(deep).getZ(1)).toBe(25);
+        expect(offsets(deep).getX(DEPTH)).toBe(DISTANCE);
+    });
+
     it('detaches the mesh and frees the geometry and material on dispose', () => {
         const flags = create();
         const scene = new THREE.Scene();

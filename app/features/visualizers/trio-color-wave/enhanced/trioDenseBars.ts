@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PencilFlagsMesh } from '~/features/visualizers/meshes/pencilFlagsMesh';
-import { BAR_OPACITY, FLAG_DEPTH, FLAG_WIDTH } from '../trioColorWaveConfig';
+import { BAR_OPACITY, FLAG_DEPTH, FLAG_DISTANCE, FLAG_WIDTH } from '../trioColorWaveConfig';
 import { DENSE_COLUMNS, DENSE_DISTANCE, DENSE_RADIUS, PULSE_BAR_GAIN, RIM_STRENGTH } from './trioEnhancedConfig';
 import { trioHdrFragmentShader, trioHdrVertexShader } from './trioHdrShaders';
 
@@ -15,7 +15,7 @@ export interface DenseBarUniforms {
     hazeColor: THREE.IUniform<THREE.Vector3>;
 }
 
-// A denser copy of one standard sheet: twice the columns over the same footprint, drawn with the HDR shaders. It owns
+// A denser copy of one standard sheet: twice the columns over the same footprint (same rows), drawn with the HDR shaders. It owns
 // its mesh; the standard sheet stays the source of truth for heights, colors and position.
 export class TrioDenseBars {
     readonly flags: PencilFlagsMesh;
@@ -46,6 +46,9 @@ export class TrioDenseBars {
                 vertexShader: trioHdrVertexShader,
                 fragmentShader: trioHdrFragmentShader,
                 uniforms: { ...this.uniforms },
+                // Only the columns are denser: the rows keep the standard spacing, so the sheet is as deep as the
+                // standard one and the crossfade lines up row for row.
+                rowDistance: FLAG_DISTANCE,
             },
         );
         // The same tip length per row as the standard sheet.

@@ -88,5 +88,6 @@ then Look) and their value types. The page calls `useControlValues(trioAllContro
 `{ readonly current: TrioAllControlValues }`. The page passes `useRhythm()`. The standard path ignores `rhythm`.
 
 ## C6 pencil shader option (frozen, done): `meshes/pencilFlagsMesh.ts`
-An optional last constructor argument `PencilShaderOptions { vertexShader?, fragmentShader?, uniforms? }`. Omitted,
-the mesh is exactly as before.
+An optional last constructor argument `PencilMeshOptions { vertexShader?, fragmentShader?, uniforms?, rowDistance? }`
+(`rowDistance` added by follow-up TRIO-F4, so the dense bars keep the standard row spacing). Omitted, the mesh is
+exactly as before.
