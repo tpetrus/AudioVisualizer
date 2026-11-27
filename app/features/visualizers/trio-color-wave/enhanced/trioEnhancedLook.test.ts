@@ -14,6 +14,7 @@ import {
     SHOCKWAVE_POOL_SIZE,
 } from './trioEnhancedConfig';
 import { createTrioEnhancedLook } from './trioEnhancedLook';
+import { type RingUniforms, SHOCKWAVE_RING_NAME } from './trioShockwave';
 import type { TrioEnhancedLook } from './trioEnhancedTypes';
 
 // The passes run shaders, so they are replaced by recorders. vi.mock is hoisted, hence the hoisted record.
@@ -104,7 +105,10 @@ interface Setup {
     sheets: TrioColorWaveSheet[];
     values: { current: TrioLookControlValues };
     reduced: { matches: boolean };
-    rhythm: { updatePhase: ReturnType<typeof vi.fn>; state: { beatCount: number; bandOnsets: number[] } };
+    rhythm: {
+        updatePhase: ReturnType<typeof vi.fn>;
+        state: { beatCount: number; downbeatCount: number; bandOnsets: number[] };
+    };
     standardMeshes: THREE.Object3D[];
 }
 
@@ -119,7 +123,7 @@ function setup(withRhythm = true, pixelRatio = 2): Setup {
     });
     const values = { current: { glowStrength: 1, accentIntensity: 1, depth: 1, dust: 1 } as TrioLookControlValues };
     const reduced = { matches: false };
-    const rhythm = { updatePhase: vi.fn(), state: { beatCount: 0, bandOnsets: [0, 0, 0] } };
+    const rhythm = { updatePhase: vi.fn(), state: { beatCount: 0, downbeatCount: 0, bandOnsets: [0, 0, 0] } };
     const look = createTrioEnhancedLook({
         renderer,
         scene,
@@ -306,6 +310,24 @@ describe('render', () => {
         ).toBeGreaterThan(0);
     });
 
+    it('packs the columns closer but keeps the standard row spacing, so the sheet is as deep', () => {
+        const s = setup();
+        const offsetsOf = (mesh: THREE.Mesh) =>
+            (mesh.geometry as THREE.InstancedBufferGeometry).getAttribute('instanceOffset');
+        const standard = offsetsOf(s.standardMeshes[0] as THREE.Mesh);
+        const dense = offsetsOf(
+            s.scene.children.filter(
+                (child): child is THREE.Mesh =>
+                    child instanceof THREE.Mesh &&
+                    !s.standardMeshes.includes(child) &&
+                    child.geometry instanceof THREE.InstancedBufferGeometry,
+            )[0],
+        );
+        const lastRow = FLAG_DEPTH - 1;
+        expect(dense.getZ(lastRow)).toBe(standard.getZ(lastRow));
+        expect(dense.getX(FLAG_DEPTH)).toBeCloseTo(standard.getX(FLAG_DEPTH) / 2, 6);
+    });
+
     it('copies the standard colors, interpolating the in-between bars', () => {
         const s = setup();
         const standard = s.sheets[0].flags.geometry.getAttribute('instanceColor').array;
@@ -405,10 +427,12 @@ describe('render', () => {
     });
 });
 
+const uniformsOf = (ring: THREE.Mesh) => (ring.material as THREE.ShaderMaterial).uniforms as RingUniforms;
+
 describe('accent and shockwave', () => {
     const rings = (s: Setup) =>
         s.scene.children.filter(
-            (child): child is THREE.Mesh => child instanceof THREE.Mesh && child.geometry instanceof THREE.RingGeometry,
+            (child): child is THREE.Mesh => child instanceof THREE.Mesh && child.name === SHOCKWAVE_RING_NAME,
         );
 
     it('reads the rhythm each frame, fires a ring and a pulse on a new beat, and decays the pulse', () => {
@@ -422,16 +446,52 @@ describe('accent and shockwave', () => {
         expect(rings(s).filter((ring) => ring.visible)).toHaveLength(1);
         expect(bloom().strength).toBeGreaterThan(0.45);
         const ring = rings(s).find((candidate) => candidate.visible)!;
-        expect((ring.material as THREE.MeshBasicMaterial).color.r).toBeGreaterThan(1);
+        expect(uniformsOf(ring).outerColor.value.x).toBeGreaterThan(1);
+        expect(uniformsOf(ring).strength.value).toBeGreaterThan(0);
 
-        const first = ring.scale.x;
+        const first = uniformsOf(ring).progress.value;
         s.look.render(0.2);
-        expect(ring.scale.x).toBeGreaterThan(first);
+        expect(uniformsOf(ring).progress.value).toBeGreaterThan(first);
         // Past its lifetime it is hidden again.
         s.look.render(0.1);
         s.look.render(0.1);
         for (let i = 0; i < 12; i++) s.look.render(0.1);
         expect(ring.visible).toBe(false);
+    });
+
+    it('draws the rings behind the sheets, after the backdrop and before the bars', () => {
+        const s = setup();
+        const farthest = s.standardMeshes[s.standardMeshes.length - 1].position.z;
+        for (const ring of rings(s)) {
+            expect(ring.position.z).toBeLessThan(farthest);
+            expect(ring.renderOrder).toBeLessThan(0);
+            expect(ring.renderOrder).toBeGreaterThan(-10);
+        }
+    });
+
+    it('makes a downbeat burst bigger and brighter, followed by an echo ring', () => {
+        const s = setup();
+        s.look.setMix(1);
+        s.look.render(1 / 60);
+        beat(s, 1);
+        const plain = rings(s).find((candidate) => candidate.visible)!;
+        const plainScale = plain.scale.x;
+        const plainStrength = uniformsOf(plain).strength.value;
+        for (let i = 0; i < 15; i++) s.look.render(0.1);
+        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
+
+        s.rhythm.state.downbeatCount = 1;
+        beat(s, 2);
+        const live = rings(s).filter((ring) => ring.visible);
+        expect(live).toHaveLength(1);
+        expect(live[0].scale.x).toBeGreaterThan(plainScale);
+        expect(uniformsOf(live[0]).strength.value).toBeGreaterThan(plainStrength);
+        // The echo starts after its delay.
+        s.look.render(0.1);
+        s.look.render(0.1);
+        const both = rings(s).filter((ring) => ring.visible);
+        expect(both).toHaveLength(2);
+        expect(uniformsOf(both[1]).strength.value).toBeLessThan(uniformsOf(both[0]).strength.value);
     });
 
     it('fires from a rising kick onset and reuses the pool, never showing more rings than the pool holds', () => {
@@ -456,7 +516,7 @@ describe('accent and shockwave', () => {
         s.values.current.accentIntensity = 0;
         beat(s, 1);
         const ring = rings(s).find((candidate) => candidate.visible)!;
-        expect((ring.material as THREE.MeshBasicMaterial).opacity).toBe(0);
+        expect(uniformsOf(ring).strength.value).toBe(0);
         expect(bloom().strength).toBeCloseTo(0.45, 10);
     });
 
@@ -650,9 +710,9 @@ describe('dispose', () => {
                 look.setMix(1);
                 look.render(0.016);
                 look.dispose();
-                // 3 dense + backdrop + dust + ring geometry; 3 dense + backdrop + dust + 3 ring materials = 8.
+                // 3 dense + backdrop + dust + ring geometry; 3 dense + backdrop + dust + the ring materials.
                 expect(geometryDispose).toHaveBeenCalledTimes(6);
-                expect(materialDispose).toHaveBeenCalledTimes(8);
+                expect(materialDispose).toHaveBeenCalledTimes(5 + SHOCKWAVE_POOL_SIZE);
                 expect(scene.children).toHaveLength(3);
             }
         } finally {

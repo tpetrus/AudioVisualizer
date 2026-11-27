@@ -75,6 +75,9 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         opacity: sheet.material.uniforms.opacity.value as number,
     }));
     const accent = createTrioAccent();
+    // The last downbeat counter seen, so a burst that lands on a downbeat can be made bigger. Undefined before the first
+    // frame, which never counts as a new downbeat.
+    let lastDownbeatCount: number | undefined;
     // One input object, rewritten every frame, so stepping the accent allocates nothing.
     const accentInput: TrioAccentInput = {
         dtSeconds: 0,
@@ -108,7 +111,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         const farthestZ = sheets.length > 0 ? sheets[sheets.length - 1].mesh.position.z : 0;
         backdrop = track(new TrioBackdrop(farthestZ));
         dust = track(new TrioDust(renderer.getPixelRatio()));
-        shockwave = track(new TrioShockwave());
+        shockwave = track(new TrioShockwave(farthestZ));
 
         // The composer: the scene in linear HDR, a bloom, then one conversion to the screen (ACES and sRGB) in
         // OutputPass.
@@ -163,11 +166,15 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             // Without a tracker nothing ever triggers: the counters stay at 0.
             let beatCount = 0;
             let bassOnset = 0;
+            let downbeatCount = 0;
             if (rhythm) {
                 rhythm.updatePhase();
                 beatCount = rhythm.state.beatCount;
                 bassOnset = rhythm.state.bandOnsets[0] ?? 0;
+                downbeatCount = rhythm.state.downbeatCount;
             }
+            const downbeat = lastDownbeatCount !== undefined && downbeatCount > lastDownbeatCount;
+            lastDownbeatCount = downbeatCount;
             accentInput.dtSeconds = dt;
             accentInput.beatCount = beatCount;
             accentInput.bassOnset = bassOnset;
@@ -189,7 +196,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
 
             backdrop.update(values.depth, mix);
             dust.update(dt, values.dust, mix, reduced);
-            if (accent.triggered && !reduced) shockwave.fire(values.accentIntensity);
+            if (accent.triggered && !reduced) shockwave.fire(values.accentIntensity, downbeat);
             shockwave.update(dt, mix, reduced);
 
             // Glow 0 is a true off: no bloom pass at all, not just a weak one.

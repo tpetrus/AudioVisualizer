@@ -70,14 +70,25 @@ export const DUST_DRIFT_RANGE = 60;
 // Fixed seed so every run places the dust the same way.
 export const DUST_SEED = 0x7ac3;
 
-// Shockwave: a pool of rings fired by the accent.
-export const SHOCKWAVE_POOL_SIZE = 3;
-export const SHOCKWAVE_LIFETIME_SECONDS = 1.1;
-export const SHOCKWAVE_MAX_RADIUS = 520;
-// Inner radius of the ring as a share of its outer radius (so its thickness scales with it).
-export const SHOCKWAVE_INNER_SHARE = 0.93;
-export const SHOCKWAVE_SEGMENTS = 96;
-export const SHOCKWAVE_CENTER_Z = 200;
-export const SHOCKWAVE_PEAK_OPACITY = 0.8;
-// HDR color so the bloom catches the ring.
-export const SHOCKWAVE_COLOR: readonly [number, number, number] = [1.6, 1.2, 2.4];
+// Burst: a pool of rings fired by the accent. They are drawn behind the sheets (between the farthest sheet and the
+// backdrop) and centered low, so each one rises from behind the bars like a halo instead of covering them.
+// Four rings: a downbeat uses two (the burst and its echo), and the gate allows at most three bursts a second.
+export const SHOCKWAVE_POOL_SIZE = 4;
+export const SHOCKWAVE_LIFETIME_SECONDS = 1.3;
+// Outer radius at the end of its life (world units); a downbeat burst goes this much further.
+export const SHOCKWAVE_MAX_RADIUS = 640;
+export const SHOCKWAVE_DOWNBEAT_SCALE = 1.3;
+// Where the rings are centered: low on the screen (the bars rise from y = BASE_HEIGHT), and this far behind the
+// farthest sheet.
+export const SHOCKWAVE_CENTER_Y = -150;
+export const SHOCKWAVE_BEHIND = 120;
+export const SHOCKWAVE_PEAK_STRENGTH = 0.8;
+// A downbeat burst is brighter, and is followed by a fainter echo ring after a short delay.
+export const SHOCKWAVE_DOWNBEAT_GAIN = 1.4;
+export const SHOCKWAVE_ECHO_DELAY_SECONDS = 0.14;
+export const SHOCKWAVE_ECHO_GAIN = 0.5;
+// The ring's three bands, outside to inside, in the trio's own colors (highs, mids, bass), linear HDR so the bloom
+// catches them.
+export const SHOCKWAVE_OUTER_COLOR: readonly [number, number, number] = [2.2, 0.55, 0.2];
+export const SHOCKWAVE_MID_COLOR: readonly [number, number, number] = [0.35, 0.6, 2.4];
+export const SHOCKWAVE_INNER_COLOR: readonly [number, number, number] = [1.2, 0.3, 2.2];
