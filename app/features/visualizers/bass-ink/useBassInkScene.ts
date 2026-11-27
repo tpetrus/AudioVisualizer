@@ -465,6 +465,8 @@ export function useBassInkScene(
                 return;
             }
             enhancedLook.setEnabled(true);
+            // The second bloom follows the Glow control like the standard one, never the music.
+            enhancedLook.setGlow(valuesRef.current.glow);
             enhancedLook.step(frameSeconds);
             reportEnhanced('ready');
         };

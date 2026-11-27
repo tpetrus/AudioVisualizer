@@ -231,6 +231,56 @@ describe('setEnabled', () => {
     });
 });
 
+describe('setGlow', () => {
+    it('scales the second bloom by the Glow control, never by anything else', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(0.4);
+        expect(bloom.strength).toBeCloseTo(config.ENHANCED_BLOOM_STRENGTH * 0.4, 12);
+        expect(bloom.enabled).toBe(true);
+        handle.setGlow(1);
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        expect(bloom.radius).toBe(config.ENHANCED_BLOOM_RADIUS);
+        expect(bloom.threshold).toBe(config.ENHANCED_BLOOM_THRESHOLD);
+    });
+
+    it('turns the second bloom off at Glow 0, and back on when Glow returns', () => {
+        const { handle, bloom, grade } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(0);
+        expect(bloom.enabled).toBe(false);
+        expect(grade.enabled).toBe(true);
+        handle.setGlow(0.5);
+        expect(bloom.enabled).toBe(true);
+    });
+
+    it('keeps the bloom off while the look is off, whatever the Glow', () => {
+        const { handle, bloom } = setup();
+        handle.setGlow(1);
+        expect(bloom.enabled).toBe(false);
+        handle.setEnabled(true);
+        handle.setGlow(0);
+        handle.setEnabled(false);
+        handle.setGlow(0.7);
+        expect(bloom.enabled).toBe(false);
+    });
+
+    it('clamps to 0..1, treats a non-finite value as 0 and ignores calls after dispose', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(3);
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        handle.setGlow(Number.NaN);
+        expect(bloom.strength).toBe(0);
+        expect(bloom.enabled).toBe(false);
+        handle.setGlow(-1);
+        expect(bloom.strength).toBe(0);
+        handle.dispose();
+        handle.setGlow(1);
+        expect(bloom.strength).toBe(0);
+    });
+});
+
 describe('render scale', () => {
     it('steps down one level per slow window and stops at the lowest', () => {
         const { handle, bloom } = setup();

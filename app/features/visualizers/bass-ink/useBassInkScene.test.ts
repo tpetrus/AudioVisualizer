@@ -205,6 +205,7 @@ vi.mock('./enhanced/bassInkEnhanced', () => ({
             }),
             setMaterials: vi.fn(),
             setSize: vi.fn(),
+            setGlow: vi.fn(),
             step: vi.fn(),
             dispose: vi.fn(),
         };
@@ -218,6 +219,7 @@ interface FakeEnhanced {
     setEnabled: ReturnType<typeof vi.fn>;
     setMaterials: ReturnType<typeof vi.fn>;
     setSize: ReturnType<typeof vi.fn>;
+    setGlow: ReturnType<typeof vi.fn>;
     step: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
 }
@@ -1999,6 +2001,18 @@ describe('useBassInkScene', () => {
             // The status is reported on change only, never per frame.
             const calls = onEnhancedStatus.mock.calls.map((call) => call[0] as unknown);
             expect(calls).toEqual(['loading', 'ready', undefined, 'ready']);
+        });
+
+        it('hands the Glow control to the look every frame while it is on', async () => {
+            const { frame, valuesRef } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            const handle = enhancedHandles()[0];
+            expect(handle.setGlow).toHaveBeenLastCalledWith(valuesRef.current.glow);
+            valuesRef.current = { ...valuesRef.current, glow: 0 };
+            frame();
+            expect(handle.setGlow).toHaveBeenLastCalledWith(0);
         });
 
         it('never loads it on a software renderer, and reports no status', async () => {

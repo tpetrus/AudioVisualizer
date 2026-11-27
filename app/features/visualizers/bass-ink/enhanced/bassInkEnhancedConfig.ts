@@ -16,8 +16,10 @@ export const ENHANCED_FRAME_BUDGET_SECONDS = 1 / 58;
 
 // ---- Second bloom ----
 
-// A wide, soft halo on top of the standard glow control's bloom. Fixed strength, so the glow slider keeps its meaning.
-export const ENHANCED_BLOOM_STRENGTH = 0.5;
+// A wide, soft halo on top of the standard bloom. Like the standard one, its strength is this times the Glow control
+// (0..1) and 0 turns it off; it never follows the music. At the control's default (0.4) it is 0.5, the strength the
+// look was tuned at on a real GPU, and at full Glow it stays close to the standard bloom's maximum (1.2).
+export const ENHANCED_BLOOM_STRENGTH = 1.25;
 export const ENHANCED_BLOOM_RADIUS = 0.65;
 // Only light above this blooms, so the faint dust does not smear.
 export const ENHANCED_BLOOM_THRESHOLD = 0.7;

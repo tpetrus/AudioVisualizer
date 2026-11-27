@@ -56,6 +56,9 @@ export interface BassInkEnhancedHandle {
     readonly renderScale: number;
     // Idempotent and cheap when unchanged (the scene calls it every frame).
     setEnabled(on: boolean): void;
+    // The Glow control (0..1, the scene calls it every frame). The second bloom's strength is its constant times this,
+    // and 0 turns it off, so Glow at 0 means no bloom at all in either mode. Cheap when unchanged.
+    setGlow(glow: number): void;
     // After a density rebuild: applies the current state to the new materials and puts the standard look back on the old.
     setMaterials(materials: BassInkMaterials): void;
     setSize(size: SceneSize): void;
@@ -143,6 +146,8 @@ export function buildBassInkEnhanced(ctx: BassInkEnhancedContext, materials: Bas
 class BassInkEnhancedLook implements BassInkEnhancedHandle {
     private on = false;
     private disposed = false;
+    // The Glow control's last value. 1 until the scene first sets it, which is the bloom's full configured strength.
+    private glow = 1;
     private held: Held[] = [];
     private readonly bloom: UnrealBloomPass;
     private readonly grade: ShaderPass;
@@ -217,6 +222,14 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         this.on = on;
         this.frameCount = 0;
         for (const held of this.held) this.apply(held);
+        this.applyPassState();
+    }
+
+    setGlow(glow: number): void {
+        const next = Number.isFinite(glow) ? Math.min(1, Math.max(0, glow)) : 0;
+        if (this.disposed || next === this.glow) return;
+        this.glow = next;
+        this.bloom.strength = ENHANCED_BLOOM_STRENGTH * next;
         this.applyPassState();
     }
 
@@ -326,7 +339,7 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
     // The bloom is skipped when the drawing is tiny, as BassInkPost skips its own.
     private applyPassState(): void {
         const tiny = this.deviceWidth < ENHANCED_BLOOM_MIN_SIDE_PX || this.deviceHeight < ENHANCED_BLOOM_MIN_SIDE_PX;
-        this.bloom.enabled = this.on && !tiny;
+        this.bloom.enabled = this.on && !tiny && this.glow > 0;
         this.grade.enabled = this.on;
     }
 }

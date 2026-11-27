@@ -120,6 +120,7 @@ export interface BassInkEnhancedHandle {
     readonly enabled: boolean;
     readonly renderScale: number; // 1, or the step-down level in use
     setEnabled(on: boolean): void; // idempotent, cheap when unchanged (called every frame)
+    setGlow(glow: number): void; // BI-F4: the Glow control, 0..1 (non-finite = 0), called every frame while wanted
     setMaterials(materials: BassInkMaterials): void; // after a density rebuild; applies the current state to them
     setSize(size: SceneSize): void;
     step(frameSeconds: number): void; // frame-time-only render-scale step-down; acts only while enabled
@@ -199,3 +200,13 @@ shaders compile on this GPU). The builder's first constants gave about 1.6 times
 clipped the cloud to white; the orchestrator retuned the sprite and the second bloom (see `bassInkEnhancedConfig.ts`).
 Accepted deviation from C2: `orbit.tilt` is -0.06 (the camera dips at azimuth π), because any rise pushed the flat
 formations past the fill at the swing's most face-on tilt (framing.test.ts).
+
+## Amendment BI-F4 (orchestrator, after review, 2026-11-27)
+
+The second bloom's strength is `ENHANCED_BLOOM_STRENGTH * glow`, where `glow` is the Glow control passed through the
+new `setGlow` (0 turns the pass off), like the standard bloom. Before this, Glow at 0 still left the second bloom on.
+`ENHANCED_BLOOM_STRENGTH` becomes 1.25, so the control's default (0.4) gives the 0.5 the look was tuned at, and full
+Glow stays near the standard bloom's 1.2. It still follows no audio or time input: the bloom is a fixed function of
+each frame and adds no flash events of its own (flash events stay those BrightnessMix grants), but it does scale their
+size above the threshold, as the standard bloom already does. A per-frame luminance measurement of flash amplitude
+with enhanced on has not been made (the harness cannot read the canvas per frame); it stays open in BI-F4's notes.
