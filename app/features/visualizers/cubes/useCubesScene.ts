@@ -153,6 +153,8 @@ export function useCubesScene(
         // The enhanced look. It exists only between a successful load and the next toggle-off (or teardown); until then
         // the basic look keeps rendering. Everything below is preallocated, so the per-frame path allocates nothing.
         let look: CubesEnhancedLookApi | undefined;
+        // A look that is attached and compiling its programs: the basic render continues until it becomes `look`.
+        let compiling: CubesEnhancedLookApi | undefined;
         let wanted = false;
         let loadController: AbortController | undefined;
         // The latest CSS size, for a look that is built after a resize.
@@ -189,6 +191,8 @@ export function useCubesScene(
             loadController = undefined;
             look?.dispose();
             look = undefined;
+            compiling?.dispose();
+            compiling = undefined;
         };
 
         const startEnhanced = () => {
@@ -198,26 +202,63 @@ export function useCubesScene(
             const abortWithScene = () => controller.abort();
             signal.addEventListener('abort', abortWithScene, { once: true });
             reportStatus('loading');
-            void loadCubesEnhanced(controller.signal).then((result) => {
+            void loadCubesEnhanced(controller.signal).then(async (result) => {
                 signal.removeEventListener('abort', abortWithScene);
                 // Turned off (or the scene went away) while loading: the result is not wanted any more.
                 if (controller.signal.aborted) return;
-                loadController = undefined;
                 if (!result.ok) {
+                    loadController = undefined;
                     // The basic look keeps rendering; the stored preference is the visitor's to change.
                     reportStatus('error');
                     return;
                 }
-                try {
-                    look = new result.Look({ renderer, scene, camera, lights, size: viewSize, reducedMotion });
-                    look.attach(grid);
-                } catch (error) {
-                    console.warn('Enhanced cubes could not be started, using the basic look.', error);
-                    look?.dispose();
-                    look = undefined;
+                const candidate = (() => {
+                    try {
+                        const created = new result.Look({
+                            renderer,
+                            scene,
+                            camera,
+                            lights,
+                            size: viewSize,
+                            reducedMotion,
+                        });
+                        compiling = created;
+                        created.attach(grid);
+                        return created;
+                    } catch (error) {
+                        console.warn('Enhanced cubes could not be started, using the basic look.', error);
+                        compiling?.dispose();
+                        compiling = undefined;
+                        return undefined;
+                    }
+                })();
+                if (!candidate) {
+                    loadController = undefined;
                     reportStatus('error');
                     return;
                 }
+                // Compile every program now, off the render path, so the first frame through the look is not a long one.
+                // The basic look keeps rendering until this resolves.
+                // Re-register the abort so a teardown while compiling is noticed by the check below.
+                signal.addEventListener('abort', abortWithScene, { once: true });
+                let failure: unknown;
+                try {
+                    await renderer.compileAsync(scene, camera);
+                } catch (error) {
+                    failure = error;
+                }
+                signal.removeEventListener('abort', abortWithScene);
+                // Stopped meanwhile: stopEnhanced already disposed the compiling look, so report nothing stale.
+                if (controller.signal.aborted || compiling !== candidate) return;
+                loadController = undefined;
+                compiling = undefined;
+                if (failure !== undefined) {
+                    console.warn('Enhanced cubes could not be started, using the basic look.', failure);
+                    candidate.dispose();
+                    reportStatus('error');
+                    return;
+                }
+                look = candidate;
                 reportStatus('ready');
             });
         };
@@ -326,8 +367,10 @@ export function useCubesScene(
                     }
                     // The new grid has the plain glass material until the look applies its own.
                     look?.attach(grid);
+                    compiling?.attach(grid);
                 }
                 look?.resize(next.width, next.height);
+                compiling?.resize(next.width, next.height);
             },
 
             dispose: () => {

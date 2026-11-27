@@ -604,6 +604,7 @@ describe('useCubesScene', () => {
             act(async () => loads[index].settle(result));
 
         const look = () => FakeLook.instances.at(-1)!;
+        const compile = vi.fn<(scene: unknown, camera: unknown) => Promise<void>>();
 
         beforeEach(() => {
             loads.length = 0;
@@ -616,9 +617,14 @@ describe('useCubesScene', () => {
                     new Promise<LoadCubesEnhancedResult>((resolve) => loads.push({ signal, settle: resolve })),
             );
             resetSlowNoticeDismissed();
+            compile.mockReset();
+            compile.mockResolvedValue(undefined);
+            // The shared fake renderer has no compileAsync (app/test is not ours to edit), so it is stubbed here.
+            (FakeRenderer.prototype as unknown as { compileAsync: typeof compile }).compileAsync = compile;
         });
 
         afterEach(() => {
+            Reflect.deleteProperty(FakeRenderer.prototype, 'compileAsync');
             vi.restoreAllMocks();
             Reflect.deleteProperty(window, 'matchMedia');
         });
@@ -702,6 +708,50 @@ describe('useCubesScene', () => {
             expect(settings).toMatchObject({ glow: 0.2, particles: 0.3, cameraMotion: 0.4 });
             expect(settings.restingColor).toBeInstanceOf(Color);
             expect(settings.raisedColor).toBeInstanceOf(Color);
+        });
+
+        it('keeps rendering basic while compiling, then reports ready and switches to the look', async () => {
+            let finish!: () => void;
+            compile.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+            const { frame, renderer, statuses, scene, camera } = mountScene({ enhanced: true });
+            await settle(ok);
+
+            expect(compile).toHaveBeenCalledWith(scene, camera);
+            expect(statuses).toEqual([undefined, 'loading']);
+            const before = renderer.render.mock.calls.length;
+            frame(16);
+            expect(renderer.render.mock.calls.length).toBe(before + 1);
+            expect(look().render).not.toHaveBeenCalled();
+
+            await act(async () => finish());
+
+            expect(statuses).toEqual([undefined, 'loading', 'ready']);
+            frame(32);
+            expect(look().render).toHaveBeenCalledTimes(1);
+        });
+
+        it('disposes the look and reports nothing when turned off while compiling', async () => {
+            let finish!: () => void;
+            compile.mockReturnValue(new Promise<void>((resolve) => (finish = resolve)));
+            const { rerender, statuses } = mountScene({ enhanced: true });
+            await settle(ok);
+
+            rerender(basic);
+            await act(async () => finish());
+
+            expect(look().dispose).toHaveBeenCalledTimes(1);
+            expect(statuses).toEqual([undefined, 'loading', undefined]);
+        });
+
+        it('disposes the look and reports an error when compiling fails', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            compile.mockRejectedValue(new Error('compile failed'));
+            const { statuses } = mountScene({ enhanced: true });
+            await settle(ok);
+
+            expect(look().dispose).toHaveBeenCalledTimes(1);
+            expect(statuses).toEqual([undefined, 'loading', 'error']);
+            expect(warn).toHaveBeenCalledTimes(1);
         });
 
         it('hands the look the same frame and settings objects every frame (no allocation)', async () => {
