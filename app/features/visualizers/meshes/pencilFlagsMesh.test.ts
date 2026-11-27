@@ -119,6 +119,22 @@ describe('PencilFlagsMesh', () => {
         expect(create().material.uniforms.opacity.value).toBe(1);
     });
 
+    it('uses the standard shaders unless a look passes its own, adding its uniforms to the standard ones', () => {
+        const standard = create();
+        const custom = new PencilFlagsMesh(DEPTH, WIDTH, DISTANCE, createColors(), RADIUS, 0.5, {
+            vertexShader: 'void main() {}',
+            fragmentShader: 'void main() { }',
+            uniforms: { glow: { value: 2 }, opacity: { value: 0.25 } },
+        });
+        expect(custom.material.vertexShader).toBe('void main() {}');
+        expect(custom.material.fragmentShader).toBe('void main() { }');
+        expect(custom.material.uniforms.glow.value).toBe(2);
+        expect(custom.material.uniforms.opacity.value).toBe(0.25);
+        expect(custom.material.uniforms.apothem.value).toBe(standard.material.uniforms.apothem.value);
+        expect(standard.material.vertexShader).toContain('instanceHeight');
+        expect(standard.material.uniforms.glow).toBeUndefined();
+    });
+
     it('detaches the mesh and frees the geometry and material on dispose', () => {
         const flags = create();
         const scene = new THREE.Scene();

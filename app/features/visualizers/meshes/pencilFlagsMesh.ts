@@ -2,6 +2,14 @@ import * as THREE from 'three';
 import { vertexShader } from './shaders/vertex';
 import { fragmentShader } from './shaders/fragment';
 
+// Shaders that replace the standard pair, for a look that needs its own (the trio's enhanced HDR bars). They must keep
+// the standard attributes and uniforms; `uniforms` are added to the standard ones and win on a name clash.
+export interface PencilShaderOptions {
+    vertexShader?: string;
+    fragmentShader?: string;
+    uniforms?: Record<string, THREE.IUniform>;
+}
+
 // A grid of pencil-shaped bars: a six-sided prism of constant width that rises straight up and ends in a pointed tip.
 //
 // Every bar is one instance of the same small pencil geometry. The only thing the CPU changes per frame is each
@@ -30,6 +38,7 @@ export class PencilFlagsMesh {
         flagColors: THREE.Color[],
         radius: number,
         opacity: number = 1,
+        shaders: PencilShaderOptions = {},
     ) {
         this.numDepth = numDepth;
         const flagCount = numDepth * numWidth;
@@ -57,8 +66,8 @@ export class PencilFlagsMesh {
         this.geometry.instanceCount = flagCount;
 
         this.material = new THREE.RawShaderMaterial({
-            vertexShader,
-            fragmentShader,
+            vertexShader: shaders.vertexShader ?? vertexShader,
+            fragmentShader: shaders.fragmentShader ?? fragmentShader,
             uniforms: {
                 lightDirection: { value: new THREE.Vector3(0.35, 0.8, 0.5) },
                 apothem: { value: radius * Math.cos(Math.PI / this.sides) },
@@ -66,6 +75,7 @@ export class PencilFlagsMesh {
                 baseShade: { value: 0.5 },
                 tipTint: { value: 0.5 },
                 opacity: { value: opacity },
+                ...shaders.uniforms,
             },
             side: THREE.DoubleSide,
             // See-through bars. They aren't written to the depth buffer, so a bar never hides the ones behind it; rows
