@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
+import { StrictMode } from 'react';
 import type { Scene } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
@@ -36,7 +37,7 @@ const newLook = (): FakeLook => ({ render: vi.fn(), setSize: vi.fn(), setMix: vi
 
 const windowFlags = window as unknown as Record<string, unknown>;
 
-function mountEnhanced(options: { rhythm?: object } = {}) {
+function mountEnhanced(options: { rhythm?: object; strict?: boolean } = {}) {
     const resizes = installFakeResizeObserver();
     const container = document.createElement('div');
     Object.defineProperty(container, 'clientWidth', { value: 800 });
@@ -61,19 +62,21 @@ function mountEnhanced(options: { rhythm?: object } = {}) {
     const onEnhancedStatus = vi.fn();
     const renderersBefore = FakeRenderer.instances.length;
 
-    const hook = renderHook(() =>
-        useTrioColorWaveScene(
-            { current: container },
-            {
-                analyser: undefined,
-                valuesRef,
-                rhythm: options.rhythm as never,
-                onEnhancedStatus,
-                loadEnhancedLook,
-                cameraLocked: true,
-                onViewChanged: vi.fn(),
-            },
-        ),
+    const hook = renderHook(
+        () =>
+            useTrioColorWaveScene(
+                { current: container },
+                {
+                    analyser: undefined,
+                    valuesRef,
+                    rhythm: options.rhythm as never,
+                    onEnhancedStatus,
+                    loadEnhancedLook,
+                    cameraLocked: true,
+                    onViewChanged: vi.fn(),
+                },
+            ),
+        options.strict ? { wrapper: StrictMode } : undefined,
     );
     const renderer = FakeRenderer.last;
     let time = 0;
@@ -99,6 +102,7 @@ function mountEnhanced(options: { rhythm?: object } = {}) {
         statuses: () => onEnhancedStatus.mock.calls.map(([status]) => status),
         frame,
         settle,
+        firstRenderer: FakeRenderer.instances[renderersBefore],
         newRenderers: () => FakeRenderer.instances.length - renderersBefore,
     };
 }
@@ -377,6 +381,22 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.renderer.render).toHaveBeenCalledTimes(2);
         });
 
+        it('treats a loader that throws synchronously as a failed load', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const scene = mountEnhanced();
+            scene.loadEnhancedLook.mockImplementationOnce(() => {
+                throw new Error('no loader');
+            });
+
+            await scene.settle(() => setEnhancedGraphics(true));
+            scene.frame();
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'error']);
+            expect(scene.createTrioEnhancedLook).not.toHaveBeenCalled();
+            expect(scene.renderer.render).toHaveBeenCalledTimes(1);
+        });
+
         it('treats a look that fails to build the same way, and retries on the next off-to-on toggle only', async () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const scene = mountEnhanced();
@@ -400,6 +420,45 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.statuses()).toEqual(['loading', 'error', undefined, 'loading', 'ready']);
         });
 
+        it('does not treat a status callback that throws as a failed load', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const scene = mountEnhanced();
+            scene.onEnhancedStatus.mockImplementation((status) => {
+                if (status === 'ready') throw new Error('callback broke');
+            });
+            setEnhancedGraphics(true);
+
+            await scene.settle(() => scene.pending[0].resolve());
+            scene.renderer.render.mockClear();
+            scene.frame();
+            scene.frame();
+
+            expect(warn).not.toHaveBeenCalled();
+            expect(error).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'ready']);
+            // The look is live and drawing, and a retry is not blocked by a failure flag.
+            expect(scene.looks[0].render).toHaveBeenCalled();
+            expect(scene.renderer.render).not.toHaveBeenCalled();
+            expect(scene.looks[0].dispose).not.toHaveBeenCalled();
+        });
+
+        it('keeps a throwing status callback out of the failure path when reporting the error too', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+            const scene = mountEnhanced();
+            scene.onEnhancedStatus.mockImplementation((status) => {
+                if (status === 'error') throw new Error('callback broke');
+            });
+            setEnhancedGraphics(true);
+
+            await scene.settle(() => scene.pending[0].reject(new Error('offline')));
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(error).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'error']);
+        });
+
         it('ignores a failure of a load that was already abandoned', async () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
             const scene = mountEnhanced();
@@ -410,6 +469,37 @@ describe('useTrioColorWaveScene enhanced look', () => {
 
             expect(warn).not.toHaveBeenCalled();
             expect(scene.statuses()).toEqual(['loading', undefined]);
+        });
+    });
+
+    describe('StrictMode', () => {
+        it('leaves at most one live look and nothing of the first scene behind after the double mount', async () => {
+            localStorage.setItem(ENHANCED_GRAPHICS_KEY, 'true');
+            const scene = mountEnhanced({ strict: true });
+            // The first scene was built, torn down and built again.
+            expect(scene.newRenderers()).toBe(2);
+            expect(scene.firstRenderer).not.toBe(scene.renderer);
+
+            // The first scene's load was abandoned; only the second one is used.
+            await scene.settle(() => scene.pending.forEach((load) => load.resolve()));
+            expect(scene.looks).toHaveLength(1);
+            expect(scene.looks.filter((look) => look.dispose.mock.calls.length === 0)).toHaveLength(1);
+
+            // A restore on the first scene's canvas would start a load if its listener were still there.
+            const loadsBefore = scene.loadEnhancedLook.mock.calls.length;
+            scene.firstRenderer.domElement.dispatchEvent(new Event('webglcontextrestored'));
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(loadsBefore);
+
+            // A toggle reaches one scene only, so exactly one reaction: the second scene's look fades out and back.
+            await scene.settle(() => {
+                setEnhancedGraphics(false);
+                setEnhancedGraphics(true);
+            });
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(loadsBefore);
+            expect(scene.looks).toHaveLength(1);
+
+            scene.unmount();
+            expect(scene.looks.filter((look) => look.dispose.mock.calls.length === 0)).toHaveLength(0);
         });
     });
 
@@ -428,6 +518,29 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.renderer.render).toHaveBeenCalledTimes(1);
             expect(scene.statuses()).toEqual(['loading', 'ready', undefined]);
             expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(1);
+        });
+
+        it('loads a look again when the context is restored and the preference is still on', async () => {
+            const scene = mountEnhanced();
+            await reachEnhanced(scene);
+
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(1);
+            await scene.settle(() => scene.renderer.domElement.dispatchEvent(new Event('webglcontextrestored')));
+            expect(scene.loadEnhancedLook).toHaveBeenCalledTimes(2);
+            await scene.settle(() => scene.pending[1].resolve());
+
+            expect(scene.looks).toHaveLength(2);
+            expect(scene.statuses()).toEqual(['loading', 'ready', undefined, 'loading', 'ready']);
+        });
+
+        it('stays standard after a restore when the preference is off', () => {
+            const scene = mountEnhanced();
+
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextlost'));
+            scene.renderer.domElement.dispatchEvent(new Event('webglcontextrestored'));
+
+            expect(scene.loadEnhancedLook).not.toHaveBeenCalled();
         });
 
         it('abandons a load that is still running', async () => {
@@ -473,6 +586,7 @@ describe('useTrioColorWaveScene enhanced look', () => {
 
             expect(look.dispose).toHaveBeenCalledTimes(1);
             expect(removeListener).toHaveBeenCalledWith('webglcontextlost', expect.any(Function));
+            expect(removeListener).toHaveBeenCalledWith('webglcontextrestored', expect.any(Function));
             expect(scene.statuses().at(-1)).toBeUndefined();
             setEnhancedGraphics(false);
             setEnhancedGraphics(true);

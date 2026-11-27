@@ -32,6 +32,7 @@ const rec = vi.hoisted(() => {
         blooms: [] as unknown[],
         renders: [] as unknown[],
         outputs: [] as unknown[],
+        failOutput: false,
     };
 });
 
@@ -67,6 +68,7 @@ vi.mock('three/addons/postprocessing/OutputPass.js', () => ({
     OutputPass: class extends rec.Pass {
         constructor() {
             super();
+            if (rec.failOutput) throw new Error('pass failed');
             rec.outputs.push(this);
         }
     },
@@ -145,6 +147,7 @@ beforeEach(() => {
     rec.blooms.length = 0;
     rec.renders.length = 0;
     rec.outputs.length = 0;
+    rec.failOutput = false;
 });
 
 describe('createTrioEnhancedLook build', () => {
@@ -159,6 +162,35 @@ describe('createTrioEnhancedLook build', () => {
         expect(scene.children).toHaveLength(3 + 3 + 1 + 1 + SHOCKWAVE_POOL_SIZE);
         expect(composer().passes).toHaveLength(3);
         expect(composer().size).toEqual([800, 600]);
+    });
+
+    it('leaves the scene and the standard meshes as they were when a pass constructor throws', () => {
+        const renderer = { getPixelRatio: () => 2 } as unknown as THREE.WebGLRenderer;
+        const scene = new THREE.Scene();
+        const sheets = BANDS.map((band, index) => new TrioColorWaveSheet(band, index, BANDS.length));
+        for (const sheet of sheets) scene.add(sheet.flags.mesh);
+        rec.failOutput = true;
+
+        expect(() =>
+            createTrioEnhancedLook({
+                renderer,
+                scene,
+                camera: new THREE.PerspectiveCamera(),
+                sheets: sheets.map((sheet) => sheet.flags),
+                size: { width: 800, height: 600 },
+                valuesRef: { current: { glowStrength: 1, accentIntensity: 1, depth: 1, dust: 1 } },
+                rhythm: undefined,
+                reducedMotion: { matches: false },
+            }),
+        ).toThrow('pass failed');
+
+        expect(scene.children).toEqual(sheets.map((sheet) => sheet.flags.mesh));
+        for (const sheet of sheets) {
+            expect(sheet.flags.mesh.visible).toBe(true);
+            expect(sheet.flags.material.uniforms.opacity.value).toBe(BAR_OPACITY);
+        }
+        // What was built before the throw is freed.
+        expect(composers().at(-1)!.dispose).toHaveBeenCalled();
     });
 
     it('builds twice the columns over the same footprint, with a single dust draw of the configured count', () => {
@@ -178,12 +210,18 @@ describe('createTrioEnhancedLook build', () => {
 
     it('sizes the bloom at the configured share of the drawing size in device pixels', () => {
         const { look } = setup(true, 2);
-        expect(bloom().resolution.x).toBe(Math.round(800 * 2 * BLOOM_RESOLUTION_SHARE));
-        expect(bloom().resolution.y).toBe(Math.round(600 * 2 * BLOOM_RESOLUTION_SHARE));
+        // The real pass copies the resolution it is given, so only what the look hands to setSize is checked. It is
+        // twice the target because the pass's first target is half of what it gets.
+        expect(bloom().sizes.at(-1)).toEqual([
+            Math.round(800 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+            Math.round(600 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+        ]);
         look.setSize({ width: 1000, height: 500 });
         expect(composer().size).toEqual([1000, 500]);
-        expect(bloom().resolution.x).toBe(Math.round(1000 * 2 * BLOOM_RESOLUTION_SHARE));
-        expect(bloom().sizes.at(-1)).toEqual([bloom().resolution.x * 2, bloom().resolution.y * 2]);
+        expect(bloom().sizes.at(-1)).toEqual([
+            Math.round(1000 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+            Math.round(500 * 2 * BLOOM_RESOLUTION_SHARE) * 2,
+        ]);
     });
 });
 
