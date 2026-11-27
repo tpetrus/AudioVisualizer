@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { IconButton } from '~/components/ui';
 import { FULLSCREEN_STRINGS } from './strings';
 import {
     FULLSCREEN_EXIT_BUTTON_MS,
@@ -72,17 +73,16 @@ export function FullscreenLayer(props: FullscreenLayerProps) {
             <p
                 role="status"
                 aria-live="polite"
-                className={`pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 text-center text-sm text-white ${toastVisible ? 'rounded bg-black/70 px-4 py-2' : ''}`}
+                className={`pointer-events-none absolute top-4 left-1/2 -translate-x-1/2 text-center text-sm text-text ${toastVisible ? 'rounded-ui bg-surface-0/80 px-4 py-2' : ''}`}
             >
                 {toastVisible ? FULLSCREEN_STRINGS[hint === 'touch' ? 'touchHint' : 'keyboardHint'] : ''}
             </p>
             {touch && buttonVisible && (
-                <button
-                    type="button"
+                <IconButton
                     aria-label={FULLSCREEN_STRINGS.exitButton}
                     title={FULLSCREEN_STRINGS.exitButton}
                     onClick={() => props.onExit()}
-                    className="pointer-events-auto absolute top-4 right-4 flex h-11 w-11 items-center justify-center rounded bg-black/70 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    className="pointer-events-auto absolute top-4 right-4 h-11 w-11 bg-surface-0/70"
                 >
                     <svg
                         aria-hidden="true"
@@ -96,7 +96,7 @@ export function FullscreenLayer(props: FullscreenLayerProps) {
                     >
                         <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
                     </svg>
-                </button>
+                </IconButton>
             )}
         </div>
     );

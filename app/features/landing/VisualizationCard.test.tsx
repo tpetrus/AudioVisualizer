@@ -52,6 +52,8 @@ describe('VisualizationCard', () => {
         const caption = screen.getByText('Cubes', { selector: 'span' });
         expect(caption).toBeVisible();
         expect(caption).toHaveAttribute('aria-hidden', 'true');
+        expect(caption).toHaveClass('bg-surface-1/85', 'border-t', 'border-border');
+        expect(caption.className).not.toContain('gradient');
         expect(screen.getAllByRole('link', { name: 'Cubes' })).toHaveLength(1);
     });
 

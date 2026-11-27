@@ -9,7 +9,7 @@ const TAGLINE =
 // fills the width at any viewport and only scales down when the viewport is narrower than the image.
 export function TitleBanner({ priority = false }: { priority?: boolean }) {
     return (
-        <header className="bg-black text-white">
+        <header className="bg-black text-text">
             {/* The image can't be read by screen readers or search engines, so the text is also here, visually hidden. */}
             <h1 className="sr-only">{TITLE}</h1>
             <p className="sr-only">{TAGLINE}</p>
