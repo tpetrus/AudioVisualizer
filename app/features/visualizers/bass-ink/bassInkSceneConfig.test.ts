@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { trioColorWaveControls } from '~/features/visualizers/trio-color-wave/trioColorWaveControls';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
 
 // CPU mirrors of the shader's brightness terms (inkShaders.ts), from the same constants: the shader cannot run in a
@@ -51,5 +52,29 @@ describe('bassInkSceneConfig depth fade', () => {
     it('turns the view no faster than about 0.7 rad a second at the peak of a swing', () => {
         const peakRate = (1.5 * 2 * bassInkSceneConfig.view.yawSwing) / 2;
         expect(peakRate).toBeLessThanOrEqual(0.7);
+    });
+});
+
+describe('bassInkSceneConfig orbit', () => {
+    const { orbit } = bassInkSceneConfig;
+    const defaultOf = (key: string) => {
+        const control = trioColorWaveControls.find((c) => c.key === key);
+        return (control as unknown as { default: number }).default;
+    };
+
+    it('reads the same band edges as the defaults of the trio visualizer controls', () => {
+        expect(orbit.bandEdges).toEqual({
+            bassLow: defaultOf('bassLow'),
+            bassHigh: defaultOf('bassHigh'),
+            midsHigh: defaultOf('midsHigh'),
+            highsHigh: defaultOf('highsHigh'),
+        });
+    });
+
+    it('releases slower than it attacks, keeps a floor speed and caps above it', () => {
+        expect(orbit.releaseSeconds).toBeGreaterThan(orbit.attackSeconds);
+        expect(orbit.floorSpeed).toBeGreaterThan(0);
+        expect(orbit.capSpeed).toBeGreaterThan(orbit.floorSpeed);
+        expect(orbit.levelHigh).toBeGreaterThan(orbit.levelLow);
     });
 });
