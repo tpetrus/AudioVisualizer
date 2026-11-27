@@ -20,6 +20,9 @@ const CAMERA_DISTANCE = 3800;
 
 // How long the enhanced look takes to fade in over the standard one, and back out again.
 const FADE_SECONDS = 0.25;
+// The longest frame time one fade step may use. The first frames through the look compile its shaders and can take a
+// few hundred milliseconds on a real GPU, which would otherwise finish the whole fade in one step.
+const MAX_FADE_STEP_SECONDS = 0.1;
 
 interface EnhancedLookModule {
     createTrioEnhancedLook: CreateTrioEnhancedLook;
@@ -231,13 +234,15 @@ export function useTrioColorWaveScene(
                 }
 
                 if (look && mix !== mixTarget) {
-                    const step = lastDeltaSeconds / FADE_SECONDS;
+                    const step = Math.min(lastDeltaSeconds, MAX_FADE_STEP_SECONDS) / FADE_SECONDS;
                     mix = mixTarget > mix ? Math.min(mixTarget, mix + step) : Math.max(mixTarget, mix - step);
                     look.setMix(mix);
-                    if (state === 'fading-out' && mix === 0) {
-                        releaseLook();
-                        state = 'standard';
-                    }
+                }
+                // Checked outside the step above: a look turned off before its fade-in moved is already at 0, so no
+                // step runs, and it must still be released rather than left drawing while standard is reported.
+                if (state === 'fading-out' && mix === 0) {
+                    releaseLook();
+                    state = 'standard';
                 }
 
                 if (import.meta.env.DEV) {

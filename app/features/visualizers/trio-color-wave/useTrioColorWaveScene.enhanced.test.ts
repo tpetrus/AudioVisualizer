@@ -263,7 +263,9 @@ describe('useTrioColorWaveScene enhanced look', () => {
             const scene = mountEnhanced();
             const look = await reachEnhanced(scene);
             scene.frame();
-            scene.frame(250);
+            scene.frame(100);
+            scene.frame(100);
+            scene.frame(100);
             look.setMix.mockClear();
 
             setEnhancedGraphics(false);
@@ -284,11 +286,36 @@ describe('useTrioColorWaveScene enhanced look', () => {
             expect(scene.statuses()).toEqual(['loading', 'ready', undefined]);
         });
 
+        it('releases a look turned off before its fade-in moved, on the next frame', async () => {
+            const scene = mountEnhanced();
+            const look = await reachEnhanced(scene);
+
+            setEnhancedGraphics(false);
+            scene.renderer.render.mockClear();
+            scene.frame();
+
+            expect(look.dispose).toHaveBeenCalledTimes(1);
+            expect(look.render).not.toHaveBeenCalled();
+            expect(scene.renderer.render).toHaveBeenCalledTimes(1);
+            expect(scene.statuses()).toEqual(['loading', 'ready', undefined]);
+        });
+
+        it('never moves the fade by more than a tenth of a second in one frame', async () => {
+            const scene = mountEnhanced();
+            const look = await reachEnhanced(scene);
+            scene.frame(0);
+            scene.frame(400);
+
+            expect(look.setMix).toHaveBeenLastCalledWith(expect.closeTo(0.4));
+        });
+
         it('ramps back up on the same look when turned on again during the fade', async () => {
             const scene = mountEnhanced();
             const look = await reachEnhanced(scene);
             scene.frame();
-            scene.frame(250);
+            scene.frame(100);
+            scene.frame(100);
+            scene.frame(100);
             setEnhancedGraphics(false);
             scene.frame(100);
 
