@@ -111,6 +111,7 @@ interface FakeCloud {
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
     setRadius: ReturnType<typeof vi.fn>;
+    setFormationAlpha: ReturnType<typeof vi.fn>;
     activeIndex: number;
     blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
@@ -142,6 +143,7 @@ vi.mock('./inkCloud', async () => {
             setSpectrum = vi.fn();
             setViewport = vi.fn();
             setRadius = vi.fn();
+            setFormationAlpha = vi.fn();
             activeIndex = 0;
             blendProgress = 0;
             showFormation = vi.fn();
@@ -518,6 +520,30 @@ describe('useBassInkScene', () => {
             expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
         });
 
+        it('blends the formation brightness like the fit, so a transition never steps the light', () => {
+            const { frame } = mountScene();
+            const cloud = currentCloud();
+            const alphaOf = () => cloud.setFormationAlpha.mock.calls.at(-1)![0] as number;
+            const [sphere, torus] = bassInkSceneConfig.cloud.formationAlpha;
+            // Mounted on the sphere: its brightness at once.
+            expect(cloud.setFormationAlpha.mock.calls[0][0]).toBe(sphere);
+
+            cloud.preparedIndex = 1;
+            cloud.transitioning = true;
+            cloud.blendProgress = 0.5;
+            for (let i = 0; i < 200; i++) frame();
+            expect(alphaOf()).toBeCloseTo((sphere + torus) / 2, 4);
+
+            // One frame of a jump in the target moves the brightness only part of the way.
+            cloud.blendProgress = 1;
+            const before = alphaOf();
+            frame(16);
+            expect(alphaOf()).toBeLessThan(before);
+            expect(alphaOf()).toBeGreaterThan(torus);
+            for (let i = 0; i < 200; i++) frame();
+            expect(alphaOf()).toBeCloseTo(torus, 4);
+        });
+
         it('refits a cloud rebuilt for a density change', () => {
             const { frame, valuesRef } = mountScene();
             frame();
@@ -527,6 +553,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(2);
             expect(currentCloud().setRadius).toHaveBeenCalled();
+            expect(currentCloud().setFormationAlpha).toHaveBeenCalled();
         });
     });
 

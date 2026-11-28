@@ -255,24 +255,31 @@ export function useBassInkScene(
         // The fit for what the cloud shows now: a blend of the two formations while a fade runs, with the same smoothing
         // the shader applies. Right after a retarget froze a blend (no active formation) it aims at the prepared one.
         let fit = 1;
+        // The shell's formation brightness (bassInkSceneConfig.cloud.formationAlpha), blended and followed like the fit,
+        // so a transition between a dense formation and the sphere changes the light gradually, never in a step.
+        const formationAlpha = bassInkSceneConfig.cloud.formationAlpha;
+        let alpha = 1;
         // The shell's world radius as last given to setRadius, which spray bursts leave from.
         let shellRadius = bassInkSceneConfig.cloud.radius;
-        const fitTarget = (): number => {
+        const formationTarget = (values: ArrayLike<number>, current: number): number => {
             const from = cloud.activeIndex;
             const to = cloud.preparedIndex;
             if (from < 0) {
-                return to >= 0 ? fits[to] : fit;
+                return to >= 0 ? values[to] : current;
             }
             if (!cloud.transitioning || to < 0) {
-                return fits[from];
+                return values[from];
             }
             const t = cloud.blendProgress;
-            return fits[from] + (fits[to] - fits[from]) * t * t * (3 - 2 * t);
+            return values[from] + (values[to] - values[from]) * t * t * (3 - 2 * t);
         };
-        // Sets the radius at once (mount, resize, a rebuilt cloud) or lets it follow over `dt` seconds.
+        // Sets the radius and the brightness at once (mount, resize, a rebuilt cloud) or lets them follow over `dt`
+        // seconds.
         const applyFit = (dt: number) => {
-            const target = fitTarget();
-            fit = dt > 0 ? fit + (target - fit) * (1 - Math.exp(-dt / FIT_FOLLOW_SECONDS)) : target;
+            const follow = dt > 0 ? 1 - Math.exp(-dt / FIT_FOLLOW_SECONDS) : 1;
+            fit += (formationTarget(fits, fit) - fit) * follow;
+            alpha += (formationTarget(formationAlpha, alpha) - alpha) * follow;
+            cloud.setFormationAlpha(alpha);
             shellRadius = bassInkSceneConfig.cloud.radius * fit;
             cloud.setRadius(shellRadius);
             // The core is a share of the shell's world radius (framing.ts checks its envelope at that size), not of the fit

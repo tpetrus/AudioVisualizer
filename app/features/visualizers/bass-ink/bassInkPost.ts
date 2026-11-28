@@ -5,8 +5,10 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import type { Pass } from 'three/addons/postprocessing/Pass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import type { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import type { SceneSize } from '~/hooks/useThreeScene';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
+import { createLightCeilingPass } from './lightCeiling';
 
 // The two Look controls that reach the post-processing, both 0..1. A value of 0 turns its pass off.
 export interface PostSettings {
@@ -14,8 +16,8 @@ export interface PostSettings {
     glow: number;
 }
 
-// The afterimage pass sits right after the render pass in the composer.
-const AFTERIMAGE_INDEX = 1;
+// The afterimage pass sits right after the render pass and the light ceiling in the composer.
+const AFTERIMAGE_INDEX = 2;
 
 // The configured damp is the share of the old frame kept per frame at this rate; other rates are scaled to match.
 const REFERENCE_FPS = 60;
@@ -24,12 +26,14 @@ const MAX_FRAME_SECONDS = 0.1;
 // Below this many device pixels on a side the bloom's mip chain would reach zero-size targets, so it is switched off.
 const BLOOM_MIN_SIDE_PX = 32;
 
-// Trails (an afterimage) and a glow (bloom) over the scene. The composer and its render targets are built on the first
+// Trails (an afterimage) and a glow (bloom) over the scene, after a soft cap on the summed light (lightCeiling.ts) so
+// dense stacks of points do not feed either of them several times white. The composer and its render targets are built on the first
 // apply() that turns a pass on, so a scene with both controls at 0, or on a software renderer, never allocates them.
 // Neither pass follows the music (see `bassInkSceneConfig.post`), so they cannot add flashes of their own.
 export class BassInkPost {
     private composer: EffectComposer | undefined;
     private renderPass: RenderPass | undefined;
+    private ceiling: ShaderPass | undefined;
     private afterimage: AfterimagePass | undefined;
     private bloom: UnrealBloomPass | undefined;
     private output: OutputPass | undefined;
@@ -145,11 +149,13 @@ export class BassInkPost {
         this.disposed = true;
         this.activeNow = false;
         this.renderPass?.dispose();
+        this.ceiling?.dispose();
         this.afterimage?.dispose();
         this.bloom?.dispose();
         this.output?.dispose();
         this.composer?.dispose();
         this.renderPass = undefined;
+        this.ceiling = undefined;
         this.afterimage = undefined;
         this.bloom = undefined;
         this.output = undefined;
@@ -177,10 +183,12 @@ export class BassInkPost {
         const { post } = bassInkSceneConfig;
         const composer = new EffectComposer(this.renderer);
         this.renderPass = new RenderPass(this.scene, this.camera);
+        this.ceiling = createLightCeilingPass();
         this.afterimage = new AfterimagePass();
         this.bloom = new UnrealBloomPass(this.bloomResolution, 0, post.bloomRadius, post.bloomThreshold);
         this.output = new OutputPass();
         composer.addPass(this.renderPass);
+        composer.addPass(this.ceiling);
         composer.addPass(this.afterimage);
         composer.addPass(this.bloom);
         composer.addPass(this.output);
