@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { bassInkControls } from './bassInkControls';
+import { BASS_INK_ENHANCED_STRINGS } from './bassInkEnhancedStrings';
 import { BASS_INK_ANALYSER } from './bassInkAnalyser';
 import { useBassInkScene } from './useBassInkScene';
 import { FullscreenLayer } from '~/features/fullscreen/FullscreenLayer';
@@ -52,7 +53,12 @@ export function BassInkPage() {
                 <FullscreenLayer active={fullscreen.active} hint={fullscreen.hint} onExit={() => fullscreen.exit()} />
             </div>
             <ControlPanel
-                header={<EnhancedGraphicsToggle status={enhancedStatus} />}
+                header={
+                    <EnhancedGraphicsToggle
+                        status={enhancedStatus}
+                        description={BASS_INK_ENHANCED_STRINGS.description}
+                    />
+                }
                 definitions={bassInkControls}
                 values={values}
                 onChange={setValue}

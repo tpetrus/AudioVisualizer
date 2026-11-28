@@ -206,6 +206,7 @@ vi.mock('./enhanced/bassInkEnhanced', () => ({
             context,
             materials,
             enabled: false,
+            failed: false,
             renderScale: 1,
             setEnabled: vi.fn((on: boolean) => {
                 handle.enabled = on;
@@ -222,6 +223,7 @@ vi.mock('./enhanced/bassInkEnhanced', () => ({
 }));
 interface FakeEnhanced {
     enabled: boolean;
+    failed: boolean;
     renderScale: number;
     setEnabled: ReturnType<typeof vi.fn>;
     setMaterials: ReturnType<typeof vi.fn>;
@@ -2092,6 +2094,35 @@ describe('useBassInkScene', () => {
             expect(enhancedHandles()).toHaveLength(1);
             expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
             warn.mockRestore();
+        });
+
+        it('reports an error once the look failed a shader, and never turns it back on', async () => {
+            const { frame, onEnhancedStatus, rerender } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            const handle = enhancedHandles()[0];
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
+
+            // The look switched itself off while rendering.
+            handle.failed = true;
+            handle.enabled = false;
+            const calls = handle.setEnabled.mock.calls.length;
+            frame();
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('error');
+            expect(handle.setEnabled.mock.calls.slice(calls)).not.toContainEqual([true]);
+
+            // Off clears the status; on again reports the error again, with no new build.
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: false });
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith(undefined);
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('error');
+            expect(enhancedHandles()).toHaveLength(1);
         });
 
         it('drops an import that resolves after unmount, building nothing', async () => {

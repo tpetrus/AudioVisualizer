@@ -18,8 +18,10 @@ import {
     ENHANCED_GRADE_RANGE,
     ENHANCED_GRADE_SATURATION,
     ENHANCED_INK,
+    ENHANCED_POINT_SCALES,
     ENHANCED_RENDER_SCALES,
     ENHANCED_SPRAY,
+    ENHANCED_STEP_MIN_GAIN,
     ENHANCED_VIGNETTE_RADIUS,
     ENHANCED_VIGNETTE_SOFTNESS,
     ENHANCED_VIGNETTE_STRENGTH,
@@ -52,7 +54,10 @@ export interface BassInkEnhancedContext {
 
 export interface BassInkEnhancedHandle {
     readonly enabled: boolean;
-    // 1, or the step-down level in use.
+    // True once one of the look's shader programs failed to compile or link. The look has then switched itself off for
+    // good (the same sources would fail again), and setEnabled(true) does nothing.
+    readonly failed: boolean;
+    // 1, or the step-down level's bloom share (ENHANCED_RENDER_SCALES); the sprites shrink with it.
     readonly renderScale: number;
     // Idempotent and cheap when unchanged (the scene calls it every frame).
     setEnabled(on: boolean): void;
@@ -62,7 +67,8 @@ export interface BassInkEnhancedHandle {
     // After a density rebuild: applies the current state to the new materials and puts the standard look back on the old.
     setMaterials(materials: BassInkMaterials): void;
     setSize(size: SceneSize): void;
-    // Frame-time-only render-scale step-down; acts only while enabled.
+    // Frame-time-only step-down (bloom resolution and sprite size); acts only while enabled. A step that does not make
+    // the frames faster is undone and stepping stops (ENHANCED_STEP_MIN_GAIN).
     step(frameSeconds: number): void;
     dispose(): void;
 }
@@ -109,6 +115,13 @@ const VARIANTS: Record<Kind, Variant> = {
     },
 };
 
+// Each kind's full-size sprite scale and profile gains, which the step-down level scales (see applyLevel).
+const SPRITES: Record<Kind, { spriteScale: number; body: number; halo: number; core: number }> = {
+    ink: ENHANCED_INK,
+    dust: ENHANCED_DUST,
+    spray: ENHANCED_SPRAY,
+};
+
 function depthSpriteUniforms(c: typeof ENHANCED_DUST | typeof ENHANCED_SPRAY): Record<string, THREE.IUniform> {
     return {
         uEnhNear: value(c.near),
@@ -137,6 +150,23 @@ interface Held {
 // The define that marks a material as running the enhanced variant.
 const DEFINE = 'BASS_INK_ENHANCED';
 
+type ShaderErrorHandler = (
+    gl: WebGLRenderingContext,
+    program: WebGLProgram,
+    vertexShader: WebGLShader,
+    fragmentShader: WebGLShader,
+) => void;
+
+// True when a program is one of the look's: a point variant carries the define, and every variant and the grade pass
+// read `uEnh*` uniforms, which no standard shader declares (a spec checks it).
+function isEnhancedProgram(gl: WebGLRenderingContext, vertexShader: WebGLShader, fragmentShader: WebGLShader): boolean {
+    for (const shader of [vertexShader, fragmentShader]) {
+        const source = gl.getShaderSource(shader) ?? '';
+        if (source.includes(DEFINE) || source.includes('uEnh')) return true;
+    }
+    return false;
+}
+
 // Builds the enhanced look once: the second bloom and the grade pass (handed to the post, disabled until switched on) and
 // the holders of the materials' standard shaders. Switching on swaps the shaders in place; nothing is rebuilt.
 export function buildBassInkEnhanced(ctx: BassInkEnhancedContext, materials: BassInkMaterials): BassInkEnhancedHandle {
@@ -146,6 +176,9 @@ export function buildBassInkEnhanced(ctx: BassInkEnhancedContext, materials: Bas
 class BassInkEnhancedLook implements BassInkEnhancedHandle {
     private on = false;
     private disposed = false;
+    private failedNow = false;
+    // The renderer's shader-error handler before this look installed its own, put back on dispose.
+    private readonly previousShaderError: ShaderErrorHandler | null;
     // The Glow control's last value. 1 until the scene first sets it, which is the bloom's full configured strength.
     private glow = 1;
     private held: Held[] = [];
@@ -155,6 +188,10 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
     private deviceWidth: number;
     private deviceHeight: number;
     private level = 0;
+    // The median of the window that caused the last step down, until the next window shows whether it helped.
+    private medianBeforeStep: number | undefined;
+    // Set when a step did not help: the frames are held by the display, so the level stays where it is.
+    private settled = false;
     // The bloom's own size method, which the bloom instance's setSize is replaced by a wrapper around.
     private readonly sizeBloomBase: (width: number, height: number) => void;
     // Frame times of the current window, and a scratch copy to take the median from. Both are allocated once.
@@ -169,6 +206,7 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         const ratio = ctx.renderer.getPixelRatio();
         this.deviceWidth = ctx.size.width * ratio;
         this.deviceHeight = ctx.size.height * ratio;
+        this.previousShaderError = ctx.renderer.debug.onShaderError as ShaderErrorHandler | null;
 
         // The composer sizes every pass it holds to the full drawing size, also when it is built after this look. The bloom
         // is wanted at a share of that, so its size is taken over here: whoever sizes it, it ends up at the right size.
@@ -212,6 +250,8 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
             this.sizeBloom(sizeBloom);
             ctx.post.setExtraPasses([this.bloom, this.grade]);
             this.setMaterials(materials);
+            // Last, so a build that throws never leaves the handler installed.
+            ctx.renderer.debug.onShaderError = this.onShaderError;
         } catch (error) {
             this.undoPartialBuild(grade);
             throw error;
@@ -222,12 +262,16 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         return this.on && !this.disposed;
     }
 
+    get failed(): boolean {
+        return this.failedNow;
+    }
+
     get renderScale(): number {
         return ENHANCED_RENDER_SCALES[this.level];
     }
 
     setEnabled(on: boolean): void {
-        if (this.disposed || on === this.on) return;
+        if (this.disposed || on === this.on || (on && this.failedNow)) return;
         this.on = on;
         this.frameCount = 0;
         for (const held of this.held) this.apply(held);
@@ -261,7 +305,10 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
             if (!next.includes(old)) this.restore(old);
         }
         this.held = next;
-        for (const held of this.held) this.apply(held);
+        for (const held of this.held) {
+            this.applyLevel(held);
+            this.apply(held);
+        }
     }
 
     setSize(size: SceneSize): void {
@@ -284,9 +331,16 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         this.sorted.set(this.frames);
         this.sorted.sort();
         const median = this.sorted[ENHANCED_FRAME_WINDOW >> 1];
-        if (median > ENHANCED_FRAME_BUDGET_SECONDS && this.level < ENHANCED_RENDER_SCALES.length - 1) {
-            this.level++;
-            this.sizeBloom(this.sizeBloomBase);
+        const before = this.medianBeforeStep;
+        this.medianBeforeStep = undefined;
+        if (before !== undefined && median > before * (1 - ENHANCED_STEP_MIN_GAIN)) {
+            this.settled = true;
+            this.setLevel(this.level - 1);
+            return;
+        }
+        if (!this.settled && median > ENHANCED_FRAME_BUDGET_SECONDS && this.level < ENHANCED_RENDER_SCALES.length - 1) {
+            this.medianBeforeStep = median;
+            this.setLevel(this.level + 1);
         }
     }
 
@@ -296,9 +350,43 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         this.held = [];
         this.disposed = true;
         this.on = false;
+        this.restoreShaderErrorHandler();
         this.ctx.post.setExtraPasses([]);
         this.bloom.dispose();
         this.grade.dispose();
+    }
+
+    // three.js calls this instead of logging when a program fails to link, while it renders. A failure of the look's own
+    // programs would leave those materials drawing nothing with the status still ready, so the look puts the standard
+    // shaders back and marks itself failed; the scene reads `failed` on the next frame and reports the error. Any other
+    // program's failure goes to the handler that was there before, or is logged as three.js would.
+    private readonly onShaderError: ShaderErrorHandler = (gl, program, vertexShader, fragmentShader) => {
+        if (!this.disposed && isEnhancedProgram(gl, vertexShader, fragmentShader)) {
+            if (this.failedNow) return;
+            this.setEnabled(false);
+            this.failedNow = true;
+            console.warn(
+                'Bass ink: an enhanced shader failed to compile; using the standard look.',
+                gl.getProgramInfoLog(program),
+            );
+            return;
+        }
+        if (this.previousShaderError) {
+            this.previousShaderError(gl, program, vertexShader, fragmentShader);
+            return;
+        }
+        console.error(
+            'THREE.WebGLProgram: Shader Error',
+            gl.getProgramInfoLog(program),
+            gl.getShaderInfoLog(vertexShader),
+            gl.getShaderInfoLog(fragmentShader),
+        );
+    };
+
+    // Only when it is still this look's: something installed later keeps its own.
+    private restoreShaderErrorHandler(): void {
+        const debug = this.ctx.renderer.debug;
+        if (debug.onShaderError === (this.onShaderError as unknown)) debug.onShaderError = this.previousShaderError;
     }
 
     // Undoes a constructor that threw: takes the passes out of the composer, puts the standard shaders back and frees the
@@ -322,6 +410,25 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
                 // The original error is what the caller needs; this one is a consequence of the same broken state.
             }
         }
+    }
+
+    private setLevel(level: number): void {
+        this.level = level;
+        this.sizeBloom(this.sizeBloomBase);
+        for (const held of this.held) this.applyLevel(held);
+    }
+
+    // The sprite at this level: smaller by the point scale, with gains raised by its inverse square so the light per
+    // point (gains times sprite area) stays the same.
+    private applyLevel(held: Held): void {
+        const sprite = SPRITES[held.kind];
+        const scale = ENHANCED_POINT_SCALES[this.level];
+        const gain = 1 / (scale * scale);
+        const uniforms = held.material.uniforms;
+        uniforms.uEnhSpriteScale.value = sprite.spriteScale * scale;
+        uniforms.uEnhBody.value = sprite.body * gain;
+        uniforms.uEnhHalo.value = sprite.halo * gain;
+        uniforms.uEnhCoreGain.value = sprite.core * gain;
     }
 
     // Records the standard strings and adds the `uEnh*` uniforms. Standard uniforms are never touched.

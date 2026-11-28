@@ -5,6 +5,7 @@ import { act, fireEvent, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { bassInkControls } from './bassInkControls';
 import { BassInkPage } from './BassInkPage';
+import { BASS_INK_ENHANCED_STRINGS } from './bassInkEnhancedStrings';
 import { useBassInkScene } from './useBassInkScene';
 import { asWebAudio } from '~/test/fakeWebAudio';
 import { installFakeFullscreen, type FakeFullscreen } from '~/test/fakeFullscreen';
@@ -172,6 +173,14 @@ describe('BassInkPage enhanced graphics', () => {
 
         expect(latestOptions().enhanced).toBe(true);
         expect(getEnhancedGraphics()).toBe(true);
+    });
+
+    it('describes what the switch does for bass ink', async () => {
+        const { user } = renderWithProviders(<BassInkPage />);
+        await user.click(screen.getByRole('button', { name: /settings/i }));
+        expect(screen.getByRole('switch', { name: /enhanced graphics/i })).toHaveAccessibleDescription(
+            BASS_INK_ENHANCED_STRINGS.description,
+        );
     });
 
     it('starts on when the preference is already on', () => {
