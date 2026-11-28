@@ -30,7 +30,7 @@ export interface TrioEnhancedLookOptions {
 
 // What createTrioEnhancedLook returns. Allocates only in createTrioEnhancedLook; nothing per frame.
 export interface TrioEnhancedLook {
-    // Reads the sheets and rhythm, advances the accent, dust and shockwave by `dtSeconds`, and draws the whole frame
+    // Reads the sheets and rhythm, advances the accent, dust and spectrum glow by `dtSeconds`, and draws the whole frame
     // through the bloom composer (OutputPass applies ACES and the sRGB conversion once). Replaces renderer.render.
     render(dtSeconds: number): void;
     setSize(size: SceneSize): void;
@@ -58,7 +58,7 @@ export interface TrioAccentInput {
 export interface TrioAccentState {
     // 0..peak cap. Rises to its peak in the same step a trigger is accepted, then decays.
     pulse: number;
-    // True only for the step in which a trigger was accepted (drives the shockwave ring).
+    // True only for the step in which a trigger was accepted (the look reads only the pulse; specs read this).
     triggered: boolean;
     // Seconds since the last accepted trigger (Infinity before the first).
     sinceTrigger: number;
