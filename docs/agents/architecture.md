@@ -320,7 +320,8 @@ swap their look in place (see "Swap in place (cubes)" and "Trio: no rebuild" bel
 - **First-visit prompt:** `landing/EnhancedGraphicsPrompt.tsx` offers the look once, in a `Dialog`, only when the probe
   passes, no preference is stored, the seen flag `audioVisualizer.enhancedGraphicsPromptSeen` is absent, storage can be
   written, and the audio source dialog is not open (`settings/enhancedGraphicsPromptStore.ts`, checked again at the moment
-  it would open). Turn on sets the preference; Not now, Escape and the backdrop only write the flag. E2E fixtures seed the
+  it would open). The flag is written as soon as it opens, so leaving without an answer does not bring it back; Turn on
+  also sets the preference, while Not now, Escape and the backdrop only close it. E2E fixtures seed the
   flag (`e2e/promptSeen.ts`) so the prompt never covers other specs; `e2e/enhanced-graphics-prompt.spec.ts` opts out and
   fakes a capable probe.
 - **Lazy look:** `dancing-character/enhanced/dancingCharacterEnhanced.ts` (`createEnhancedLook`) is loaded with a dynamic

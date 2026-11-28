@@ -92,7 +92,8 @@ fullscreen exit control's scrim over the scene, use the important modifier (`bg-
 this is a settings value and belongs next to the key it depends on. `shouldShowEnhancedGraphicsPrompt(): boolean` is true
 only when the flag is absent, `ENHANCED_GRAPHICS_KEY` is absent, and storage can be read and written; any throw reads
 as false. `markEnhancedGraphicsPromptSeen(): void` never throws. Turn on calls `setEnhancedGraphics(true)`, then marks
-the prompt seen. Not now and Escape only mark it seen.
+the prompt seen. Not now and Escape only mark it seen. Follow-up UDS-F5: it is also marked seen as soon as it opens, so a
+reload or a closed tab instead of an answer does not show it again.
 
 ## C4 Enhanced graphics binding (react), frozen
 

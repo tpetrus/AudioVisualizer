@@ -30,6 +30,18 @@ describe('EnhancedGraphicsPrompt', () => {
         expect(screen.getByRole('button', { name: 'Turn on' })).toHaveFocus();
     });
 
+    it('counts as seen as soon as it shows, before any answer', async () => {
+        const { unmount } = render(<EnhancedGraphicsPrompt blocked={false} />);
+
+        expect(await screen.findByRole('dialog', { name: 'Turn on enhanced graphics?' })).toBeInTheDocument();
+        expect(localStorage.getItem(ENHANCED_GRAPHICS_PROMPT_SEEN_KEY)).toBe('1');
+        // Leaving without answering, as a reload or a closed tab does, must not bring it back.
+        unmount();
+        render(<EnhancedGraphicsPrompt blocked={false} />);
+        await act(async () => {});
+        expect(dialog()).toBeNull();
+    });
+
     it('does not open when a value is stored after mount but before the probe passes', async () => {
         probe.passes = false;
         const { rerender } = render(<EnhancedGraphicsPrompt blocked={false} />);

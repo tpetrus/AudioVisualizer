@@ -47,9 +47,11 @@ export function EnhancedGraphicsPrompt({ blocked }: EnhancedGraphicsPromptProps)
         }
     }
 
-    // The dialog focuses itself on mount; this moves focus on to the primary action.
+    // The dialog focuses itself on mount; this moves focus on to the primary action. The prompt counts as seen as soon
+    // as it shows, so closing the tab or reloading instead of answering does not bring it back on the next visit.
     useEffect(() => {
         if (open) {
+            markEnhancedGraphicsPromptSeen();
             turnOnRef.current?.focus();
         }
     }, [open]);
