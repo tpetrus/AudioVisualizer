@@ -99,4 +99,6 @@
 .statsToggle {
     display: flex;
     margin-top: 10px;
+    /* The Checkbox primitive sets text-sm; the panel's controls use the panel's 13px. */
+    font-size: inherit;
 }
