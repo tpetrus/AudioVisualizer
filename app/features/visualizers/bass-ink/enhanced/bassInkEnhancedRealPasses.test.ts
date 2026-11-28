@@ -26,6 +26,7 @@ const RATIO = 2;
 function fakeRenderer(): THREE.WebGLRenderer {
     return {
         getPixelRatio: () => RATIO,
+        debug: { onShaderError: null },
         getSize: (target: THREE.Vector2) => target.set(WIDTH, HEIGHT),
     } as unknown as THREE.WebGLRenderer;
 }

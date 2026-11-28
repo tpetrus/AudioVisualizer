@@ -61,7 +61,10 @@ type Bloom = Recorded & {
 type Grade = Recorded & { uniforms: Record<string, { value: unknown }> };
 
 function setup(size = { width: 800, height: 600 }, pixelRatio = 2) {
-    const renderer = { getPixelRatio: () => pixelRatio } as unknown as THREE.WebGLRenderer;
+    const renderer = {
+        getPixelRatio: () => pixelRatio,
+        debug: { onShaderError: null },
+    } as unknown as THREE.WebGLRenderer;
     const setExtraPasses = vi.fn();
     const post = { setExtraPasses } as unknown as BassInkPost;
     const cloud = new InkCloud(64, 1, 64);
@@ -167,7 +170,7 @@ describe('setEnabled', () => {
     });
 
     it('restores the strings the material had when it was attached, not the standard ones', () => {
-        const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+        const renderer = { getPixelRatio: () => 1, debug: { onShaderError: null } } as unknown as THREE.WebGLRenderer;
         const post = { setExtraPasses: vi.fn() } as unknown as BassInkPost;
         const make = (tag: string) =>
             new THREE.ShaderMaterial({ vertexShader: `v-${tag}`, fragmentShader: `f-${tag}`, uniforms: {} });
@@ -213,7 +216,7 @@ describe('setEnabled', () => {
     });
 
     it('leaves standard uniform values alone and adds the uEnh uniforms', () => {
-        const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+        const renderer = { getPixelRatio: () => 1, debug: { onShaderError: null } } as unknown as THREE.WebGLRenderer;
         const post = { setExtraPasses: vi.fn() } as unknown as BassInkPost;
         const cloud = new InkCloud(8, 1, 64);
         const dust = new DustField(8, 1, 64);
@@ -294,17 +297,91 @@ describe('setGlow', () => {
 });
 
 describe('render scale', () => {
-    it('steps down one level per slow window and stops at the lowest', () => {
+    it('steps down one level per slow window while each step helps, and stops at the lowest', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        // A GPU-bound machine: each step makes the frames faster, but still over the budget.
+        feed(handle, 1 / 25, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.75);
+        feed(handle, 1 / 35, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.5);
+        feed(handle, 1 / 45, config.ENHANCED_FRAME_WINDOW * 3);
+        expect(handle.renderScale).toBe(0.5);
+        const [w] = bloom.sizes[bloom.sizes.length - 1];
+        expect(w).toBe(Math.round(1600 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 0.5 * 2));
+    });
+
+    it('undoes a step that did not make the frames faster and stops stepping (a 30 Hz display)', () => {
         const { handle, bloom } = setup();
         handle.setEnabled(true);
         feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW);
         expect(handle.renderScale).toBe(0.75);
+        // Every frame still takes 1/30 s: the display holds them, not the GPU.
         feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW);
-        expect(handle.renderScale).toBe(0.5);
-        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW * 3);
-        expect(handle.renderScale).toBe(0.5);
+        expect(handle.renderScale).toBe(1);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW * 4);
+        expect(handle.renderScale).toBe(1);
         const [w] = bloom.sizes[bloom.sizes.length - 1];
-        expect(w).toBe(Math.round(1600 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 0.5 * 2));
+        expect(w).toBe(Math.round(1600 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+    });
+
+    it('keeps a step that helped, then undoes only the one that did not', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        feed(handle, 1 / 25, config.ENHANCED_FRAME_WINDOW);
+        feed(handle, 1 / 33, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.5);
+        // Display-bound now at 30 Hz: the last step gave nothing back.
+        feed(handle, 1 / 33, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.75);
+        feed(handle, 1 / 33, config.ENHANCED_FRAME_WINDOW * 3);
+        expect(handle.renderScale).toBe(0.75);
+    });
+
+    it('shrinks the sprites with each level and raises their gains so each point keeps its light', () => {
+        const { handle, materials } = setup();
+        handle.setEnabled(true);
+        const light = (m: THREE.ShaderMaterial) => {
+            const u = m.uniforms;
+            const area = (u.uEnhSpriteScale.value as number) ** 2;
+            return [u.uEnhBody, u.uEnhHalo, u.uEnhCoreGain].map((g) => (g.value as number) * area);
+        };
+        const full = Object.values(materials).map(light);
+        expect(materials.shell.uniforms.uEnhSpriteScale.value).toBe(config.ENHANCED_INK.spriteScale);
+
+        feed(handle, 1 / 25, config.ENHANCED_FRAME_WINDOW);
+        feed(handle, 1 / 35, config.ENHANCED_FRAME_WINDOW);
+        const lowest = config.ENHANCED_POINT_SCALES[2];
+        expect(materials.shell.uniforms.uEnhSpriteScale.value).toBeCloseTo(
+            config.ENHANCED_INK.spriteScale * lowest,
+            12,
+        );
+        expect(materials.dust.uniforms.uEnhSpriteScale.value).toBeCloseTo(
+            config.ENHANCED_DUST.spriteScale * lowest,
+            12,
+        );
+        expect(materials.spray.uniforms.uEnhSpriteScale.value).toBeCloseTo(
+            config.ENHANCED_SPRAY.spriteScale * lowest,
+            12,
+        );
+        Object.values(materials).forEach((m, i) => {
+            light(m).forEach((value, j) => expect(value).toBeCloseTo(full[i][j], 12));
+        });
+    });
+
+    it('gives materials attached after a step the current level', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        feed(handle, 1 / 25, config.ENHANCED_FRAME_WINDOW);
+        const cloud = new InkCloud(8, 9, 64);
+        const core = new InkCloud(8, 10, 64);
+        const dust = new DustField(8, 9, 64);
+        const spray = new SprayPool(8, 9, 64);
+        handle.setMaterials({ shell: cloud.material, core: core.material, dust: dust.material, spray: spray.material });
+        expect(cloud.material.uniforms.uEnhSpriteScale.value).toBeCloseTo(
+            config.ENHANCED_INK.spriteScale * config.ENHANCED_POINT_SCALES[1],
+            12,
+        );
     });
 
     it('waits for a full window, never steps on fast frames and never steps back up', () => {
@@ -316,6 +393,7 @@ describe('render scale', () => {
         expect(handle.renderScale).toBe(1);
         feed(handle, SLOW, 1);
         expect(handle.renderScale).toBe(0.75);
+        // The step helped (fast frames now), so it stays, and fast frames never step back up.
         feed(handle, FAST, config.ENHANCED_FRAME_WINDOW * 5);
         expect(handle.renderScale).toBe(0.75);
     });
@@ -438,6 +516,114 @@ describe('setMaterials', () => {
     });
 });
 
+describe('shader errors', () => {
+    type Handler = (gl: unknown, program: unknown, vertex: unknown, fragment: unknown) => void;
+    // A context whose shaders are plain strings, so getShaderSource can hand them back.
+    const gl = {
+        getShaderSource: (shader: string) => shader,
+        getProgramInfoLog: () => 'link failed',
+        getShaderInfoLog: () => '',
+    };
+    function withHandler(previous: Handler | null = null) {
+        const debug: { onShaderError: Handler | null } = { onShaderError: previous };
+        const renderer = { getPixelRatio: () => 1, debug } as unknown as THREE.WebGLRenderer;
+        const post = { setExtraPasses: vi.fn() } as unknown as BassInkPost;
+        const cloud = new InkCloud(8, 1, 64);
+        const core = new InkCloud(8, 2, 64);
+        const dust = new DustField(8, 1, 64);
+        const spray = new SprayPool(8, 1, 64);
+        const materials = { shell: cloud.material, core: core.material, dust: dust.material, spray: spray.material };
+        const handle = buildBassInkEnhanced({ renderer, post, size: { width: 100, height: 100 } }, materials);
+        const fire = (vertex: string, fragment: string) => debug.onShaderError!(gl, {}, vertex, fragment);
+        return { debug, handle, materials, fire };
+    }
+
+    it('installs a handler, and on its own program puts the standard look back, warns once and stays off', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const { debug, handle, materials, fire } = withHandler();
+        expect(debug.onShaderError).toBeTypeOf('function');
+        handle.setEnabled(true);
+        expect(materials.shell.vertexShader).toBe(shaders.enhancedInkVertexShader);
+
+        fire(shaders.enhancedInkVertexShader, shaders.enhancedInkFragmentShader);
+        expect(handle.failed).toBe(true);
+        expect(handle.enabled).toBe(false);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(materials.shell.defines.BASS_INK_ENHANCED).toBeUndefined();
+        expect(warn).toHaveBeenCalledTimes(1);
+
+        // A second failing program (the dust, the grade) warns no more, and switching on does nothing.
+        fire(shaders.gradeVertexShader, shaders.gradeFragmentShader);
+        handle.setEnabled(true);
+        expect(handle.enabled).toBe(false);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(warn).toHaveBeenCalledTimes(1);
+        warn.mockRestore();
+    });
+
+    it('recognizes the grade pass program by its uEnh uniforms', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const { handle, fire } = withHandler();
+        handle.setEnabled(true);
+        fire(shaders.gradeVertexShader, shaders.gradeFragmentShader);
+        expect(handle.failed).toBe(true);
+        warn.mockRestore();
+    });
+
+    it('hands any other program to the previous handler, or logs it as three.js would', () => {
+        const previous = vi.fn();
+        const chained = withHandler(previous);
+        chained.fire(inkVertexShader, inkFragmentShader);
+        expect(previous).toHaveBeenCalledWith(gl, {}, inkVertexShader, inkFragmentShader);
+        expect(chained.handle.failed).toBe(false);
+
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const plain = withHandler();
+        plain.fire(dustVertexShader, dustFragmentShader);
+        expect(error).toHaveBeenCalledTimes(1);
+        expect(error.mock.calls[0][0]).toContain('Shader Error');
+        expect(plain.handle.failed).toBe(false);
+        error.mockRestore();
+    });
+
+    it('puts the previous handler back on dispose, unless something replaced it since', () => {
+        const previous = vi.fn();
+        const first = withHandler(previous);
+        first.handle.dispose();
+        expect(first.debug.onShaderError).toBe(previous);
+
+        const second = withHandler(previous);
+        const later = vi.fn();
+        second.debug.onShaderError = later;
+        second.handle.dispose();
+        expect(second.debug.onShaderError).toBe(later);
+    });
+
+    it('ignores its own programs after dispose', () => {
+        const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const { handle, debug } = withHandler();
+        const handler = debug.onShaderError!;
+        handle.dispose();
+        handler(gl, {}, shaders.enhancedInkVertexShader, shaders.enhancedInkFragmentShader);
+        expect(handle.failed).toBe(false);
+        error.mockRestore();
+    });
+
+    it('no standard shader reads a uEnh uniform or names the define, so none is mistaken for the look', () => {
+        for (const source of [
+            inkVertexShader,
+            inkFragmentShader,
+            dustVertexShader,
+            dustFragmentShader,
+            sprayVertexShader,
+            sprayFragmentShader,
+        ]) {
+            expect(source).not.toContain('uEnh');
+            expect(source).not.toContain('BASS_INK_ENHANCED');
+        }
+    });
+});
+
 describe('a build that throws', () => {
     // A material whose uniforms cannot take the uEnh additions, so attaching it throws after the passes went to the post.
     function brokenMaterial(): THREE.ShaderMaterial {
@@ -445,7 +631,7 @@ describe('a build that throws', () => {
         material.uniforms = Object.freeze({}) as Record<string, THREE.IUniform>;
         return material;
     }
-    const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+    const renderer = { getPixelRatio: () => 1, debug: { onShaderError: null } } as unknown as THREE.WebGLRenderer;
     const size = { width: 100, height: 100 };
 
     it('takes its passes out of the post, frees them, restores attached materials and rethrows', () => {
@@ -459,6 +645,8 @@ describe('a build that throws', () => {
                 { shell: cloud.material, core: cloud.material, dust: dust.material, spray: brokenMaterial() },
             ),
         ).toThrow(TypeError);
+        // The shader-error handler is installed last, so a throwing build never leaves it behind.
+        expect((renderer as unknown as { debug: { onShaderError: unknown } }).debug.onShaderError).toBeNull();
         const bloom = rec.blooms[0] as Bloom;
         const grade = rec.grades[0] as Grade;
         expect(setExtraPasses.mock.calls.map((call) => call[0] as unknown)).toEqual([[bloom, grade], []]);

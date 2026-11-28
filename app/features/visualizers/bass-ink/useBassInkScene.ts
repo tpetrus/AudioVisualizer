@@ -467,6 +467,14 @@ export function useBassInkScene(
                 return;
             }
             if (enhancedFailed) return;
+            // A shader of the look failed while rendering; the look already went back to the standard shaders and logged
+            // it. It stays failed (the same sources would fail again), so turning the preference off and on reports the
+            // error again instead of retrying.
+            if (enhancedLook?.failed) {
+                enhancedFailed = true;
+                reportEnhanced('error');
+                return;
+            }
             if (!enhancedLook) {
                 if (!enhancedLoading) loadEnhanced();
                 return;

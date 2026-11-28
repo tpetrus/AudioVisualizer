@@ -5,14 +5,25 @@
 
 // ---- Render scale ----
 
-// The share of the drawing size the enhanced bloom runs at, from the full share down. The renderer's pixel ratio and the
-// passes themselves never change; only the bloom's internal resolution does.
+// The step-down levels, from full quality down. Each level runs the enhanced bloom at this share of its full resolution
+// and draws the points' sprites at ENHANCED_POINT_SCALES of their size. The renderer's pixel ratio and the passes
+// themselves never change.
 export const ENHANCED_RENDER_SCALES: readonly number[] = [1, 0.75, 0.5];
+// The sprite size per level. The points' overdraw is most of the look's cost (tens of thousands of additive sprites,
+// each a few dozen pixels), and it falls with the square of this: about 0.72 and 0.49 of the pixels. The sprite's gains
+// rise by the inverse square at the same time, so each point keeps the same total light and the step changes the look's
+// grain, not its brightness.
+export const ENHANCED_POINT_SCALES: readonly number[] = [1, 0.85, 0.7];
 // Frames per measuring window. A full window is judged once, then a fresh one starts.
 export const ENHANCED_FRAME_WINDOW = 120;
 // The median frame time over a window must stay under this, or the scale steps down one level. A little above 60 fps
 // so ordinary jitter at a steady 60 does not trigger a step.
 export const ENHANCED_FRAME_BUDGET_SECONDS = 1 / 58;
+// After a step down, the next window's median must be at least this share faster than the one that caused the step.
+// If it is not, the frames were held by the display's refresh (a 30 or 50 Hz screen, where every frame takes 33 or
+// 20 ms however light it is), not by the GPU: the step is undone and the look stops stepping, so such a display keeps
+// the full look instead of losing it for nothing.
+export const ENHANCED_STEP_MIN_GAIN = 0.1;
 
 // ---- Second bloom ----
 
