@@ -86,16 +86,11 @@ test('Cubes settings panel with enhanced graphics on', async ({ page }) => {
     await page.addInitScript(() => localStorage.setItem('audioVisualizer.enhancedGraphics', 'true'));
     await page.clock.install();
     await startVisualizer(page, cubes);
-    await openSettings(page);
-    // Fake time runs in real time until it is paused, so the look can finish loading first; the status line is part of
-    // the panel's picture.
-    await expect(page.getByText('Enhanced graphics on', { exact: true })).toBeVisible({ timeout: 90_000 });
-    // Only the first section starts open, and the Enhanced controls are the point of this baseline.
-    await openAllSections(page);
     // A software-rendered enhanced frame (glass, bloom and particles at 1280x800) can take so long that the screenshot
     // below never gets a frame in time. The canvas is hidden in the picture anyway, so shrink its host: the scene follows
     // the host's size, the bloom switches off below its minimum size, and frames become cheap. The panel is positioned
-    // on its own, so its picture does not change.
+    // on its own, so its picture does not change. It is done before the enhanced look is up, because the resize is only
+    // seen between frames, and a full-size enhanced frame can hold it back past any reasonable wait.
     await page.evaluate(() => {
         const host = document.querySelector('canvas')?.parentElement;
         if (host) {
@@ -103,6 +98,14 @@ test('Cubes settings panel with enhanced graphics on', async ({ page }) => {
             host.style.height = '2px';
         }
     });
-    await expect.poll(() => page.evaluate(() => document.querySelector('canvas')?.width ?? 0)).toBeLessThanOrEqual(8);
+    await expect
+        .poll(() => page.evaluate(() => document.querySelector('canvas')?.width ?? 0), { timeout: 30_000 })
+        .toBeLessThanOrEqual(8);
+    await openSettings(page);
+    // Fake time runs in real time until it is paused, so the look can finish loading first; the status line is part of
+    // the panel's picture.
+    await expect(page.getByText('Enhanced graphics on', { exact: true })).toBeVisible({ timeout: 90_000 });
+    // Only the first section starts open, and the Enhanced controls are the point of this baseline.
+    await openAllSections(page);
     await expectSettingsPanelScreenshot(page, 'cubes-enhanced-settings-panel.png');
 });

@@ -35,7 +35,8 @@ const NO_DEFAULT_EXPORT = [
 // `black` and `white` stay allowed (dialog backdrop, title banner, primary button text).
 const PALETTE_UTILITY =
     '(bg|text|border|ring|outline|from|via|to|fill|stroke|accent|divide|shadow|decoration|placeholder|caret)-(slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-[0-9]';
-const COLOR_LITERAL = `/#[0-9a-fA-F]{3,8}\\b|\\b(rgb|rgba|hsl)\\(|gradient|\\b${PALETTE_UTILITY}/`;
+// Tailwind 4 names its gradients bg-linear-*, bg-radial and bg-conic, so `gradient` alone no longer catches them.
+const COLOR_LITERAL = `/#[0-9a-fA-F]{3,8}\\b|\\b(rgb|rgba|hsl)\\(|gradient|\\bbg-(linear|radial|conic)\\b|\\b${PALETTE_UTILITY}/`;
 const COLOR_MESSAGE =
     'No color literals in className. Use the design tokens from app/app.css (bg-surface-1, text-text-muted, border-border, bg-accent, text-accent-text, ...).';
 const UI_RESTRICTED = [
@@ -50,6 +51,22 @@ const UI_RESTRICTED = [
     {
         selector: "JSXOpeningElement[name.name='input']:has(JSXAttribute[name.name='type'][value.value='range'])",
         message: 'Use Range from ~/components/ui instead of a raw <input type="range">.',
+    },
+    {
+        // The same input written as type={'range'} or type={`range`}.
+        selector:
+            "JSXOpeningElement[name.name='input']:has(JSXAttribute[name.name='type'] > JSXExpressionContainer > Literal[value='range'])",
+        message: 'Use Range from ~/components/ui instead of a raw <input type="range">.',
+    },
+    {
+        selector:
+            "JSXOpeningElement[name.name='input']:has(JSXAttribute[name.name='type'] > JSXExpressionContainer > TemplateLiteral > TemplateElement[value.raw='range'])",
+        message: 'Use Range from ~/components/ui instead of a raw <input type="range">.',
+    },
+    {
+        // There is no text area primitive yet; adding one keeps the border, radius and focus ring in one place.
+        selector: "JSXOpeningElement[name.name='textarea']",
+        message: 'Add a Textarea primitive to ~/components/ui instead of using a raw <textarea>.',
     },
     {
         selector: `JSXAttribute[name.name='className'] Literal[value=${COLOR_LITERAL}]`,
