@@ -10,11 +10,12 @@ import {
     BLOOM_RESOLUTION_SHARE,
     DENSE_COLUMNS,
     DUST_COUNT,
+    GLOW_BINS,
+    GLOW_LEVEL_REFERENCE,
     HAZE_MAX,
-    SHOCKWAVE_POOL_SIZE,
 } from './trioEnhancedConfig';
 import { createTrioEnhancedLook } from './trioEnhancedLook';
-import { type RingUniforms, SHOCKWAVE_RING_NAME } from './trioShockwave';
+import { SPECTRUM_GLOW_NAME, type SpectrumGlowUniforms } from './trioSpectrumGlow';
 import type { TrioEnhancedLook } from './trioEnhancedTypes';
 
 // The passes run shaders, so they are replaced by recorders. vi.mock is hoisted, hence the hoisted record.
@@ -162,8 +163,8 @@ describe('createTrioEnhancedLook build', () => {
             expect(mesh.visible).toBe(true);
         }
         for (const sheet of sheets) expect(sheet.flags.material.uniforms.opacity.value).toBe(BAR_OPACITY);
-        // 3 standard + 3 dense + backdrop + dust + the ring pool
-        expect(scene.children).toHaveLength(3 + 3 + 1 + 1 + SHOCKWAVE_POOL_SIZE);
+        // 3 standard + 3 dense + backdrop + dust + the spectrum glow
+        expect(scene.children).toHaveLength(3 + 3 + 1 + 1 + 1);
         expect(composer().passes).toHaveLength(3);
         expect(composer().size).toEqual([800, 600]);
     });
@@ -427,116 +428,137 @@ describe('render', () => {
     });
 });
 
-const uniformsOf = (ring: THREE.Mesh) => (ring.material as THREE.ShaderMaterial).uniforms as RingUniforms;
+// Sets the nearest row of one sheet's columns to `height` (world units), as the standard sheet's update would.
+function setNearestRow(s: Setup, sheet: number, height: number, firstColumn = 0, lastColumn = FLAG_WIDTH - 1) {
+    const heights = s.sheets[sheet].flags.heightAttribute.array as Float32Array;
+    for (let column = firstColumn; column <= lastColumn; column++)
+        heights[column * FLAG_DEPTH + FLAG_DEPTH - 1] = height;
+}
 
-describe('accent and shockwave', () => {
-    const rings = (s: Setup) =>
-        s.scene.children.filter(
-            (child): child is THREE.Mesh => child instanceof THREE.Mesh && child.name === SHOCKWAVE_RING_NAME,
-        );
+describe('accent and spectrum glow', () => {
+    const glowOf = (s: Setup) =>
+        s.scene.children.find(
+            (child): child is THREE.Mesh => child instanceof THREE.Mesh && child.name === SPECTRUM_GLOW_NAME,
+        )!;
+    const uniformsOf = (s: Setup) => (glowOf(s).material as THREE.ShaderMaterial).uniforms as SpectrumGlowUniforms;
+    const brightness = (bin: THREE.Vector3) => bin.x + bin.y + bin.z;
 
-    it('reads the rhythm each frame, fires a ring and a pulse on a new beat, and decays the pulse', () => {
+    it('reads the rhythm each frame, swells on a new beat, and settles back as the pulse decays', () => {
         const s = setup();
         s.look.setMix(1);
         s.look.render(1 / 60);
         expect(s.rhythm.updatePhase).toHaveBeenCalledTimes(1);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
+        const resting = uniformsOf(s).strength.value;
 
         beat(s, 1);
-        expect(rings(s).filter((ring) => ring.visible)).toHaveLength(1);
         expect(bloom().strength).toBeGreaterThan(0.45);
-        const ring = rings(s).find((candidate) => candidate.visible)!;
-        expect(uniformsOf(ring).outerColor.value.x).toBeGreaterThan(1);
-        expect(uniformsOf(ring).strength.value).toBeGreaterThan(0);
-
-        const first = uniformsOf(ring).progress.value;
-        s.look.render(0.2);
-        expect(uniformsOf(ring).progress.value).toBeGreaterThan(first);
-        // Past its lifetime it is hidden again.
-        s.look.render(0.1);
-        s.look.render(0.1);
-        for (let i = 0; i < 12; i++) s.look.render(0.1);
-        expect(ring.visible).toBe(false);
+        const swelled = uniformsOf(s).strength.value;
+        expect(swelled).toBeGreaterThan(resting);
+        for (let i = 0; i < 10; i++) s.look.render(0.1);
+        expect(uniformsOf(s).strength.value).toBeLessThan(swelled);
+        expect(uniformsOf(s).strength.value).toBeCloseTo(resting, 3);
     });
 
-    it('draws the rings behind the sheets, after the backdrop and before the bars', () => {
+    it('draws the glow behind the sheets, after the backdrop and before the bars, from the bars base line', () => {
         const s = setup();
+        s.look.setMix(1);
+        s.look.render(1 / 60);
+        const glow = glowOf(s);
+        const front = s.standardMeshes[0].position;
         const farthest = s.standardMeshes[s.standardMeshes.length - 1].position.z;
-        for (const ring of rings(s)) {
-            expect(ring.position.z).toBeLessThan(farthest);
-            expect(ring.renderOrder).toBeLessThan(0);
-            expect(ring.renderOrder).toBeGreaterThan(-10);
-        }
+        expect(glow.position.z).toBeLessThan(farthest);
+        expect(glow.renderOrder).toBeLessThan(0);
+        expect(glow.renderOrder).toBeGreaterThan(-10);
+        expect(glow.position.y - glow.scale.y / 2).toBeCloseTo(front.y, 6);
+        expect(glow.position.x - glow.scale.x / 2).toBeCloseTo(front.x, 6);
+
+        // The Move sliders shift the sheets; the glow goes with them.
+        s.sheets.forEach((sheet) => sheet.place(100, 40));
+        s.look.render(1 / 60);
+        expect(glow.position.x - glow.scale.x / 2).toBeCloseTo(s.standardMeshes[0].position.x, 6);
+        expect(glow.position.y - glow.scale.y / 2).toBeCloseTo(s.standardMeshes[0].position.y, 6);
     });
 
-    it('makes a downbeat burst bigger and brighter, followed by an echo ring', () => {
+    it('follows where the bars are tall, rising quickly and falling slowly', () => {
         const s = setup();
         s.look.setMix(1);
         s.look.render(1 / 60);
-        beat(s, 1);
-        const plain = rings(s).find((candidate) => candidate.visible)!;
-        const plainScale = plain.scale.x;
-        const plainStrength = uniformsOf(plain).strength.value;
-        for (let i = 0; i < 15; i++) s.look.render(0.1);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
+        const bins = uniformsOf(s).bins.value;
+        expect(bins).toHaveLength(GLOW_BINS);
+        expect(bins.every((bin) => brightness(bin) === 0)).toBe(true);
 
-        s.rhythm.state.downbeatCount = 1;
-        beat(s, 2);
-        const live = rings(s).filter((ring) => ring.visible);
-        expect(live).toHaveLength(1);
-        expect(live[0].scale.x).toBeGreaterThan(plainScale);
-        expect(uniformsOf(live[0]).strength.value).toBeGreaterThan(plainStrength);
-        // The echo starts after its delay.
+        // Loud bass on the left quarter of the spectrum only.
+        setNearestRow(s, 2, GLOW_LEVEL_REFERENCE, 0, FLAG_WIDTH / 4 - 1);
         s.look.render(0.1);
+        const first = brightness(bins[0]);
+        expect(first).toBeGreaterThan(0);
+        expect(brightness(bins[GLOW_BINS - 1])).toBe(0);
+        // The bass sheet is violet: more blue than green.
+        expect(bins[0].z).toBeGreaterThan(bins[0].y);
+        for (let i = 0; i < 5; i++) s.look.render(0.1);
+        const settled = brightness(bins[0]);
+        // Most of the way there within the first 0.1 s.
+        expect(first / settled).toBeGreaterThan(0.75);
+
+        // Silence: it falls more slowly than it rose.
+        setNearestRow(s, 2, 0);
         s.look.render(0.1);
-        const both = rings(s).filter((ring) => ring.visible);
-        expect(both).toHaveLength(2);
-        expect(uniformsOf(both[1]).strength.value).toBeLessThan(uniformsOf(both[0]).strength.value);
+        expect(brightness(bins[0]) / settled).toBeGreaterThan(0.6);
+        for (let i = 0; i < 40; i++) s.look.render(0.1);
+        expect(brightness(bins[0])).toBeLessThan(settled * 0.01);
     });
 
-    it('fires from a rising kick onset and reuses the pool, never showing more rings than the pool holds', () => {
+    it('caps a bin at full level and scales with Glow and the mix', () => {
+        const s = setup();
+        s.look.setMix(1);
+        setNearestRow(s, 0, GLOW_LEVEL_REFERENCE);
+        for (let i = 0; i < 20; i++) s.look.render(0.1);
+        const full = brightness(uniformsOf(s).bins.value[5]);
+        setNearestRow(s, 0, GLOW_LEVEL_REFERENCE * 10);
+        for (let i = 0; i < 20; i++) s.look.render(0.1);
+        expect(brightness(uniformsOf(s).bins.value[5])).toBeCloseTo(full, 6);
+
+        const atOne = uniformsOf(s).strength.value;
+        s.values.current.glowStrength = 2;
+        s.look.render(0.1);
+        expect(uniformsOf(s).strength.value).toBeCloseTo(atOne * 2, 6);
+        s.look.setMix(0.5);
+        s.look.render(0.1);
+        expect(uniformsOf(s).strength.value).toBeCloseTo(atOne, 6);
+
+        s.values.current.glowStrength = 0;
+        s.look.render(0.1);
+        expect(glowOf(s).visible).toBe(false);
+    });
+
+    it('does not swell at Beat accent 0', () => {
         const s = setup();
         s.look.setMix(1);
         s.look.render(1 / 60);
-        for (let i = 0; i < 8; i++) {
-            s.rhythm.state.bandOnsets[0] = 0;
-            s.look.render(0.01);
-            s.rhythm.state.bandOnsets[0] = 0.9;
-            s.look.render(0.35);
-        }
-        const visible = rings(s).filter((ring) => ring.visible);
-        expect(visible.length).toBeGreaterThan(0);
-        expect(visible.length).toBeLessThanOrEqual(SHOCKWAVE_POOL_SIZE);
-    });
-
-    it('scales the ring by the Beat accent and shows no ring at 0', () => {
-        const s = setup();
-        s.look.setMix(1);
-        s.look.render(1 / 60);
+        const resting = uniformsOf(s).strength.value;
         s.values.current.accentIntensity = 0;
         beat(s, 1);
-        const ring = rings(s).find((candidate) => candidate.visible)!;
-        expect(uniformsOf(ring).strength.value).toBe(0);
+        expect(uniformsOf(s).strength.value).toBeCloseTo(resting, 10);
         expect(bloom().strength).toBeCloseTo(0.45, 10);
     });
 
-    it('never triggers without a rhythm tracker', () => {
+    it('never pulses without a rhythm tracker', () => {
         const s = setup(false);
         s.look.setMix(1);
         for (let i = 0; i < 20; i++) s.look.render(0.4);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
         expect(bloom().strength).toBeCloseTo(0.45, 10);
     });
 
     it('reads a missing kick onset as 0', () => {
         const s = setup();
+        s.look.setMix(1);
         s.rhythm.state.bandOnsets = [];
         s.look.render(0.1);
         s.look.render(0.1);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
+        expect(bloom().strength).toBeCloseTo(0.45, 10);
     });
 
-    it('fires no ring under reduced motion, damps the pulse, and holds the dust still', () => {
+    it('damps the pulse under reduced motion and holds the dust still', () => {
         const s = setup();
         s.look.setMix(1);
         s.look.render(1 / 60);
@@ -559,11 +581,10 @@ describe('accent and shockwave', () => {
         s.look.render(1);
         expect(dustMaterial.uniforms.uTime.value).toBeGreaterThan(driftBefore);
 
-        // Reduced motion applies at once: live rings go, the pulse is clamped to its damped peak, the dust stops.
+        // Reduced motion applies at once: the pulse is clamped to its damped peak, the dust stops.
         s.reduced.matches = true;
         const frozen = dustMaterial.uniforms.uTime.value as number;
         s.look.render(0.01);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
         expect(pulseOf().uniforms.pulse.value as number).toBeLessThanOrEqual(
             ACCENT_PEAK_CAP * ACCENT_REDUCED_MOTION_FACTOR,
         );
@@ -572,7 +593,6 @@ describe('accent and shockwave', () => {
 
         for (let i = 0; i < 4; i++) s.look.render(0.1);
         beat(s, 2, 0.1);
-        expect(rings(s).every((ring) => !ring.visible)).toBe(true);
         expect(pulseOf().uniforms.pulse.value as number).toBeCloseTo(ACCENT_PEAK_CAP * ACCENT_REDUCED_MOTION_FACTOR, 6);
     });
 
@@ -580,7 +600,10 @@ describe('accent and shockwave', () => {
         const s = setup();
         const dust = s.scene.children.find((child) => child instanceof THREE.Points) as THREE.Points;
         const backdrop = s.scene.children.find(
-            (child) => child instanceof THREE.Mesh && child.geometry instanceof THREE.PlaneGeometry,
+            (child) =>
+                child instanceof THREE.Mesh &&
+                child.geometry instanceof THREE.PlaneGeometry &&
+                child.name !== SPECTRUM_GLOW_NAME,
         ) as THREE.Mesh;
         s.look.render(0.1);
         expect(dust.visible).toBe(false);
@@ -626,7 +649,7 @@ describe('dispose', () => {
         const geometrySpies = [...geometries].map((geometry) => vi.spyOn(geometry, 'dispose'));
         const materialSpies = [...materials].map((material) => vi.spyOn(material, 'dispose'));
         const passes = [...composer().passes];
-        // 3 dense + backdrop + dust + one shared ring geometry
+        // 3 dense + backdrop + dust + the spectrum glow
         expect(geometries.size).toBe(3 + 1 + 1 + 1);
 
         s.look.dispose();
@@ -713,10 +736,10 @@ describe('dispose', () => {
                 for (const sheet of sheets) expect(sheet.flags.mesh.material).not.toBe(sheet.flags.material);
                 look.dispose();
                 for (const sheet of sheets) expect(sheet.flags.mesh.material).toBe(sheet.flags.material);
-                // 3 dense + backdrop + dust + ring geometry; 3 dense + backdrop + dust + the ring materials + the 3
+                // 3 dense + backdrop + dust + glow geometry; 3 dense + backdrop + dust + glow materials + the 3
                 // standard pass-through materials.
                 expect(geometryDispose).toHaveBeenCalledTimes(6);
-                expect(materialDispose).toHaveBeenCalledTimes(5 + SHOCKWAVE_POOL_SIZE + 3);
+                expect(materialDispose).toHaveBeenCalledTimes(6 + 3);
                 expect(scene.children).toHaveLength(3);
             }
         } finally {
