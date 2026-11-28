@@ -187,26 +187,35 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         };
         this.sizeBloomBase = sizeBloom;
 
-        this.grade = new ShaderPass({
-            uniforms: {
-                tDiffuse: value(null),
-                uEnhPivot: value(ENHANCED_GRADE_PIVOT),
-                uEnhContrast: value(ENHANCED_GRADE_CONTRAST),
-                uEnhSaturation: value(ENHANCED_GRADE_SATURATION),
-                uEnhKnee: value(ENHANCED_GRADE_KNEE),
-                uEnhRange: value(ENHANCED_GRADE_RANGE),
-                uEnhVignetteStrength: value(ENHANCED_VIGNETTE_STRENGTH),
-                uEnhVignetteRadius: value(ENHANCED_VIGNETTE_RADIUS),
-                uEnhVignetteSoftness: value(ENHANCED_VIGNETTE_SOFTNESS),
-            },
-            vertexShader: gradeVertexShader,
-            fragmentShader: gradeFragmentShader,
-        });
-        this.bloom.enabled = false;
-        this.grade.enabled = false;
-        this.sizeBloom(sizeBloom);
-        ctx.post.setExtraPasses([this.bloom, this.grade]);
-        this.setMaterials(materials);
+        // From here on a throw would leave the bloom allocated, and later the passes in the composer and the materials on
+        // the enhanced strings, with no handle for the scene to dispose, so the partial state is undone before rethrowing.
+        let grade: ShaderPass | undefined;
+        try {
+            grade = new ShaderPass({
+                uniforms: {
+                    tDiffuse: value(null),
+                    uEnhPivot: value(ENHANCED_GRADE_PIVOT),
+                    uEnhContrast: value(ENHANCED_GRADE_CONTRAST),
+                    uEnhSaturation: value(ENHANCED_GRADE_SATURATION),
+                    uEnhKnee: value(ENHANCED_GRADE_KNEE),
+                    uEnhRange: value(ENHANCED_GRADE_RANGE),
+                    uEnhVignetteStrength: value(ENHANCED_VIGNETTE_STRENGTH),
+                    uEnhVignetteRadius: value(ENHANCED_VIGNETTE_RADIUS),
+                    uEnhVignetteSoftness: value(ENHANCED_VIGNETTE_SOFTNESS),
+                },
+                vertexShader: gradeVertexShader,
+                fragmentShader: gradeFragmentShader,
+            });
+            this.grade = grade;
+            this.bloom.enabled = false;
+            this.grade.enabled = false;
+            this.sizeBloom(sizeBloom);
+            ctx.post.setExtraPasses([this.bloom, this.grade]);
+            this.setMaterials(materials);
+        } catch (error) {
+            this.undoPartialBuild(grade);
+            throw error;
+        }
     }
 
     get enabled(): boolean {
@@ -290,6 +299,29 @@ class BassInkEnhancedLook implements BassInkEnhancedHandle {
         this.ctx.post.setExtraPasses([]);
         this.bloom.dispose();
         this.grade.dispose();
+    }
+
+    // Undoes a constructor that threw: takes the passes out of the composer, puts the standard shaders back and frees the
+    // passes that were made. Each step is guarded, so a failing one never hides the original error.
+    private undoPartialBuild(grade: ShaderPass | undefined): void {
+        this.disposed = true;
+        this.on = false;
+        const steps = [
+            () => this.ctx.post.setExtraPasses([]),
+            () => {
+                for (const held of this.held) this.restore(held);
+                this.held = [];
+            },
+            () => this.bloom.dispose(),
+            () => grade?.dispose(),
+        ];
+        for (const step of steps) {
+            try {
+                step();
+            } catch {
+                // The original error is what the caller needs; this one is a consequence of the same broken state.
+            }
+        }
     }
 
     // Records the standard strings and adds the `uEnh*` uniforms. Standard uniforms are never touched.

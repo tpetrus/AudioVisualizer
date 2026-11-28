@@ -78,3 +78,22 @@ describe('bassInkSceneConfig orbit', () => {
         expect(orbit.levelHigh).toBeGreaterThan(orbit.levelLow);
     });
 });
+
+describe('bassInkSceneConfig formation brightness', () => {
+    it('gives every formation a brightness, the sphere the reference 1 and the denser ones less', () => {
+        const { formationAlpha, formationGrowth } = bassInkSceneConfig.cloud;
+        expect(formationAlpha).toHaveLength(formationGrowth.length);
+        expect(formationAlpha[0]).toBe(1);
+        for (const alpha of formationAlpha.slice(1)) {
+            expect(alpha).toBeGreaterThan(0.4);
+            expect(alpha).toBeLessThan(1);
+        }
+    });
+
+    it('keeps the light ceiling above white and its knee below, so only stacked light is capped', () => {
+        const { knee, max } = bassInkSceneConfig.post.lightCeiling;
+        expect(knee).toBeGreaterThan(bassInkSceneConfig.post.bloomThreshold);
+        expect(knee).toBeLessThan(1);
+        expect(max).toBeGreaterThan(1);
+    });
+});

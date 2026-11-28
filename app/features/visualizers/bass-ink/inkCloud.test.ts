@@ -654,4 +654,25 @@ describe('InkCloud options', () => {
         expect(uniformOf(cloud, 'uWaveMax')).toBeCloseTo(wave.maxDisplacement * 0.5, 12);
         expect(uniformOf(cloud, 'uAlpha')).toBeCloseTo(sprite.baseAlpha * 0.6, 12);
     });
+
+    it('setFormationAlpha multiplies on top of alphaScale, replaces the previous factor and touches nothing else', () => {
+        const cloud = new InkCloud(100, SEED, 64, { alphaScale: 0.6 });
+        const base = plain(cloud);
+        cloud.setFormationAlpha(0.5);
+        expect(uniformOf(cloud, 'uAlpha')).toBeCloseTo(sprite.baseAlpha * 0.6 * 0.5, 12);
+        expect({ ...plain(cloud), uAlpha: base.uAlpha }).toEqual(base);
+        cloud.setFormationAlpha(0.8);
+        expect(uniformOf(cloud, 'uAlpha')).toBeCloseTo(sprite.baseAlpha * 0.6 * 0.8, 12);
+        cloud.setFormationAlpha(0);
+        expect(uniformOf(cloud, 'uAlpha')).toBe(0);
+    });
+
+    it('treats a non-finite or negative formation alpha as 1', () => {
+        const cloud = new InkCloud(100, SEED, 64);
+        for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, -0.5]) {
+            cloud.setFormationAlpha(0.3);
+            cloud.setFormationAlpha(bad);
+            expect(uniformOf(cloud, 'uAlpha')).toBe(sprite.baseAlpha);
+        }
+    });
 });

@@ -111,13 +111,15 @@ interface FakeCloud {
     setSpectrum: ReturnType<typeof vi.fn>;
     setViewport: ReturnType<typeof vi.fn>;
     setRadius: ReturnType<typeof vi.fn>;
+    setFormationAlpha: ReturnType<typeof vi.fn>;
     activeIndex: number;
     blendProgress: number;
     showFormation: ReturnType<typeof vi.fn>;
     dispose: ReturnType<typeof vi.fn>;
     restPosition: ReturnType<typeof vi.fn>;
 }
-const clouds = vi.hoisted(() => ({ instances: [] as unknown[] }));
+// `fail` makes the next cloud's constructor throw, to check what a setup that throws leaves behind.
+const clouds = vi.hoisted(() => ({ instances: [] as unknown[], fail: false }));
 vi.mock('./inkCloud', async () => {
     const { Object3D } = await import('three');
     const { bassInkSceneConfig: sceneConfig } = await import('./bassInkSceneConfig');
@@ -142,6 +144,7 @@ vi.mock('./inkCloud', async () => {
             setSpectrum = vi.fn();
             setViewport = vi.fn();
             setRadius = vi.fn();
+            setFormationAlpha = vi.fn();
             activeIndex = 0;
             blendProgress = 0;
             showFormation = vi.fn();
@@ -158,6 +161,10 @@ vi.mock('./inkCloud', async () => {
                 public maxPointSize: number,
                 public options?: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number },
             ) {
+                if (clouds.fail) {
+                    clouds.fail = false;
+                    throw new Error('cloud failed');
+                }
                 clouds.instances.push(this);
             }
         },
@@ -518,6 +525,30 @@ describe('useBassInkScene', () => {
             expect(radiusOf(cloud)).toBeCloseTo(atEnd, 1);
         });
 
+        it('blends the formation brightness like the fit, so a transition never steps the light', () => {
+            const { frame } = mountScene();
+            const cloud = currentCloud();
+            const alphaOf = () => cloud.setFormationAlpha.mock.calls.at(-1)![0] as number;
+            const [sphere, torus] = bassInkSceneConfig.cloud.formationAlpha;
+            // Mounted on the sphere: its brightness at once.
+            expect(cloud.setFormationAlpha.mock.calls[0][0]).toBe(sphere);
+
+            cloud.preparedIndex = 1;
+            cloud.transitioning = true;
+            cloud.blendProgress = 0.5;
+            for (let i = 0; i < 200; i++) frame();
+            expect(alphaOf()).toBeCloseTo((sphere + torus) / 2, 4);
+
+            // One frame of a jump in the target moves the brightness only part of the way.
+            cloud.blendProgress = 1;
+            const before = alphaOf();
+            frame(16);
+            expect(alphaOf()).toBeLessThan(before);
+            expect(alphaOf()).toBeGreaterThan(torus);
+            for (let i = 0; i < 200; i++) frame();
+            expect(alphaOf()).toBeCloseTo(torus, 4);
+        });
+
         it('refits a cloud rebuilt for a density change', () => {
             const { frame, valuesRef } = mountScene();
             frame();
@@ -527,6 +558,7 @@ describe('useBassInkScene', () => {
 
             expect(allClouds()).toHaveLength(2);
             expect(currentCloud().setRadius).toHaveBeenCalled();
+            expect(currentCloud().setFormationAlpha).toHaveBeenCalled();
         });
     });
 
@@ -1390,6 +1422,19 @@ describe('useBassInkScene', () => {
                 unmount();
 
                 expect(removed).toBe(1);
+                expect(listeners).toHaveLength(0);
+            });
+
+            it('adds no listener when the setup throws after reading the preference', () => {
+                const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+                clouds.fail = true;
+                try {
+                    expect(() => mountScene()).toThrow('cloud failed');
+                } finally {
+                    quiet.mockRestore();
+                    clouds.fail = false;
+                }
+                expect(window.matchMedia).toHaveBeenCalled();
                 expect(listeners).toHaveLength(0);
             });
         });

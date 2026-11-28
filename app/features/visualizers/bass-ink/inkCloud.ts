@@ -17,7 +17,8 @@ function depthFar(radius: number): number {
 
 // Set-once scales for a cloud that is not the shell, such as the dense core inside it. Each maps onto uniforms written
 // at construction that no per-frame method touches (update, setRadius, setPunch, setSwell and setTexture write other
-// uniforms), so the scaled value stays for the cloud's life.
+// uniforms), so the scaled value stays for the cloud's life. setFormationAlpha multiplies on top of alphaScale and
+// never replaces it.
 export interface InkCloudOptions {
     // Bass swell as a share of the radius (uSwellAmp); the default is the shell's.
     swellAmplitude?: number;
@@ -42,6 +43,8 @@ export class InkCloud {
     readonly material: THREE.ShaderMaterial;
     private readonly sides: readonly [THREE.BufferAttribute, THREE.BufferAttribute];
     private readonly uniforms: Record<string, THREE.IUniform>;
+    // uAlpha before setFormationAlpha: the sprite's alpha times the options' alphaScale.
+    private readonly baseAlpha: number;
     private readonly kickTimes = new Float32Array(KICK_SLOTS);
     private readonly kickStrengths = new Float32Array(KICK_SLOTS);
     private readonly core = new Float32Array(3);
@@ -72,6 +75,7 @@ export class InkCloud {
         const swellAmplitude = options.swellAmplitude ?? config.cloud.swellAmplitude;
         const displacementScale = options.displacementScale ?? 1;
         const alphaScale = options.alphaScale ?? 1;
+        this.baseAlpha = config.sprite.baseAlpha * alphaScale;
 
         const a = new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3);
         const b = new THREE.BufferAttribute(new Float32Array(pointCount * 3), 3);
@@ -137,7 +141,7 @@ export class InkCloud {
             uCore: { value: this.core },
             uEdge: { value: this.edge },
             uBrightness: { value: 0 },
-            uAlpha: { value: config.sprite.baseAlpha * alphaScale },
+            uAlpha: { value: this.baseAlpha },
             uAlphaNormalization: { value: config.sprite.tensionAlphaNormalization },
             uFlowA: { value: 0 },
             uFlowB: { value: 0 },
@@ -264,6 +268,14 @@ export class InkCloud {
         this.uniforms.uSpectrum.value = texture;
         this.uniforms.uSpectrumHead.value = headCoordinate;
         this.uniforms.uSpectrumSpan.value = span;
+    }
+
+    // Multiplies every point's alpha by the shown formation's brightness (bassInkSceneConfig.cloud.formationAlpha), so
+    // the dense formations draw no more light per pixel than the sphere. A non-finite or negative value counts as 1, so a
+    // bad input never blanks or overdrives the cloud.
+    setFormationAlpha(scale: number): void {
+        const safe = Number.isFinite(scale) && scale >= 0 ? scale : 1;
+        this.uniforms.uAlpha.value = this.baseAlpha * safe;
     }
 
     // World radius of the unit formations. The scene refits it to the viewport (framing.ts) on mount, resize and rebuild.

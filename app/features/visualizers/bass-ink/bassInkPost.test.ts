@@ -15,7 +15,13 @@ const rec = vi.hoisted(() => {
             this.sizes.push([width, height]);
         }
     }
-    return { Pass, composers: [] as unknown[], afterimages: [] as unknown[], blooms: [] as unknown[] };
+    return {
+        Pass,
+        composers: [] as unknown[],
+        afterimages: [] as unknown[],
+        blooms: [] as unknown[],
+        ceilings: [] as unknown[],
+    };
 });
 
 vi.mock('three/addons/postprocessing/EffectComposer.js', () => ({
@@ -49,6 +55,13 @@ vi.mock('three/addons/postprocessing/RenderPass.js', () => ({
         ) {
             super();
         }
+    },
+}));
+vi.mock('./lightCeiling', () => ({
+    createLightCeilingPass: () => {
+        const pass = new rec.Pass();
+        rec.ceilings.push(pass);
+        return pass;
     },
 }));
 vi.mock('three/addons/postprocessing/OutputPass.js', () => ({ OutputPass: class extends rec.Pass {} }));
@@ -95,6 +108,7 @@ type Bloom = InstanceType<typeof rec.Pass> & {
 const composers = () => rec.composers as Composer[];
 const afterimages = () => rec.afterimages as Afterimage[];
 const blooms = () => rec.blooms as Bloom[];
+const ceilings = () => rec.ceilings as InstanceType<typeof rec.Pass>[];
 const { post: config } = bassInkSceneConfig;
 
 // By default each reading is one 60 fps frame after the last, so a spec that does not care about timing sees the
@@ -126,6 +140,7 @@ describe('BassInkPost', () => {
         rec.composers.length = 0;
         rec.afterimages.length = 0;
         rec.blooms.length = 0;
+        rec.ceilings.length = 0;
     });
 
     it('never builds a composer on a software renderer, and renders plainly', () => {
@@ -164,17 +179,19 @@ describe('BassInkPost', () => {
         expect(post.active).toBe(true);
     });
 
-    it('builds the composer on the first pass turned on, with the four passes in order', () => {
+    it('builds the composer on the first pass turned on, with the five passes in order', () => {
         const { post, renderer, scene, camera } = setup();
 
         post.apply({ trails: 0.5, glow: 0 });
 
         expect(composers()).toHaveLength(1);
         const composer = composers()[0];
-        expect(composer.passes).toHaveLength(4);
+        expect(composer.passes).toHaveLength(5);
         expect(composer.passes[0]).toMatchObject({ scene, camera });
-        expect(composer.passes[1]).toBe(afterimages()[0]);
-        expect(composer.passes[2]).toBe(blooms()[0]);
+        // The light ceiling comes right after the render, so neither the trails nor the bloom see uncapped light.
+        expect(composer.passes[1]).toBe(ceilings()[0]);
+        expect(composer.passes[2]).toBe(afterimages()[0]);
+        expect(composer.passes[3]).toBe(blooms()[0]);
 
         post.render();
         expect(composer.render).toHaveBeenCalledTimes(1);
@@ -244,8 +261,9 @@ describe('BassInkPost', () => {
         expect(afterimages()).toHaveLength(2);
         const fresh = afterimages()[1];
         expect(first.dispose).toHaveBeenCalledTimes(1);
-        expect(composers()[0].passes[1]).toBe(fresh);
-        expect(composers()[0].passes).toHaveLength(4);
+        expect(composers()[0].passes[2]).toBe(fresh);
+        expect(composers()[0].passes[1]).toBe(ceilings()[0]);
+        expect(composers()[0].passes).toHaveLength(5);
         expect(fresh.enabled).toBe(true);
         expect(fresh.uniforms.damp.value).toBeCloseTo(0.6 * config.trailsDampMax, 12);
 
@@ -304,6 +322,7 @@ describe('BassInkPost', () => {
         post.dispose();
 
         expect(composer.dispose).toHaveBeenCalledTimes(1);
+        expect(passes).toContain(ceilings()[0]);
         for (const pass of passes) expect(pass.dispose).toHaveBeenCalledTimes(1);
         expect(post.active).toBe(false);
     });
@@ -344,7 +363,8 @@ describe('BassInkPost', () => {
         expect(composers()).toHaveLength(1);
         expect(afterimages()).toHaveLength(1);
         expect(blooms()).toHaveLength(1);
-        expect(composers()[0].passes).toHaveLength(4);
+        expect(ceilings()).toHaveLength(1);
+        expect(composers()[0].passes).toHaveLength(5);
         expect(composers()[0].render).toHaveBeenCalledTimes(21);
     });
 });
@@ -375,6 +395,7 @@ describe('BassInkPost frame-rate independence', () => {
         rec.composers.length = 0;
         rec.afterimages.length = 0;
         rec.blooms.length = 0;
+        rec.ceilings.length = 0;
     });
 
     it('keeps the same retention per second at 30, 60 and 144 fps', () => {
@@ -416,6 +437,7 @@ describe('BassInkPost tiny view', () => {
         rec.composers.length = 0;
         rec.afterimages.length = 0;
         rec.blooms.length = 0;
+        rec.ceilings.length = 0;
     });
 
     it('turns the bloom off under 32 device pixels on either side, and back on when it grows', () => {
@@ -470,6 +492,7 @@ describe('BassInkPost extra passes', () => {
         rec.composers.length = 0;
         rec.afterimages.length = 0;
         rec.blooms.length = 0;
+        rec.ceilings.length = 0;
     });
 
     const extra = () => new rec.Pass() as unknown as Pass;
@@ -482,10 +505,10 @@ describe('BassInkPost extra passes', () => {
         post.apply({ trails: 0.5, glow: 0.5 });
 
         const passes = composers()[0].passes as unknown[];
-        expect(passes).toHaveLength(6);
-        expect(passes[2]).toBe(blooms()[0]);
-        expect(passes[3]).toBe(a);
-        expect(passes[4]).toBe(b);
+        expect(passes).toHaveLength(7);
+        expect(passes[3]).toBe(blooms()[0]);
+        expect(passes[4]).toBe(a);
+        expect(passes[5]).toBe(b);
     });
 
     it('inserts passes into a built composer and replaces them without freeing the old ones', () => {
@@ -493,18 +516,18 @@ describe('BassInkPost extra passes', () => {
         post.apply({ trails: 0.5, glow: 0.5 });
         const a = extra();
         post.setExtraPasses([a]);
-        expect(composers()[0].passes[3]).toBe(a);
+        expect(composers()[0].passes[4]).toBe(a);
 
         const b = extra();
         post.setExtraPasses([b]);
         const passes = composers()[0].passes as unknown[];
-        expect(passes).toHaveLength(5);
+        expect(passes).toHaveLength(6);
         expect(passes).not.toContain(a);
-        expect(passes[3]).toBe(b);
+        expect(passes[4]).toBe(b);
         expect((a as unknown as { dispose: ReturnType<typeof vi.fn> }).dispose).not.toHaveBeenCalled();
 
         post.setExtraPasses([]);
-        expect(composers()[0].passes).toHaveLength(4);
+        expect(composers()[0].passes).toHaveLength(5);
     });
 
     it('keeps the extra passes before the output when a returning trail replaces the afterimage', () => {
@@ -516,9 +539,9 @@ describe('BassInkPost extra passes', () => {
         post.apply({ trails: 0.5, glow: 0.5 });
 
         const passes = composers()[0].passes as unknown[];
-        expect(passes[1]).toBe(afterimages()[1]);
-        expect(passes[3]).toBe(a);
-        expect(passes).toHaveLength(5);
+        expect(passes[2]).toBe(afterimages()[1]);
+        expect(passes[4]).toBe(a);
+        expect(passes).toHaveLength(6);
     });
 
     it('never draws them on a software renderer, never frees them, and ignores them after disposal', () => {

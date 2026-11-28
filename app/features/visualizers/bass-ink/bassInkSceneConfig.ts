@@ -46,6 +46,13 @@ export const bassInkSceneConfig = {
         // swing's tilt range. The most face-on tilt of the swing is what limits it: there, at the peak of every pulse,
         // these leave the torus and the disc at about 94 percent against the 95 percent fill.
         formationGrowth: [1, 1.1, 1, 1.12] as readonly number[],
+        // Point brightness of each formation (in FORMATION_NAMES order), times the sprite's baseAlpha. Every formation
+        // has the same points, and the sphere spreads them over about twice the screen area of the others: the torus
+        // packs them into a tube, the rings into three thin hoops and the disc into a flat sheet, so with one alpha
+        // those drew far more light per pixel and clipped to solid white. These match the sphere's typical brightness
+        // (mean and 90th percentile of the summed light over the lit pixels at the rest tilt, measured by projecting
+        // the real points the way the shader does). The scene blends them across a transition as it blends the fits.
+        formationAlpha: [1, 0.7, 0.56, 0.63] as readonly number[],
     },
     bass: {
         // The swell and the glow are the bump itself (see swellFromBump), so there is nothing to tune for the swell.
@@ -265,6 +272,12 @@ export const bassInkSceneConfig = {
         // The bloom's blur runs at this share of the drawing size, which costs a quarter of the pixels and looks the
         // same for a soft glow.
         bloomResolutionScale: 0.5,
+        // A soft cap on the summed light right after the render, before the trails and the bloom (lightCeiling.ts).
+        // The knee sits above almost all of the sphere's light (its 99th percentile is about 1.1 times white at rest),
+        // so the sphere keeps its look, while stacks of several times white on the other formations, near edge-on or
+        // under a kick flash, stop feeding the bloom. The ceiling stays a little above white so the brightest areas
+        // still bloom.
+        lightCeiling: { knee: 0.8, max: 1.3 },
     },
     camera: {
         // The camera never moves to frame the cloud: the scene fits the cloud's radius to the view instead (cloud.fill).

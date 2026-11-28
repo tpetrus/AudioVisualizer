@@ -17,7 +17,8 @@ const rec = vi.hoisted(() => {
         enabled = true;
         dispose = vi.fn();
     }
-    return { Pass, blooms: [] as unknown[], grades: [] as unknown[] };
+    // failGrade makes the next grade pass throw in its constructor.
+    return { Pass, blooms: [] as unknown[], grades: [] as unknown[], failGrade: false };
 });
 
 vi.mock('three/addons/postprocessing/ShaderPass.js', () => ({
@@ -25,6 +26,7 @@ vi.mock('three/addons/postprocessing/ShaderPass.js', () => ({
         uniforms: Record<string, { value: unknown }>;
         constructor(public shader: { uniforms: Record<string, { value: unknown }> }) {
             super();
+            if (rec.failGrade) throw new Error('grade failed');
             this.uniforms = shader.uniforms;
             rec.grades.push(this);
         }
@@ -192,12 +194,22 @@ describe('setEnabled', () => {
         expect(materials.shell.vertexShader).toBe(shaders.enhancedInkVertexShader);
     });
 
-    it('does not allocate when unchanged', () => {
-        const { handle } = setup();
+    it('creates nothing and hands the post nothing when unchanged', () => {
+        const { handle, materials, setExtraPasses } = setup();
         handle.setEnabled(true);
-        const before = process.memoryUsage().heapUsed;
-        for (let i = 0; i < 200000; i++) handle.setEnabled(true);
-        expect(process.memoryUsage().heapUsed - before).toBeLessThan(2_000_000);
+        const uniformCounts = Object.values(materials).map((m) => Object.keys(m.uniforms).length);
+        const defines = Object.values(materials).map((m) => m.defines);
+        for (let i = 0; i < 1000; i++) {
+            handle.setEnabled(true);
+            handle.setGlow(1);
+            handle.step(1 / 120);
+        }
+        // No new passes, no new uniforms, the same defines objects, and the post asked once (at the build).
+        expect(rec.blooms).toHaveLength(1);
+        expect(rec.grades).toHaveLength(1);
+        expect(setExtraPasses).toHaveBeenCalledTimes(1);
+        expect(Object.values(materials).map((m) => Object.keys(m.uniforms).length)).toEqual(uniformCounts);
+        Object.values(materials).forEach((m, i) => expect(m.defines).toBe(defines[i]));
     });
 
     it('leaves standard uniform values alone and adds the uEnh uniforms', () => {
@@ -426,6 +438,75 @@ describe('setMaterials', () => {
     });
 });
 
+describe('a build that throws', () => {
+    // A material whose uniforms cannot take the uEnh additions, so attaching it throws after the passes went to the post.
+    function brokenMaterial(): THREE.ShaderMaterial {
+        const material = new THREE.ShaderMaterial({ vertexShader: 'void main() {}', fragmentShader: 'void main() {}' });
+        material.uniforms = Object.freeze({}) as Record<string, THREE.IUniform>;
+        return material;
+    }
+    const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+    const size = { width: 100, height: 100 };
+
+    it('takes its passes out of the post, frees them, restores attached materials and rethrows', () => {
+        const setExtraPasses = vi.fn();
+        const post = { setExtraPasses } as unknown as BassInkPost;
+        const cloud = new InkCloud(8, 1, 64);
+        const dust = new DustField(8, 1, 64);
+        expect(() =>
+            buildBassInkEnhanced(
+                { renderer, post, size },
+                { shell: cloud.material, core: cloud.material, dust: dust.material, spray: brokenMaterial() },
+            ),
+        ).toThrow(TypeError);
+        const bloom = rec.blooms[0] as Bloom;
+        const grade = rec.grades[0] as Grade;
+        expect(setExtraPasses.mock.calls.map((call) => call[0] as unknown)).toEqual([[bloom, grade], []]);
+        expect(bloom.dispose).toHaveBeenCalledTimes(1);
+        expect(grade.dispose).toHaveBeenCalledTimes(1);
+        expect(cloud.material.vertexShader).toBe(inkVertexShader);
+        expect(cloud.material.defines.BASS_INK_ENHANCED).toBeUndefined();
+    });
+
+    it('rethrows the original error even when undoing fails too', () => {
+        const setExtraPasses = vi.fn((passes: unknown[]) => {
+            if (passes.length === 0) throw new Error('post gone');
+        });
+        const post = { setExtraPasses } as unknown as BassInkPost;
+        const cloud = new InkCloud(8, 1, 64);
+        expect(() =>
+            buildBassInkEnhanced(
+                { renderer, post, size },
+                { shell: cloud.material, core: cloud.material, dust: brokenMaterial(), spray: brokenMaterial() },
+            ),
+        ).toThrow(TypeError);
+        expect((rec.blooms[0] as Bloom).dispose).toHaveBeenCalledTimes(1);
+    });
+
+    it('frees the bloom when the grade pass cannot be built, and hands the post no pass', () => {
+        const setExtraPasses = vi.fn();
+        const post = { setExtraPasses } as unknown as BassInkPost;
+        rec.failGrade = true;
+        try {
+            expect(() =>
+                buildBassInkEnhanced(
+                    { renderer, post, size },
+                    {
+                        shell: new InkCloud(8, 1, 64).material,
+                        core: new InkCloud(8, 2, 64).material,
+                        dust: new DustField(8, 1, 64).material,
+                        spray: new SprayPool(8, 1, 64).material,
+                    },
+                ),
+            ).toThrow('grade failed');
+        } finally {
+            rec.failGrade = false;
+        }
+        expect((rec.blooms[0] as Bloom).dispose).toHaveBeenCalledTimes(1);
+        expect(setExtraPasses.mock.calls.map((call) => call[0] as unknown)).toEqual([[]]);
+    });
+});
+
 describe('dispose', () => {
     it('restores the standard look, clears the extra passes and frees each pass once, idempotently', () => {
         const { handle, materials, setExtraPasses, bloom, grade } = setup();
@@ -461,6 +542,42 @@ describe('shaders', () => {
 
     it.each(pairs)('%s: the fragment stage has no time or music input', (_name, _vertex, fragment) => {
         expect(fragment).not.toMatch(/uTime|uKick|uSpectrum|uHigh\b|uMid\b|uSwell\b|uPunch|uBreath/);
+    });
+
+    // Every input the music or time can reach is a standard uniform, so a variant may only add constant `uEnh*` ones.
+    // Checked per stage against the standard shaders of the same kind: a new music input in either stage fails here.
+    const uniforms = (source: string) => [...source.matchAll(/^\s*uniform\s+\w+\s+(\w+)/gm)].map((m) => m[1]);
+    const standardPairs: [string, string, string, string, string][] = [
+        ['ink', inkVertexShader, inkFragmentShader, shaders.enhancedInkVertexShader, shaders.enhancedInkFragmentShader],
+        [
+            'dust',
+            dustVertexShader,
+            dustFragmentShader,
+            shaders.enhancedDustVertexShader,
+            shaders.enhancedDustFragmentShader,
+        ],
+        [
+            'spray',
+            sprayVertexShader,
+            sprayFragmentShader,
+            shaders.enhancedSprayVertexShader,
+            shaders.enhancedSprayFragmentShader,
+        ],
+    ];
+    it.each(standardPairs)(
+        '%s: both stages add only uEnh uniforms over the standard shaders',
+        (_name, vertex, fragment, enhancedVertex, enhancedFragment) => {
+            // A stage may read a uniform either standard stage already had: the value is the same one.
+            const standard = new Set([...uniforms(vertex), ...uniforms(fragment)]);
+            for (const name of [...uniforms(enhancedVertex), ...uniforms(enhancedFragment)]) {
+                if (standard.has(name)) continue;
+                expect(name).toMatch(/^uEnh/);
+            }
+        },
+    );
+
+    it('the grade pass reads only its input image and uEnh constants', () => {
+        for (const name of uniforms(shaders.gradeFragmentShader)) expect(name).toMatch(/^(tDiffuse|uEnh\w+)$/);
     });
 
     it('the ink variant keeps every varying and uniform the standard vertex shader declares', () => {
