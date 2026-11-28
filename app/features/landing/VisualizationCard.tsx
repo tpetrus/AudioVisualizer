@@ -37,17 +37,14 @@ export function VisualizationCard({ to, title, image, priority = false }: Visual
     const caption = (
         <span
             aria-hidden="true"
-            className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-3 pb-2 pt-8 text-lg font-semibold text-white"
+            className="absolute inset-x-0 bottom-0 border-t border-border bg-surface-1/85 px-3 py-1.5 text-base font-semibold text-text"
         >
             {title}
         </span>
     );
 
     return (
-        <Link
-            to={to}
-            className="relative block hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
-        >
+        <Link to={to} className="relative block ring-1 ring-transparent hover:ring-accent">
             {thumbnail}
             {caption}
         </Link>

@@ -1,8 +1,8 @@
 import { useId } from 'react';
+import { Button, Switch } from '~/components/ui';
 import { useAudio } from '../audioEngineContext';
 import { useAnalyser, useNormalize } from '../useAudioState';
-import { useLevelMeter } from '../useLevelMeter';
-import { outlineButton, primaryButton } from './buttonStyles';
+import { METER_INTERVAL_MS, useLevelMeter } from '../useLevelMeter';
 import { NormalizeSettings } from './NormalizeSettings';
 import { SilenceWarning } from './SilenceWarning';
 import { SyncOffsetSetting } from './SyncOffsetSetting';
@@ -18,34 +18,45 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
     const analyser = useAnalyser();
     const normalize = useNormalize();
     const { level, silent, trackInfo } = useLevelMeter(analyser);
-    const normalizeId = useId();
+    const normalizeDescriptionId = useId();
+    const clampedLevel = Math.min(Math.max(level, 0), 1);
 
     return (
         <>
             <div className="mb-2 text-sm">
-                <span className="text-gray-400">Using:</span> {trackInfo || 'active source'}
+                <span className="text-text-muted">Using:</span> {trackInfo || 'active source'}
             </div>
 
-            <div className="mb-2 h-2 overflow-hidden rounded bg-white/20">
+            <div
+                role="meter"
+                aria-label="Output level"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(clampedLevel * 100)}
+                className="mb-2 h-2 overflow-hidden rounded-ui bg-surface-2"
+            >
+                {/* A linear transition as long as the poll interval turns the 10 Hz steps into continuous motion
+                    without a render per frame. The property and easing stay in classes so motion-reduce can switch
+                    the transition off; an inline transition-property would beat it. */}
                 <div
-                    className={`h-full ${silent ? 'bg-yellow-500' : 'bg-green-500'}`}
-                    style={{ width: `${Math.min(level, 1) * 100}%` }}
+                    className={`h-full w-full origin-left transition-transform ease-linear motion-reduce:transition-none ${
+                        silent ? 'bg-warning' : 'bg-success'
+                    }`}
+                    style={{
+                        transform: `scaleX(${clampedLevel})`,
+                        transitionDuration: `${METER_INTERVAL_MS}ms`,
+                    }}
                 />
             </div>
 
             <div className="mb-3">
-                <input
-                    id={normalizeId}
-                    type="checkbox"
-                    role="switch"
-                    className="mr-2 h-4 w-4 align-middle accent-blue-500"
+                <Switch
                     checked={normalize}
-                    onChange={(event) => engine.setNormalize(event.currentTarget.checked)}
+                    onCheckedChange={(checked) => engine.setNormalize(checked)}
+                    label="Normalize volume"
+                    aria-describedby={normalizeDescriptionId}
                 />
-                <label className="cursor-pointer" htmlFor={normalizeId}>
-                    Normalize volume
-                </label>
-                <div className="text-sm text-gray-400">
+                <div id={normalizeDescriptionId} className="mt-1 text-sm text-text-muted">
                     Automatically adjusts the gain so the visualization looks the same whether the audio is quiet or
                     loud.
                 </div>
@@ -57,12 +68,12 @@ export function ActiveSourcePanel({ onChooseSource, onDone }: ActiveSourcePanelP
             {silent && <SilenceWarning />}
 
             <div className="flex justify-end gap-2">
-                <button type="button" className={outlineButton} onClick={onChooseSource}>
+                <Button variant="secondary" onClick={onChooseSource}>
                     Choose a different source
-                </button>
-                <button type="button" className={primaryButton} onClick={onDone}>
+                </Button>
+                <Button variant="primary" onClick={onDone}>
                     Done
-                </button>
+                </Button>
             </div>
         </>
     );

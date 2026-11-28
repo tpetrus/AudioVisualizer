@@ -4,6 +4,7 @@ import { useCapturing } from '../audio/useAudioState';
 import { TitleBanner } from './TitleBanner';
 import { ComingSoonCard } from './ComingSoonCard';
 import { EnhancedGraphicsToggle } from '~/components/EnhancedGraphicsToggle/EnhancedGraphicsToggle';
+import { Button } from '~/components/ui';
 import { VisualizationCard } from './VisualizationCard';
 import { AudioSourceDialog } from '../audio/components/AudioSourceDialog';
 import { VISUALIZATIONS } from './visualizations';
@@ -21,18 +22,18 @@ export function LandingPage() {
     }, [engine]);
 
     return (
-        <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-[rgb(10,10,10)]">
+        <main className="min-h-screen overflow-x-hidden overflow-y-auto bg-surface-0">
             {dialogOpen && <AudioSourceDialog dismissible onClose={() => setDialogOpen(false)} />}
-            <span data-testid="app-version" className="text-xs text-gray-400 pl-3">
+            <span data-testid="app-version" className="pl-3 text-xs text-text-muted">
                 v{version}
             </span>
             <TitleBanner priority />
 
-            <div className="py-1 text-center text-sm text-white">
+            <div className="py-1 text-center text-sm text-text">
                 {capturing && 'Audio source active · '}
-                <button type="button" className="text-gray-400 hover:text-white" onClick={() => setDialogOpen(true)}>
+                <Button variant="ghost" size="sm" onClick={() => setDialogOpen(true)}>
                     {capturing ? 'Audio settings' : 'Connect audio'}
-                </button>
+                </Button>
             </div>
             <EnhancedGraphicsToggle className="flex flex-col items-center px-2 pb-2 text-center" />
 

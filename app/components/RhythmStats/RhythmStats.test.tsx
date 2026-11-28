@@ -30,7 +30,7 @@ describe('RhythmStats', () => {
         expect(screen.getByText('meter: unsure · 0%')).toBeInTheDocument();
         // Four dial segments while the meter is unsure, none lit.
         expect(container.querySelectorAll('.h-3')).toHaveLength(4);
-        expect(container.querySelectorAll('.h-3.bg-\\[\\#9f9\\], .h-3.bg-\\[\\#ff9\\]')).toHaveLength(0);
+        expect(container.querySelectorAll('.h-3.bg-success, .h-3.bg-warning')).toHaveLength(0);
     });
 
     it('polls the tracker for the current phase on every sample', () => {
@@ -67,17 +67,17 @@ describe('RhythmStats', () => {
         tracker.state.barPhase = 0.1;
         sample();
         const segments = () => Array.from(container.querySelectorAll('.h-3'));
-        expect(segments()[0]).toHaveClass('bg-[#ff9]');
+        expect(segments()[0]).toHaveClass('bg-warning');
 
         tracker.state.barPhase = 0.6;
         sample();
-        expect(segments()[2]).toHaveClass('bg-[#9f9]');
-        expect(segments()[0]).toHaveClass('bg-white/15');
+        expect(segments()[2]).toHaveClass('bg-success');
+        expect(segments()[0]).toHaveClass('bg-surface-2');
 
         // A phase of exactly 1 must not run past the last segment.
         tracker.state.barPhase = 1;
         sample();
-        expect(segments()[3]).toHaveClass('bg-[#9f9]');
+        expect(segments()[3]).toHaveClass('bg-success');
     });
 
     it('lights a plain segment when the bar position is known but the meter is not', () => {
@@ -86,7 +86,7 @@ describe('RhythmStats', () => {
         sample();
 
         // The first of the four unsure segments is lit, but not with the downbeat colour.
-        expect(container.querySelectorAll('.h-3')[0]).toHaveClass('bg-[#9f9]');
+        expect(container.querySelectorAll('.h-3')[0]).toHaveClass('bg-success');
     });
 
     it('flashes "new song" after a song change and lets the flash fade', () => {
@@ -96,11 +96,11 @@ describe('RhythmStats', () => {
 
         tracker.setSongChangeCount(1);
         sample();
-        expect(badge).toHaveClass('bg-[#9f9]');
+        expect(badge).toHaveClass('bg-success');
 
         // Lit for about a second (ten samples in total), then dim again.
         sample(9);
-        expect(badge).toHaveClass('bg-[#9f9]');
+        expect(badge).toHaveClass('bg-success');
         sample();
         expect(badge).toHaveClass('opacity-30');
     });

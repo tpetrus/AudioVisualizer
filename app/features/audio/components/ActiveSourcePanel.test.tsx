@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeAudioEngine } from '~/test/fakeEngines';
 import { asWebAudio } from '~/test/fakeWebAudio';
 import { renderWithProviders } from '~/test/renderWithProviders';
+import { METER_INTERVAL_MS } from '../useLevelMeter';
 import { ActiveSourcePanel } from './ActiveSourcePanel';
 
 function capturingEngine() {
@@ -44,36 +45,54 @@ describe('ActiveSourcePanel', () => {
 
     it('shows the normalized level as a bar that follows the meter', () => {
         const engine = capturingEngine();
-        const { container } = renderPanel(engine);
-        const bar = () => container.querySelector<HTMLElement>('.rounded.bg-white\\/20 > div');
-        expect(bar()).toHaveStyle({ width: '0%' });
+        renderPanel(engine);
+        const meter = () => screen.getByRole('meter', { name: 'Output level' });
+        const bar = () => meter().firstElementChild as HTMLElement;
+        expect(bar().style.transform).toBe('scaleX(0)');
+        expect(meter()).toHaveAttribute('aria-valuenow', '0');
 
         engine.level = 0.5;
         engine.outputLevel = 0.5;
         act(() => {
             vi.advanceTimersByTime(100);
         });
-        expect(bar()).toHaveStyle({ width: '50%' });
-        expect(bar()).toHaveClass('bg-green-500');
+        expect(bar().style.transform).toBe('scaleX(0.5)');
+        expect(meter()).toHaveAttribute('aria-valuenow', '50');
+        expect(meter()).toHaveAttribute('aria-valuemin', '0');
+        expect(meter()).toHaveAttribute('aria-valuemax', '100');
+        expect(bar()).toHaveClass('bg-success');
+        expect(bar()).not.toHaveClass('bg-warning');
 
         // Normalized output can overshoot full scale; the bar stops at the end.
         engine.outputLevel = 1.7;
         act(() => {
             vi.advanceTimersByTime(100);
         });
-        expect(bar()).toHaveStyle({ width: '100%' });
+        expect(bar().style.transform).toBe('scaleX(1)');
+        expect(meter()).toHaveAttribute('aria-valuenow', '100');
+    });
+
+    it('animates the bar linearly over one poll interval and respects reduced motion', () => {
+        renderPanel();
+        const bar = screen.getByRole('meter').firstElementChild as HTMLElement;
+
+        expect(bar.style.transitionDuration).toBe(`${METER_INTERVAL_MS}ms`);
+        expect(bar).toHaveClass('origin-left', 'transition-transform', 'ease-linear', 'motion-reduce:transition-none');
+        // An inline transition-property or easing would override the reduced-motion class, so neither may be set.
+        expect(bar.style.transitionProperty).toBe('');
+        expect(bar.style.transitionTimingFunction).toBe('');
     });
 
     it('warns when the input stays silent and takes the warning away when sound returns', () => {
         const engine = capturingEngine();
-        const { container } = renderPanel(engine);
+        renderPanel(engine);
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
 
         act(() => {
             vi.advanceTimersByTime(4200);
         });
         expect(screen.getByRole('status')).toHaveTextContent('No audio signal detected');
-        expect(container.querySelector('.bg-yellow-500')).toBeInTheDocument();
+        expect(screen.getByRole('meter').firstElementChild).toHaveClass('bg-warning');
 
         engine.level = 0.3;
         act(() => {

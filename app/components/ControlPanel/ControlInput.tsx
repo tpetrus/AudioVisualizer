@@ -1,3 +1,5 @@
+import { Range, Select } from '~/components/ui';
+import styles from './ControlPanel.module.css';
 import type { ControlDefinition, ControlValue } from './controls';
 
 interface ControlInputProps {
@@ -10,8 +12,8 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
     switch (definition.type) {
         case 'range':
             return (
-                <input
-                    type="range"
+                <Range
+                    className={styles.input}
                     id={definition.key}
                     min={definition.min}
                     max={definition.max}
@@ -24,6 +26,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
             return (
                 <input
                     type="checkbox"
+                    className="accent-accent"
                     id={definition.key}
                     checked={Boolean(value)}
                     onChange={(event) => onChange(event.currentTarget.checked)}
@@ -33,6 +36,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
             return (
                 <input
                     type="color"
+                    className={styles.colorInput}
                     id={definition.key}
                     value={String(value)}
                     onChange={(event) => onChange(event.currentTarget.value)}
@@ -40,7 +44,8 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
             );
         case 'select':
             return (
-                <select
+                <Select
+                    className={styles.input}
                     id={definition.key}
                     value={String(value)}
                     onChange={(event) => onChange(event.currentTarget.value)}
@@ -50,7 +55,7 @@ export function ControlInput({ definition, value, onChange }: ControlInputProps)
                             {option.label}
                         </option>
                     ))}
-                </select>
+                </Select>
             );
     }
 }

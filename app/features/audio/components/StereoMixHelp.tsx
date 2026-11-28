@@ -1,8 +1,8 @@
 // Setup guide for capturing the computer's own output on Windows.
 export function StereoMixHelp() {
     return (
-        <details className="mt-3 rounded border border-white/20 bg-neutral-800 text-gray-100">
-            <summary className="cursor-pointer px-4 py-2">How do I set up Stereo Mix?</summary>
+        <details className="mt-3 rounded-ui border border-border bg-surface-2 text-text">
+            <summary className="px-4 py-2">How do I set up Stereo Mix?</summary>
             <div className="px-4 pb-4 text-sm [&_ol]:mb-2 [&_ol]:list-decimal [&_ol]:pl-8 [&_ul]:mb-2 [&_ul]:list-disc [&_ul]:pl-8">
                 <p className="mb-1">
                     Stereo Mix is a Windows recording device that carries everything your computer is playing.

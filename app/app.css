@@ -13,17 +13,67 @@
         U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
+/* The design system's tokens (contract C1 in docs/plans/ui-design-system/contracts.md). Every UI color, the radius and
+   the focus ring come from here as Tailwind utilities (bg-surface-1, text-text-muted, border-border, rounded-ui, ...),
+   so a new screen looks like the rest without choosing colors. Flat on purpose: no gradients, one blue accent, and the
+   status hues only for status (the level meter, the silence cue, a changed setting, an error). Scene palettes are not
+   UI and do not use these. */
 @theme {
     --font-sans:
         'Inter Variable', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-surface-0: #0a0a0a;
+    --color-surface-1: #161616;
+    --color-surface-2: #242424;
+    --color-border: #3d3d3d;
+    --color-text: #f2f2f2;
+    --color-text-muted: #a8a8a8;
+    /* White text on the accent stays above 4.5:1, so primary buttons are readable; accent-text is the lighter blue
+       for accent-colored text and the focus ring on the dark surfaces, where the base accent would be too dim. */
+    --color-accent: #2563eb;
+    --color-accent-hover: #1d4ed8;
+    --color-accent-text: #6ea8fe;
+    --color-success: #22c55e;
+    --color-warning: #eab308;
+    --color-danger: #f87171;
+
+    --radius-ui: 4px;
 }
 
+/* The app has no light theme, so the page and the browser's own widgets (scrollbars, the native option list) are
+   always dark. */
 html,
 body {
-    @apply bg-white dark:bg-gray-950;
+    @apply bg-surface-0 text-text;
+    color-scheme: dark;
+}
 
-    @media (prefers-color-scheme: dark) {
-        color-scheme: dark;
+/* Tailwind 4's preflight gives buttons the default arrow, so the base layer restores the pointer on everything a
+   click acts on, and the not-allowed cursor on anything disabled. One focus ring for every control: only on keyboard
+   focus (focus-visible), so mouse clicks do not leave a ring behind. */
+@layer base {
+    button,
+    a[href],
+    summary,
+    select,
+    label[for],
+    input[type='checkbox'],
+    input[type='radio'],
+    input[type='range'],
+    input[type='color'],
+    [role='switch'],
+    [role='button'] {
+        cursor: pointer;
+    }
+
+    :disabled,
+    [aria-disabled='true'] {
+        cursor: not-allowed;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-accent-text);
+        outline-offset: 2px;
     }
 }

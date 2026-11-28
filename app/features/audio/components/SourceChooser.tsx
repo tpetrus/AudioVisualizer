@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
+import { Button, Select } from '~/components/ui';
 import { useAudio } from '../audioEngineContext';
-import { outlineButton, primaryButton } from './buttonStyles';
 import { StereoMixHelp } from './StereoMixHelp';
 
 interface SourceChooserProps {
@@ -69,7 +69,7 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
     return (
         <>
             {showIntro && (
-                <p className="text-sm text-gray-400">Choose where the audio should come from to get started.</p>
+                <p className="text-sm text-text-muted">Choose where the audio should come from to get started.</p>
             )}
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -80,9 +80,9 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                         "You'll need to do this again after a page refresh."
                     }
                 >
-                    <button type="button" className={primaryButton} disabled={busy} onClick={startScreenCapture}>
+                    <Button variant="primary" disabled={busy} onClick={startScreenCapture}>
                         Share audio
-                    </button>
+                    </Button>
                 </SourceCard>
 
                 <SourceCard
@@ -90,13 +90,13 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                     description="Pick a microphone, Stereo Mix or a virtual cable that carries your computer's output. Remembered across refreshes."
                 >
                     {devices.length === 0 ? (
-                        <button type="button" className={outlineButton} disabled={busy} onClick={loadDevices}>
+                        <Button variant="secondary" disabled={busy} onClick={loadDevices}>
                             Choose device
-                        </button>
+                        </Button>
                     ) : (
                         <>
-                            <select
-                                className="mb-2 w-full rounded border border-gray-600 bg-neutral-900 px-2 py-1.5 text-gray-100"
+                            <Select
+                                className="mb-2 w-full"
                                 aria-label="Audio input device"
                                 value={selectedDeviceId}
                                 onChange={(event) => setSelectedDeviceId(event.currentTarget.value)}
@@ -106,15 +106,10 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
                                         {device.label || 'Unnamed device'}
                                     </option>
                                 ))}
-                            </select>
-                            <button
-                                type="button"
-                                className={primaryButton}
-                                disabled={busy}
-                                onClick={startDeviceCapture}
-                            >
+                            </Select>
+                            <Button variant="primary" disabled={busy} onClick={startDeviceCapture}>
                                 Start
-                            </button>
+                            </Button>
                         </>
                     )}
                 </SourceCard>
@@ -141,7 +136,7 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
             </div>
 
             {error && (
-                <div className="mt-2 text-center text-red-500" role="alert">
+                <div className="mt-2 text-center text-danger" role="alert">
                     {error}
                 </div>
             )}
@@ -150,9 +145,9 @@ export function SourceChooser({ showIntro, onStarted, onBack }: SourceChooserPro
 
             {onBack && (
                 <div className="mt-3 text-right">
-                    <button type="button" className={outlineButton} onClick={onBack}>
+                    <Button variant="secondary" onClick={onBack}>
                         Back
-                    </button>
+                    </Button>
                 </div>
             )}
         </>
@@ -167,9 +162,9 @@ interface SourceCardProps {
 
 function SourceCard({ title, description, children }: SourceCardProps) {
     return (
-        <div className="flex h-full flex-col rounded border border-white/20 bg-neutral-800 p-4 text-gray-100">
+        <div className="flex h-full flex-col rounded-ui border border-border bg-surface-2 p-4 text-text">
             <h3 className="mb-2 text-base font-medium">{title}</h3>
-            <p className="mb-4 flex-grow text-sm text-gray-400">{description}</p>
+            <p className="mb-4 flex-grow text-sm text-text-muted">{description}</p>
             {children}
         </div>
     );

@@ -1,8 +1,8 @@
 import { useId } from 'react';
 import { useAudio } from '../audioEngineContext';
 import type { NormalizeSettings as NormalizeOptions } from '../types';
+import { Button, Range } from '~/components/ui';
 import { useNormalizeOptions } from '../useAudioState';
-import { smallOutlineButton } from './buttonStyles';
 
 interface NormalizeSlider {
     key: keyof NormalizeOptions;
@@ -70,7 +70,7 @@ export function NormalizeSettings() {
 
     return (
         <details className="mb-3">
-            <summary className="cursor-pointer text-sm">Normalization settings</summary>
+            <summary className="text-sm">Normalization settings</summary>
             <div className="pt-2">
                 {SLIDERS.map((slider) => {
                     const id = `${idPrefix}-${slider.key}`;
@@ -83,10 +83,9 @@ export function NormalizeSettings() {
                                     {slider.unit}
                                 </span>
                             </div>
-                            <input
+                            <Range
                                 id={id}
-                                type="range"
-                                className="w-full accent-blue-500"
+                                className="w-full"
                                 min={slider.min}
                                 max={slider.max}
                                 step={slider.step}
@@ -95,13 +94,13 @@ export function NormalizeSettings() {
                                     engine.updateNormalizeOptions({ [slider.key]: Number(event.currentTarget.value) })
                                 }
                             />
-                            <div className="text-sm text-gray-400">{slider.help}</div>
+                            <div className="text-sm text-text-muted">{slider.help}</div>
                         </div>
                     );
                 })}
-                <button type="button" className={smallOutlineButton} onClick={() => engine.resetNormalizeOptions()}>
+                <Button variant="secondary" size="sm" onClick={() => engine.resetNormalizeOptions()}>
                     Reset to defaults
-                </button>
+                </Button>
             </div>
         </details>
     );

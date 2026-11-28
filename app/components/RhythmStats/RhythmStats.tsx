@@ -82,10 +82,10 @@ export function RhythmStats() {
         reading.barPhase === undefined ? -1 : Math.min(dialBeats - 1, Math.floor(reading.barPhase * dialBeats));
 
     return (
-        <div className="pointer-events-none fixed bottom-3 right-3 z-10 w-56 rounded-md bg-black/75 px-2.5 py-2 font-mono text-xs text-[#9f9]">
+        <div className="pointer-events-none fixed bottom-3 right-3 z-10 w-56 rounded-ui bg-surface-0/80 px-2.5 py-2 font-mono text-xs text-success">
             <div className="flex items-center justify-between">
                 <b>Rhythm</b>
-                <span className={reading.flash ? 'rounded bg-[#9f9] px-1 text-black' : 'px-1 opacity-30'}>
+                <span className={reading.flash ? 'rounded-ui bg-success px-1 text-surface-0' : 'px-1 opacity-30'}>
                     new song
                 </span>
             </div>
@@ -101,8 +101,8 @@ export function RhythmStats() {
                 {bands.map((level, index) => (
                     <div key={BAND_LABELS[index]} className="flex items-center gap-1.5">
                         <span className="w-8 whitespace-pre">{BAND_LABELS[index]}</span>
-                        <div className="h-1.5 flex-1 rounded bg-white/15">
-                            <div className="h-full rounded bg-[#9f9]" style={{ width: percent(level) }} />
+                        <div className="h-1.5 flex-1 rounded-ui bg-surface-2">
+                            <div className="h-full rounded-ui bg-success" style={{ width: percent(level) }} />
                         </div>
                     </div>
                 ))}
@@ -114,15 +114,15 @@ export function RhythmStats() {
                         className={
                             beat === activeBeat
                                 ? beat === 0 && reading.beatsPerBar
-                                    ? 'h-3 flex-1 rounded bg-[#ff9]'
-                                    : 'h-3 flex-1 rounded bg-[#9f9]'
-                                : 'h-3 flex-1 rounded bg-white/15'
+                                    ? 'h-3 flex-1 rounded-ui bg-warning'
+                                    : 'h-3 flex-1 rounded-ui bg-success'
+                                : 'h-3 flex-1 rounded-ui bg-surface-2'
                         }
                     />
                 ))}
             </div>
-            <div className="mt-1 h-1 rounded bg-white/15">
-                <div className="h-full rounded bg-[#9f9]" style={{ width: percent(reading.beatPhase ?? 0) }} />
+            <div className="mt-1 h-1 rounded-ui bg-surface-2">
+                <div className="h-full rounded-ui bg-success" style={{ width: percent(reading.beatPhase ?? 0) }} />
             </div>
         </div>
     );
