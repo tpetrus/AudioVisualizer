@@ -80,19 +80,20 @@ describe('EnhancedGraphicsToggle', () => {
         expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'true');
     });
 
-    it('shows the capability hint only while off and only when the device passes, and never flips the setting', async () => {
-        const user = userEvent.setup();
+    it('sits in a Graphics section', () => {
+        render(<EnhancedGraphicsToggle />);
+        expect(screen.getByRole('heading', { name: 'Graphics' })).toBeInTheDocument();
+    });
+
+    it('shows the Recommended badge only while the hint is true, and never flips the setting', () => {
         const { rerender } = render(<EnhancedGraphicsToggle />);
-        expect(screen.queryByText(ENHANCED_GRAPHICS_STRINGS.capabilityHint)).not.toBeInTheDocument();
+        expect(screen.queryByText(ENHANCED_GRAPHICS_STRINGS.recommended)).not.toBeInTheDocument();
 
         hint.current = true;
         rerender(<EnhancedGraphicsToggle />);
-        expect(screen.getByText(ENHANCED_GRAPHICS_STRINGS.capabilityHint)).toBeInTheDocument();
+        expect(screen.getByText('Recommended')).toBeInTheDocument();
         expect(screen.getByRole('switch')).toHaveAttribute('aria-checked', 'false');
         expect(localStorage.getItem(ENHANCED_GRAPHICS_KEY)).toBeNull();
-
-        await user.click(screen.getByRole('switch'));
-        expect(screen.queryByText(ENHANCED_GRAPHICS_STRINGS.capabilityHint)).not.toBeInTheDocument();
     });
 
     it('has an empty polite status line without a status', () => {

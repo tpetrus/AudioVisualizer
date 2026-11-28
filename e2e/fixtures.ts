@@ -2,6 +2,7 @@ import { copyFileSync, existsSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test as base, type Page } from '@playwright/test';
+import { seedPromptSeen as seedPromptSeenInit } from './promptSeen';
 
 // A short click track at 120 BPM. Chromium loops it as the fake microphone, so every test hears the same audio.
 const FAKE_AUDIO_SOURCE = resolve(import.meta.dirname, 'fixtures/beat-120bpm.wav');
@@ -30,6 +31,9 @@ const ALLOWED_PROBLEMS: readonly AllowedProblem[] = [];
 const WEBGL_CONTEXT_WARNING = 'Too many active WebGL contexts';
 
 interface Fixtures {
+    // Whether the first-visit enhanced graphics prompt is pre-answered (default). Only the prompt's own spec sets it to
+    // false, with `test.use({ seedPromptSeen: false })`.
+    seedPromptSeen: boolean;
     // Every uncaught exception, console error and WebGL-context warning seen during the test. A fixture so that
     // the check cannot be forgotten: it fails the test on teardown if anything was recorded.
     problems: string[];
@@ -51,6 +55,14 @@ export const test = base.extend<Fixtures>({
         },
         { scope: 'worker' },
     ],
+    seedPromptSeen: [true, { option: true }],
+    // Overrides the built-in page so every test starts with the prompt already answered, before its first navigation.
+    page: async ({ page, seedPromptSeen }, use) => {
+        if (seedPromptSeen) {
+            await seedPromptSeenInit(page);
+        }
+        await use(page);
+    },
     problems: [
         async ({ page }, use) => {
             const problems: string[] = [];

@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Switch } from '~/components/ui';
+import { Badge, Section, Switch } from '~/components/ui';
 import { setEnhancedGraphics } from '~/features/settings/enhancedGraphicsStore';
 import { useCapabilityHint } from '~/features/settings/useCapabilityHint';
 import { useEnhancedGraphics } from '~/features/settings/useEnhancedGraphics';
@@ -22,22 +22,23 @@ export function EnhancedGraphicsToggle({ status, className, description }: Enhan
     const descriptionId = useId();
 
     return (
-        <div className={`text-sm text-text ${className ?? ''}`.trim()}>
-            <Switch
-                label={ENHANCED_GRAPHICS_STRINGS.label}
-                checked={enhanced}
-                onCheckedChange={setEnhancedGraphics}
-                aria-describedby={descriptionId}
-            />
+        <Section title={ENHANCED_GRAPHICS_STRINGS.sectionTitle} className={className}>
+            {/* Wraps, so in the 340px panel the badge drops under the switch instead of squeezing it. */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-text">
+                <Switch
+                    label={ENHANCED_GRAPHICS_STRINGS.label}
+                    checked={enhanced}
+                    onCheckedChange={setEnhancedGraphics}
+                    aria-describedby={descriptionId}
+                />
+                {capable && <Badge tone="accent">{ENHANCED_GRAPHICS_STRINGS.recommended}</Badge>}
+            </div>
             <p id={descriptionId} className="mt-1 text-xs text-text-muted">
                 {description ?? ENHANCED_GRAPHICS_STRINGS.description}
             </p>
-            {!enhanced && capable && (
-                <p className="text-xs text-text-muted">{ENHANCED_GRAPHICS_STRINGS.capabilityHint}</p>
-            )}
             <p aria-live="polite" className="text-xs text-text">
                 {status ? ENHANCED_GRAPHICS_STRINGS.status[status] : ''}
             </p>
-        </div>
+        </Section>
     );
 }
