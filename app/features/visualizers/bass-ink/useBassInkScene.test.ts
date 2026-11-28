@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import type { PerspectiveCamera, Points, Scene, ShaderMaterial } from 'three';
+import { Vector3 } from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { defaultValues } from '~/components/ControlPanel/controls';
 import { FakeAudioHub } from '~/test/fakeAudioHub';
@@ -14,6 +15,7 @@ import { bassInkConfig } from './bassInkConfig';
 import { bassInkControls, type BassInkControlValues } from './bassInkControls';
 import { MAX_HUE_CYCLES_PER_SECOND } from './bassInkColor';
 import { bassInkSceneConfig } from './bassInkSceneConfig';
+import { writeOrbitPose } from './bassInkOrbit';
 import { FORMATION_COUNT, type DirectorCue, type PalettePair } from './bassInkTypes';
 import { formationOuterRadius, grownFitScale } from './framing';
 import { SprayPool } from './sprayPool';
@@ -184,6 +186,62 @@ vi.mock('./bassInkPost', () => ({
         }
     },
 }));
+// The enhanced look has its own spec; here it records how the scene drives it. `enhancedModule.fail` makes the next
+// build throw.
+const enhancedModule = vi.hoisted(() => ({
+    handles: [] as unknown[],
+    fail: false,
+}));
+vi.mock('./enhanced/bassInkEnhanced', () => ({
+    buildBassInkEnhanced: vi.fn((context: unknown, materials: unknown) => {
+        if (enhancedModule.fail) throw new Error('build failed');
+        const handle = {
+            context,
+            materials,
+            enabled: false,
+            renderScale: 1,
+            setEnabled: vi.fn((on: boolean) => {
+                handle.enabled = on;
+            }),
+            setMaterials: vi.fn(),
+            setSize: vi.fn(),
+            setGlow: vi.fn(),
+            step: vi.fn(),
+            dispose: vi.fn(),
+        };
+        enhancedModule.handles.push(handle);
+        return handle;
+    }),
+}));
+interface FakeEnhanced {
+    enabled: boolean;
+    renderScale: number;
+    setEnabled: ReturnType<typeof vi.fn>;
+    setMaterials: ReturnType<typeof vi.fn>;
+    setSize: ReturnType<typeof vi.fn>;
+    setGlow: ReturnType<typeof vi.fn>;
+    step: ReturnType<typeof vi.fn>;
+    dispose: ReturnType<typeof vi.fn>;
+}
+const enhancedHandles = () => enhancedModule.handles as FakeEnhanced[];
+// Forces the software-renderer answer for the specs that need it.
+const software = vi.hoisted(() => ({ value: false }));
+vi.mock('./renderBudget', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('./renderBudget')>();
+    return {
+        ...actual,
+        isSoftwareRenderer: vi.fn(
+            (renderer: Parameters<typeof actual.isSoftwareRenderer>[0]) =>
+                software.value || actual.isSoftwareRenderer(renderer),
+        ),
+    };
+});
+// Lets the dynamic import and its handlers run.
+const settle = async () => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+};
+
 interface FakePost {
     active: boolean;
     apply: ReturnType<typeof vi.fn>;
@@ -211,7 +269,7 @@ const sprayOf = (scene: Scene) =>
 
 const probeRead = () => telemetry.register.mock.calls.at(-1)![2] as (out: Float32Array) => void;
 function readProbe(): Float32Array {
-    const out = new Float32Array(29);
+    const out = new Float32Array(33);
     probeRead()(out);
     return out;
 }
@@ -228,6 +286,7 @@ function createAnalyser() {
 interface Props {
     analyser: AnalyserNode | undefined;
     cameraLocked: boolean;
+    enhanced?: boolean;
 }
 
 function createContainer(width: number, height: number): HTMLDivElement {
@@ -244,9 +303,10 @@ function mountScene(initial: Partial<Props> = {}) {
     const containerRef = { current: createContainer(800, 600) };
     const valuesRef: { current: BassInkControlValues } = { current: defaultValues(bassInkControls) };
     const onViewChanged = vi.fn();
+    const onEnhancedStatus = vi.fn();
 
     const hook = renderHook(
-        ({ analyser, cameraLocked }: Props) =>
+        ({ analyser, cameraLocked, enhanced }: Props) =>
             useBassInkScene(containerRef, {
                 analyser,
                 hub,
@@ -254,6 +314,8 @@ function mountScene(initial: Partial<Props> = {}) {
                 valuesRef,
                 cameraLocked,
                 onViewChanged,
+                enhanced,
+                onEnhancedStatus,
             }),
         { initialProps: { analyser: undefined, cameraLocked: true, ...initial } as Props },
     );
@@ -267,7 +329,20 @@ function mountScene(initial: Partial<Props> = {}) {
     };
     frame();
     const [scene, camera] = renderer.render.mock.calls[0] as unknown as [Scene, PerspectiveCamera];
-    return { ...hook, renderer, scene, camera, frame, tracker, hub, valuesRef, onViewChanged, resizes, containerRef };
+    return {
+        ...hook,
+        renderer,
+        scene,
+        camera,
+        frame,
+        tracker,
+        hub,
+        valuesRef,
+        onViewChanged,
+        onEnhancedStatus,
+        resizes,
+        containerRef,
+    };
 }
 
 // The palette and the cue time the cloud was last updated with, as copies (the scene reuses one palette object).
@@ -386,7 +461,8 @@ describe('useBassInkScene', () => {
 
             expect(after).toBeLessThan(before);
             expect(camera.position.equals(position)).toBe(true);
-            expect(camera.position.z).toBe(bassInkSceneConfig.camera.distance);
+            // The orbit has moved it a hair along its circle by now, which keeps it at the same distance.
+            expect(camera.position.length()).toBeCloseTo(bassInkSceneConfig.camera.distance, 9);
         });
 
         it('keeps the previous fit when a resize gives no width or no height', () => {
@@ -1202,6 +1278,179 @@ describe('useBassInkScene', () => {
         });
     });
 
+    describe('the camera orbit', () => {
+        const { camera: cameraConfig, orbit: orbitConfig } = bassInkSceneConfig;
+        const defaultDrift = defaultValues(bassInkControls).cameraDrift;
+
+        // Runs `frames` frames of 16 ms.
+        function run(frame: () => void, frames: number): void {
+            for (let i = 0; i < frames; i++) frame();
+        }
+        const angleOf = () => readProbe()[29];
+        const speedOf = () => readProbe()[30];
+
+        it('starts at the default pose', () => {
+            const { camera } = mountScene();
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.y).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        it('orbits at the floor speed in silence, on the circle writeOrbitPose draws', () => {
+            const { camera, frame } = mountScene();
+            run(frame, 600);
+
+            expect(speedOf()).toBeCloseTo(defaultDrift * orbitConfig.floorSpeed, 6);
+            expect(angleOf()).toBeGreaterThan(0);
+            expect(camera.position.x).not.toBe(0);
+            expect(camera.position.length()).toBeCloseTo(cameraConfig.distance, 6);
+            const expected = new Vector3();
+            writeOrbitPose(expected, angleOf(), orbitConfig.tilt, cameraConfig.distance);
+            expect(camera.position.distanceTo(expected)).toBeLessThan(1e-5);
+        });
+
+        it('orbits faster with a louder spectrum', () => {
+            const quiet = createAnalyser();
+            const first = mountScene({ analyser: quiet.node });
+            quiet.analyser.setByteFrequencyData(0);
+            run(first.frame, 600);
+            const quietSpeed = speedOf();
+            first.unmount();
+
+            const full = createAnalyser();
+            const second = mountScene({ analyser: full.node });
+            full.analyser.setByteFrequencyData(200);
+            run(second.frame, 600);
+
+            expect(speedOf()).toBeGreaterThan(quietSpeed);
+            expect(speedOf()).toBeCloseTo(defaultDrift * orbitConfig.capSpeed, 6);
+        });
+
+        it('does not move the camera at camera drift 0', () => {
+            const { camera, frame, valuesRef } = mountScene();
+            valuesRef.current = { ...valuesRef.current, cameraDrift: 0 };
+            run(frame, 120);
+
+            expect(speedOf()).toBe(0);
+            expect(angleOf()).toBe(0);
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        describe('reduced motion', () => {
+            type Listener = (event: { matches: boolean }) => void;
+            let listeners: Listener[];
+            let matches: boolean;
+            let removed: number;
+
+            beforeEach(() => {
+                listeners = [];
+                removed = 0;
+                matches = true;
+                vi.stubGlobal(
+                    'matchMedia',
+                    vi.fn(() => ({
+                        get matches() {
+                            return matches;
+                        },
+                        addEventListener: (_type: string, listener: Listener) => listeners.push(listener),
+                        removeEventListener: (_type: string, listener: Listener) => {
+                            removed++;
+                            listeners = listeners.filter((l) => l !== listener);
+                        },
+                    })),
+                );
+            });
+            afterEach(() => {
+                vi.unstubAllGlobals();
+            });
+
+            it('keeps the camera still and reacts to a live change', () => {
+                const { camera, frame } = mountScene();
+                run(frame, 120);
+                expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
+                expect(angleOf()).toBe(0);
+                expect(camera.position.x).toBe(0);
+
+                listeners.forEach((listener) => listener({ matches: false }));
+                run(frame, 120);
+                expect(angleOf()).toBeGreaterThan(0);
+                const stopped = angleOf();
+
+                listeners.forEach((listener) => listener({ matches: true }));
+                run(frame, 30);
+                expect(speedOf()).toBe(0);
+                expect(angleOf()).toBe(stopped);
+            });
+
+            it('removes its listener on unmount', () => {
+                const { unmount } = mountScene();
+                expect(listeners).toHaveLength(1);
+
+                unmount();
+
+                expect(removed).toBe(1);
+                expect(listeners).toHaveLength(0);
+            });
+        });
+
+        it('treats a missing matchMedia as no preference', () => {
+            vi.stubGlobal('matchMedia', undefined);
+            try {
+                const { frame } = mountScene();
+                run(frame, 60);
+                expect(angleOf()).toBeGreaterThan(0);
+            } finally {
+                vi.unstubAllGlobals();
+            }
+        });
+
+        it('leaves the camera to the controls while unlocked and starts over when locked again', () => {
+            const { camera, frame, rerender, renderer } = mountScene();
+            run(frame, 200);
+            expect(angleOf()).toBeGreaterThan(0);
+
+            rerender({ analyser: undefined, cameraLocked: false });
+            frame();
+            const angle = angleOf();
+            const held = camera.position.clone();
+            run(frame, 60);
+            expect(angleOf()).toBe(angle);
+            expect(camera.position.equals(held)).toBe(true);
+            scroll(renderer.domElement, 1000);
+            expect(camera.position.length()).toBeGreaterThan(cameraConfig.distance);
+
+            rerender({ analyser: undefined, cameraLocked: true });
+            frame();
+            // The relock frame resets, then advances once from the starting pose.
+            expect(angleOf()).toBeLessThan(angle);
+            expect(angleOf()).toBeLessThanOrEqual(orbitConfig.maxStepPerFrame);
+            expect(camera.position.length()).toBeCloseTo(cameraConfig.distance, 6);
+        });
+
+        it('Reset view puts the camera back at the default pose with the orbit started over', () => {
+            const { camera, frame, result, onViewChanged } = mountScene();
+            run(frame, 200);
+            expect(camera.position.x).not.toBe(0);
+
+            result.current.resetView();
+
+            expect(camera.position.x).toBe(0);
+            expect(camera.position.y).toBe(0);
+            expect(camera.position.z).toBeCloseTo(cameraConfig.distance, 9);
+            expect(angleOf()).toBe(0);
+            expect(speedOf()).toBe(0);
+            expect(onViewChanged).not.toHaveBeenCalled();
+        });
+
+        it('never reports a changed view by itself', () => {
+            const { frame, onViewChanged } = mountScene();
+            run(frame, 600);
+
+            expect(onViewChanged).not.toHaveBeenCalled();
+        });
+    });
+
     describe('telemetry probe', () => {
         it('registers the columns and ticks every frame with the delta in seconds', () => {
             const { frame } = mountScene();
@@ -1239,6 +1488,10 @@ describe('useBassInkScene', () => {
                     'postActive',
                     'viewTilt',
                     'viewYaw',
+                    'orbitAngle',
+                    'orbitSpeed',
+                    'enhancedActive',
+                    'renderScale',
                 ],
                 expect.any(Function),
             );
@@ -1676,19 +1929,152 @@ describe('useBassInkScene', () => {
             expect(post.dispose).toHaveBeenCalledTimes(1);
         });
 
-        it('appends postActive, viewTilt and viewYaw as the last telemetry columns', () => {
+        it('appends postActive, viewTilt and viewYaw before the orbit columns', () => {
             const { frame } = mountScene();
             frame();
             const columns = telemetry.register.mock.calls.at(-1)![1] as string[];
-            expect(columns.at(-1)).toBe('viewYaw');
-            expect(columns.at(-2)).toBe('viewTilt');
-            expect(columns.at(-3)).toBe('postActive');
-            expect(columns.at(-4)).toBe('sprayLive');
+            expect(columns.at(-1)).toBe('renderScale');
+            expect(columns.at(-2)).toBe('enhancedActive');
+            expect(columns.at(-3)).toBe('orbitSpeed');
+            expect(columns.at(-4)).toBe('orbitAngle');
+            expect(columns.at(-5)).toBe('viewYaw');
+            expect(columns.at(-6)).toBe('viewTilt');
+            expect(columns.at(-7)).toBe('postActive');
+            expect(columns.at(-8)).toBe('sprayLive');
 
             currentPost().active = true;
             expect(readProbe()[26]).toBe(1);
             currentPost().active = false;
             expect(readProbe()[26]).toBe(0);
+        });
+    });
+
+    describe('enhanced graphics', () => {
+        beforeEach(() => {
+            enhancedModule.handles.length = 0;
+            enhancedModule.fail = false;
+            software.value = false;
+        });
+
+        it('never loads the enhanced look while the preference is off', async () => {
+            const { frame, onEnhancedStatus } = mountScene();
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(0);
+            expect(onEnhancedStatus).not.toHaveBeenCalled();
+            expect(readProbe()[31]).toBe(0);
+            expect(readProbe()[32]).toBe(1);
+        });
+
+        it('loads once, builds once and switches in place, keeping the camera and the renderer', async () => {
+            const { frame, onEnhancedStatus, rerender, camera, renderer } = mountScene({ enhanced: true });
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('loading');
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            const handle = enhancedHandles()[0];
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(true);
+            expect(handle.step).toHaveBeenCalled();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
+            expect(readProbe()[31]).toBe(1);
+
+            // Unlocked, so the orbit leaves the camera alone and any move would come from the toggle.
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: true });
+            frame();
+            const pose = camera.position.clone();
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: false });
+            frame();
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(false);
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith(undefined);
+            expect(readProbe()[31]).toBe(0);
+            expect(camera.position.distanceTo(pose)).toBeLessThan(1e-9);
+
+            rerender({ analyser: undefined, cameraLocked: false, enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            expect(handle.setEnabled).toHaveBeenLastCalledWith(true);
+            expect(FakeRenderer.last).toBe(renderer);
+            // The status is reported on change only, never per frame.
+            const calls = onEnhancedStatus.mock.calls.map((call) => call[0] as unknown);
+            expect(calls).toEqual(['loading', 'ready', undefined, 'ready']);
+        });
+
+        it('hands the Glow control to the look every frame while it is on', async () => {
+            const { frame, valuesRef } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            const handle = enhancedHandles()[0];
+            expect(handle.setGlow).toHaveBeenLastCalledWith(valuesRef.current.glow);
+            valuesRef.current = { ...valuesRef.current, glow: 0 };
+            frame();
+            expect(handle.setGlow).toHaveBeenLastCalledWith(0);
+        });
+
+        it('never loads it on a software renderer, and reports no status', async () => {
+            software.value = true;
+            const { frame, onEnhancedStatus } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(0);
+            expect(onEnhancedStatus).not.toHaveBeenCalled();
+        });
+
+        it('keeps the standard look with one warning when the build fails, and retries after off and on', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            enhancedModule.fail = true;
+            const { frame, onEnhancedStatus, rerender } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            frame();
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('error');
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(enhancedHandles()).toHaveLength(0);
+
+            enhancedModule.fail = false;
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: false });
+            frame();
+            rerender({ analyser: undefined, cameraLocked: true, enhanced: true });
+            frame();
+            await settle();
+            frame();
+            expect(enhancedHandles()).toHaveLength(1);
+            expect(onEnhancedStatus).toHaveBeenLastCalledWith('ready');
+            warn.mockRestore();
+        });
+
+        it('drops an import that resolves after unmount, building nothing', async () => {
+            const { frame, unmount } = mountScene({ enhanced: true });
+            frame();
+            unmount();
+            await settle();
+            expect(enhancedHandles()).toHaveLength(0);
+        });
+
+        it('hands a rebuilt cloud to the look, resizes it and frees it before the post on unmount', async () => {
+            const { frame, valuesRef, resizes, unmount } = mountScene({ enhanced: true });
+            frame();
+            await settle();
+            frame();
+            const handle = enhancedHandles()[0];
+
+            valuesRef.current = { ...valuesRef.current, density: 0.3 };
+            for (let i = 0; i < 40; i++) frame();
+            expect(handle.setMaterials).toHaveBeenCalledTimes(1);
+
+            resizes.resize(640, 480);
+            expect(handle.setSize).toHaveBeenLastCalledWith({ width: 640, height: 480 });
+
+            const post = currentPost();
+            unmount();
+            expect(handle.dispose).toHaveBeenCalledTimes(1);
+            expect(handle.dispose.mock.invocationCallOrder[0]).toBeLessThan(post.dispose.mock.invocationCallOrder[0]);
         });
     });
 

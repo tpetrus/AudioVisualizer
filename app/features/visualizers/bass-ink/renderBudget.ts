@@ -1,48 +1,17 @@
 import { bassInkSceneConfig } from './bassInkSceneConfig';
+import { type ContextHost, isSoftwareRenderer, rendererContext } from '~/lib/three/renderBudget';
 
 // WebGL enum value, written out because the renderer may be a test fake and the constants live on the context.
 const ALIASED_POINT_SIZE_RANGE = 0x846d;
-const SOFTWARE_RENDERER = /swiftshader|llvmpipe|software/i;
 
-// The little of a renderer these helpers need; a fake renderer without getContext (or one returning null) is allowed.
-interface ContextLike {
-    getExtension(name: string): unknown;
-    getParameter(parameter: number): unknown;
-}
-interface ContextHost {
-    getContext?: () => ContextLike | null | undefined;
-}
-
-function contextOf(renderer: ContextHost): ContextLike | undefined {
-    try {
-        return renderer.getContext?.() ?? undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-// True when the page is drawn by a CPU rasterizer (SwiftShader, llvmpipe), which is how e2e and some CI machines run.
-export function isSoftwareRenderer(renderer: ContextHost): boolean {
-    const gl = contextOf(renderer);
-    if (!gl) {
-        return false;
-    }
-    try {
-        const info = gl.getExtension('WEBGL_debug_renderer_info') as { UNMASKED_RENDERER_WEBGL: number } | null;
-        if (!info) {
-            return false;
-        }
-        return SOFTWARE_RENDERER.test(String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)));
-    } catch {
-        return false;
-    }
-}
+// Shared with other visualizers now; re-exported so bass-ink's own imports keep working.
+export { isSoftwareRenderer };
 
 // Largest point size in pixels the GPU draws; drivers clamp bigger requests differently, so the shader clamps to this
 // itself.
 export function maxPointSize(renderer: ContextHost): number {
     const fallback = bassInkSceneConfig.points.fallbackMaxPointSize;
-    const gl = contextOf(renderer);
+    const gl = rendererContext(renderer);
     if (!gl) {
         return fallback;
     }
