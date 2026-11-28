@@ -127,13 +127,13 @@ export function useBassInkScene(
         resetViewRef.current = resetCamera;
         let wasLocked = cameraLockedRef.current;
 
-        // Reduced motion stops the orbit, live: the preference is read now and again whenever it changes.
+        // Reduced motion stops the orbit, live: the preference is read now and again whenever it changes. The listener is
+        // added at the very end of the setup (see below), after everything that can throw.
         const motionQuery = window.matchMedia?.('(prefers-reduced-motion: reduce)');
         let reducedMotion = motionQuery?.matches ?? false;
         const onMotionChange = (event: MediaQueryListEvent) => {
             reducedMotion = event.matches;
         };
-        motionQuery?.addEventListener('change', onMotionChange);
 
         const software = isSoftwareRenderer(renderer);
         // Trails and a glow over the picture. One settings object is reused so applying them allocates nothing.
@@ -487,6 +487,10 @@ export function useBassInkScene(
             bump = newBump();
             boundAnalyser = source;
         };
+
+        // Last, so a setup that throws leaves no listener behind: useThreeScene only calls dispose on a handle it got, and
+        // it does not abort the signal when the setup throws.
+        motionQuery?.addEventListener('change', onMotionChange);
 
         return {
             camera,

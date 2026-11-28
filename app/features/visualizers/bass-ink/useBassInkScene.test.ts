@@ -118,7 +118,8 @@ interface FakeCloud {
     dispose: ReturnType<typeof vi.fn>;
     restPosition: ReturnType<typeof vi.fn>;
 }
-const clouds = vi.hoisted(() => ({ instances: [] as unknown[] }));
+// `fail` makes the next cloud's constructor throw, to check what a setup that throws leaves behind.
+const clouds = vi.hoisted(() => ({ instances: [] as unknown[], fail: false }));
 vi.mock('./inkCloud', async () => {
     const { Object3D } = await import('three');
     const { bassInkSceneConfig: sceneConfig } = await import('./bassInkSceneConfig');
@@ -160,6 +161,10 @@ vi.mock('./inkCloud', async () => {
                 public maxPointSize: number,
                 public options?: { swellAmplitude?: number; displacementScale?: number; alphaScale?: number },
             ) {
+                if (clouds.fail) {
+                    clouds.fail = false;
+                    throw new Error('cloud failed');
+                }
                 clouds.instances.push(this);
             }
         },
@@ -1417,6 +1422,19 @@ describe('useBassInkScene', () => {
                 unmount();
 
                 expect(removed).toBe(1);
+                expect(listeners).toHaveLength(0);
+            });
+
+            it('adds no listener when the setup throws after reading the preference', () => {
+                const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+                clouds.fail = true;
+                try {
+                    expect(() => mountScene()).toThrow('cloud failed');
+                } finally {
+                    quiet.mockRestore();
+                    clouds.fail = false;
+                }
+                expect(window.matchMedia).toHaveBeenCalled();
                 expect(listeners).toHaveLength(0);
             });
         });
