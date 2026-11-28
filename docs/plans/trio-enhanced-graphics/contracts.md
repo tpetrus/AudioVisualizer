@@ -62,9 +62,13 @@ Look behavior (owned by the look, task TB):
 - The HDR fragment writes linear color with an emissive gain above 1 (glowStrength), a height-based rim and the accent
   pulse; no tone mapping in the shader. `EffectComposer` with `RenderPass`, `UnrealBloomPass` at half resolution and
   `OutputPass`, as in `bass-ink/bassInkPost.ts`. glowStrength 0 disables the bloom pass. Bloom strength scales with mix.
-- A gradient backdrop with depth falloff (depth slider), one `Points` draw of drifting dust (dust slider), and a pooled
-  shockwave ring fired by the accent's `triggered`. Under reduced motion the shockwave and dust drift are off and the
-  pulse is damped. Everything allocated at creation; nothing per frame.
+- A gradient backdrop with depth falloff (depth slider) and one `Points` draw of drifting dust (dust slider). Under
+  reduced motion the dust drift is off and the pulse is damped. Everything allocated at creation; nothing per frame.
+- **Changed after review, at the maintainer's request (2026-11-27):** the pooled shockwave ring fired by the accent's
+  `triggered` was replaced by a spectrum glow (`enhanced/trioSpectrumGlow.ts`): one quad behind the sheets whose 32
+  bins follow the sheets' nearest-row bar heights (quick rise, slow fall), colored by the sheets, scaled by Glow and
+  swelled by the accent's `pulse`. The ring read as unrelated to the music. `TrioAccentState.triggered` stays in the
+  frozen type; the look no longer reads it.
 - Rhythm: when `rhythm` is given, `render` calls `rhythm.updatePhase()` and reads `rhythm.state.beatCount` and
   `rhythm.state.bandOnsets[0]` into the accent.
 

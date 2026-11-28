@@ -305,7 +305,7 @@ overlay `components/RhythmStats/RhythmStats.tsx` (checkbox "Show rhythm stats" i
 ## 8. Enhanced graphics preference: `app/features/settings/`
 An opt-in richer look for the dancing character (reflective floor, sky dome, image-based lighting), the cubes (bloom,
 backdrop and fog, GPU grid waves and shatter, particles, beat motion) and the trio color wave (bloom, denser bars,
-backdrop, dust, beat bursts). It is off by default. The dancer rebuilds its scene on a toggle; the cubes and the trio
+backdrop, dust, a backlight that follows the spectrum). It is off by default. The dancer rebuilds its scene on a toggle; the cubes and the trio
 swap their look in place (see "Swap in place (cubes)" and "Trio: no rebuild" below).
 - **Store:** `enhancedGraphicsStore.ts` keeps one boolean in `localStorage` under `audioVisualizer.enhancedGraphics`
   (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
