@@ -26,7 +26,7 @@ describe('EnhancedGraphicsPrompt', () => {
         render(<EnhancedGraphicsPrompt blocked={false} />);
 
         expect(await screen.findByRole('dialog', { name: 'Turn on enhanced graphics?' })).toBeInTheDocument();
-        expect(screen.getByText(/Richer lighting, reflections and sky/)).toBeInTheDocument();
+        expect(screen.getByText(/Richer lighting, glow and depth in the visualizers/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Turn on' })).toHaveFocus();
     });
 

@@ -110,8 +110,9 @@ above).
    as the first block of the open settings panel. The panel keeps rendering it through the existing `header` prop, so
    the visualizer pages do not change.
 3. First-visit prompt, `app/features/landing/EnhancedGraphicsPrompt.tsx`, on `Dialog`: title "Turn on enhanced
-   graphics?", body "Richer lighting, reflections and sky. Needs a strong GPU and downloads up to about 30 MB. You can
-   change this any time in Graphics settings.", buttons Turn on (primary, focused first) and Not now (secondary).
+   graphics?", body "Richer lighting, glow and depth in the visualizers. Needs a strong GPU, and the dancing character
+   downloads up to about 30 MB. You can change this any time in Graphics settings." (widened from the approved "Richer
+   lighting, reflections and sky" once main gave the cubes, the trio and bass ink an enhanced look too), buttons Turn on (primary, focused first) and Not now (secondary).
    Behavior is set by C3: it shows once, never when an enhanced graphics value is stored, and never while the audio
    source dialog is open.
 4. Gating: the Recommended badge and the prompt both depend on `useCapabilityHint`. The badge replaces the old "Your

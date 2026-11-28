@@ -1,0 +1,506 @@
+import * as THREE from 'three';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { dustFragmentShader, dustVertexShader } from '../../meshes/dustShaders';
+import { inkFragmentShader, inkVertexShader } from '../../meshes/inkShaders';
+import { sprayFragmentShader, sprayVertexShader } from '../../meshes/sprayShaders';
+import type { BassInkPost } from '../bassInkPost';
+import { DustField } from '../dustField';
+import { InkCloud } from '../inkCloud';
+import { SprayPool } from '../sprayPool';
+import { buildBassInkEnhanced, type BassInkEnhancedHandle, type BassInkMaterials } from './bassInkEnhanced';
+import * as config from './bassInkEnhancedConfig';
+import * as shaders from './bassInkEnhancedShaders';
+
+// The passes run shaders, so they are replaced by recorders. vi.mock is hoisted, hence the hoisted record.
+const rec = vi.hoisted(() => {
+    class Pass {
+        enabled = true;
+        dispose = vi.fn();
+    }
+    return { Pass, blooms: [] as unknown[], grades: [] as unknown[] };
+});
+
+vi.mock('three/addons/postprocessing/ShaderPass.js', () => ({
+    ShaderPass: class extends rec.Pass {
+        uniforms: Record<string, { value: unknown }>;
+        constructor(public shader: { uniforms: Record<string, { value: unknown }> }) {
+            super();
+            this.uniforms = shader.uniforms;
+            rec.grades.push(this);
+        }
+    },
+}));
+vi.mock('three/addons/postprocessing/UnrealBloomPass.js', () => ({
+    UnrealBloomPass: class extends rec.Pass {
+        sizes: [number, number][] = [];
+        constructor(
+            public resolution: { x: number; y: number },
+            public strength: number,
+            public radius: number,
+            public threshold: number,
+        ) {
+            super();
+            rec.blooms.push(this);
+        }
+        setSize(width: number, height: number) {
+            this.sizes.push([width, height]);
+        }
+    },
+}));
+
+type Recorded = InstanceType<typeof rec.Pass>;
+type Bloom = Recorded & {
+    sizes: [number, number][];
+    strength: number;
+    radius: number;
+    threshold: number;
+    setSize(width: number, height: number): void;
+};
+type Grade = Recorded & { uniforms: Record<string, { value: unknown }> };
+
+function setup(size = { width: 800, height: 600 }, pixelRatio = 2) {
+    const renderer = { getPixelRatio: () => pixelRatio } as unknown as THREE.WebGLRenderer;
+    const setExtraPasses = vi.fn();
+    const post = { setExtraPasses } as unknown as BassInkPost;
+    const cloud = new InkCloud(64, 1, 64);
+    const core = new InkCloud(64, 2, 64);
+    const dust = new DustField(16, 3, 64);
+    const spray = new SprayPool(16, 4, 64);
+    const materials: BassInkMaterials = {
+        shell: cloud.material,
+        core: core.material,
+        dust: dust.material,
+        spray: spray.material,
+    };
+    const handle = buildBassInkEnhanced({ renderer, post, size }, materials);
+    const bloom = rec.blooms[rec.blooms.length - 1] as Bloom;
+    const grade = rec.grades[rec.grades.length - 1] as Grade;
+    return { handle, materials, setExtraPasses, bloom, grade, renderer, post };
+}
+
+const SLOW = 1 / 30;
+const FAST = 1 / 120;
+
+function feed(handle: BassInkEnhancedHandle, seconds: number, frames: number) {
+    for (let i = 0; i < frames; i++) handle.step(seconds);
+}
+
+beforeEach(() => {
+    rec.blooms.length = 0;
+    rec.grades.length = 0;
+});
+
+describe('build', () => {
+    it('hands two disabled passes to the post and starts in the standard look', () => {
+        const { handle, setExtraPasses, bloom, grade, materials } = setup();
+        expect(setExtraPasses).toHaveBeenCalledTimes(1);
+        expect(setExtraPasses.mock.calls[0][0]).toEqual([bloom, grade]);
+        expect(bloom.enabled).toBe(false);
+        expect(grade.enabled).toBe(false);
+        expect(handle.enabled).toBe(false);
+        expect(handle.renderScale).toBe(1);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(materials.shell.defines.BASS_INK_ENHANCED).toBeUndefined();
+    });
+
+    it('sizes the bloom to the configured share of the device pixels (it halves what it is given)', () => {
+        const { bloom } = setup({ width: 800, height: 600 }, 2);
+        const [w, h] = bloom.sizes[bloom.sizes.length - 1];
+        expect(w).toBe(Math.round(1600 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+        expect(h).toBe(Math.round(1200 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+    });
+
+    it('also sizes the bloom to the share when the composer hands it the full size', () => {
+        const { bloom } = setup({ width: 800, height: 600 }, 1);
+        bloom.setSize(1000, 500);
+        const [w, h] = bloom.sizes[bloom.sizes.length - 1];
+        expect(w).toBe(Math.round(1000 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+        expect(h).toBe(Math.round(500 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+    });
+
+    it('configures the passes from the config constants', () => {
+        const { bloom, grade } = setup();
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        expect(bloom.radius).toBe(config.ENHANCED_BLOOM_RADIUS);
+        expect(bloom.threshold).toBe(config.ENHANCED_BLOOM_THRESHOLD);
+        expect(grade.uniforms.uEnhContrast.value).toBe(config.ENHANCED_GRADE_CONTRAST);
+        expect(grade.uniforms.uEnhSaturation.value).toBe(config.ENHANCED_GRADE_SATURATION);
+        expect(grade.uniforms.uEnhVignetteStrength.value).toBe(config.ENHANCED_VIGNETTE_STRENGTH);
+    });
+});
+
+describe('setEnabled', () => {
+    it('swaps in the variants, sets the define and enables the passes', () => {
+        const { handle, materials, bloom, grade } = setup();
+        handle.setEnabled(true);
+        expect(handle.enabled).toBe(true);
+        expect(bloom.enabled).toBe(true);
+        expect(grade.enabled).toBe(true);
+        for (const m of [materials.shell, materials.core]) {
+            expect(m.vertexShader).toBe(shaders.enhancedInkVertexShader);
+            expect(m.fragmentShader).toBe(shaders.enhancedInkFragmentShader);
+        }
+        expect(materials.dust.vertexShader).toBe(shaders.enhancedDustVertexShader);
+        expect(materials.dust.fragmentShader).toBe(shaders.enhancedDustFragmentShader);
+        expect(materials.spray.vertexShader).toBe(shaders.enhancedSprayVertexShader);
+        expect(materials.spray.fragmentShader).toBe(shaders.enhancedSprayFragmentShader);
+        for (const m of Object.values(materials)) expect(m.defines.BASS_INK_ENHANCED).toBeDefined();
+    });
+
+    it('puts back the exact standard strings and removes the define (AC12)', () => {
+        const { handle, materials, bloom, grade } = setup();
+        handle.setEnabled(true);
+        handle.setEnabled(false);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(materials.shell.fragmentShader).toBe(inkFragmentShader);
+        expect(materials.core.vertexShader).toBe(inkVertexShader);
+        expect(materials.core.fragmentShader).toBe(inkFragmentShader);
+        expect(materials.dust.vertexShader).toBe(dustVertexShader);
+        expect(materials.dust.fragmentShader).toBe(dustFragmentShader);
+        expect(materials.spray.vertexShader).toBe(sprayVertexShader);
+        expect(materials.spray.fragmentShader).toBe(sprayFragmentShader);
+        for (const m of Object.values(materials)) expect(m.defines.BASS_INK_ENHANCED).toBeUndefined();
+        expect(bloom.enabled).toBe(false);
+        expect(grade.enabled).toBe(false);
+    });
+
+    it('restores the strings the material had when it was attached, not the standard ones', () => {
+        const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+        const post = { setExtraPasses: vi.fn() } as unknown as BassInkPost;
+        const make = (tag: string) =>
+            new THREE.ShaderMaterial({ vertexShader: `v-${tag}`, fragmentShader: `f-${tag}`, uniforms: {} });
+        const materials = { shell: make('a'), core: make('b'), dust: make('c'), spray: make('d') };
+        const handle = buildBassInkEnhanced({ renderer, post, size: { width: 100, height: 100 } }, materials);
+        handle.setEnabled(true);
+        handle.setEnabled(false);
+        expect(materials.shell.vertexShader).toBe('v-a');
+        expect(materials.spray.fragmentShader).toBe('f-d');
+    });
+
+    it('is idempotent and does not touch the materials when nothing changes', () => {
+        const { handle, materials } = setup();
+        handle.setEnabled(true);
+        const versions = Object.values(materials).map((m) => m.version);
+        handle.setEnabled(true);
+        handle.setEnabled(true);
+        expect(Object.values(materials).map((m) => m.version)).toEqual(versions);
+        handle.setEnabled(false);
+        const off = Object.values(materials).map((m) => m.version);
+        handle.setEnabled(false);
+        expect(Object.values(materials).map((m) => m.version)).toEqual(off);
+        handle.setEnabled(true);
+        expect(materials.shell.vertexShader).toBe(shaders.enhancedInkVertexShader);
+    });
+
+    it('does not allocate when unchanged', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        const before = process.memoryUsage().heapUsed;
+        for (let i = 0; i < 200000; i++) handle.setEnabled(true);
+        expect(process.memoryUsage().heapUsed - before).toBeLessThan(2_000_000);
+    });
+
+    it('leaves standard uniform values alone and adds the uEnh uniforms', () => {
+        const renderer = { getPixelRatio: () => 1 } as unknown as THREE.WebGLRenderer;
+        const post = { setExtraPasses: vi.fn() } as unknown as BassInkPost;
+        const cloud = new InkCloud(8, 1, 64);
+        const dust = new DustField(8, 1, 64);
+        const spray = new SprayPool(8, 1, 64);
+        const standard = (m: THREE.ShaderMaterial) =>
+            Object.fromEntries(Object.entries(m.uniforms).map(([k, u]) => [k, u.value]));
+        const before = [cloud.material, dust.material, spray.material].map(standard);
+        const handle = buildBassInkEnhanced(
+            { renderer, post, size: { width: 100, height: 100 } },
+            { shell: cloud.material, core: cloud.material, dust: dust.material, spray: spray.material },
+        );
+        handle.setEnabled(true);
+        handle.setEnabled(false);
+        [cloud.material, dust.material, spray.material].forEach((m, i) => {
+            const after = standard(m);
+            for (const [key, v] of Object.entries(before[i])) expect(after[key]).toBe(v);
+            expect(Object.keys(after).some((k) => k.startsWith('uEnh'))).toBe(true);
+        });
+    });
+
+    it('is ignored after dispose', () => {
+        const { handle, materials } = setup();
+        handle.dispose();
+        handle.setEnabled(true);
+        expect(handle.enabled).toBe(false);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+    });
+});
+
+describe('setGlow', () => {
+    it('scales the second bloom by the Glow control, never by anything else', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(0.4);
+        expect(bloom.strength).toBeCloseTo(config.ENHANCED_BLOOM_STRENGTH * 0.4, 12);
+        expect(bloom.enabled).toBe(true);
+        handle.setGlow(1);
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        expect(bloom.radius).toBe(config.ENHANCED_BLOOM_RADIUS);
+        expect(bloom.threshold).toBe(config.ENHANCED_BLOOM_THRESHOLD);
+    });
+
+    it('turns the second bloom off at Glow 0, and back on when Glow returns', () => {
+        const { handle, bloom, grade } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(0);
+        expect(bloom.enabled).toBe(false);
+        expect(grade.enabled).toBe(true);
+        handle.setGlow(0.5);
+        expect(bloom.enabled).toBe(true);
+    });
+
+    it('keeps the bloom off while the look is off, whatever the Glow', () => {
+        const { handle, bloom } = setup();
+        handle.setGlow(1);
+        expect(bloom.enabled).toBe(false);
+        handle.setEnabled(true);
+        handle.setGlow(0);
+        handle.setEnabled(false);
+        handle.setGlow(0.7);
+        expect(bloom.enabled).toBe(false);
+    });
+
+    it('clamps to 0..1, treats a non-finite value as 0 and ignores calls after dispose', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        handle.setGlow(3);
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        handle.setGlow(Number.NaN);
+        expect(bloom.strength).toBe(0);
+        expect(bloom.enabled).toBe(false);
+        handle.setGlow(-1);
+        expect(bloom.strength).toBe(0);
+        handle.dispose();
+        handle.setGlow(1);
+        expect(bloom.strength).toBe(0);
+    });
+});
+
+describe('render scale', () => {
+    it('steps down one level per slow window and stops at the lowest', () => {
+        const { handle, bloom } = setup();
+        handle.setEnabled(true);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.75);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW);
+        expect(handle.renderScale).toBe(0.5);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW * 3);
+        expect(handle.renderScale).toBe(0.5);
+        const [w] = bloom.sizes[bloom.sizes.length - 1];
+        expect(w).toBe(Math.round(1600 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 0.5 * 2));
+    });
+
+    it('waits for a full window, never steps on fast frames and never steps back up', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        feed(handle, FAST, config.ENHANCED_FRAME_WINDOW * 5);
+        expect(handle.renderScale).toBe(1);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW - 1);
+        expect(handle.renderScale).toBe(1);
+        feed(handle, SLOW, 1);
+        expect(handle.renderScale).toBe(0.75);
+        feed(handle, FAST, config.ENHANCED_FRAME_WINDOW * 5);
+        expect(handle.renderScale).toBe(0.75);
+    });
+
+    it('uses the median, so one slow frame does not step', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        feed(handle, FAST, config.ENHANCED_FRAME_WINDOW - 1);
+        handle.step(1);
+        expect(handle.renderScale).toBe(1);
+    });
+
+    it('does nothing while disabled', () => {
+        const { handle } = setup();
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW * 2);
+        expect(handle.renderScale).toBe(1);
+        handle.setEnabled(true);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW - 1);
+        handle.setEnabled(false);
+        handle.setEnabled(true);
+        feed(handle, SLOW, 1);
+        expect(handle.renderScale).toBe(1);
+    });
+
+    it('ignores non-finite and non-positive frame times', () => {
+        const { handle } = setup();
+        handle.setEnabled(true);
+        for (const bad of [Number.NaN, Infinity, -1, 0]) feed(handle, bad, config.ENHANCED_FRAME_WINDOW * 2);
+        expect(handle.renderScale).toBe(1);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW - 1);
+        feed(handle, Number.NaN, 5);
+        expect(handle.renderScale).toBe(1);
+    });
+
+    it('keeps the pass objects when the scale changes and never reads the config from audio', () => {
+        const { handle, setExtraPasses, bloom, grade } = setup();
+        handle.setEnabled(true);
+        feed(handle, SLOW, config.ENHANCED_FRAME_WINDOW * 3);
+        expect(setExtraPasses).toHaveBeenCalledTimes(1);
+        expect(rec.blooms).toHaveLength(1);
+        expect(bloom.strength).toBe(config.ENHANCED_BLOOM_STRENGTH);
+        expect(bloom.radius).toBe(config.ENHANCED_BLOOM_RADIUS);
+        expect(bloom.threshold).toBe(config.ENHANCED_BLOOM_THRESHOLD);
+        expect(grade.uniforms.uEnhKnee.value).toBe(config.ENHANCED_GRADE_KNEE);
+        expect(grade.uniforms.uEnhVignetteRadius.value).toBe(config.ENHANCED_VIGNETTE_RADIUS);
+        expect(grade.uniforms.uEnhRange.value).toBe(config.ENHANCED_GRADE_RANGE);
+    });
+});
+
+describe('setSize', () => {
+    it('resizes the bloom in place and skips it when tiny', () => {
+        const { handle, bloom } = setup({ width: 800, height: 600 }, 1);
+        handle.setEnabled(true);
+        handle.setSize({ width: 400, height: 300 });
+        const [w, h] = bloom.sizes[bloom.sizes.length - 1];
+        expect(w).toBe(Math.round(400 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+        expect(h).toBe(Math.round(300 * config.ENHANCED_BLOOM_RESOLUTION_SHARE * 2));
+        expect(bloom.enabled).toBe(true);
+        handle.setSize({ width: 20, height: 300 });
+        expect(bloom.enabled).toBe(false);
+        handle.setSize({ width: 800, height: 600 });
+        expect(bloom.enabled).toBe(true);
+    });
+
+    it('is a no-op after dispose', () => {
+        const { handle, bloom } = setup();
+        handle.dispose();
+        const count = bloom.sizes.length;
+        handle.setSize({ width: 10, height: 10 });
+        expect(bloom.sizes).toHaveLength(count);
+    });
+});
+
+describe('setMaterials', () => {
+    function fresh() {
+        return {
+            shell: new InkCloud(8, 5, 64).material,
+            core: new InkCloud(8, 6, 64).material,
+            dust: new DustField(8, 7, 64).material,
+            spray: new SprayPool(8, 8, 64).material,
+        };
+    }
+
+    it('moves the state to the new materials and restores the old ones', () => {
+        const { handle, materials } = setup();
+        handle.setEnabled(true);
+        const next = fresh();
+        handle.setMaterials(next);
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(materials.dust.defines.BASS_INK_ENHANCED).toBeUndefined();
+        expect(next.shell.vertexShader).toBe(shaders.enhancedInkVertexShader);
+        expect(next.spray.fragmentShader).toBe(shaders.enhancedSprayFragmentShader);
+        expect(next.core.defines.BASS_INK_ENHANCED).toBeDefined();
+        expect(Object.keys(next.dust.uniforms).some((k) => k.startsWith('uEnh'))).toBe(true);
+    });
+
+    it('leaves new materials standard while off, and keeps a retained material attached', () => {
+        const { handle, materials } = setup();
+        const next = { ...fresh(), dust: materials.dust };
+        handle.setMaterials(next);
+        expect(next.shell.vertexShader).toBe(inkVertexShader);
+        handle.setEnabled(true);
+        expect(materials.dust.vertexShader).toBe(shaders.enhancedDustVertexShader);
+        handle.setMaterials({ ...fresh(), dust: materials.dust });
+        expect(materials.dust.vertexShader).toBe(shaders.enhancedDustVertexShader);
+        handle.setEnabled(false);
+        expect(materials.dust.vertexShader).toBe(dustVertexShader);
+    });
+
+    it('tolerates one material in two slots and is ignored after dispose', () => {
+        const { handle } = setup();
+        const m = fresh();
+        handle.setMaterials({ ...m, core: m.shell });
+        handle.setEnabled(true);
+        expect(m.shell.vertexShader).toBe(shaders.enhancedInkVertexShader);
+        handle.dispose();
+        const next = fresh();
+        handle.setMaterials(next);
+        expect(next.shell.defines.BASS_INK_ENHANCED).toBeUndefined();
+    });
+});
+
+describe('dispose', () => {
+    it('restores the standard look, clears the extra passes and frees each pass once, idempotently', () => {
+        const { handle, materials, setExtraPasses, bloom, grade } = setup();
+        handle.setEnabled(true);
+        handle.dispose();
+        handle.dispose();
+        expect(materials.shell.vertexShader).toBe(inkVertexShader);
+        expect(materials.dust.defines.BASS_INK_ENHANCED).toBeUndefined();
+        expect(setExtraPasses).toHaveBeenCalledTimes(2);
+        expect(setExtraPasses).toHaveBeenLastCalledWith([]);
+        expect(bloom.dispose).toHaveBeenCalledTimes(1);
+        expect(grade.dispose).toHaveBeenCalledTimes(1);
+        expect(handle.enabled).toBe(false);
+        handle.step(SLOW);
+        handle.setEnabled(true);
+        expect(handle.enabled).toBe(false);
+    });
+});
+
+describe('shaders', () => {
+    const pairs: [string, string, string][] = [
+        ['ink', shaders.enhancedInkVertexShader, shaders.enhancedInkFragmentShader],
+        ['dust', shaders.enhancedDustVertexShader, shaders.enhancedDustFragmentShader],
+        ['spray', shaders.enhancedSprayVertexShader, shaders.enhancedSprayFragmentShader],
+        ['grade', shaders.gradeVertexShader, shaders.gradeFragmentShader],
+    ];
+    const varyings = (source: string) => [...source.matchAll(/^\s*varying\s+\w+\s+(\w+)\s*;/gm)].map((m) => m[1]);
+
+    it.each(pairs)('%s: every fragment varying is declared by the vertex shader', (_name, vertex, fragment) => {
+        const declared = varyings(vertex);
+        for (const name of varyings(fragment)) expect(declared).toContain(name);
+    });
+
+    it.each(pairs)('%s: the fragment stage has no time or music input', (_name, _vertex, fragment) => {
+        expect(fragment).not.toMatch(/uTime|uKick|uSpectrum|uHigh\b|uMid\b|uSwell\b|uPunch|uBreath/);
+    });
+
+    it('the ink variant keeps every varying and uniform the standard vertex shader declares', () => {
+        const names = (source: string) =>
+            [...source.matchAll(/^\s*(?:uniform|attribute)\s+\w+\s+(\w+)/gm)].map((m) => m[1]);
+        for (const name of names(inkVertexShader)) expect(names(shaders.enhancedInkVertexShader)).toContain(name);
+        for (const name of varyings(inkVertexShader)) expect(varyings(shaders.enhancedInkVertexShader)).toContain(name);
+        for (const name of names(dustVertexShader)) expect(names(shaders.enhancedDustVertexShader)).toContain(name);
+        for (const name of names(sprayVertexShader)) expect(names(shaders.enhancedSprayVertexShader)).toContain(name);
+    });
+
+    it('keeps uBrightness as the ink variant brightness input and ends every fragment in the colorspace include', () => {
+        expect(shaders.enhancedInkFragmentShader).toContain('(1.0 + uBrightness)');
+        for (const [name, , fragment] of pairs) {
+            if (name === 'grade') continue;
+            expect(fragment).toContain('#include <colorspace_fragment>');
+        }
+    });
+
+    it('declares every uEnh uniform a stage reads', () => {
+        for (const [, vertex, fragment] of pairs) {
+            for (const source of [vertex, fragment]) {
+                const used = new Set(source.match(/\buEnh\w+/g) ?? []);
+                const declared = new Set([...source.matchAll(/uniform\s+\w+\s+(uEnh\w+)/g)].map((m) => m[1]));
+                for (const name of used) expect(declared).toContain(name);
+            }
+        }
+    });
+
+    it('every uEnh uniform a shader declares is supplied by the look', () => {
+        const { materials, grade } = setup();
+        const supplied = (m: THREE.ShaderMaterial) => Object.keys(m.uniforms);
+        const declared = (source: string) => [...source.matchAll(/uniform\s+\w+\s+(uEnh\w+)/g)].map((x) => x[1]);
+        for (const [m, v, f] of [
+            [materials.shell, shaders.enhancedInkVertexShader, shaders.enhancedInkFragmentShader],
+            [materials.dust, shaders.enhancedDustVertexShader, shaders.enhancedDustFragmentShader],
+            [materials.spray, shaders.enhancedSprayVertexShader, shaders.enhancedSprayFragmentShader],
+        ] as [THREE.ShaderMaterial, string, string][]) {
+            for (const name of [...declared(v), ...declared(f)]) expect(supplied(m)).toContain(name);
+        }
+        for (const name of declared(shaders.gradeFragmentShader)) expect(Object.keys(grade.uniforms)).toContain(name);
+    });
+});

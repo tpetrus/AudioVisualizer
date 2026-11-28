@@ -3,7 +3,7 @@ export const ENHANCED_GRAPHICS_STRINGS = {
     sectionTitle: 'Graphics',
     recommended: 'Recommended',
     description:
-        'Richer lighting, reflections and sky for the dancing character. Needs a strong GPU; downloads up to about 30 MB.',
+        'Richer lighting, glow and depth for the dancing character, the cubes and the trio color wave. Needs a strong GPU; the dancer downloads up to about 30 MB.',
     status: {
         loading: 'Loading enhanced assets',
         ready: 'Enhanced graphics on',

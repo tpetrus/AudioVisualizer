@@ -67,8 +67,8 @@ export function EnhancedGraphicsPrompt({ blocked }: EnhancedGraphicsPromptProps)
     return (
         <Dialog title="Turn on enhanced graphics?" onClose={close} className="max-w-md">
             <p className="text-sm text-text-muted">
-                Richer lighting, reflections and sky. Needs a strong GPU and downloads up to about 30 MB. You can change
-                this any time in Graphics settings.
+                Richer lighting, glow and depth in the visualizers. Needs a strong GPU, and the dancing character
+                downloads up to about 30 MB. You can change this any time in Graphics settings.
             </p>
             <div className="mt-4 flex justify-end gap-2">
                 <Button variant="secondary" onClick={close}>
