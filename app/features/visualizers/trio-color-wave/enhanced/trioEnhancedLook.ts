@@ -26,7 +26,7 @@ import type {
     TrioEnhancedLookOptions,
 } from './trioEnhancedTypes';
 import { TrioDust } from './trioDust';
-import { TrioShockwave } from './trioShockwave';
+import { TrioSpectrumGlow } from './trioSpectrumGlow';
 
 // The longest frame time the look advances by, so a stalled tab does not skip its animations in one step.
 const MAX_FRAME_SECONDS = 0.1;
@@ -41,8 +41,8 @@ function clamp01(value: number): number {
     return Math.min(1, Math.max(0, value));
 }
 
-// The enhanced look of the trio scene: a denser, glowing copy of each sheet, a backdrop with depth haze, dust, a ring
-// on every accented beat, and a bloom composer. Everything the look owns is allocated here, once; `render` reuses it and
+// The enhanced look of the trio scene: a denser, glowing copy of each sheet, a backdrop with depth haze, dust, a soft
+// glow behind the bars that follows the spectrum, and a bloom composer. Everything the look owns is allocated here, once; `render` reuses it and
 // only writes numbers.
 export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnhancedLookOptions): TrioEnhancedLook => {
     const { renderer, scene, camera, sheets, valuesRef, rhythm, reducedMotion } = options;
@@ -59,7 +59,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
     let dense: TrioDenseBars[];
     let backdrop: TrioBackdrop;
     let dust: TrioDust;
-    let shockwave: TrioShockwave;
+    let glowLight: TrioSpectrumGlow;
     let composer: EffectComposer;
     let renderPass: RenderPass;
     let bloom: UnrealBloomPass;
@@ -76,9 +76,6 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         opacity: sheet.material.uniforms.opacity.value as number,
     }));
     const accent = createTrioAccent();
-    // The last downbeat counter seen, so a burst that lands on a downbeat can be made bigger. Undefined before the first
-    // frame, which never counts as a new downbeat.
-    let lastDownbeatCount: number | undefined;
     // One input object, rewritten every frame, so stepping the accent allocates nothing.
     const accentInput: TrioAccentInput = {
         dtSeconds: 0,
@@ -112,7 +109,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         const farthestZ = sheets.length > 0 ? sheets[sheets.length - 1].mesh.position.z : 0;
         backdrop = track(new TrioBackdrop(farthestZ));
         dust = track(new TrioDust(renderer.getPixelRatio()));
-        shockwave = track(new TrioShockwave(farthestZ));
+        glowLight = track(new TrioSpectrumGlow(sheets, farthestZ));
 
         // The composer: the scene in linear HDR, a bloom, then one conversion to the screen (ACES and sRGB) in
         // OutputPass.
@@ -146,7 +143,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
         scene.add(bars.flags.mesh);
     }
     scene.add(dust.points);
-    for (const ring of shockwave.rings) scene.add(ring);
+    scene.add(glowLight.mesh);
 
     // Standard meshes are shown at (1 - mix) of their opacity while the look comes in, and hidden once it has.
     const applyMix = (): void => {
@@ -171,15 +168,11 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             // Without a tracker nothing ever triggers: the counters stay at 0.
             let beatCount = 0;
             let bassOnset = 0;
-            let downbeatCount = 0;
             if (rhythm) {
                 rhythm.updatePhase();
                 beatCount = rhythm.state.beatCount;
                 bassOnset = rhythm.state.bandOnsets[0] ?? 0;
-                downbeatCount = rhythm.state.downbeatCount;
             }
-            const downbeat = lastDownbeatCount !== undefined && downbeatCount > lastDownbeatCount;
-            lastDownbeatCount = downbeatCount;
             accentInput.dtSeconds = dt;
             accentInput.beatCount = beatCount;
             accentInput.bassOnset = bassOnset;
@@ -204,8 +197,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             }
             backdrop.update(values.depth, mix);
             dust.update(dt, values.dust, mix, reduced);
-            if (accent.triggered && !reduced) shockwave.fire(values.accentIntensity, downbeat);
-            shockwave.update(dt, mix, reduced);
+            glowLight.update(dt, glow, accent.pulse, mix);
 
             // Glow 0 is a true off: no bloom pass at all, not just a weak one.
             bloom.enabled = glow > 0 && !tooSmallForBloom();
@@ -239,7 +231,7 @@ export const createTrioEnhancedLook: CreateTrioEnhancedLook = (options: TrioEnha
             for (const bars of dense) bars.dispose();
             backdrop.dispose();
             dust.dispose();
-            shockwave.dispose();
+            glowLight.dispose();
             renderPass.dispose();
             bloom.dispose();
             outputPass.dispose();
