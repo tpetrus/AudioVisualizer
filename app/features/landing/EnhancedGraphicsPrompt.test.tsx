@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ENHANCED_GRAPHICS_KEY } from '~/features/settings/enhancedGraphicsStore';
@@ -28,6 +28,20 @@ describe('EnhancedGraphicsPrompt', () => {
         expect(await screen.findByRole('dialog', { name: 'Turn on enhanced graphics?' })).toBeInTheDocument();
         expect(screen.getByText(/Richer lighting, reflections and sky/)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Turn on' })).toHaveFocus();
+    });
+
+    it('does not open when a value is stored after mount but before the probe passes', async () => {
+        probe.passes = false;
+        const { rerender } = render(<EnhancedGraphicsPrompt blocked={false} />);
+        // Let the mount-time storage read run while nothing is stored yet.
+        await act(async () => {});
+        localStorage.setItem(ENHANCED_GRAPHICS_KEY, 'false');
+
+        probe.passes = true;
+        rerender(<EnhancedGraphicsPrompt blocked={false} />);
+
+        expect(dialog()).not.toBeInTheDocument();
+        expect(localStorage.getItem(ENHANCED_GRAPHICS_PROMPT_SEEN_KEY)).toBeNull();
     });
 
     it('Turn on enables the setting, writes the flag and closes for good', async () => {

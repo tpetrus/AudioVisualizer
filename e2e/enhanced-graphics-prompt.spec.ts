@@ -62,6 +62,8 @@ test('Not now leaves enhanced graphics off, and a reload shows no prompt', async
 
     await page.reload();
     await expect(enhancedSwitch(page)).toHaveAttribute('aria-checked', 'false');
-    await page.waitForTimeout(1500);
+    // The badge appears only once the faked probe has passed, which is also what would open the prompt, so this proves
+    // the prompt had its chance and stayed closed because of the seen flag.
+    await expect(page.getByText('Recommended', { exact: true })).toBeVisible();
     await expect(prompt(page)).toBeHidden();
 });

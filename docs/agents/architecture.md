@@ -309,11 +309,18 @@ backdrop and fog, GPU grid waves and shatter, particles, beat motion). It is off
   (`'true'` or `'false'`; anything else, or blocked storage, reads as off). `useEnhancedGraphics()` wraps it in
   `useSyncExternalStore` (server snapshot false), so every component sees the same value. Same-tab writes notify
   directly; other tabs are kept in sync by the `storage` event.
-- **Toggle surfaces:** one component, `components/EnhancedGraphicsToggle`, is shown in two places. The landing page renders
-  it under the connect-audio button; the dancer page passes it to `ControlPanel` through the `header` slot (shown above the
-  sections whenever the panel is open) together with a `status`. `useCapabilityHint` runs one lazy, shared capability probe
-  (it creates and releases a throwaway WebGL context after idle) and only adds a "your device can likely handle this" line;
-  it never turns the preference on.
+- **Toggle surfaces:** one component, `components/EnhancedGraphicsToggle`, renders its own "Graphics" section (a
+  `Switch` with visible On/Off, a description and a `status` live region) and is shown in two places. The landing page
+  renders it between the audio line and the cards; the cubes and dancer pages pass it to `ControlPanel` through the
+  `header` slot, so it is the first block whenever the panel is open. `useCapabilityHint` runs one lazy, shared capability
+  probe (it creates and releases a throwaway WebGL context after idle) and only adds a "Recommended" badge while the
+  preference is off; it never turns the preference on.
+- **First-visit prompt:** `landing/EnhancedGraphicsPrompt.tsx` offers the look once, in a `Dialog`, only when the probe
+  passes, no preference is stored, the seen flag `audioVisualizer.enhancedGraphicsPromptSeen` is absent, storage can be
+  written, and the audio source dialog is not open (`settings/enhancedGraphicsPromptStore.ts`, checked again at the moment
+  it would open). Turn on sets the preference; Not now, Escape and the backdrop only write the flag. E2E fixtures seed the
+  flag (`e2e/promptSeen.ts`) so the prompt never covers other specs; `e2e/enhanced-graphics-prompt.spec.ts` opts out and
+  fakes a capable probe.
 - **Lazy look:** `dancing-character/enhanced/dancingCharacterEnhanced.ts` (`createEnhancedLook`) is loaded with a dynamic
   `import()` only when the preference is on, so the Reflector, `HDRLoader` and shaders stay out of the standard bundle. Its
   assets are `?url` imports in `enhancedAssetUrls.ts` (`ferndale_studio_02_2k.hdr`, `qwantani_night_puresky_4k.jpg`, the

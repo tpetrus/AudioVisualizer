@@ -37,8 +37,14 @@ export function EnhancedGraphicsPrompt({ blocked }: EnhancedGraphicsPromptProps)
 
     // Latches open, so a dialog that opens later does not take the prompt away; `blocked` only gates the opening.
     // Adjusting state during render (React's pattern for state derived from props) avoids an extra effect pass.
+    // Storage is checked again at this moment because the idle probe, or a blocking dialog, can hold the opening back
+    // long after mount: the visitor may have flipped the switch meanwhile, or another tab may have answered.
     if (!open && capable && !blocked && !dismissed) {
-        setOpen(true);
+        if (shouldShowEnhancedGraphicsPrompt()) {
+            setOpen(true);
+        } else {
+            setDismissed(true);
+        }
     }
 
     // The dialog focuses itself on mount; this moves focus on to the primary action.
